@@ -1,0 +1,102 @@
+filters:
+  and:
+    - file.inFolder("Tareas")
+    - file.ext == "md"
+    - Estado != null
+formulas:
+  created_display: note["Fecha de creación"].format("DD-MM-YYYY HH:mm")
+  updated_display: note["Última modificación"].format("DD-MM-YYYY HH:mm")
+properties:
+  file.name:
+    displayName: Tarea
+  Estado:
+    displayName: Estado
+  Resumen:
+    displayName: Resumen
+  Decisiones:
+    displayName: Decisiones
+  Bloqueada:
+    displayName: Bloqueada por
+  formula.created_display:
+    displayName: Creada
+  formula.updated_display:
+    displayName: Modificada
+views:
+  - type: table
+    name: Todo
+    order:
+      - file.name
+      - Estado
+      - Resumen
+      - Decisiones
+      - Bloqueada
+      - formula.created_display
+      - formula.updated_display
+    sort:
+      - property: formula.updated_display
+        direction: DESC
+      - property: Fecha de creación
+        direction: ASC
+  - type: table
+    name: Planificando
+    filters:
+      and:
+        - Estado == "Planificando"
+    order:
+      - file.name
+      - Estado
+      - Resumen
+      - Decisiones
+      - Bloqueada
+      - formula.created_display
+      - formula.updated_display
+  - type: table
+    name: Pendiente
+    filters:
+      and:
+        - Estado == "Pendiente"
+    order:
+      - file.name
+      - Estado
+      - Resumen
+      - Decisiones
+      - Bloqueada
+      - formula.created_display
+      - formula.updated_display
+  - type: table
+    name: En curso
+    filters:
+      and:
+        - Estado == "En curso"
+    order:
+      - file.name
+      - Estado
+      - Resumen
+      - Decisiones
+      - Bloqueada
+      - formula.created_display
+      - formula.updated_display
+  - type: table
+    name: Hecha
+    filters:
+      and:
+        - Estado == "Hecha"
+    order:
+      - file.name
+      - Estado
+      - Resumen
+      - Decisiones
+      - formula.created_display
+      - formula.updated_display
+  - type: table
+    name: Archivada
+    filters:
+      and:
+        - Estado == "Archivada"
+    order:
+      - file.name
+      - Estado
+      - Resumen
+      - Decisiones
+      - formula.created_display
+      - formula.updated_display

@@ -1,0 +1,79 @@
+filters:
+  and:
+    - file.inFolder("Decisiones")
+    - file.ext == "md"
+    - Estado != null
+formulas:
+  created_display: note["Fecha de creación"].format("DD-MM-YYYY HH:mm")
+  updated_display: note["Última modificación"].format("DD-MM-YYYY HH:mm")
+properties:
+  file.name:
+    displayName: Decisión
+  Número:
+    displayName: Nº
+  Estado:
+    displayName: Estado
+  Resumen:
+    displayName: Resumen
+  Decisión:
+    displayName: Decisión
+  Consecuencias:
+    displayName: Consecuencias
+  formula.created_display:
+    displayName: Creada
+  formula.updated_display:
+    displayName: Modificada
+views:
+  - type: table
+    name: Todo
+    order:
+      - Número
+      - file.name
+      - Estado
+      - Resumen
+      - Decisión
+      - Consecuencias
+      - formula.created_display
+      - formula.updated_display
+    sort:
+      - property: Número
+        direction: ASC
+  - type: table
+    name: Aceptadas
+    filters:
+      and:
+        - Estado == "Aceptada"
+    order:
+      - Número
+      - file.name
+      - Resumen
+      - Decisión
+      - Consecuencias
+      - formula.updated_display
+    sort:
+      - property: Número
+        direction: ASC
+  - type: table
+    name: Propuestas
+    filters:
+      and:
+        - Estado == "Propuesta"
+    order:
+      - Número
+      - file.name
+      - Resumen
+      - Decisión
+      - formula.created_display
+  - type: table
+    name: Reemplazadas u obsoletas
+    filters:
+      or:
+        - Estado == "Reemplazada"
+        - Estado == "Obsoleta"
+        - Estado == "Rechazada"
+    order:
+      - Número
+      - file.name
+      - Estado
+      - Resumen
+      - formula.updated_display

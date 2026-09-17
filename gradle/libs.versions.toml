@@ -1,0 +1,17 @@
+[versions]
+agp = "8.7.3"
+kotlin = "2.1.0"
+compose = "1.7.3"
+androidx-activityCompose = "1.9.3"
+android-compileSdk = "35"
+android-minSdk = "26"
+android-targetSdk = "35"
+
+[libraries]
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activityCompose" }
+
+[plugins]
+androidApplication = { id = "com.android.application", version.ref = "agp" }
+kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "compose" }
+composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

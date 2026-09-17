@@ -1,0 +1,39 @@
+filters:
+  and:
+    - file.inFolder("Catálogo técnico")
+    - file.ext == "md"
+    - Nombre != null
+properties:
+  file.name:
+    displayName: Pieza
+  Tipo: { displayName: Tipo }
+  Área: { displayName: Área }
+  Feature: { displayName: Feature }
+  Estado: { displayName: Estado }
+  Ámbito: { displayName: Ámbito }
+  Resumen: { displayName: Propósito y contrato }
+  Fuente: { displayName: Fuente }
+  Entrada pública: { displayName: Entrada pública }
+views:
+  - type: table
+    name: Todo
+    order: [file.name, Tipo, Área, Feature, Estado, Ámbito, Resumen, Fuente, Entrada pública]
+    sort:
+      - property: Área
+        direction: ASC
+      - property: Feature
+        direction: ASC
+      - property: Nombre
+        direction: ASC
+  - type: table
+    name: Vigentes
+    filters:
+      and:
+        - Estado == "Vigente"
+    order: [file.name, Tipo, Área, Feature, Ámbito, Resumen, Fuente, Entrada pública]
+  - type: table
+    name: En revisión
+    filters:
+      and:
+        - Estado == "En revisión"
+    order: [file.name, Tipo, Área, Feature, Resumen, Fuente]

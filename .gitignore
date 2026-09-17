@@ -1,0 +1,22 @@
+# Gradle
+.gradle/
+**/build/
+.kotlin/
+
+# Local machine config (SDK path, secrets) — never versioned
+local.properties
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Android build outputs
+*.apk
+*.aab
+captures/
+
+# OS noise
+.DS_Store
+Thumbs.db
