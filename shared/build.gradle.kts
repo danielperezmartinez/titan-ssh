@@ -65,3 +65,19 @@ kotlin {
         }
     }
 }
+
+// Opt-in integration tests reach a real SSH host. Connection details are passed
+// as -P project properties (never committed) and forwarded to the test JVM as
+// env vars; SshjIntegrationTest skips itself when they are absent.
+tasks.withType<Test>().configureEach {
+    testLogging { showStandardStreams = true }
+    mapOf(
+        "titanSshTestHost" to "TITAN_SSH_TEST_HOST",
+        "titanSshTestPort" to "TITAN_SSH_TEST_PORT",
+        "titanSshTestUser" to "TITAN_SSH_TEST_USER",
+        "titanSshTestKey" to "TITAN_SSH_TEST_KEY",
+        "titanSshTestPassphrase" to "TITAN_SSH_TEST_PASSPHRASE",
+    ).forEach { (prop, env) ->
+        (project.findProperty(prop) as String?)?.let { environment(env, it) }
+    }
+}

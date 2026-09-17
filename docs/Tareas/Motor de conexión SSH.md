@@ -1,11 +1,11 @@
 ---
 Nombre: "Motor de conexión SSH"
-Estado: En curso
-Resumen: Primitiva de conexión SSH sobre sshj: cablear sshj y el source set jvmShared, establecer una sesión autenticada con un AuthMethod inyectado, abrir un canal shell (PTY) con flujos de E/S, cierre limpio y heartbeat expuesto. Es la base sobre la que se apoyan la autenticación (signer/known_hosts), la resiliencia y el terminal multipestaña.
+Estado: Hecha
+Resumen: Primitiva de conexión SSH sobre sshj entregada y verificada (headless + handshake real contra un host por Tailscale): sshj + source set jvmShared cableados, sesión autenticada por clave, canal shell (PTY) con flujos de E/S, cierre limpio y heartbeat expuesto. Base sobre la que se apoyan la autenticación (signer/known_hosts), la resiliencia y el terminal multipestaña.
 Decisiones: Sigue [[ADR-0004 Librería SSH]] y [[ADR-0002 Stack KMP y alcance multiplataforma]]; consume [[ADR-0001 Credenciales en almacén nativo del SO]] y [[ADR-0005 Autenticación SSH y verificación de host]].
 Bloqueada: []
 Fecha de creación: 2026-09-17T19:40:00+02:00
-Última modificación: 2026-09-17T20:15:00+02:00
+Última modificación: 2026-09-17T20:30:00+02:00
 ---
 
 # Motor de conexión SSH
@@ -67,10 +67,16 @@ JVM compartido por Android y escritorio, según la arquitectura del `README`.
   Applied Correctly», por insertar el source set intermedio `jvmShared`; no
   afecta a la compilación ni a los tests.
 
-**Pendiente (necesita host SSH de pruebas):** handshake real —
-autenticación (password / clave software), verificación de host key vía el
-verificador inyectable, y E/S del shell PTY— contra un servidor OpenSSH. Se hará
-contra un portátil en la misma red Tailscale que este PC.
+**Handshake real (hecho):** verificado contra un host real (`<host-de-pruebas>`,
+usuario `<usuario>`) por Tailscale, con `SshjIntegrationTest` (opt-in, se salta sin
+credenciales; la clave privada se lee de disco en tiempo de ejecución, nunca del
+repo). Resultado: host key `ssh-ed25519
+SHA256:<huella-del-host>` entregado y con fingerprint
+calculado; autenticación por clave correcta (llega a `CONNECTED`); shell PTY con
+E/S real (el shell remoto devolvió su secuencia de integración confirmando
+`user=<usuario>;hostname=<host-de-pruebas>`). Fuente:
+`shared/src/desktopTest/kotlin/im/gar/titanssh/ssh/SshjIntegrationTest.kt`
+(el reenvío de datos de conexión vía `-P` está en `shared/build.gradle.kts`).
 
 ## Resultado
 
