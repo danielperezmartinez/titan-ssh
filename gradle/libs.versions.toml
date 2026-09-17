@@ -8,6 +8,8 @@ android-minSdk = "26"
 android-targetSdk = "37"
 javaKeyring = "1.0.4"
 kotlinxCoroutines = "1.10.2"
+sshj = "0.39.0"
+eddsa = "0.3.0"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activityCompose" }
@@ -16,6 +18,10 @@ kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-t
 # Desktop SecretStore backend (ADR-0001): Windows Credential Store (DPAPI-backed)
 # and Linux Secret Service via a single maintained JNA wrapper.
 java-keyring = { module = "com.github.javakeyring:java-keyring", version.ref = "javaKeyring" }
+# SSH client (ADR-0004): pure-Java, BouncyCastle optional since 0.39.0. Lives in
+# the jvmShared source set. eddsa provides ed25519 (preferred key, ADR-0005).
+sshj = { module = "com.hierynomus:sshj", version.ref = "sshj" }
+eddsa = { module = "net.i2p.crypto:eddsa", version.ref = "eddsa" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

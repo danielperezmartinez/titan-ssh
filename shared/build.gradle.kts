@@ -37,15 +37,29 @@ kotlin {
             implementation(libs.kotlinx.coroutines.core)
         }
 
-        // Desktop SecretStore backend (ADR-0001). Android uses the platform
-        // KeyStore directly, so this dependency is desktop-only.
-        val desktopMain by getting
-        desktopMain.dependencies {
-            implementation(libs.java.keyring)
+        // Intermediate JVM source set shared by Android and desktop (README
+        // architecture): pure-Java pieces both JVM targets use, notably the sshj
+        // SSH client (ADR-0004). commonMain stays free of sshj.
+        val jvmSharedMain = create("jvmSharedMain") {
+            dependsOn(getByName("commonMain"))
+            dependencies {
+                implementation(libs.sshj)
+                implementation(libs.eddsa)
+            }
         }
 
-        val desktopTest by getting
-        desktopTest.dependencies {
+        getByName("androidMain").dependsOn(jvmSharedMain)
+
+        // Desktop SecretStore backend (ADR-0001). Android uses the platform
+        // KeyStore directly, so this dependency is desktop-only.
+        getByName("desktopMain") {
+            dependsOn(jvmSharedMain)
+            dependencies {
+                implementation(libs.java.keyring)
+            }
+        }
+
+        getByName("desktopTest").dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
         }

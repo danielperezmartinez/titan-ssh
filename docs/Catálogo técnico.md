@@ -34,8 +34,8 @@ que ninguno de los valores existentes cubra.
   `Modelo de dominio` · `Componente UI` · `Token` · `Utilidad`.
 - **Área**: `Seguridad` · `Conexión SSH` · `Terminal` · `Configuración` ·
   `UI compartida` · `Plataforma`.
-- **Feature**: `Custodia de credenciales` · `Autenticación` · `Resiliencia` ·
-  `Gestión de hosts` · `Shared UI`.
+- **Feature**: `Custodia de credenciales` · `Autenticación` · `Conexión` ·
+  `Resiliencia` · `Gestión de hosts` · `Shared UI`.
 - **Ámbito**: `Aplicación` · `Feature` · `Shell`.
 
 <!-- Opcional: si el proyecto tiene una comprobación automatizada del catálogo

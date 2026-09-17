@@ -1,11 +1,11 @@
 ---
 Nombre: "Motor de conexión SSH"
-Estado: Pendiente
+Estado: En curso
 Resumen: Primitiva de conexión SSH sobre sshj: cablear sshj y el source set jvmShared, establecer una sesión autenticada con un AuthMethod inyectado, abrir un canal shell (PTY) con flujos de E/S, cierre limpio y heartbeat expuesto. Es la base sobre la que se apoyan la autenticación (signer/known_hosts), la resiliencia y el terminal multipestaña.
 Decisiones: Sigue [[ADR-0004 Librería SSH]] y [[ADR-0002 Stack KMP y alcance multiplataforma]]; consume [[ADR-0001 Credenciales en almacén nativo del SO]] y [[ADR-0005 Autenticación SSH y verificación de host]].
 Bloqueada: []
 Fecha de creación: 2026-09-17T19:40:00+02:00
-Última modificación: 2026-09-17T19:40:00+02:00
+Última modificación: 2026-09-17T20:15:00+02:00
 ---
 
 # Motor de conexión SSH
@@ -52,8 +52,44 @@ JVM compartido por Android y escritorio, según la arquitectura del `README`.
 
 ## Verificación
 
-<Se rellena al completar: pruebas, build, comprobación real.>
+**Headless (hecho):**
+
+- Build de ambos targets OK (`GRADLE_EXIT=0`, `BUILD SUCCESSFUL`):
+  `:shared:compileAndroidMain`, `:shared:compileKotlinDesktop` (incluye el nuevo
+  source set `jvmSharedMain` con sshj), `:androidApp:compileDebugKotlin`,
+  `:desktopApp:compileKotlin`.
+- Tests `SshjConnectorTest` (`:shared:desktopTest`): `tests=3 skipped=0
+  failures=0` — la fábrica devuelve conector, un intento a un puerto cerrado se
+  mapea a `SshConnectFailed`, y el fingerprint tiene la forma `SHA256:` estándar
+  (32 bytes, base64 sin padding). Fuente:
+  `shared/src/desktopTest/kotlin/im/gar/titanssh/ssh/SshjConnectorTest.kt`.
+- Warning conocido y benigno de Gradle: «Default Kotlin Hierarchy Template Not
+  Applied Correctly», por insertar el source set intermedio `jvmShared`; no
+  afecta a la compilación ni a los tests.
+
+**Pendiente (necesita host SSH de pruebas):** handshake real —
+autenticación (password / clave software), verificación de host key vía el
+verificador inyectable, y E/S del shell PTY— contra un servidor OpenSSH. Se hará
+contra un portátil en la misma red Tailscale que este PC.
 
 ## Resultado
 
-<Se rellena al completar: qué se hizo finalmente.>
+Primitiva de conexión SSH entregada (paquete `im.gar.titanssh.ssh`):
+
+- **`commonMain` (contrato, sin sshj):** `SshEndpoint`, `SshCredentials`
+  (`Password` / `PrivateKey`), `HostKeyVerifier` + `HostKeyInfo`, `SshSession`,
+  `SshShell`, `SshConnectionState`, `SshConnector`, excepciones
+  (`SshConnectFailed`/`SshHostKeyRejected`/`SshAuthFailed`) y la fábrica
+  `expect fun createSshConnector()`.
+- **`jvmSharedMain` (impl sshj, compartida Android+escritorio):** `SshjConnector`
+  (conexión, keepalive/heartbeat, verificador de host que calcula el fingerprint
+  SHA256 y delega la confianza, autenticación password/clave), `SshjSession`
+  (estado observable + watcher de caída) y `SshjShell` (PTY, flujo de salida por
+  `Channel`, envío de entrada, `resize` real vía `changeWindowDimensions`). Un
+  único `actual` de la fábrica sirve a los dos targets.
+
+Toolchain: sshj 0.39.0 (BouncyCastle opcional) + eddsa 0.3.0 para ed25519, en el
+source set `jvmShared` del `README`. La preferencia de método/clave (ed25519) ya
+vive en el modelo de [[Almacenamiento seguro de credenciales]]; el signer
+hardware y `known_hosts` los añade
+[[Autenticación SSH signer en hardware y verificación de host]] sobre esta base.
