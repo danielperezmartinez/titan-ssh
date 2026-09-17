@@ -34,6 +34,20 @@ kotlin {
             implementation(compose.foundation)
             implementation(compose.material3)
             implementation(compose.ui)
+            implementation(libs.kotlinx.coroutines.core)
+        }
+
+        // Desktop SecretStore backend (ADR-0001). Android uses the platform
+        // KeyStore directly, so this dependency is desktop-only.
+        val desktopMain by getting
+        desktopMain.dependencies {
+            implementation(libs.java.keyring)
+        }
+
+        val desktopTest by getting
+        desktopTest.dependencies {
+            implementation(kotlin("test"))
+            implementation(libs.kotlinx.coroutines.test)
         }
     }
 }

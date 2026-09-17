@@ -24,10 +24,19 @@ implementación, que continúa siendo la fuente de verdad técnica.
 - Las adaptaciones de datos de dominio se realizan en el consumidor; las
   primitivas compartidas no conocen modelos de un área.
 
-<!-- TODO: los vocabularios de Tipo, Área, Feature y Ámbito aún no están
-definidos porque el proyecto no tiene código todavía. Acordarlos con el usuario
-en cuanto exista una primera superficie reutilizable, y mantenerlos consistentes
-a partir de entonces. -->
+## Vocabularios
+
+Acordados al registrar la primera superficie reutilizable (`SecretStore`). Se
+mantienen consistentes a partir de aquí; se amplían solo cuando aparezca un caso
+que ninguno de los valores existentes cubra.
+
+- **Tipo**: `Contrato` · `Servicio` · `Implementación de plataforma` ·
+  `Modelo de dominio` · `Componente UI` · `Token` · `Utilidad`.
+- **Área**: `Seguridad` · `Conexión SSH` · `Terminal` · `Configuración` ·
+  `UI compartida` · `Plataforma`.
+- **Feature**: `Custodia de credenciales` · `Autenticación` · `Resiliencia` ·
+  `Gestión de hosts` · `Shared UI`.
+- **Ámbito**: `Aplicación` · `Feature` · `Shell`.
 
 <!-- Opcional: si el proyecto tiene una comprobación automatizada del catálogo
 (p. ej. un script que valida propiedades, fuentes y entrypoints), documéntala

@@ -6,9 +6,16 @@ androidx-activityCompose = "1.13.0"
 android-compileSdk = "37"
 android-minSdk = "26"
 android-targetSdk = "37"
+javaKeyring = "1.0.4"
+kotlinxCoroutines = "1.10.2"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activityCompose" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
+# Desktop SecretStore backend (ADR-0001): Windows Credential Store (DPAPI-backed)
+# and Linux Secret Service via a single maintained JNA wrapper.
+java-keyring = { module = "com.github.javakeyring:java-keyring", version.ref = "javaKeyring" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
