@@ -3,9 +3,9 @@ Nombre: Resiliencia de sesión ante microcortes de red
 Estado: Planificando
 Resumen: 'Los microcortes de red no deben cerrar la terminal ni perder el trabajo del usuario. La pestaña queda en espera guardando su estado y se reanuda al reconectar, mostrando como mucho un loader de "reconectando". Alcance: modelo por niveles (reconexión de cliente + auto-tmux/screen + agente propio en el destino).'
 Decisiones: Sigue [[ADR-0003 Modelo de resiliencia por niveles]] y [[ADR-0004 Librería SSH]].
-Bloqueada: []
+Bloqueada: [[Motor de conexión SSH]]
 Fecha de creación: 2026-09-17T15:32:11+02:00
-Última modificación: 2026-09-17T16:34:18+02:00
+Última modificación: 2026-09-17T19:42:00+02:00
 ---
 
 # Resiliencia de sesión ante microcortes de red
@@ -47,6 +47,9 @@ Los tres niveles están dentro del alcance del proyecto, según
 
 La librería SSH ya está decidida (sshj cliente / MINA agente, [[ADR-0004 Librería SSH]]);
 el detalle de implementación de cada nivel se afinará al construirlos.
+
+El nivel 1 se apoya en la sesión y el heartbeat que expone
+[[Motor de conexión SSH]], por lo que esta tarea queda bloqueada por él.
 
 ## Verificación
 
