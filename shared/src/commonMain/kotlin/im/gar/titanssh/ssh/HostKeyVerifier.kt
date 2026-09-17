@@ -7,13 +7,16 @@ package im.gar.titanssh.ssh
  * @param port the port being connected to.
  * @param keyType the SSH key type name (e.g. `ssh-ed25519`).
  * @param fingerprintSha256 the standard `SHA256:...` fingerprint (base64, no
- *   padding) of the host key.
+ *   padding) of the host key, for display and user confirmation.
+ * @param publicKeyBase64 the host key blob in standard base64 (the third field
+ *   of an OpenSSH `known_hosts` line), for persistence and exact comparison.
  */
 data class HostKeyInfo(
     val host: String,
     val port: Int,
     val keyType: String,
     val fingerprintSha256: String,
+    val publicKeyBase64: String,
 )
 
 /**

@@ -3,6 +3,7 @@ package im.gar.titanssh.ssh
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -15,32 +16,45 @@ import kotlinx.coroutines.runBlocking
  * build). Credentials never live in the repo — the private key is read from a
  * path on disk given at run time.
  *
- * What it proves that headless tests cannot: authentication, host-key delivery,
- * and shell (PTY) I/O against a live server.
+ * What it proves that headless tests cannot: authentication, host-key delivery
+ * and TOFU verification, and shell (PTY) I/O against a live server.
  */
 class SshjIntegrationTest {
 
-    @Test
-    fun connects_authenticates_and_runs_a_shell_command() {
+    private class Params(
+        val host: String,
+        val port: Int,
+        val user: String,
+        val credentials: () -> SshCredentials,
+    )
+
+    /** Reads connection details, or null (and prints why) when the test should skip. */
+    private fun params(): Params? {
         val host = System.getenv("TITAN_SSH_TEST_HOST")
         val user = System.getenv("TITAN_SSH_TEST_USER")
         val keyPath = System.getenv("TITAN_SSH_TEST_KEY")
         if (host == null || user == null || keyPath == null) {
             println("[integration] skipped: set TITAN_SSH_TEST_HOST/USER/KEY to run")
-            return
+            return null
         }
         val port = System.getenv("TITAN_SSH_TEST_PORT")?.toIntOrNull() ?: 22
         val passphrase = System.getenv("TITAN_SSH_TEST_PASSPHRASE")?.toCharArray()
-        val pem = File(keyPath).readText().toCharArray()
+        return Params(host, port, user) {
+            SshCredentials.PrivateKey(File(keyPath).readText().toCharArray(), passphrase)
+        }
+    }
+
+    @Test
+    fun connects_authenticates_and_runs_a_shell_command() {
+        val p = params() ?: return
 
         runBlocking {
-            val connector = createSshConnector()
-            val session = connector.connect(
-                endpoint = SshEndpoint(host, port, user),
-                credentials = SshCredentials.PrivateKey(pem, passphrase),
+            val session = createSshConnector().connect(
+                endpoint = SshEndpoint(p.host, p.port, p.user),
+                credentials = p.credentials(),
                 hostKeyVerifier = { info ->
                     println("[integration] host key ${info.keyType} ${info.fingerprintSha256}")
-                    true // TOFU accept for the connectivity check
+                    true
                 },
                 keepAliveSeconds = 15,
             )
@@ -58,8 +72,8 @@ class SshjIntegrationTest {
             }
 
             shell.send("whoami\n".encodeToByteArray())
-            // Collect for a fixed window so the command result (not just the
-            // PTY echo of the typed line) is captured.
+            // Collect for a fixed window so the command result (not just the PTY
+            // echo of the typed line) is captured.
             delay(2500)
 
             shell.send("exit\n".encodeToByteArray())
@@ -70,6 +84,55 @@ class SshjIntegrationTest {
 
             println("[integration] shell output: ${output.toString().trim().take(200)}")
             assertTrue(output.isNotBlank(), "the remote shell should have produced output")
+        }
+    }
+
+    @Test
+    fun known_hosts_tofu_persists_across_connections_and_rejects_a_mismatch() {
+        val p = params() ?: return
+
+        runBlocking {
+            val file = File.createTempFile("titan-known-hosts-it", ".txt").apply { delete(); deleteOnExit() }
+            val store = FileKnownHostsStore(file)
+
+            // First contact: accept and remember.
+            var prompted = 0
+            createSshConnector().connect(
+                endpoint = SshEndpoint(p.host, p.port, p.user),
+                credentials = p.credentials(),
+                hostKeyVerifier = KnownHostsVerifier(store) { prompted++; true },
+                keepAliveSeconds = 0,
+            ).close()
+            assertEquals(1, prompted, "first contact should prompt once")
+            assertTrue(
+                store.entriesFor(p.host, p.port).isNotEmpty(),
+                "the host key should now be persisted",
+            )
+
+            // Reconnect with a prompt that refuses new hosts: it must still connect
+            // because the key is now known on disk.
+            createSshConnector().connect(
+                endpoint = SshEndpoint(p.host, p.port, p.user),
+                credentials = p.credentials(),
+                hostKeyVerifier = KnownHostsVerifier(store) { false },
+                keepAliveSeconds = 0,
+            ).close()
+
+            // A store poisoned with a different key of the same type must be
+            // rejected as a possible MITM.
+            val stored = store.entriesFor(p.host, p.port).first()
+            val poisoned = InMemoryKnownHostsStore(
+                listOf(stored.copy(publicKeyBase64 = "AAAAtampered")),
+            )
+            assertFailsWith<SshHostKeyRejected> {
+                createSshConnector().connect(
+                    endpoint = SshEndpoint(p.host, p.port, p.user),
+                    credentials = p.credentials(),
+                    hostKeyVerifier = KnownHostsVerifier(poisoned) { false },
+                    keepAliveSeconds = 0,
+                )
+            }
+            println("[integration] known_hosts TOFU verified (persist + match + mismatch reject)")
         }
     }
 }

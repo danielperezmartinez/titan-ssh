@@ -42,11 +42,13 @@ internal class SshjConnector : SshConnector {
         ssh.addHostKeyVerifier(
             object : net.schmizz.sshj.transport.verification.HostKeyVerifier {
                 override fun verify(hostname: String, port: Int, key: PublicKey): Boolean {
+                    val blob = Buffer.PlainBuffer().putPublicKey(key).compactData
                     val info = HostKeyInfo(
                         host = hostname,
                         port = port,
                         keyType = KeyType.fromKey(key).toString(),
-                        fingerprintSha256 = sshFingerprintSha256(key),
+                        fingerprintSha256 = sshFingerprintSha256(blob),
+                        publicKeyBase64 = Base64.getEncoder().encodeToString(blob),
                     )
                     if (!runBlocking { hostKeyVerifier.verify(info) }) {
                         throw HostKeyRejectedSignal(info)
@@ -123,12 +125,19 @@ internal class SshjConnector : SshConnector {
     }
 }
 
-/** Standard `SHA256:<base64-no-pad>` fingerprint of an SSH public key. */
-internal fun sshFingerprintSha256(key: PublicKey): String {
-    val blob = Buffer.PlainBuffer().putPublicKey(key).compactData
+/** The SSH wire-format blob of a public key (the bytes an OpenSSH line base64s). */
+internal fun sshPublicKeyBlob(key: PublicKey): ByteArray =
+    Buffer.PlainBuffer().putPublicKey(key).compactData
+
+/** Standard `SHA256:<base64-no-pad>` fingerprint from a public key blob. */
+internal fun sshFingerprintSha256(blob: ByteArray): String {
     val digest = MessageDigest.getInstance("SHA-256").digest(blob)
     return "SHA256:" + Base64.getEncoder().withoutPadding().encodeToString(digest)
 }
+
+/** Standard `SHA256:<base64-no-pad>` fingerprint of an SSH public key. */
+internal fun sshFingerprintSha256(key: PublicKey): String =
+    sshFingerprintSha256(sshPublicKeyBlob(key))
 
 /** Internal marker thrown from the verifier so [SshjConnector] can map it precisely. */
 private class HostKeyRejectedSignal(val info: HostKeyInfo) : RuntimeException()
