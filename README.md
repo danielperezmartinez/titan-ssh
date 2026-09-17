@@ -11,13 +11,19 @@ sesión sin muros de pago.
 
 ## Estructura
 
-- `composeApp/` — módulo único con la app.
+Tres módulos Gradle (topología nativa de AGP 9 para apps KMP + Compose):
+
+- `shared/` — **librería KMP** compartida (`com.android.kotlin.multiplatform.library`).
   - `src/commonMain` — dominio y UI compartida (Compose Multiplatform) + interfaces `expect`.
-  - `src/androidMain` — `actual` de Android y empaquetado de la app Android.
-  - `src/desktopMain` — `actual` y entrypoint de escritorio (JVM, Windows/Linux).
+  - `src/androidMain` — `actual` de Android.
+  - `src/desktopMain` — `actual` de escritorio (JVM, Windows/Linux).
+- `androidApp/` — **app Android** (`com.android.application`), consume `shared`.
+- `desktopApp/` — **app de escritorio** (JVM + Compose), consume `shared`.
 
 Ver [ADR-0002](docs/Decisiones/ADR-0002%20Stack%20KMP%20y%20alcance%20multiplataforma.md)
-para el stack y el alcance.
+(stack y alcance) y
+[ADR-0006](docs/Decisiones/ADR-0006%20Estructura%20multi-módulo%20KMP%20para%20AGP%209.md)
+(topología de módulos).
 
 ## Requisitos
 
@@ -27,23 +33,17 @@ para el stack y el alcance.
 
 Stack: Gradle 9.7.1, AGP 9.4.0, Kotlin 2.4.20, Compose Multiplatform 1.9.3.
 
-> Nota (AGP 9): desde AGP 9.0, `com.android.application` y
-> `org.jetbrains.kotlin.multiplatform` no conviven en el mismo módulo. Mantenemos
-> el módulo único con `android.builtInKotlin=false` / `android.newDsl=false`
-> (ver `gradle.properties`). Es un puente soportado pero temporal; a futuro puede
-> requerir separar en módulos (librería KMP + app Android).
-
 ## Comandos
 
 ```bash
 # Escritorio: ejecutar la app
-./gradlew :composeApp:run
+./gradlew :desktopApp:run
 
 # Android: construir el APK de debug
-./gradlew :composeApp:assembleDebug
+./gradlew :androidApp:assembleDebug
 
 # Empaquetado nativo de escritorio (Windows .msi / Linux .deb)
-./gradlew :composeApp:packageDistributionForCurrentOS
+./gradlew :desktopApp:packageDistributionForCurrentOS
 ```
 
 ## Idioma

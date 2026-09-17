@@ -84,7 +84,10 @@ A petición del usuario (preferencia por estar a la última; su móvil es Androi
   `android.newDsl=false` en `gradle.properties`. Es un puente **soportado pero
   ya marcado como deprecado**; la alternativa futura es separar en multi-módulo
   (librería `com.android.kotlin.multiplatform.library` + app Android). Candidato
-  a ADR/tarea propia si se decide migrar.
+  a ADR/tarea propia si se decide migrar. → **Ya migrado**: ver
+  [[Migrar a estructura multi-módulo AGP 9]] y
+  [[ADR-0006 Estructura multi-módulo KMP para AGP 9]]; los flags se eliminaron y
+  el módulo único `composeApp` ya no existe.
 - **Verificado de nuevo:** `:composeApp:assembleDebug` → `BUILD SUCCESSFUL`
   (APK ~10,4 MB) y `:composeApp:run` arranca la ventana sin excepciones, ambos
   con el stack nuevo.
