@@ -80,6 +80,9 @@ internal class SshjConnector : SshConnector {
 
         try {
             authenticate(ssh, endpoint.username, credentials)
+        } catch (e: SshHardwareKeyUnavailable) {
+            runCatching { ssh.disconnect() }
+            throw e // let the caller fall back to a software key
         } catch (e: UserAuthException) {
             runCatching { ssh.disconnect() }
             throw SshAuthFailed("Authentication failed for ${endpoint.username}@${endpoint.host}", e)
@@ -108,6 +111,14 @@ internal class SshjConnector : SshConnector {
                         ssh.loadKeys(String(credentials.privateKeyPem), null, null)
                     }
                 ssh.authPublickey(username, keys)
+            }
+
+            is SshCredentials.HardwareKey -> {
+                val material = HardwareKeyRegistry.resolve(credentials.keyAlias)
+                    ?: throw SshHardwareKeyUnavailable(
+                        "No hardware key for alias '${credentials.keyAlias}' on this platform",
+                    )
+                ssh.authPublickey(username, DelegatedKeyProvider(material))
             }
         }
     }

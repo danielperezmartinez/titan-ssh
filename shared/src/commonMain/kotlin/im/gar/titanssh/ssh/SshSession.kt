@@ -85,3 +85,11 @@ class SshHostKeyRejected(message: String, cause: Throwable? = null) :
 /** Authentication was rejected by the server. */
 class SshAuthFailed(message: String, cause: Throwable? = null) :
     SshException(message, cause)
+
+/**
+ * A [SshCredentials.HardwareKey] could not be resolved on this platform (no
+ * hardware key store, or no key under that alias). The caller should fall back
+ * to a software key.
+ */
+class SshHardwareKeyUnavailable(message: String, cause: Throwable? = null) :
+    SshException(message, cause)
