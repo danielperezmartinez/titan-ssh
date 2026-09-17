@@ -22,7 +22,16 @@ para el stack y el alcance.
 ## Requisitos
 
 - **JDK 17+** (el proyecto se ha inicializado con el JBR 21 de Android Studio).
-- **Android SDK** con `compileSdk 35` y build-tools 35 (ruta en `local.properties`).
+- **Android SDK** con `compileSdk 37` (Android 17) y build-tools 37 (ruta en
+  `local.properties`). `minSdk 26` para retrocompatibilidad.
+
+Stack: Gradle 9.7.1, AGP 9.4.0, Kotlin 2.4.20, Compose Multiplatform 1.9.3.
+
+> Nota (AGP 9): desde AGP 9.0, `com.android.application` y
+> `org.jetbrains.kotlin.multiplatform` no conviven en el mismo módulo. Mantenemos
+> el módulo único con `android.builtInKotlin=false` / `android.newDsl=false`
+> (ver `gradle.properties`). Es un puente soportado pero temporal; a futuro puede
+> requerir separar en módulos (librería KMP + app Android).
 
 ## Comandos
 

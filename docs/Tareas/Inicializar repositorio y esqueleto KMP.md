@@ -5,7 +5,7 @@ Resumen: 'Poner en marcha el proyecto: inicializar git con repositorio remoto y 
 Decisiones: Sigue [[ADR-0002 Stack KMP y alcance multiplataforma]]. Toolchain de la máquina: JDK 21 (JBR de Android Studio) y Android SDK (compileSdk 35). Gradle 8.10.2, Kotlin 2.1.0, AGP 8.7.3, Compose Multiplatform 1.7.3. Módulo único `composeApp` con targets android + desktop (jvm). Paquete `im.gar.titanssh`. JetBrains Mono se pospone (se usa monospace del sistema) por evitar bundling de fuente en el esqueleto.
 Bloqueada: []
 Fecha de creación: 2026-09-17T15:40:00+02:00
-Última modificación: 2026-09-17T18:05:00+02:00
+Última modificación: 2026-09-17T18:35:00+02:00
 ---
 
 # Inicializar repositorio y esqueleto KMP
@@ -63,3 +63,28 @@ seam `platformName`) se catalogarán al acordar el vocabulario.
 Remoto indicado por el usuario y `git push -u origin main` correcto (las
 credenciales ya estaban configuradas en la máquina). Todos los criterios de
 finalización cumplidos y verificados.
+
+## Actualización (2026-09-17): toolchain a Android 17 / AGP 9
+
+A petición del usuario (preferencia por estar a la última; su móvil es Android
+17) se subió todo el stack. El esqueleto y las decisiones no cambian.
+
+- **Versiones:** Gradle 8.10.2 → **9.7.1**; AGP 8.7.3 → **9.4.0**; Kotlin 2.1.0 →
+  **2.4.20**; Compose Multiplatform 1.7.3 → **1.9.3**;
+  `compileSdk`/`targetSdk` 35 → **37** (Android 17). `minSdk` sigue en **26**
+  (retrocompatibilidad; "estar a la última" y "soportar móviles antiguos" son
+  ajustes distintos y no chocan). `activity-compose` 1.9.3 → 1.13.0.
+- **SDK instalado** por CLI: `platforms/android-37.0` (API 37, Android 17) y
+  `build-tools/37.0.0`. La nueva Android CLI (`android sdk ...`, reemplaza a
+  `sdkmanager`) crashea al salir (exit `0xC0000409`) pero completa el trabajo;
+  hay que verificar la instalación aparte, no fiarse del código de salida.
+- **AGP 9 — cambio relevante:** desde AGP 9.0 `com.android.application` y
+  `org.jetbrains.kotlin.multiplatform` no conviven en un mismo módulo. Se
+  mantiene el módulo único con `android.builtInKotlin=false` /
+  `android.newDsl=false` en `gradle.properties`. Es un puente **soportado pero
+  ya marcado como deprecado**; la alternativa futura es separar en multi-módulo
+  (librería `com.android.kotlin.multiplatform.library` + app Android). Candidato
+  a ADR/tarea propia si se decide migrar.
+- **Verificado de nuevo:** `:composeApp:assembleDebug` → `BUILD SUCCESSFUL`
+  (APK ~10,4 MB) y `:composeApp:run` arranca la ventana sin excepciones, ambos
+  con el stack nuevo.
