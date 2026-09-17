@@ -1,11 +1,11 @@
 ---
 Nombre: "Autenticación SSH: signer en hardware y verificación de host"
-Estado: En curso
-Resumen: Autenticación SSH sobre el motor: verificación de host TOFU (known_hosts) verificada headless y contra host real (hecho), y signer delegado en clave no exportable (Android Keystore EC P-256 vía DelegatedKeyProvider; fallback software por PEM) implementado y compile-verified. Falta SOLO validar la firma real en hardware en un dispositivo/emulador Android para cerrar la tarea.
+Estado: Hecha
+Resumen: Autenticación SSH sobre el motor, verificada de punta a punta. Verificación de host TOFU (known_hosts) y signer delegado en clave no exportable (Android Keystore EC P-256 vía DelegatedKeyProvider; fallback software por PEM). La firma real en hardware se validó en un dispositivo real (StrongBox) contra el host de pruebas. Clave del arreglo en Android: BouncyCastle disponible pero NO forzado, para que la firma se enrute al proveedor AndroidKeyStore.
 Decisiones: Sigue [[ADR-0005 Autenticación SSH y verificación de host]] y [[ADR-0004 Librería SSH]].
 Bloqueada: []
 Fecha de creación: 2026-09-17T19:20:00+02:00
-Última modificación: 2026-09-17T21:30:00+02:00
+Última modificación: 2026-09-18T00:40:00+02:00
 ---
 
 # Autenticación SSH: signer en hardware y verificación de host
@@ -35,13 +35,17 @@ La fundación ya entregada aporta lo que esta tarea consume:
 > El cableado de sshj y el source set `jvmShared` los aporta
 > [[Motor de conexión SSH]]; esta tarea construye encima.
 
-- ✅ **Signer delegado en hardware** (compile-verified; firma real pendiente de
-  dispositivo Android). `SshCredentials.HardwareKey(alias)` → el motor lo resuelve
-  vía `HardwareKeyRegistry` a un `DelegatedKeyProvider` (sshj `KeyProvider`) que
-  firma con la `PrivateKey` no exportable del Keystore por JCE. Android:
+- ✅ **Signer delegado en hardware** (verificado en dispositivo real).
+  `SshCredentials.HardwareKey(alias)` → el motor lo resuelve vía
+  `HardwareKeyRegistry` a un `DelegatedKeyProvider` (sshj `KeyProvider`) que firma
+  con la `PrivateKey` no exportable del Keystore por JCE. Android:
   `AndroidHardwareKeys` genera/usa una clave EC P-256 no exportable en Android
   Keystore/StrongBox (ed25519 en Keystore aún no es portable entre dispositivos;
   P-256 es la alternativa aceptada por ADR-0005) y expone su línea `authorized_keys`.
+  Para que la firma funcione en Android, `SshAndroidCrypto` deja BouncyCastle
+  disponible pero **no forzado** como proveedor de sshj: así la firma usa
+  selección perezosa y se enruta al proveedor AndroidKeyStore (forzar BC falla
+  con «no encoding for EC private key» porque BC necesita el material de la clave).
 - ✅ **Fallback** por software: `SshCredentials.PrivateKey` (clave PEM custodiada
   en `SecretStore`), ya verificado contra host real. En escritorio no hay clave no
   exportable portable en v1, así que usa este fallback.
@@ -80,18 +84,20 @@ La fundación ya entregada aporta lo que esta tarea consume:
 - El path `authPublickey(KeyProvider)` que usa la delegación es el **mismo** que
   ya autentica de forma verificada por PEM contra el host real; `DelegatedKeyProvider`
   es otra implementación de ese `KeyProvider`.
-- **Pendiente (dispositivo Android) — único punto abierto de la tarea:** la firma
-  real en hardware (Android Keystore EC P-256 ↔ sshj) solo puede validarse en un
-  dispositivo/emulador con un servidor que confíe en la clave. Medio previsto: el
-  emulador Android disponible en esta máquina, o el móvil del usuario. Flujo:
-  `AndroidHardwareKeys.ensureKey(alias)` → añadir su línea al `authorized_keys` de
-  un host de pruebas → conectar con `SshCredentials.HardwareKey(alias)` y
-  comprobar auth. Al validarlo, marcar la tarea `Hecha`.
+- **Real en hardware (hecho):** APK de prueba instalado en **un dispositivo Android**;
+  la app generó la clave EC P-256 no exportable en el Keystore (StrongBox), se
+  enroló su pública en el `authorized_keys` del host `<host-de-pruebas>`, y la app
+  conectó por Tailscale **autenticando con la firma del Keystore** (log:
+  «Autenticado con la clave del Keystore»), abrió shell PTY y ejecutó un comando
+  contra el shell real (`user=<usuario>;hostname=<host-de-pruebas>`). La pantalla de
+  prueba vive en `androidApp` (`HardwareSignerTestScreen`, debug).
+  Diagnóstico intermedio: sin BC en Android fallaba el KEX (`SshConnectFailed`);
+  con BC forzado, la firma fallaba (`no encoding for EC private key`); el arreglo
+  fue `SshAndroidCrypto` (BC disponible, no forzado).
 
 ## Resultado
 
-<Se cierra al validar el signer en dispositivo.> Implementado hasta ahora, sobre
-el motor:
+Autenticación SSH cerrada y verificada de punta a punta sobre el motor:
 
 - **Verificación de host TOFU** (`KnownHostsVerifier`, `KnownHostsStore` con
   `InMemoryKnownHostsStore` y `FileKnownHostsStore` en formato OpenSSH),
@@ -99,6 +105,11 @@ el motor:
   pública base64.
 - **Signer delegado**: `SshCredentials.HardwareKey` + `HardwareKeyRegistry` +
   `DelegatedKeyProvider` (jvmShared) + `AndroidHardwareKeys` (Android Keystore EC
-  P-256 no exportable, instalado desde `MainActivity`). Fallback software por
-  `SshCredentials.PrivateKey`. La clave hardware nunca sale del almacén.
-  Compile-verified; firma real pendiente de dispositivo Android.
+  P-256 no exportable, instalado desde `MainActivity`) + `SshAndroidCrypto` (BC
+  disponible pero no forzado, para enrutar la firma al AndroidKeyStore). Fallback
+  software por `SshCredentials.PrivateKey`. La clave hardware nunca sale del
+  almacén. **Verificado firmando en hardware en un dispositivo real** contra el host de
+  pruebas.
+- Nota: `androidApp` muestra ahora una pantalla de prueba del signer
+  (`HardwareSignerTestScreen`, debug); se sustituirá por la UI real al construir
+  [[Terminal multipestaña con sesiones simultáneas]] / [[Panel de gestión de hosts y sesiones]].

@@ -48,7 +48,14 @@ kotlin {
             }
         }
 
-        getByName("androidMain").dependsOn(jvmSharedMain)
+        getByName("androidMain") {
+            dependsOn(jvmSharedMain)
+            dependencies {
+                // Full BouncyCastle so sshj can negotiate with modern OpenSSH on
+                // Android (its bundled "BC" provider is stripped down). ADR-0004.
+                implementation(libs.bouncycastle.prov)
+            }
+        }
 
         // Desktop SecretStore backend (ADR-0001). Android uses the platform
         // KeyStore directly, so this dependency is desktop-only.
