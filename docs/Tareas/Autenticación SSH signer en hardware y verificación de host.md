@@ -1,11 +1,11 @@
 ---
 Nombre: "Autenticación SSH: signer en hardware y verificación de host"
-Estado: Hecha
-Resumen: Autenticación SSH sobre el motor: verificación de host TOFU (known_hosts) verificada headless y contra host real, y signer delegado en clave no exportable (Android Keystore EC P-256 vía DelegatedKeyProvider; fallback software por PEM). El signer queda compile-verified; su firma real en hardware está pendiente de un dispositivo Android.
+Estado: En curso
+Resumen: Autenticación SSH sobre el motor: verificación de host TOFU (known_hosts) verificada headless y contra host real (hecho), y signer delegado en clave no exportable (Android Keystore EC P-256 vía DelegatedKeyProvider; fallback software por PEM) implementado y compile-verified. Falta SOLO validar la firma real en hardware en un dispositivo/emulador Android para cerrar la tarea.
 Decisiones: Sigue [[ADR-0005 Autenticación SSH y verificación de host]] y [[ADR-0004 Librería SSH]].
 Bloqueada: []
 Fecha de creación: 2026-09-17T19:20:00+02:00
-Última modificación: 2026-09-17T21:15:00+02:00
+Última modificación: 2026-09-17T21:30:00+02:00
 ---
 
 # Autenticación SSH: signer en hardware y verificación de host
@@ -80,14 +80,18 @@ La fundación ya entregada aporta lo que esta tarea consume:
 - El path `authPublickey(KeyProvider)` que usa la delegación es el **mismo** que
   ya autentica de forma verificada por PEM contra el host real; `DelegatedKeyProvider`
   es otra implementación de ese `KeyProvider`.
-- **Pendiente (dispositivo Android):** la firma real en hardware (Android Keystore
-  EC P-256 ↔ sshj) solo puede validarse en un dispositivo/emulador con un servidor
-  que confíe en la clave. Queda como comprobación en dispositivo, análoga a la del
-  backend Android de [[Almacenamiento seguro de credenciales]].
+- **Pendiente (dispositivo Android) — único punto abierto de la tarea:** la firma
+  real en hardware (Android Keystore EC P-256 ↔ sshj) solo puede validarse en un
+  dispositivo/emulador con un servidor que confíe en la clave. Medio previsto: el
+  emulador Android disponible en esta máquina, o el móvil del usuario. Flujo:
+  `AndroidHardwareKeys.ensureKey(alias)` → añadir su línea al `authorized_keys` de
+  un host de pruebas → conectar con `SshCredentials.HardwareKey(alias)` y
+  comprobar auth. Al validarlo, marcar la tarea `Hecha`.
 
 ## Resultado
 
-Cerrada la autenticación SSH sobre el motor:
+<Se cierra al validar el signer en dispositivo.> Implementado hasta ahora, sobre
+el motor:
 
 - **Verificación de host TOFU** (`KnownHostsVerifier`, `KnownHostsStore` con
   `InMemoryKnownHostsStore` y `FileKnownHostsStore` en formato OpenSSH),
