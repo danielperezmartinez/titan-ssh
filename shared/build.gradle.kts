@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.androidKotlinMultiplatformLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.kotlinSerialization)
 }
 
 kotlin {
@@ -34,7 +35,15 @@ kotlin {
             implementation(compose.foundation)
             implementation(compose.material3)
             implementation(compose.ui)
+            // Bundled fonts (JetBrains Mono) via Compose Multiplatform resources.
+            // "Mono en todo" is the visual identity; the family is bundled rather
+            // than relying on the system monospace.
+            implementation(compose.components.resources)
             implementation(libs.kotlinx.coroutines.core)
+            // Config model + persistence (hosts/sessions/scripts) serialized to
+            // JSON. The @Serializable types live in commonMain; the file-backed
+            // store lives in jvmShared.
+            implementation(libs.kotlinx.serialization.json)
         }
 
         // Intermediate JVM source set shared by Android and desktop (README
@@ -71,6 +80,13 @@ kotlin {
             implementation(libs.kotlinx.coroutines.test)
         }
     }
+}
+
+// Generate a stable, importable accessor (`im.gar.titanssh.resources.Res`) for
+// the bundled Compose resources (JetBrains Mono fonts).
+compose.resources {
+    publicResClass = true
+    packageOfResClass = "im.gar.titanssh.resources"
 }
 
 // Opt-in integration tests reach a real SSH host. Connection details are passed

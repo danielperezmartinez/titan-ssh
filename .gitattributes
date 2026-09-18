@@ -9,6 +9,8 @@ gradlew text eol=lf
 
 # Binary assets — never touch line endings.
 *.jar binary
+*.ttf binary
+*.otf binary
 *.png binary
 *.jpg binary
 *.webp binary

@@ -8,6 +8,11 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import im.gar.titanssh.resources.Res
+import im.gar.titanssh.resources.jetbrainsmono_bold
+import im.gar.titanssh.resources.jetbrainsmono_medium
+import im.gar.titanssh.resources.jetbrainsmono_regular
+import org.jetbrains.compose.resources.Font
 
 /**
  * Maps the dark-first titan-ssh tokens onto Material 3.
@@ -30,24 +35,30 @@ private val TitanDarkColorScheme = darkColorScheme(
     onError = TitanColors.Ink,
 )
 
-// "Mono en todo" is the identity of the visual language. The agreed family is
-// JetBrains Mono; bundling the font file is a follow-up, so the skeleton falls
-// back to the system monospace to keep the mono identity without a font asset.
-private val Mono = FontFamily.Monospace
-
-private val TitanTypography = Typography(
-    displaySmall = TextStyle(fontFamily = Mono, fontWeight = FontWeight.Bold, fontSize = 28.sp),
-    headlineSmall = TextStyle(fontFamily = Mono, fontWeight = FontWeight.Bold, fontSize = 16.sp),
-    bodyLarge = TextStyle(fontFamily = Mono, fontWeight = FontWeight.Medium, fontSize = 14.sp),
-    bodyMedium = TextStyle(fontFamily = Mono, fontWeight = FontWeight.Normal, fontSize = 14.sp),
-    labelSmall = TextStyle(fontFamily = Mono, fontWeight = FontWeight.Normal, fontSize = 12.sp),
+/**
+ * Builds the type scale from the visual decision on the given mono [family].
+ * The scale is tuned for app density (not landing density).
+ */
+private fun titanTypography(family: FontFamily): Typography = Typography(
+    displaySmall = TextStyle(fontFamily = family, fontWeight = FontWeight.Bold, fontSize = 28.sp),
+    headlineSmall = TextStyle(fontFamily = family, fontWeight = FontWeight.Bold, fontSize = 16.sp),
+    bodyLarge = TextStyle(fontFamily = family, fontWeight = FontWeight.Medium, fontSize = 14.sp),
+    bodyMedium = TextStyle(fontFamily = family, fontWeight = FontWeight.Normal, fontSize = 14.sp),
+    labelSmall = TextStyle(fontFamily = family, fontWeight = FontWeight.Normal, fontSize = 12.sp),
 )
 
 @Composable
 fun TitanTheme(content: @Composable () -> Unit) {
+    // "Mono en todo" with JetBrains Mono (the agreed family, bundled as a Compose
+    // resource). Falls back to the platform monospace only if a face fails to load.
+    val jetBrainsMono = FontFamily(
+        Font(Res.font.jetbrainsmono_regular, FontWeight.Normal),
+        Font(Res.font.jetbrainsmono_medium, FontWeight.Medium),
+        Font(Res.font.jetbrainsmono_bold, FontWeight.Bold),
+    )
     MaterialTheme(
         colorScheme = TitanDarkColorScheme,
-        typography = TitanTypography,
+        typography = titanTypography(jetBrainsMono),
         content = content,
     )
 }

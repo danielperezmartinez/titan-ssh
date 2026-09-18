@@ -1,11 +1,11 @@
 ---
 Nombre: Panel de gestión de hosts y sesiones
-Estado: Pendiente
-Resumen: 'Área de Configuración: gestionar y persistir hosts (reutilizables) y sesiones que los referencian, con modelo propio (sin imitar Termius). El host define "dónde y cómo conectar"; la sesión "qué hacer al conectar".'
-Decisiones: Enmarcada en [[Arquitectura de dos áreas Configuración y Sesiones]].
+Estado: Hecha
+Resumen: 'Área de Configuración entregada y verificada: modelo Host/Sesión/Script/Snippet/Grupo/Túnel (@Serializable), persistencia JSON app-privada (ConfigStore, secretos solo por referencia), controlador con StateFlow y CRUD, y UI Compose dark-first (listas + editores de host, sesión, snippet y grupos, con scripts guiados reordenables, túneles, ProxyJump, nivel de resiliencia, apariencia y duplicar). Shell de dos áreas cableado; Sesiones queda como lanzadera hasta el terminal.'
+Decisiones: Enmarcada en [[Arquitectura de dos áreas Configuración y Sesiones]]; formaliza [[ADR-0007 Modelo y persistencia de configuración]] y consume [[ADR-0001 Credenciales en almacén nativo del SO]] / [[ADR-0003 Modelo de resiliencia por niveles]].
 Bloqueada: []
 Fecha de creación: 2026-09-17T15:32:11+02:00
-Última modificación: 2026-09-17T16:48:56+02:00
+Última modificación: 2026-09-18T14:37:00+02:00
 ---
 
 # Panel de gestión de hosts y sesiones
@@ -46,8 +46,85 @@ Termius (aspecto que no convence al usuario); se busca un enfoque propio.
 
 ## Verificación
 
-<Se rellena al completar: pruebas, build, comprobación real.>
+- **Build ambos targets OK** (`JAVA_HOME` al JBR, wrapper, `--console=plain`):
+  `:shared:compileKotlinDesktop`, `:shared:compileAndroidMain`,
+  `:androidApp:compileDebugKotlin`, `:desktopApp:compileKotlin` → `BUILD
+  SUCCESSFUL`. APK: `:androidApp:assembleDebug` → `BUILD SUCCESSFUL`.
+- **Tests `:shared:desktopTest`** (I/O real, sin fallos):
+  - `ConfigModelTest` (`tests=10`): resolución sesión+host con y sin overrides,
+    ProxyJump, host ausente lanza `ConfigResolutionException`, merge de apariencia
+    (sesión > host > default), mapeo `HostAuth → AuthMethod` con `byPreference()`,
+    `scriptsFor()` filtra deshabilitados por fase, duplicar sesión con ids nuevos
+    e independientes, borrar host limpia la referencia ProxyJump, borrar grupo
+    desasocia miembros.
+  - `JsonFileConfigStoreTest` (`tests=3`): round-trip completo (los tres tipos de
+    auth, scripts, túneles, grupos, snippets, apariencia) contra fichero temporal;
+    fichero ausente carga config vacía; el documento persistido contiene solo
+    **referencias** (no secretos) y etiqueta el `HostAuth` sellado con el
+    discriminador `kind`.
+  Fuentes: `shared/src/desktopTest/kotlin/im/gar/titanssh/config/`.
+- **Escritorio:** `:desktopApp:run` arranca la ventana Compose con el shell de dos
+  áreas (pendiente de confirmación visual del usuario, como en tareas previas).
+- **Android:** compile-verified + APK; el arranque en dispositivo/emulador queda
+  como comprobación del usuario.
 
 ## Resultado
 
-<Se rellena al completar: qué se hizo finalmente.>
+Área de Configuración v1 entregada (paquete `im.gar.titanssh.config` + UI en
+`im.gar.titanssh.ui`), según [[ADR-0007 Modelo y persistencia de configuración]]:
+
+- **Modelo** `@Serializable` en `commonMain`: `Host` (alias, hostname, puerto,
+  usuario, `HostAuth` password/clave-software/clave-hardware, política
+  known_hosts, keepalive, ProxyJump por id, apariencia, grupo, tags, marcador),
+  `Session` (referencia a host + overrides usuario/puerto, `cd` inicial, nivel de
+  resiliencia, scripts, túneles, apariencia, grupo, tags), `SessionScript`
+  (fase, cuerpo/`snippetId`, `ScriptBehavior`, `ReconnectBehavior`, envVars,
+  secretRefs), `Snippet`, `Group`, `Tunnel`, `TerminalAppearance`, raíz
+  `TitanConfig`. Resolución `resolve(session)` → `SshEndpoint` + `HostAuth`.
+- **Persistencia** `ConfigStore` (JSON app-privado, escritura atómica) en
+  `jvmShared` (`JsonFileConfigStore`), directorio `expect`/`actual` por
+  plataforma. **Secretos solo por referencia** (SecretStore) o alias hardware.
+- **Estado**: `ConfigController` (StateFlow + CRUD + `duplicateSession`).
+- **UI Compose dark-first** (tokens opencode: mono, marcadores ASCII, hairlines,
+  4px/0px): componentes reutilizables (`TitanTextField`, `TitanButton`,
+  `TitanCheck`, `TitanSegmented`, `TitanDropdown`, `ListRow`, `EditorScaffold`…),
+  shell de dos áreas (`AppShell`), área de Configuración con pestañas
+  Hosts/Sesiones/Snippets/Grupos, y editores completos de host, sesión (con
+  formulario guiado de scripts reordenables, túneles, ProxyJump, resiliencia,
+  apariencia, duplicar), snippet y grupos.
+- **Cableado**: `App()` → `AppShell()`; `MainActivity` inicializa
+  `AndroidConfigContext` y muestra `App()` (la pantalla de prueba del signer se
+  conserva en el árbol como banco de pruebas, ya no es el entrypoint); escritorio
+  ya mostraba `App()`.
+
+Cierra también [[Scripts de inicio por sesión]] (el formulario guiado y los
+snippets viven dentro del editor de sesión). El terminal multipestaña real sigue
+en [[Terminal multipestaña con sesiones simultáneas]]; aquí el área de Sesiones
+es una lanzadera que ya demuestra la resolución config → motor.
+
+Nota catálogo técnico: aparecen nuevas superficies reutilizables (modelo de
+config, `ConfigStore`/`ConfigController`, componentes de UI), pero la taxonomía
+del Catálogo (Tipo/Área/Feature/Ámbito) sigue **por definir** y el README prohíbe
+inventar valores; se catalogarán al acordar el vocabulario.
+
+## Repaso de diseño (2026-09-18)
+
+Tras revisar la UI contra las directrices visuales se corrigieron desviaciones y
+se cerró el pendiente de tipografía, dejando la app conforme a
+[[Vocabulario ASCII ampliado y disciplina de color]] (que amplía
+[[Tokens visuales dark-first base opencode]]):
+
+- **Disciplina de color**: la rampa semántica (success/warning/danger) deja de
+  usarse como adorno; las filas de configuración van en color neutro y el verde/
+  ámbar/rojo quedan reservados a estado real. `accent` solo para interacción/
+  selección. Botón primario = superficie elevada + hairline accent (sin relleno
+  semántico).
+- **Marcadores ASCII**: se sustituye el `[✓]` no-ASCII por `[ok]`; se formaliza el
+  set ampliado (`[^]` `[v]` `[#]` `[<]` `[ok]`).
+- **Tipografía**: se **bundlea JetBrains Mono** (pesos 400/500/700, OFL-1.1 en
+  `third_party/JetBrainsMono/`) vía recursos de Compose, en vez del monospace del
+  sistema. Cierra el pendiente heredado de [[Inicializar repositorio y esqueleto KMP]].
+
+Reverificado: `:shared:compileKotlinDesktop` + `:shared:compileAndroidMain` +
+`:desktopApp:compileKotlin` + `:androidApp:compileDebugKotlin` → `BUILD
+SUCCESSFUL`; `:shared:desktopTest` sin fallos.

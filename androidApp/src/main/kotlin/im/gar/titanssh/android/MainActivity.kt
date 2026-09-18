@@ -4,8 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import im.gar.titanssh.App
+import im.gar.titanssh.config.AndroidConfigContext
 import im.gar.titanssh.secret.AndroidSecretStoreContext
 import im.gar.titanssh.ssh.AndroidHardwareKeys
 import im.gar.titanssh.ssh.SshAndroidCrypto
@@ -15,6 +15,8 @@ class MainActivity : ComponentActivity() {
         // Give the shared SecretStore its application Context before anything can
         // build it (ADR-0001). Uses the application context, so no Activity leak.
         AndroidSecretStoreContext.init(applicationContext)
+        // Same for the config store, which persists hosts/sessions under filesDir.
+        AndroidConfigContext.init(applicationContext)
         // Let the shared SSH engine resolve hardware-key aliases to Android
         // Keystore handles for delegated signing (ADR-0005).
         AndroidHardwareKeys.install()
@@ -24,11 +26,10 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
-            // Debug build: show the hardware-signer test screen instead of the
-            // skeleton until the real UI lands.
-            MaterialTheme {
-                Surface { HardwareSignerTestScreen() }
-            }
+            // Real product UI: the two-area shell (Configuración / Sesiones).
+            // The hardware-signer manual test (HardwareSignerTestScreen) stays in
+            // the source tree as a debug harness but is no longer the entrypoint.
+            App()
         }
     }
 }

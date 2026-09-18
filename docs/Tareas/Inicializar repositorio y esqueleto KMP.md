@@ -50,7 +50,10 @@ Esqueleto KMP + Compose Multiplatform en el módulo único `composeApp` con
   Multiplatform 1.7.3; target de bytecode JVM 17.
 - UI compartida mínima que aplica los tokens dark-first (mapeados a Material 3):
   `TitanColors` + `TitanTheme` (mono en todo, marcadores ASCII, superficies
-  planas). JetBrains Mono se pospone: se usa el monospace del sistema.
+  planas). JetBrains Mono se pospone: se usa el monospace del sistema. →
+  **Resuelto (2026-09-18)**: JetBrains Mono ya se bundlea como recurso de Compose;
+  ver [[Panel de gestión de hosts y sesiones]] y
+  [[Vocabulario ASCII ampliado y disciplina de color]].
 - git inicializado (rama `main`), `.gitignore` + `.gitattributes` (gradlew en
   LF), commit inicial `ec866f2`, publicado en el remoto
   `https://github.com/danielperezmartinez/titan-ssh` (`origin/main`).

@@ -1,11 +1,11 @@
 ---
 Nombre: Scripts de inicio por sesión
-Estado: Pendiente
-Resumen: 'Automatización clave del producto: formulario guiado por sesión para crear varios scripts (inicio, post-inicio, etc.) reordenables que se ejecutan al conectarse. UX y alcance v1 confirmados.'
-Decisiones: Enmarcada en [[Arquitectura de dos áreas Configuración y Sesiones]].
-Bloqueada: []
+Estado: En curso
+Resumen: 'Automatización clave. Modelo y formulario guiado ENTREGADOS dentro del editor de sesión (crear/editar/habilitar/reordenar scripts con todos los atributos v1: fase, comportamiento, expect, reconnect, secretos por ref, snippets como scripts bajo demanda). Falta la EJECUCIÓN al conectar/reconectar, que depende del flujo de lanzamiento del terminal.'
+Decisiones: Enmarcada en [[Arquitectura de dos áreas Configuración y Sesiones]]; el modelo se formaliza en [[ADR-0007 Modelo y persistencia de configuración]] y consume [[ADR-0001 Credenciales en almacén nativo del SO]].
+Bloqueada: [[Terminal multipestaña con sesiones simultáneas]]
 Fecha de creación: 2026-09-17T15:32:11+02:00
-Última modificación: 2026-09-17T16:48:56+02:00
+Última modificación: 2026-09-18T14:10:00+02:00
 ---
 
 # Scripts de inicio por sesión
@@ -55,10 +55,41 @@ producto.
   [[Panel de gestión de hosts y sesiones]]).
 - Ningún secreto viaja ni se guarda en texto plano.
 
+## Estado del trabajo (2026-09-18)
+
+Entregado junto con [[Panel de gestión de hosts y sesiones]] (para no duplicar:
+los scripts viven dentro del editor de sesión). Ver [[ADR-0007 Modelo y
+persistencia de configuración]].
+
+**Hecho (autoría y modelo):**
+
+- Modelo `@Serializable` `SessionScript` con **todos los atributos v1**: identidad
+  y orden (etiqueta, habilitado, orden por posición en la lista), **fase**
+  (`ScriptPhase`: pre-conexión local, al abrir shell, post-inicio, al reconectar,
+  bajo demanda), **comportamiento** (`ScriptBehavior`: silencioso vs visible,
+  esperar a terminar/timeout, continuar o abortar si falla, retardo, `expect`
+  patrón), `ReconnectBehavior` (re-ejecutar / solo `cd` / nada), envVars y
+  **secretos por referencia** (nunca texto plano), `cd` inicial como campo de
+  primera clase de la sesión.
+- **Formulario guiado** en el editor de sesión: crear, editar, habilitar/
+  deshabilitar y **reordenar** (`[^]`/`[v]`) varios scripts; insertar un
+  **snippet** de la biblioteca (los "bajo demanda", compartidos con
+  [[Panel de gestión de hosts y sesiones]]).
+- Persistencia verificada (round-trip JSON con scripts, ver la verificación de la
+  tarea del panel) y build de ambos targets OK.
+
+**Pendiente (ejecución):** ejecutar los scripts habilitados **en orden según su
+fase al conectar**, y respetar `ReconnectBehavior` al reconectar. Se apoya en el
+`SshShell` del [[Motor de conexión SSH]] (ya disponible) pero necesita el flujo de
+lanzamiento de sesión que aporta [[Terminal multipestaña con sesiones simultáneas]];
+por eso la tarea queda **bloqueada por** ella y en `En curso`.
+
 ## Verificación
 
-<Se rellena al completar: pruebas, build, comprobación real.>
+Autoría/modelo: cubierto por los tests de [[Panel de gestión de hosts y sesiones]]
+(`ConfigModelTest`, `JsonFileConfigStoreTest`) y el build de ambos targets. La
+ejecución se verificará contra un host real al completar la parte pendiente.
 
 ## Resultado
 
-<Se rellena al completar: qué se hizo finalmente.>
+<Se completará al cerrar la ejecución de scripts en el flujo de lanzamiento.>

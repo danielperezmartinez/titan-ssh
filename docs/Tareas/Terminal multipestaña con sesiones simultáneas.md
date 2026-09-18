@@ -29,6 +29,19 @@ pestañas. Al estar en una pestaña se ve el terminal listo para trabajar.
 - En **escritorio**, posibilidad de dividir la vista en dos terminales; en
   **Android**, una pestaña a pantalla completa.
 
+## Contexto ya disponible (2026-09-18)
+
+- El área de Sesiones existe como **lanzadera** (`SessionsArea`): lista las
+  sesiones guardadas y muestra la conexión que cada una resuelve (config → motor),
+  con un botón `[>] Lanzar` aún sin cablear. Entregada con
+  [[Panel de gestión de hosts y sesiones]].
+- El **nivel de resiliencia por sesión** ya se configura en el panel
+  (`ResilienceLevel`, [[ADR-0003 Modelo de resiliencia por niveles]]).
+- Esta tarea es la que debe **cablear el lanzamiento**: abrir la sesión sobre el
+  [[Motor de conexión SSH]] en una pestaña y, en ese flujo, **ejecutar los scripts
+  de inicio** ([[Scripts de inicio por sesión]], que queda bloqueada por esta para
+  su parte de ejecución).
+
 ## Verificación
 
 <Se rellena al completar: pruebas, build, comprobación real.>
