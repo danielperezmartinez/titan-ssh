@@ -29,6 +29,7 @@ import im.gar.titanssh.config.Host
 import im.gar.titanssh.config.Ids
 import im.gar.titanssh.config.Session
 import im.gar.titanssh.config.Snippet
+import im.gar.titanssh.secret.SecretProvisioner
 import im.gar.titanssh.theme.TitanColors
 import im.gar.titanssh.theme.TitanDimens
 
@@ -51,13 +52,13 @@ private sealed interface Editor {
  * style layout (visual decision), just flat mono lists with ASCII markers.
  */
 @Composable
-fun ConfigArea(controller: ConfigController) {
+fun ConfigArea(controller: ConfigController, provisioner: SecretProvisioner) {
     val config by controller.state.collectAsState()
     var tab by remember { mutableStateOf(ConfigTab.HOSTS) }
     var editor by remember { mutableStateOf<Editor?>(null) }
 
     when (val current = editor) {
-        is Editor.HostEdit -> HostEditor(controller, current.id) { editor = null }
+        is Editor.HostEdit -> HostEditor(controller, current.id, provisioner) { editor = null }
         is Editor.SessionEdit -> SessionEditor(controller, current.id) { editor = null }
         is Editor.SnippetEdit -> SnippetEditor(controller, current.id) { editor = null }
         null -> Column(Modifier.fillMaxSize()) {

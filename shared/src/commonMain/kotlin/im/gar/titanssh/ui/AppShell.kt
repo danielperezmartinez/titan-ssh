@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import im.gar.titanssh.config.ConfigController
 import im.gar.titanssh.config.createConfigStore
+import im.gar.titanssh.secret.SecretProvisioner
 import im.gar.titanssh.secret.createSecretStore
 import im.gar.titanssh.ssh.createKnownHostsStore
 import im.gar.titanssh.ssh.createSshConnector
@@ -49,11 +50,15 @@ fun AppShell() {
     TitanTheme {
         val scope = rememberCoroutineScope()
         val controller = remember { ConfigController(createConfigStore(), scope) }
+        // One SecretStore instance backs both the read side (resolving credentials
+        // at connect time) and the write side (provisioning them from the editor).
+        val secretStore = remember { createSecretStore() }
+        val provisioner = remember { SecretProvisioner(secretStore) }
         val sessionManager = remember {
             SessionManager(
                 scope = scope,
                 connector = createSshConnector(),
-                credentialResolver = CredentialResolver(createSecretStore()),
+                credentialResolver = CredentialResolver(secretStore),
                 knownHostsStore = createKnownHostsStore(),
             )
         }
@@ -65,7 +70,7 @@ fun AppShell() {
                 Hairline()
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     when (area) {
-                        Area.CONFIG -> ConfigArea(controller)
+                        Area.CONFIG -> ConfigArea(controller, provisioner)
                         Area.SESSIONS -> SessionsArea(controller, sessionManager)
                     }
                 }
