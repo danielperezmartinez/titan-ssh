@@ -24,6 +24,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import im.gar.titanssh.config.ConfigController
 import im.gar.titanssh.config.createConfigStore
+import im.gar.titanssh.secret.createSecretStore
+import im.gar.titanssh.ssh.createKnownHostsStore
+import im.gar.titanssh.ssh.createSshConnector
+import im.gar.titanssh.terminal.CredentialResolver
+import im.gar.titanssh.terminal.SessionManager
 import im.gar.titanssh.theme.TitanColors
 import im.gar.titanssh.theme.TitanDimens
 import im.gar.titanssh.theme.TitanTheme
@@ -44,6 +49,14 @@ fun AppShell() {
     TitanTheme {
         val scope = rememberCoroutineScope()
         val controller = remember { ConfigController(createConfigStore(), scope) }
+        val sessionManager = remember {
+            SessionManager(
+                scope = scope,
+                connector = createSshConnector(),
+                credentialResolver = CredentialResolver(createSecretStore()),
+                knownHostsStore = createKnownHostsStore(),
+            )
+        }
         var area by remember { mutableStateOf(Area.CONFIG) }
 
         Surface(Modifier.fillMaxSize(), color = TitanColors.Canvas) {
@@ -53,7 +66,7 @@ fun AppShell() {
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     when (area) {
                         Area.CONFIG -> ConfigArea(controller)
-                        Area.SESSIONS -> SessionsArea(controller)
+                        Area.SESSIONS -> SessionsArea(controller, sessionManager)
                     }
                 }
             }
