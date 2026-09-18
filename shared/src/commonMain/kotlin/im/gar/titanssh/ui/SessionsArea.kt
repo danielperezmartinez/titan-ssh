@@ -1,5 +1,7 @@
 package im.gar.titanssh.ui
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,12 +25,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -146,11 +150,18 @@ private fun TabStrip(
     var startCenter by remember { mutableStateOf(0f) }
     var pointerDx by remember { mutableStateOf(0f) }
 
-    fun centerOf(index: Int): Float {
+    fun slotLeft(index: Int): Float {
         var left = 0
         for (j in 0 until index) left += widths[tabs[j].id] ?: 0
-        return left + (widths[tabs.getOrNull(index)?.id] ?: 0) / 2f
+        return left.toFloat()
     }
+
+    fun centerOf(index: Int): Float =
+        slotLeft(index) + (widths[tabs.getOrNull(index)?.id] ?: 0) / 2f
+
+    // Every chip's width is known: only then are the derived slot positions final,
+    // so we snap (not animate) into place until then to avoid an opening slide-in.
+    val measured = tabs.all { widths.containsKey(it.id) }
 
     Row(
         Modifier.fillMaxWidth().background(TitanColors.Canvas),
@@ -171,6 +182,8 @@ private fun TabStrip(
                         selected = tab.id == activeId,
                         dragging = isDragging,
                         translationX = translationX,
+                        slotLeft = slotLeft(index),
+                        measured = measured,
                         onSelect = { onSelect(tab.id) },
                         onClose = { onClose(tab.id) },
                         onSize = { widths[tab.id] = it },
@@ -218,6 +231,8 @@ private fun TabChip(
     selected: Boolean,
     dragging: Boolean,
     translationX: Float,
+    slotLeft: Float,
+    measured: Boolean,
     onSelect: () -> Unit,
     onClose: () -> Unit,
     onSize: (Int) -> Unit,
@@ -227,7 +242,26 @@ private fun TabChip(
 ) {
     val status by tab.status.collectAsState()
     val (marker, markerColor) = statusMarker(status.phase)
-    val floatOffset = translationX
+    // Placement animation for the chips that are NOT being dragged: when a reorder
+    // changes this chip's slot, it slides from its old slot to the new one instead
+    // of jumping. `placement` tracks the animated slot position; the applied offset
+    // is (animated − target), which starts at the old delta and eases to 0. The
+    // dragged chip floats with the finger (translationX) and is kept in sync via
+    // snapTo, and we snap until all widths are measured to avoid an opening slide.
+    val placement = remember { Animatable(slotLeft) }
+    LaunchedEffect(slotLeft, dragging, measured) {
+        if (dragging || !measured) placement.snapTo(slotLeft)
+        else placement.animateTo(slotLeft, animationSpec = tween(durationMillis = 180))
+    }
+    val floatOffset = if (dragging) translationX else placement.value - slotLeft
+    // pointerInput keeps its block alive across recompositions (its key, tab.id, is
+    // stable), so it would otherwise capture the drag callbacks — and the index /
+    // tabs / geometry they close over — from the FIRST composition. After the first
+    // reorder those are stale, so a second drag computes the wrong target and snaps.
+    // rememberUpdatedState makes the long-lived gesture always call the latest ones.
+    val currentOnDragStart by rememberUpdatedState(onDragStart)
+    val currentOnDrag by rememberUpdatedState(onDrag)
+    val currentOnDragEnd by rememberUpdatedState(onDragEnd)
     Row(
         Modifier
             .onGloballyPositioned { onSize(it.size.width) }
@@ -251,12 +285,12 @@ private fun TabChip(
             // drag still scrolls the strip and a tap still selects the tab.
             .pointerInput(tab.id) {
                 detectDragGesturesAfterLongPress(
-                    onDragStart = { onDragStart() },
-                    onDragEnd = { onDragEnd() },
-                    onDragCancel = { onDragEnd() },
+                    onDragStart = { currentOnDragStart() },
+                    onDragEnd = { currentOnDragEnd() },
+                    onDragCancel = { currentOnDragEnd() },
                     onDrag = { change, dragAmount ->
                         change.consume()
-                        onDrag(dragAmount.x)
+                        currentOnDrag(dragAmount.x)
                     },
                 )
             }

@@ -11,13 +11,14 @@
             "id": "3c33552a8fffffab",
             "type": "leaf",
             "state": {
-              "type": "bases",
+              "type": "markdown",
               "state": {
-                "file": "Tareas/Tareas.base",
-                "viewName": "Todo"
+                "file": "Tareas/Revisar formateo de la terminal.md",
+                "mode": "source",
+                "source": false
               },
-              "icon": "lucide-table",
-              "title": "Tareas"
+              "icon": "lucide-file",
+              "title": "Revisar formateo de la terminal"
             }
           }
         ]
@@ -98,7 +99,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "Tareas/Tareas.base",
+                "file": "Tareas/Revisar formateo de la terminal.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -117,7 +118,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "Tareas/Tareas.base",
+                "file": "Tareas/Revisar formateo de la terminal.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
@@ -160,7 +161,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "Tareas/Tareas.base",
+                "file": "Tareas/Revisar formateo de la terminal.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
@@ -189,32 +190,42 @@
   },
   "active": "3c33552a8fffffab",
   "lastOpenFiles": [
-    "Tareas/Inicializar repositorio y esqueleto KMP.md.tmp.3500.cd7e0359a663",
-    "Tareas/Migrar a estructura multi-módulo AGP 9.md.tmp.3500.a09621de3043",
-    "Tareas/Migrar a estructura multi-módulo AGP 9.md.tmp.3500.5393e6843e18",
-    "Tareas/Migrar a estructura multi-módulo AGP 9.md.tmp.3500.f56c4bb4ba5a",
-    "Decisiones/ADR-0006 Estructura multi-módulo KMP para AGP 9.md",
-    "Decisiones/ADR-0006 Estructura multi-módulo KMP para AGP 9.md.tmp.3500.a2a3963fc0d5",
-    "Tareas/Migrar a estructura multi-módulo AGP 9.md",
-    "Tareas/Migrar a estructura multi-módulo AGP 9.md.tmp.3500.56b85cb822d1",
-    "Tareas/Inicializar repositorio y esqueleto KMP.md.tmp.3500.ef25dd3ecdbb",
-    "Tareas/Inicializar repositorio y esqueleto KMP.md.tmp.3500.e3109056b916",
-    "Tareas/Inicializar repositorio y esqueleto KMP.md.tmp.3500.d97a97922dbe",
-    "Tareas/Inicializar repositorio y esqueleto KMP.md.tmp.3500.35138e9150d9",
-    "Tareas/Inicializar repositorio y esqueleto KMP.md.tmp.3500.c00a5e2e1e5b",
+    "Tareas/Animar el reordenado de pestañas.md.tmp.13156.b5f8e844079a",
+    "Tareas/Animar el reordenado de pestañas.md.tmp.13156.22b41620145d",
+    "Tareas/Bug reordenar pestaña por segunda vez.md.tmp.13156.36216ad6170e",
+    "Tareas/Bug reordenar pestaña por segunda vez.md.tmp.13156.1ac078c5fd33",
+    "Tareas/Bug reordenar pestaña por segunda vez.md.tmp.13156.ffdda45d0a84",
+    "Tareas/Revisar formateo de la terminal.md.tmp.13156.157b6b579625",
+    "Tareas/Revisar formateo de la terminal.md.tmp.13156.ad336f3a27f3",
+    "Tareas/Quitar el ripple del terminal.md.tmp.13156.e55196591d19",
+    "Tareas/Quitar el ripple del terminal.md.tmp.13156.c6a0548e3cae",
+    "Tareas/Revisar formateo de la terminal.md.tmp.13156.8918afb39468",
+    "Tareas/Revisar formateo de la terminal.md.tmp.13156.d55199cad8ce",
+    "Tareas/Revisar formateo de la terminal.md",
     "Inicio.md",
-    "Decisiones visuales/Lenguaje visual DESIGN.md sobre Material 3 dark-first.md",
-    "Decisiones visuales/Arquitectura de dos áreas Configuración y Sesiones.md",
-    "Decisiones/ADR-0002 Stack KMP y alcance multiplataforma.md",
-    "Decisiones/ADR-0001 Credenciales en almacén nativo del SO.md",
-    "Tareas/Scripts de inicio por sesión.md",
-    "Tareas/Inicializar repositorio y esqueleto KMP.md",
-    "Tareas/Almacenamiento seguro de credenciales.md",
-    "README.md",
-    "Decisiones visuales/Tokens visuales dark-first base opencode.md",
-    "Catálogo técnico.md",
-    "Tareas/Panel de gestión de hosts y sesiones.md",
-    "Tareas/Resiliencia de sesión ante microcortes de red.md",
-    "Tareas/Terminal multipestaña con sesiones simultáneas.md"
+    "Screenshot_20260918-213655.png",
+    "Tareas/Quitar el ripple del terminal.md",
+    "Tareas/Scripts y túneles reutilizables de primera clase.md",
+    "Tareas/Bug reordenar pestaña por segunda vez.md",
+    "Tareas/Animar el reordenado de pestañas.md",
+    "Tareas/Editores de script y túnel como pantalla propia.md",
+    "Tareas/Reordenar pestañas de sesión con drag and drop.md",
+    "Catálogo técnico/Aprovisionamiento de clave hardware.md",
+    "Catálogo técnico/SecretProvisioner.md",
+    "Tareas/Gestión de claves y secretos UI.md",
+    "Catálogo técnico/TerminalView.md",
+    "Catálogo técnico/CredentialResolver.md",
+    "Catálogo técnico/TerminalKeys.md",
+    "Catálogo técnico/TabList.md",
+    "Catálogo técnico/SessionManager.md",
+    "Catálogo técnico/TerminalEmulator.md",
+    "Catálogo técnico/Componentes UI compartidos.md",
+    "Catálogo técnico/Tema y tokens visuales.md",
+    "Catálogo técnico/ConfigController.md",
+    "Catálogo técnico/ConfigStore.md",
+    "Catálogo técnico/Modelo de configuración.md",
+    "Decisiones visuales/Vocabulario ASCII ampliado y disciplina de color.md",
+    "Decisiones/ADR-0007 Modelo y persistencia de configuración.md",
+    "Catálogo técnico/Signer SSH delegado.md"
   ]
 }

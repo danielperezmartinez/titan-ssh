@@ -1,11 +1,11 @@
 ---
 Nombre: "Bug: reordenar pestaña por segunda vez"
-Estado: Pendiente
-Resumen: 'Bug del drag de pestañas reportado por el usuario: la primera reordenación funciona, pero al intentar reordenar otra vez la pestaña hace un "snap" a la primera posición / se comporta raro. Hipótesis fuerte (del análisis de código): el gesto captura estado stale del pointerInput. Incluye cómo reproducir/ver el problema, porque el gesto no se puede verificar headless.'
+Estado: Hecha
+Resumen: 'Bug del drag de pestañas: la primera reordenación funcionaba, pero al reordenar otra vez la pestaña hacía "snap" / se comportaba raro. Causa: `pointerInput(tab.id)` (clave estable) mantiene vivo el bloque de gesto, que capturaba las callbacks onDragStart/onDrag/onDragEnd de la PRIMERA composición, con index/tabs/geometría stale tras el primer reordenado. Arreglado con `rememberUpdatedState` sobre las tres callbacks. Verificado en dispositivo (dos reordenados seguidos OK).'
 Decisiones: Corrige [[Reordenar pestañas de sesión con drag and drop]] / [[Terminal multipestaña con sesiones simultáneas]].
 Bloqueada: []
 Fecha de creación: 2026-09-18T19:10:00+02:00
-Última modificación: 2026-09-18T19:10:00+02:00
+Última modificación: 2026-09-19T01:00:00+02:00
 ---
 
 # Bug: reordenar pestaña por segunda vez
@@ -66,9 +66,16 @@ quien lo arregle lo vea:
 
 ## Verificación
 
-<Se rellena al completar: repro elegido, arreglo y comprobación de dos reordenados
-seguidos.>
+- Build OK (`JAVA_HOME` al JBR, wrapper): `:shared:compileKotlinDesktop` +
+  `:shared:compileAndroidMain` + `:androidApp:assembleDebug` → `BUILD SUCCESSFUL`.
+- **Confirmado en dispositivo (2026-09-19, usuario)**: «reordena muy bien ahora»,
+  dos reordenados seguidos sin snap.
 
 ## Resultado
 
-<Se rellena al completar.>
+En `shared/src/commonMain/kotlin/im/gar/titanssh/ui/SessionsArea.kt`, `TabChip`
+envuelve las callbacks del gesto con `rememberUpdatedState`
+(`currentOnDragStart`/`currentOnDrag`/`currentOnDragEnd`) y el
+`detectDragGesturesAfterLongPress` dentro del `pointerInput(tab.id)` de larga vida
+invoca esas versiones actuales en vez de las capturadas en la primera composición.
+Así, tras un reordenado, el siguiente gesto usa el `index`/`tabs`/geometría al día.

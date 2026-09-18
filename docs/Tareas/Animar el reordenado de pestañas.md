@@ -1,11 +1,11 @@
 ---
 Nombre: "Animar el reordenado de pestañas"
-Estado: Pendiente
-Resumen: 'Pulido del drag de pestañas: hoy, al reordenar, las pestañas no arrastradas cambian de sitio instantáneamente (saltan). Deberían animar su desplazamiento a la nueva posición para que el movimiento sea fluido y legible.'
+Estado: Hecha
+Resumen: 'Pulido del drag de pestañas: al reordenar, las pestañas no arrastradas saltaban a su nueva posición. Ahora cada una anima su posición de slot con un Animatable (tween 180 ms), deslizándose del slot viejo al nuevo; la arrastrada sigue flotando con el dedo (snap). Las posiciones de slot se derivan por suma de prefijos de anchos (positionInParent no resuelve aquí). Verificado en dispositivo.'
 Decisiones: Pulido de [[Reordenar pestañas de sesión con drag and drop]] / [[Terminal multipestaña con sesiones simultáneas]]; sigue [[Vocabulario ASCII ampliado y disciplina de color]].
 Bloqueada: []
 Fecha de creación: 2026-09-18T19:10:00+02:00
-Última modificación: 2026-09-18T19:10:00+02:00
+Última modificación: 2026-09-19T01:10:00+02:00
 ---
 
 # Animar el reordenado de pestañas
@@ -31,8 +31,22 @@ suavizar el reflujo de las demás.
 
 ## Verificación
 
-<Se rellena al completar: build + comprobación del gesto en el pixel-9-pro-xl.>
+- Build OK (`JAVA_HOME` al JBR, wrapper): `:shared:compileKotlinDesktop` +
+  `:shared:compileAndroidMain` + `:androidApp:assembleDebug` → `BUILD SUCCESSFUL`.
+- **Confirmado en dispositivo (2026-09-19, usuario)**: «era justo lo que quería»,
+  las pestañas no arrastradas se deslizan a su sitio.
 
 ## Resultado
 
-<Se rellena al completar.>
+En `shared/src/commonMain/kotlin/im/gar/titanssh/ui/SessionsArea.kt`:
+
+- `TabStrip` calcula `slotLeft(index)` (suma de prefijos de los anchos capturados
+  por `onGloballyPositioned`, indexados por `tab.id`) y un flag `measured` (todos los
+  anchos conocidos), y los pasa a cada `TabChip`.
+- `TabChip` anima con un `Animatable` (`placement`) la posición de slot: cuando un
+  reordenado cambia `slotLeft`, `animateTo(slotLeft, tween(180))`; el offset aplicado
+  es `placement.value − slotLeft` (empieza en el delta viejo y llega a 0). La pestaña
+  arrastrada usa su `translationX` (dedo) y hace `snapTo`; también se hace `snapTo`
+  mientras `!measured` para no deslizar al abrir la tira.
+- No se usan coordenadas absolutas (en este montaje `positionInParent`/
+  `positionInRoot` no resuelven; ver memoria `compose-layout-coords`).

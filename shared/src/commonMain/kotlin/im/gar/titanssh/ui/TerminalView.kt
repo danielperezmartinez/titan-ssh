@@ -3,6 +3,7 @@ package im.gar.titanssh.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
@@ -59,8 +60,8 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import im.gar.titanssh.terminal.AccessoryKey
@@ -129,20 +130,41 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier) {
         send(bytes)
     }
 
-    // Measure a monospace cell to translate the pane size into columns/rows.
-    val textMeasurer = rememberTextMeasurer()
+    // Cell metrics come from an invisible probe Text rendered inside the grid Box
+    // (see below) via onTextLayout, NOT from a pre-measuring TextMeasurer. The
+    // measurer has an internal layout cache that keeps returning the pre-load
+    // result: on the first frame the font resolver hands back the platform
+    // proportional fallback (where 'M' is far wider than the real monospace
+    // advance), and that stale, too-wide width sticks. Meanwhile the grid itself
+    // renders the bundled JetBrains Mono once it loads. The mismatch made the PTY
+    // too narrow (fewer columns than fit), so the remote wrapped early and wasted
+    // the right of the screen. Measuring through the same render path keeps the
+    // column count in sync with the glyphs actually drawn, and onTextLayout fires
+    // again when the font finishes loading.
     val density = LocalDensity.current
-    val cellSize = remember(fontSize, monoFamily) {
-        textMeasurer.measure(
-            AnnotatedString("MMMMMMMMMM"),
-            style = androidx.compose.ui.text.TextStyle(fontFamily = monoFamily, fontSize = fontSize),
-        ).size
-    }
-    val cellWidthPx = (cellSize.width / 10f).coerceAtLeast(1f)
-    val cellHeightPx = cellSize.height.coerceAtLeast(1).toFloat()
+    var cellWidthPx by remember(fontSize, monoFamily) { mutableStateOf(0f) }
+    var cellHeightPx by remember(fontSize, monoFamily) { mutableStateOf(0f) }
+    // The grid draws inside a LazyColumn padded by SpaceXs on each side; discount
+    // it so the column count matches the real text width, not the pane width.
+    val gridHorizontalPaddingPx = with(density) { (TitanDimens.SpaceXs * 2).toPx() }
 
-    var columns by remember { mutableStateOf(80) }
-    var rows by remember { mutableStateOf(24) }
+    // Keep the raw pane size in state and derive columns/rows from it together
+    // with the cell metrics. Deriving (rather than computing inside onSizeChanged)
+    // means a later cell-size change — e.g. the bundled font finishing loading —
+    // recomputes the grid and re-issues resize, even though the pane size itself
+    // did not change.
+    var paneSize by remember { mutableStateOf(IntSize.Zero) }
+    val columns = if (paneSize.width > 0 && cellWidthPx > 0f) {
+        val usableWidth = (paneSize.width - gridHorizontalPaddingPx).coerceAtLeast(cellWidthPx)
+        (usableWidth / cellWidthPx).toInt().coerceAtLeast(1)
+    } else {
+        80
+    }
+    val rows = if (paneSize.height > 0 && cellHeightPx > 0f) {
+        (paneSize.height / cellHeightPx).toInt().coerceAtLeast(1)
+    } else {
+        24
+    }
 
     LaunchedEffect(columns, rows, tab.id) {
         tab.resize(columns, rows)
@@ -168,16 +190,16 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier) {
             Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .onSizeChanged { size ->
-                    val c = (size.width / cellWidthPx).toInt().coerceAtLeast(1)
-                    val r = (size.height / cellHeightPx).toInt().coerceAtLeast(1)
-                    if (c != columns) columns = c
-                    if (r != rows) rows = r
-                }
+                .onSizeChanged { size -> paneSize = size }
                 .focusRequester(focusRequester)
                 .focusable()
                 .onPreviewKeyEvent { event -> handleKeyEvent(event, { send(it) }, { sendTyped(it) }) }
-                .clickable {
+                // No ripple: the touch only focuses/raises the keyboard; a Material
+                // indication would break the flat, chrome-free terminal aesthetic.
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) {
                     if (isAndroidRuntime()) {
                         keyboardFocus.requestFocus()
                         keyboardController?.show()
@@ -193,6 +215,18 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier) {
                 showCursor = status.phase == TabPhase.CONNECTED,
                 monoFamily = monoFamily,
                 fontSize = fontSize,
+                // Derive the cell advance from the lines the grid actually renders
+                // (same font/size/pipeline), not a standalone probe: a static probe
+                // is measured once on the first frame with the proportional fallback
+                // and never re-fires, whereas the grid re-lays-out with the bundled
+                // font once it loads. We ignore clamped lines (width == usable) so a
+                // full-width line cannot underestimate the advance.
+                onCellMetrics = { width, chars, height ->
+                    if (chars > 0 && width > 0f && width < paneSize.width - gridHorizontalPaddingPx) {
+                        cellWidthPx = width / chars
+                        if (height > 0) cellHeightPx = height.toFloat()
+                    }
+                },
             )
         }
 
@@ -296,6 +330,7 @@ private fun TerminalGrid(
     showCursor: Boolean,
     monoFamily: FontFamily,
     fontSize: androidx.compose.ui.unit.TextUnit,
+    onCellMetrics: (width: Float, chars: Int, height: Int) -> Unit = { _, _, _ -> },
 ) {
     val listState = rememberLazyListState()
     LaunchedEffect(lines) {
@@ -311,6 +346,11 @@ private fun TerminalGrid(
                 color = TerminalFg,
                 softWrap = false,
                 maxLines = 1,
+                // Report this rendered row's width and glyph count so the caller can
+                // derive the true monospace advance from what is actually drawn.
+                onTextLayout = { result ->
+                    if (line.isNotEmpty()) onCellMetrics(result.size.width.toFloat(), line.size, result.size.height)
+                },
             )
         }
     }
