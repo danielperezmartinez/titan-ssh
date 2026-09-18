@@ -1,11 +1,11 @@
 ---
 Nombre: Terminal multipestaña con sesiones simultáneas
-Estado: En curso
-Resumen: 'Terminal multipestaña v1 entregado y verificado headless: emulador ANSI, gestor de pestañas (abrir/alternar/cerrar/reordenar) cableado al motor SSH desde la lanzadera, estados por pestaña, render + entrada de teclado con resize real, barra accesoria Android, split de escritorio y pestaña a pantalla completa. Queda EN CURSO: falta verificación real (conexión viva por la UI en escritorio/dispositivo, entrada por teclado software Android) y el driver del estado "reconectando" (pertenece a Resiliencia nivel 1).'
+Estado: Hecha
+Resumen: 'Terminal multipestaña v1 ENTREGADO y verificado en dispositivo (usuario): emulador ANSI, gestor de pestañas (abrir/alternar/cerrar/reordenar por drag), estados por pestaña, render + entrada con resize real, barra accesoria Android, split de escritorio y pantalla completa; conexión viva OK y teclado software OK ("perfecto") tras los arreglos de IME. Único diferido: el driver del estado "reconectando", que pertenece a Resiliencia nivel 1 (fuera de alcance aquí). Follow-ups de pulido del drag en tareas propias.'
 Decisiones: Enmarcada en [[Arquitectura de dos áreas Configuración y Sesiones]]; consume [[Motor de conexión SSH]], [[ADR-0003 Modelo de resiliencia por niveles]] y [[ADR-0005 Autenticación SSH y verificación de host]] (TOFU).
 Bloqueada: []
 Fecha de creación: 2026-09-17T15:32:11+02:00
-Última modificación: 2026-09-18T15:40:00+02:00
+Última modificación: 2026-09-18T19:35:00+02:00
 ---
 
 # Terminal multipestaña con sesiones simultáneas
@@ -135,7 +135,8 @@ hardware, enroló y conectó).
 
 Ajustes detectados en esa prueba y su tratamiento:
 
-- **Teclado software** (varios arreglos, pendientes de re-comprobar en dispositivo):
+- **Teclado software** (varios arreglos, **verificado en dispositivo por el usuario:
+  «ahora perfecto»**):
   - *No aparecía*: al tocar el terminal se enfocaba un panel `focusable` no editable.
     Arreglado: en Android el toque enfoca el campo oculto y llama a
     `LocalSoftwareKeyboardController.show()`.
