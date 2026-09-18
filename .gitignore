@@ -20,3 +20,6 @@ captures/
 # OS noise
 .DS_Store
 Thumbs.db
+
+# Device screenshots dropped into the vault (may show real host/user; kept local)
+docs/**/Screenshot_*.png
