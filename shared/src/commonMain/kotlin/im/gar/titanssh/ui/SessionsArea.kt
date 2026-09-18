@@ -137,18 +137,19 @@ private fun TabStrip(
     onToggleSplit: (() -> Unit)?,
     onFullscreen: (() -> Unit)?,
 ) {
-    // Chip width per index (including its trailing gap), captured at layout.
-    // Reordering commits on drag end, so widths stay stable for the whole gesture
-    // and we derive each chip's center by prefix sum to map the dragged position
-    // to a target index — no absolute-coordinate APIs needed.
-    val widths = remember { mutableStateMapOf<Int, Int>() }
+    // Chip width per tab id (including its trailing gap), captured at layout and
+    // stable across live reorders. From these we derive each slot's center by
+    // prefix sum over the current order — no absolute-coordinate APIs needed.
+    val widths = remember { mutableStateMapOf<String, Int>() }
     var draggingId by remember { mutableStateOf<String?>(null) }
-    var dragOffsetX by remember { mutableStateOf(0f) }
+    var dragIndex by remember { mutableStateOf(-1) }
+    var startCenter by remember { mutableStateOf(0f) }
+    var pointerDx by remember { mutableStateOf(0f) }
 
     fun centerOf(index: Int): Float {
         var left = 0
-        for (j in 0 until index) left += widths[j] ?: 0
-        return left + (widths[index] ?: 0) / 2f
+        for (j in 0 until index) left += widths[tabs[j].id] ?: 0
+        return left + (widths[tabs.getOrNull(index)?.id] ?: 0) / 2f
     }
 
     Row(
@@ -161,27 +162,41 @@ private fun TabStrip(
         ) {
             tabs.forEachIndexed { index, tab ->
                 key(tab.id) {
+                    val isDragging = tab.id == draggingId
+                    // The floating chip follows the finger; its slot (this index)
+                    // stays put, so the row shows the gap it will drop into.
+                    val translationX = if (isDragging) startCenter + pointerDx - centerOf(index) else 0f
                     TabChip(
                         tab = tab,
                         selected = tab.id == activeId,
-                        dragging = tab.id == draggingId,
-                        dragOffsetX = if (tab.id == draggingId) dragOffsetX else 0f,
+                        dragging = isDragging,
+                        translationX = translationX,
                         onSelect = { onSelect(tab.id) },
                         onClose = { onClose(tab.id) },
-                        onSize = { widths[index] = it },
+                        onSize = { widths[tab.id] = it },
                         onDragStart = {
                             draggingId = tab.id
-                            dragOffsetX = 0f
+                            dragIndex = index
+                            startCenter = centerOf(index)
+                            pointerDx = 0f
                         },
-                        onDrag = { dragOffsetX += it },
+                        onDrag = { dx ->
+                            pointerDx += dx
+                            // Reorder live: as the finger crosses a neighbour's
+                            // center, move the tab there so the others shift now.
+                            val fingerX = startCenter + pointerDx
+                            var target = dragIndex
+                            while (target < tabs.lastIndex && fingerX > centerOf(target + 1)) target++
+                            while (target > 0 && fingerX < centerOf(target - 1)) target--
+                            if (target != dragIndex) {
+                                onMove(dragIndex, target)
+                                dragIndex = target
+                            }
+                        },
                         onDragEnd = {
-                            val dragged = centerOf(index) + dragOffsetX
-                            var target = index
-                            while (target < tabs.lastIndex && dragged > centerOf(target + 1)) target++
-                            while (target > 0 && dragged < centerOf(target - 1)) target--
-                            if (target != index) onMove(index, target)
                             draggingId = null
-                            dragOffsetX = 0f
+                            dragIndex = -1
+                            pointerDx = 0f
                         },
                     )
                 }
@@ -202,7 +217,7 @@ private fun TabChip(
     tab: SessionTab,
     selected: Boolean,
     dragging: Boolean,
-    dragOffsetX: Float,
+    translationX: Float,
     onSelect: () -> Unit,
     onClose: () -> Unit,
     onSize: (Int) -> Unit,
@@ -212,11 +227,12 @@ private fun TabChip(
 ) {
     val status by tab.status.collectAsState()
     val (marker, markerColor) = statusMarker(status.phase)
+    val floatOffset = translationX
     Row(
         Modifier
             .onGloballyPositioned { onSize(it.size.width) }
             .zIndex(if (dragging) 1f else 0f)
-            .graphicsLayer { translationX = dragOffsetX }
+            .graphicsLayer { this.translationX = floatOffset }
             .padding(end = TitanDimens.SpaceXs)
             .background(
                 when {

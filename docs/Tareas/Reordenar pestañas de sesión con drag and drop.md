@@ -36,8 +36,8 @@ activa. Además de ser más intuitivo, **libera espacio** en la tira de pestaña
   pasando por `SessionManager.move`).
 - **Pendiente (por eso queda `En curso`)**: la interacción de arrastre no se puede
   verificar headless; falta comprobar en el pixel-9-pro-xl que arrastrar (tras
-  pulsación mantenida) reordena, que un toque sigue activando y que el scroll de la
-  tira sigue funcionando.
+  pulsación mantenida) **reordena en vivo** con el hueco visible, que un toque sigue
+  activando y que el scroll de la tira sigue funcionando.
 
 ## Resultado (implementado, a falta de verificación en dispositivo)
 
@@ -46,11 +46,16 @@ En `shared/src/commonMain/kotlin/im/gar/titanssh/ui/SessionsArea.kt`:
 - Eliminados los `[<]` / `[>]` de `TabChip` (se mantiene `[x]`, `[+]`, `[#]`, `[^]`).
 - `TabChip` reordena por **arrastre tras pulsación mantenida**
   (`detectDragGesturesAfterLongPress`), para no chocar con el `horizontalScroll` de
-  la tira (arrastre rápido = scroll; toque = activar). Feedback visual: la pestaña
-  arrastrada se eleva (`SurfaceElevated` + borde accent, `zIndex`, `translationX`).
-- Cada pestaña reporta su ancho (`onGloballyPositioned` → `it.size.width`); al
-  soltar se calcula el índice destino por suma de prefijos de anchos frente a la
-  posición arrastrada y se llama a `SessionManager.move(from, to)`.
+  la tira (arrastre rápido = scroll; toque = activar).
+- **Reordenado en vivo (preview)**: durante el arrastre, al cruzar el centro del
+  vecino se llama a `SessionManager.move` **en el momento**, así que las demás
+  pestañas se recolocan mientras arrastras. La pestaña arrastrada **flota** siguiendo
+  al dedo (`graphicsLayer.translationX = startCenter + pointerDx − centerOf(index)`,
+  `zIndex` alto, superficie elevada) pero **su hueco permanece** en la posición donde
+  va a caer, que es el comportamiento natural pedido.
+- Geometría: cada pestaña reporta su ancho (`onGloballyPositioned` → `it.size.width`)
+  indexado por `tab.id` (estable entre reordenados); los centros de slot se derivan
+  por suma de prefijos sobre el orden actual.
 - Nota técnica: en esta versión de Compose `LayoutCoordinates.positionInParent()`/
   `positionInRoot()` no resuelven; por eso la geometría se deriva solo de los
-  anchos capturados.
+  anchos capturados (ver memoria [[compose-layout-coords]]).

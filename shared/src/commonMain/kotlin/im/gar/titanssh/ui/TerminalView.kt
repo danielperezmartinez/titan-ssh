@@ -48,6 +48,7 @@ import androidx.compose.ui.input.key.utf16CodePoint
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
@@ -103,6 +104,11 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier) {
     var stickyAlt by remember { mutableStateOf(false) }
 
     val focusRequester = remember { FocusRequester() }
+    // Android: the soft keyboard is raised by focusing the hidden capture field
+    // below (a plain focusable pane never brings up the IME), so tapping the
+    // terminal routes focus there and asks the controller to show it.
+    val keyboardFocus = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     fun send(bytes: ByteArray) {
         scope.launch { tab.sendBytes(bytes) }
@@ -166,7 +172,14 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier) {
                 .focusRequester(focusRequester)
                 .focusable()
                 .onPreviewKeyEvent { event -> handleKeyEvent(event, { send(it) }, { sendTyped(it) }) }
-                .clickable { focusRequester.requestFocus() },
+                .clickable {
+                    if (isAndroidRuntime()) {
+                        keyboardFocus.requestFocus()
+                        keyboardController?.show()
+                    } else {
+                        focusRequester.requestFocus()
+                    }
+                },
         ) {
             TerminalGrid(
                 lines = remember(snapshot) { snapshot.scrollback + snapshot.screen },
@@ -183,6 +196,7 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier) {
         if (isAndroidRuntime()) {
             Hairline()
             AndroidInputBar(
+                keyboardFocus = keyboardFocus,
                 stickyCtrl = stickyCtrl,
                 stickyAlt = stickyAlt,
                 onModifier = { kind ->
@@ -392,6 +406,7 @@ private fun HostKeyPromptBar(
  */
 @Composable
 private fun AndroidInputBar(
+    keyboardFocus: FocusRequester,
     stickyCtrl: Boolean,
     stickyAlt: Boolean,
     onModifier: (ModifierKind) -> Unit,
@@ -424,7 +439,12 @@ private fun AndroidInputBar(
             }
             AccessoryButton("Pegar", false, onPaste)
         }
-        SoftKeyboardCapture(onText = onText, onEnter = onEnter, onBackspace = onBackspace)
+        SoftKeyboardCapture(
+            focusRequester = keyboardFocus,
+            onText = onText,
+            onEnter = onEnter,
+            onBackspace = onBackspace,
+        )
     }
 }
 
@@ -455,6 +475,7 @@ private fun AccessoryButton(label: String, active: Boolean, onClick: () -> Unit)
  */
 @Composable
 private fun SoftKeyboardCapture(
+    focusRequester: FocusRequester,
     onText: (String) -> Unit,
     onEnter: () -> Unit,
     onBackspace: () -> Unit,
@@ -473,8 +494,10 @@ private fun SoftKeyboardCapture(
         },
         singleLine = true,
         keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
+        cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.Transparent),
         modifier = Modifier
             .size(1.dp)
+            .focusRequester(focusRequester)
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (event.key.keyCode) {

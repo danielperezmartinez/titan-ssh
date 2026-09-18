@@ -129,10 +129,19 @@ Terminal multipestaña entregado en el paquete `im.gar.titanssh.terminal`
 
 **Comprobado en dispositivo (2026-09-18, usuario)** en el pixel-9-pro-xl: crear
 hosts y sesiones y su persistencia; abrir **dos sesiones simultáneas**, tenerlas a
-la vez, **reordenar** y **cerrar** pestañas — todo correcto. Quedan un par de
-ajustes menores (a concretar más adelante). La **conexión viva** aún no se ha
-podido probar porque falta la UI de generación/aprovisionamiento de claves (no
-entraba en esta entrega): ver [[Gestión de claves y secretos UI]].
+la vez, **reordenar** y **cerrar** pestañas — todo correcto. Tras entregar la
+[[Gestión de claves y secretos UI]], **la conexión viva funciona** (generó clave
+hardware, enroló y conectó). 
+
+Ajustes detectados en esa prueba y su tratamiento:
+
+- **Teclado software no aparecía** al conectar (solo se veía la barra accesoria).
+  Causa: al tocar el terminal se enfocaba un panel `focusable` no editable, que no
+  levanta el IME. **Arreglado** en `TerminalView.kt`: en Android el toque enfoca el
+  campo oculto de captura y llama a `LocalSoftwareKeyboardController.show()`.
+  Pendiente de re-comprobar en dispositivo.
+- **Reordenar pestañas** pasa a drag-and-drop con preview en vivo →
+  [[Reordenar pestañas de sesión con drag and drop]].
 
 **Pendiente de comprobación real (por eso queda `En curso`):**
 
