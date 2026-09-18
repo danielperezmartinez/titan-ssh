@@ -1,11 +1,11 @@
 ---
 Nombre: "Editores de script y túnel como pantalla propia"
-Estado: Pendiente
+Estado: Hecha
 Resumen: 'Refactor UX del editor de sesión: hoy "Añadir script" y "Añadir túnel" despliegan un formulario inline (ScriptCard/TunnelCard expandibles) metido a calzador en el editor de sesión. En su lugar, cada uno debe tener su propia pantalla de edición dedicada (como el editor de host o de grupo), a la que se navega y se vuelve, reutilizada para crear y editar. El editor de sesión solo lista y enlaza.'
 Decisiones: Ajuste de [[Panel de gestión de hosts y sesiones]] y [[Scripts de inicio por sesión]]; reutiliza [[Componentes UI compartidos]] (`EditorScaffold`) y sigue [[Vocabulario ASCII ampliado y disciplina de color]].
 Bloqueada: []
 Fecha de creación: 2026-09-18T17:15:00+02:00
-Última modificación: 2026-09-18T17:15:00+02:00
+Última modificación: 2026-09-18T18:40:00+02:00
 ---
 
 # Editores de script y túnel como pantalla propia
@@ -52,9 +52,52 @@ Todo el formulario vive embebido en el editor de sesión, que queda sobrecargado
 
 ## Verificación
 
-<Se rellena al completar: build de ambos targets, tests sin regresión y
-comprobación real del flujo en dispositivo/escritorio.>
+- **Build ambos targets OK** (`JAVA_HOME` al JBR, wrapper, `--console=plain`):
+  `:shared:compileKotlinDesktop`, `:shared:compileAndroidMain`,
+  `:androidApp:compileDebugKotlin`, `:desktopApp:compileKotlin` → `BUILD
+  SUCCESSFUL` (solo warnings preexistentes de `LocalClipboardManager` en
+  `HostEditor.kt`/`TerminalView.kt`, ajenos a este cambio).
+- **Tests `:shared:desktopTest`** → `BUILD SUCCESSFUL`, sin fallos ni regresión en
+  `ConfigModelTest`/`JsonFileConfigStoreTest` (el modelo `SessionScript`/`Tunnel`
+  no cambia; los editores solo lo editan en memoria). Los tests de integración SSH
+  siguen omitidos por diseño (opt-in por variables de entorno).
+- **Comprobación real del flujo** (navegar a los sub-editores, crear/editar/borrar
+  script y túnel, reordenar scripts, guardar la sesión) queda como comprobación del
+  usuario en dispositivo/escritorio, igual que en tareas previas.
 
 ## Resultado
 
-<Se rellena al completar.>
+Los formularios inline `ScriptCard`/`TunnelCard` del editor de sesión se han
+sacado a **pantallas de edición propias y reutilizables** sobre `EditorScaffold`,
+siguiendo el mismo patrón de navegación que host/grupo (navegar → editar → volver),
+reutilizadas para crear y editar:
+
+- **`ScriptEditor`** (`shared/.../ui/ScriptEditor.kt`): pantalla propia con **todos
+  los atributos v1**: habilitado, etiqueta, fase, `ReconnectBehavior` (visible solo
+  en fase `ON_RECONNECT`), inserción de snippet, cuerpo con `${'$'}{VAR}`,
+  comportamiento (silent/wait/timeout/onFailure/delay/expect), **envVars** (editadas
+  como bloque `KEY=valor` por línea y parseadas al guardar; antes no había editor
+  para este campo del modelo) y secretos por referencia.
+- **`TunnelEditor`** (`shared/.../ui/TunnelEditor.kt`): pantalla propia con tipo,
+  etiqueta, habilitado, host/puerto de escucha y host/puerto de destino
+  (LOCAL/REMOTE; oculto en SOCKS). `canSave` valida puertos en rango.
+- **Editor de sesión** (`shared/.../ui/SessionEditor.kt`): ahora **lista** scripts
+  y túneles con `ListRow` (marcador según habilitado + resumen) y **navega** a su
+  editor; `[+] Añadir` abre el editor en **modo creación** (el elemento se añade a
+  la lista en memoria solo al guardar, como hosts/grupos, no al pulsar Añadir). Se
+  conserva el **reordenado** de scripts (`[^]`/`[v]` en el trailing de cada fila).
+- **Máquina de navegación**: un `SubEditor` local al editor de sesión conmuta entre
+  el formulario de sesión y los sub-editores sin perder el estado de la sesión en
+  edición; los scripts/túneles se editan en memoria y se confirman al guardar la
+  sesión (sin cambios en el modelo ni en la persistencia).
+
+Sin regresión funcional respecto a las cards: todos sus atributos siguen presentes
+(y se añade el editor de `envVars`, que faltaba). `phaseLabel`/`tunnelSummary` pasan
+a `internal` en los nuevos ficheros y se reutilizan desde la lista de la sesión.
+
+**Catálogo técnico:** no se añade ficha nueva. `ScriptEditor`/`TunnelEditor` son
+editores concretos de feature (consumidores de [[Componentes UI compartidos]] +
+`EditorScaffold`), del mismo tipo que los editores de host, sesión y snippet, que
+por precedente **no** están catalogados (el catálogo registra primitivas y
+servicios reutilizables, no cada pantalla concreta). Si se decidiera catalogarlos,
+la ficha iría en Área `UI compartida` / Feature `Shared UI`.
