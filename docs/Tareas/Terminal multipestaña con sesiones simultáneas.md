@@ -1,11 +1,11 @@
 ---
 Nombre: Terminal multipestaña con sesiones simultáneas
-Estado: Pendiente
-Resumen: 'Área de Sesiones: pantalla de terminal con múltiples conexiones simultáneas en pestañas, pudiendo alternar, cerrar y mover sesiones. En Android hace falta una barra de teclas accesorias sobre el teclado del sistema.'
-Decisiones: Enmarcada en [[Arquitectura de dos áreas Configuración y Sesiones]].
+Estado: En curso
+Resumen: 'Terminal multipestaña v1 entregado y verificado headless: emulador ANSI, gestor de pestañas (abrir/alternar/cerrar/reordenar) cableado al motor SSH desde la lanzadera, estados por pestaña, render + entrada de teclado con resize real, barra accesoria Android, split de escritorio y pestaña a pantalla completa. Queda EN CURSO: falta verificación real (conexión viva por la UI en escritorio/dispositivo, entrada por teclado software Android) y el driver del estado "reconectando" (pertenece a Resiliencia nivel 1).'
+Decisiones: Enmarcada en [[Arquitectura de dos áreas Configuración y Sesiones]]; consume [[Motor de conexión SSH]], [[ADR-0003 Modelo de resiliencia por niveles]] y [[ADR-0005 Autenticación SSH y verificación de host]] (TOFU).
 Bloqueada: []
 Fecha de creación: 2026-09-17T15:32:11+02:00
-Última modificación: 2026-09-17T16:48:56+02:00
+Última modificación: 2026-09-18T15:40:00+02:00
 ---
 
 # Terminal multipestaña con sesiones simultáneas
@@ -42,10 +42,112 @@ pestañas. Al estar en una pestaña se ve el terminal listo para trabajar.
   de inicio** ([[Scripts de inicio por sesión]], que queda bloqueada por esta para
   su parte de ejecución).
 
+## Resultado (v1, 2026-09-18)
+
+Terminal multipestaña entregado en el paquete `im.gar.titanssh.terminal`
+(lógica) + `im.gar.titanssh.ui` (Compose), cableado sobre el
+[[Motor de conexión SSH]] ya existente.
+
+### Núcleo (lógica pura, con tests headless)
+
+- **`TerminalEmulator`** — emulador VT100/ANSI pragmático: rejilla de celdas con
+  cursor, scrollback acotado y parser de secuencias de escape de uso diario
+  (texto UTF-8 con salto de línea, C0 `BEL/BS/HT/LF/VT/FF/CR`, CSI de cursor
+  `CUU/CUD/CUF/CUB/CUP/CHA/VPA`, borrado `ED/EL`, `SGR` con negrita, inverso,
+  los 16 colores ANSI, indexado `38/48;5` y verdadero color `38/48;2`,
+  guardar/restaurar cursor e índice inverso). Consume-e-ignora OSC (título) y
+  modos privados DEC para que no ensucien la pantalla. Produce
+  `TerminalSnapshot` inmutable. **Fuera de v1** (degradan sin romper): pantalla
+  alterna (`1049`), regiones de scroll (`DECSTBM`), tab-stops programables y
+  selección de charset.
+- **`AnsiPalette`** — paleta del terminal: índices 0..15 según
+  [[Tokens visuales dark-first base opencode]], más cubo 6x6x6 (16..231) y rampa
+  de grises (232..255) estándar de xterm.
+- **`TabList`** — modelo inmutable de orden y pestaña activa (abrir, activar,
+  cerrar con elección de vecino, mover/reordenar); solo ids, sin sesión viva.
+- **`TerminalKeys`** — traducción pura de teclas a bytes del PTY (especiales,
+  `Ctrl-x`, `Alt-x`, texto) y el layout de la barra accesoria Android.
+- **`CredentialResolver`** — materializa `SshCredentials` a partir del
+  `HostAuth` (solo referencias) leyendo el `SecretStore` en tiempo de conexión
+  (ADR-0001); la clave hardware no se materializa (la resuelve el motor).
+
+### Runtime
+
+- **`SessionTab`** — una pestaña: gobierna una conexión y su shell, alimenta el
+  emulador desde la salida del `SshShell`, expone `status` y `snapshot`
+  observables y `sendBytes`/`resize`. Los fallos aterrizan como
+  `TabPhase.FAILED` (la pestaña no desaparece). El TOFU de primera vez
+  ([[ADR-0005 Autenticación SSH y verificación de host]]) aflora como
+  `pendingHostKey` para que la UI confirme en línea.
+- **`SessionManager`** — dueño de las pestañas abiertas; implementa el
+  **lanzamiento** (config → motor → pestaña) que la lanzadera dejó pendiente en
+  [[Panel de gestión de hosts y sesiones]].
+- **Estados por pestaña**: conectando / conectado / (reconectando) / caída /
+  fallo, con marcador ASCII y color semántico según
+  [[Vocabulario ASCII ampliado y disciplina de color]].
+- **Punto de enganche de scripts de inicio**: `SessionTab.onShellReady(shell,
+  resolved)` se invoca al abrir el shell (hoy no-op). La **ejecución** de los
+  scripts es de [[Scripts de inicio por sesión]], que queda desbloqueada por
+  este enganche.
+
+### UI (Compose dark-first)
+
+- **`TerminalView`** — pinta el snapshot (colores ANSI, cursor), mide la celda
+  mono para calcular columnas/filas y hace `resize` real del PTY; entrada por
+  eventos de teclado (`onPreviewKeyEvent`: teclados físicos y escritorio). En
+  Android añade barra accesoria (Esc, Tab, Ctrl/Alt pegajosos, flechas,
+  `| / - ~`), pegar (portapapeles) y un campo oculto que levanta el teclado
+  software.
+- **`SessionsArea`** (reescrita) — lanzadera cuando no hay pestañas; con
+  pestañas, tira de pestañas (alternar, cerrar `[x]`, reordenar `[<]`/`[>]`,
+  nueva `[+]`), **split de dos terminales en escritorio** y **pestaña a pantalla
+  completa en Android**.
+
+### Superficies expect/actual añadidas
+
+`createKnownHostsStore()` (fichero `known_hosts` en dir de config/`filesDir`) e
+`isAndroidRuntime()`, con actuals en `androidMain`/`desktopMain`.
+
 ## Verificación
 
-<Se rellena al completar: pruebas, build, comprobación real.>
+**Headless (hecho):**
 
-## Resultado
+- Build de los cuatro targets → `BUILD SUCCESSFUL`:
+  `:shared:compileKotlinDesktop`, `:shared:compileAndroidMain`,
+  `:androidApp:compileDebugKotlin`, `:desktopApp:compileKotlin`. APK:
+  `:androidApp:assembleDebug` → `BUILD SUCCESSFUL`.
+- `:shared:desktopTest` sin fallos. Tests nuevos (31): `TerminalEmulatorTest`
+  (13: texto/CR-LF/BS/wrap/scroll+scrollback/CUP/SGR reset+truecolor+bright/EL/
+  OSC ignorado/UTF-8 multibyte y partido entre feeds/resize), `TabListTest` (9:
+  abrir/duplicado/activar/cerrar con vecino/borde vacío/reordenar), `Terminal
+  KeysTest` (4: especiales, `Ctrl`, `Alt`, cobertura de la barra accesoria),
+  `CredentialResolverTest` (5: password/clave+passphrase/sin passphrase/hardware
+  sin tocar el store/secreto ausente). Los tests previos siguen pasando.
+- Warning conocido y benigno «Default Kotlin Hierarchy Template» (por el source
+  set `jvmShared`) y deprecación de `LocalClipboardManager` (no rompe; migrar a
+  `LocalClipboard` es trabajo futuro).
 
-<Se rellena al completar: qué se hizo finalmente.>
+**Pendiente de comprobación real (por eso queda `En curso`):**
+
+- **Conexión viva a través de la UI**: no verificada por mí (no puedo arrancar la
+  ventana de escritorio ni un dispositivo, ni conectar a un host real con
+  credenciales). Se añadió `SessionTabIntegrationTest` (opt-in, se salta sin
+  credenciales, mismas env que `SshjIntegrationTest`) que abre una `SessionTab`
+  real contra el host de pruebas, espera `CONNECTED`, envía `echo` y comprueba
+  que la salida aparece en el snapshot: **falta que el usuario lo corra con sus
+  credenciales** y confirme visualmente `:desktopApp:run`.
+- **Android**: barra accesoria, pegar, pantalla completa y sobre todo la
+  **entrada por teclado software** (truco de ancla; el IME puede interferir) son
+  compile-verified pero necesitan comprobación en el pixel-9-pro-xl. La ruta
+  fiable de entrada es teclado físico + barra accesoria.
+- **Estado "reconectando" (loader nivel 1)**: el estado existe y se pinta, pero
+  **nada lo dispara todavía**: el motor de reconexión de cliente es
+  [[Resiliencia de sesión ante microcortes de red]] (ADR-0003 nivel 1). Al caer
+  la conexión hoy la pestaña pasa a "caída". Criterio diferido a esa tarea.
+
+## Nota catálogo técnico
+
+Aparecen superficies reutilizables (`TerminalEmulator`, `SessionManager`/
+`SessionTab`, `TabList`, `TerminalKeys`, `CredentialResolver`, `TerminalView`),
+pero la taxonomía del Catálogo (Tipo/Área/Feature/Ámbito) sigue **por definir**
+en el README; no se inventan valores. Se catalogarán al acordar el vocabulario.
