@@ -10,6 +10,13 @@ Fecha de creación: 2026-09-18T17:15:00+02:00
 
 # Editores de script y túnel como pantalla propia
 
+> **Nota (2026-09-18):** esta tarea entregó los **editores dedicados** (navegar →
+> editar → volver), pero el usuario aclaró que su intención real era que scripts y
+> túneles fueran **entidades reutilizables con pestaña propia y persistencia**
+> (como hosts/snippets/grupos). Eso se aborda en
+> [[Scripts y túneles reutilizables de primera clase]], que reutiliza estos
+> editores como cimiento. Esta tarea queda `Hecha` en su alcance original.
+
 ## Objetivo
 
 Sacar la edición de scripts y de túneles del editor de sesión a **pantallas de

@@ -1,11 +1,11 @@
 ---
 Nombre: "Reordenar pestañas de sesión con drag and drop"
-Estado: En curso
-Resumen: 'UX del terminal: reordenar las pestañas de sesión debe ser drag-and-drop (arrastrar la pestaña), no los botones [<]/[>] actuales. Es lo más natural y libera espacio en la tira. Se eliminan esos iconos; el cierre [x] se mantiene. El modelo TabList.move(from,to) ya soporta reordenar a índice.'
+Estado: Hecha
+Resumen: 'UX del terminal: reordenar las pestañas por drag-and-drop con preview en vivo (la arrastrada flota y deja su hueco), fuera los botones [<]/[>]. ENTREGADO y verificado en dispositivo por el usuario ("funciona bien"). Follow-ups abiertos aparte: animar el reflujo ([[Animar el reordenado de pestañas]]) y el bug de segundo reordenado ([[Bug reordenar pestaña por segunda vez]]).'
 Decisiones: Ajuste de [[Terminal multipestaña con sesiones simultáneas]]; sigue el lenguaje visual [[Vocabulario ASCII ampliado y disciplina de color]].
 Bloqueada: []
 Fecha de creación: 2026-09-18T17:15:00+02:00
-Última modificación: 2026-09-18T17:25:00+02:00
+Última modificación: 2026-09-18T19:15:00+02:00
 ---
 
 # Reordenar pestañas de sesión con drag and drop
@@ -34,10 +34,12 @@ activa. Además de ser más intuitivo, **libera espacio** en la tira de pestaña
   `:androidApp:assembleDebug` → BUILD SUCCESSFUL. `:shared:desktopTest` sin fallos
   (la lógica de orden `TabList`/`TabListTest` no cambia; el reordenado sigue
   pasando por `SessionManager.move`).
-- **Pendiente (por eso queda `En curso`)**: la interacción de arrastre no se puede
-  verificar headless; falta comprobar en el pixel-9-pro-xl que arrastrar (tras
-  pulsación mantenida) **reordena en vivo** con el hueco visible, que un toque sigue
-  activando y que el scroll de la tira sigue funcionando.
+- **Verificado en dispositivo (2026-09-18, usuario)**: arrastrar reordena en vivo
+  con el hueco visible y "funciona bien". Se cierra como `Hecha`.
+- **Follow-ups abiertos** (no bloquean, tareas propias): animar el reflujo de las
+  pestañas ([[Animar el reordenado de pestañas]]) y el bug de que un **segundo**
+  reordenado hace snap a la primera posición ([[Bug reordenar pestaña por segunda vez]],
+  con la causa probable ya documentada: capturas stale en el `pointerInput`).
 
 ## Resultado (implementado, a falta de verificación en dispositivo)
 

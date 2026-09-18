@@ -10,9 +10,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -145,7 +148,9 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier) {
         tab.resize(columns, rows)
     }
 
-    Column(modifier.fillMaxSize().background(TerminalBgColor)) {
+    // imePadding shrinks the terminal above the soft keyboard (with adjustResize)
+    // instead of the window panning up and hiding the input line.
+    Column(modifier.fillMaxSize().background(TerminalBgColor).imePadding()) {
         if (pendingHostKey != null) {
             HostKeyPromptBar(
                 fingerprint = pendingHostKey!!.info.fingerprintSha256,
@@ -195,8 +200,18 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier) {
 
         if (isAndroidRuntime()) {
             Hairline()
+            val keyboardVisible = WindowInsets.ime.getBottom(density) > 0
             AndroidInputBar(
                 keyboardFocus = keyboardFocus,
+                keyboardVisible = keyboardVisible,
+                onToggleKeyboard = {
+                    if (keyboardVisible) {
+                        keyboardController?.hide()
+                    } else {
+                        keyboardFocus.requestFocus()
+                        keyboardController?.show()
+                    }
+                },
                 stickyCtrl = stickyCtrl,
                 stickyAlt = stickyAlt,
                 onModifier = { kind ->
@@ -407,6 +422,8 @@ private fun HostKeyPromptBar(
 @Composable
 private fun AndroidInputBar(
     keyboardFocus: FocusRequester,
+    keyboardVisible: Boolean,
+    onToggleKeyboard: () -> Unit,
     stickyCtrl: Boolean,
     stickyAlt: Boolean,
     onModifier: (ModifierKind) -> Unit,
@@ -420,24 +437,34 @@ private fun AndroidInputBar(
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = TitanDimens.SpaceXs, vertical = TitanDimens.SpaceXs)
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(TitanDimens.SpaceXs),
+                .padding(horizontal = TitanDimens.SpaceXs, vertical = TitanDimens.SpaceXs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            DefaultAccessoryKeys.forEach { key ->
-                when (key) {
-                    is AccessoryKey.Modifier -> {
-                        val active = when (key.kind) {
-                            ModifierKind.CTRL -> stickyCtrl
-                            ModifierKind.ALT -> stickyAlt
+            // The keys scroll horizontally in the remaining width; the keyboard
+            // toggle is pinned on the right, outside the scroll, always visible.
+            Row(
+                Modifier
+                    .weight(1f)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(TitanDimens.SpaceXs),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                DefaultAccessoryKeys.forEach { key ->
+                    when (key) {
+                        is AccessoryKey.Modifier -> {
+                            val active = when (key.kind) {
+                                ModifierKind.CTRL -> stickyCtrl
+                                ModifierKind.ALT -> stickyAlt
+                            }
+                            AccessoryButton(key.label, active) { onModifier(key.kind) }
                         }
-                        AccessoryButton(key.label, active) { onModifier(key.kind) }
+                        is AccessoryKey.Send -> AccessoryButton(key.label, false) { onSend(key.bytes) }
                     }
-                    is AccessoryKey.Send -> AccessoryButton(key.label, false) { onSend(key.bytes) }
                 }
+                AccessoryButton("Pegar", false, onPaste)
             }
-            AccessoryButton("Pegar", false, onPaste)
+            Spacer(Modifier.width(TitanDimens.SpaceXs))
+            AccessoryButton("[kbd]", active = keyboardVisible, onClick = onToggleKeyboard)
         }
         SoftKeyboardCapture(
             focusRequester = keyboardFocus,
@@ -486,23 +513,39 @@ private fun SoftKeyboardCapture(
         value = value,
         onValueChange = { new ->
             val text = new.text
-            when {
-                text.length > anchor.length -> onText(text.substring(anchor.length))
-                text.length < anchor.length -> onBackspace()
+            if (text.length > anchor.length) {
+                // Multi-line field, so the IME shows a real return key (↵): a
+                // newline in the added text is an Enter, and the keyboard stays up.
+                val added = text.substring(anchor.length)
+                val buf = StringBuilder()
+                added.forEach { ch ->
+                    if (ch == '\n' || ch == '\r') {
+                        if (buf.isNotEmpty()) {
+                            onText(buf.toString())
+                            buf.clear()
+                        }
+                        onEnter()
+                    } else {
+                        buf.append(ch)
+                    }
+                }
+                if (buf.isNotEmpty()) onText(buf.toString())
+            } else if (text.length < anchor.length) {
+                onBackspace()
             }
             value = TextFieldValue(anchor, TextRange(anchor.length))
         },
-        singleLine = true,
+        singleLine = false,
         keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
         cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.Transparent),
         modifier = Modifier
             .size(1.dp)
             .focusRequester(focusRequester)
             .onPreviewKeyEvent { event ->
+                // Enter arrives as a '\n' via onValueChange (kept multi-line);
+                // here we only need the hardware Backspace fallback.
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (event.key.keyCode) {
-                    androidx.compose.ui.input.key.Key.Enter.keyCode,
-                    androidx.compose.ui.input.key.Key.NumPadEnter.keyCode -> { onEnter(); true }
                     androidx.compose.ui.input.key.Key.Backspace.keyCode -> { onBackspace(); true }
                     else -> false
                 }

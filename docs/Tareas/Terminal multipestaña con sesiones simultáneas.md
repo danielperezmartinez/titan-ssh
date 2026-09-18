@@ -135,11 +135,19 @@ hardware, enroló y conectó).
 
 Ajustes detectados en esa prueba y su tratamiento:
 
-- **Teclado software no aparecía** al conectar (solo se veía la barra accesoria).
-  Causa: al tocar el terminal se enfocaba un panel `focusable` no editable, que no
-  levanta el IME. **Arreglado** en `TerminalView.kt`: en Android el toque enfoca el
-  campo oculto de captura y llama a `LocalSoftwareKeyboardController.show()`.
-  Pendiente de re-comprobar en dispositivo.
+- **Teclado software** (varios arreglos, pendientes de re-comprobar en dispositivo):
+  - *No aparecía*: al tocar el terminal se enfocaba un panel `focusable` no editable.
+    Arreglado: en Android el toque enfoca el campo oculto y llama a
+    `LocalSoftwareKeyboardController.show()`.
+  - *La pantalla se desplazaba y tapaba lo escrito*: faltaba `adjustResize` + consumo
+    de insets del IME. Arreglado: `android:windowSoftInputMode="adjustResize"` en el
+    manifest + `Modifier.imePadding()` en el `Column` raíz de `TerminalView` (el
+    terminal se **encoge** sobre el teclado).
+  - *La tecla era ✓ (cerraba sin enviar) en vez de ↵*: el campo de captura pasa a
+    **multilínea**, así el IME muestra Enter/return real; un `\n` se interpreta como
+    ENTER y el teclado **sigue vivo** para enviar varios comandos.
+  - *Añadido*: botón `[kbd]` fijo a la derecha de la barra (fuera del scroll, siempre
+    visible) que **muestra/oculta** el teclado.
 - **Reordenar pestañas** pasa a drag-and-drop con preview en vivo →
   [[Reordenar pestañas de sesión con drag and drop]].
 
