@@ -3,6 +3,7 @@ package im.gar.titanssh.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,12 +25,18 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.zIndex
 import im.gar.titanssh.config.ConfigController
 import im.gar.titanssh.config.ResolvedConnection
 import im.gar.titanssh.config.resolve
@@ -90,8 +97,7 @@ fun SessionsArea(controller: ConfigController, manager: SessionManager) {
             activeId = active.id,
             onSelect = { manager.activate(it) },
             onClose = { manager.close(it) },
-            onMoveLeft = { manager.moveLeft(it) },
-            onMoveRight = { manager.moveRight(it) },
+            onMove = { from, to -> manager.move(from, to) },
             onNew = { showLauncher = true },
             split = splitEnabled,
             onToggleSplit = if (!isAndroidRuntime()) ({ splitEnabled = !splitEnabled }) else null,
@@ -125,13 +131,26 @@ private fun TabStrip(
     activeId: String,
     onSelect: (String) -> Unit,
     onClose: (String) -> Unit,
-    onMoveLeft: (String) -> Unit,
-    onMoveRight: (String) -> Unit,
+    onMove: (from: Int, to: Int) -> Unit,
     onNew: () -> Unit,
     split: Boolean,
     onToggleSplit: (() -> Unit)?,
     onFullscreen: (() -> Unit)?,
 ) {
+    // Chip width per index (including its trailing gap), captured at layout.
+    // Reordering commits on drag end, so widths stay stable for the whole gesture
+    // and we derive each chip's center by prefix sum to map the dragged position
+    // to a target index — no absolute-coordinate APIs needed.
+    val widths = remember { mutableStateMapOf<Int, Int>() }
+    var draggingId by remember { mutableStateOf<String?>(null) }
+    var dragOffsetX by remember { mutableStateOf(0f) }
+
+    fun centerOf(index: Int): Float {
+        var left = 0
+        for (j in 0 until index) left += widths[j] ?: 0
+        return left + (widths[index] ?: 0) / 2f
+    }
+
     Row(
         Modifier.fillMaxWidth().background(TitanColors.Canvas),
         verticalAlignment = Alignment.CenterVertically,
@@ -140,15 +159,32 @@ private fun TabStrip(
             Modifier.weight(1f).horizontalScroll(rememberScrollState()),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            tabs.forEach { tab ->
-                TabChip(
-                    tab = tab,
-                    selected = tab.id == activeId,
-                    onSelect = { onSelect(tab.id) },
-                    onClose = { onClose(tab.id) },
-                    onMoveLeft = { onMoveLeft(tab.id) },
-                    onMoveRight = { onMoveRight(tab.id) },
-                )
+            tabs.forEachIndexed { index, tab ->
+                key(tab.id) {
+                    TabChip(
+                        tab = tab,
+                        selected = tab.id == activeId,
+                        dragging = tab.id == draggingId,
+                        dragOffsetX = if (tab.id == draggingId) dragOffsetX else 0f,
+                        onSelect = { onSelect(tab.id) },
+                        onClose = { onClose(tab.id) },
+                        onSize = { widths[index] = it },
+                        onDragStart = {
+                            draggingId = tab.id
+                            dragOffsetX = 0f
+                        },
+                        onDrag = { dragOffsetX += it },
+                        onDragEnd = {
+                            val dragged = centerOf(index) + dragOffsetX
+                            var target = index
+                            while (target < tabs.lastIndex && dragged > centerOf(target + 1)) target++
+                            while (target > 0 && dragged < centerOf(target - 1)) target--
+                            if (target != index) onMove(index, target)
+                            draggingId = null
+                            dragOffsetX = 0f
+                        },
+                    )
+                }
             }
         }
         GlyphButton("[+]", onClick = onNew, color = TitanColors.Accent)
@@ -165,23 +201,49 @@ private fun TabStrip(
 private fun TabChip(
     tab: SessionTab,
     selected: Boolean,
+    dragging: Boolean,
+    dragOffsetX: Float,
     onSelect: () -> Unit,
     onClose: () -> Unit,
-    onMoveLeft: () -> Unit,
-    onMoveRight: () -> Unit,
+    onSize: (Int) -> Unit,
+    onDragStart: () -> Unit,
+    onDrag: (Float) -> Unit,
+    onDragEnd: () -> Unit,
 ) {
     val status by tab.status.collectAsState()
     val (marker, markerColor) = statusMarker(status.phase)
     Row(
         Modifier
+            .onGloballyPositioned { onSize(it.size.width) }
+            .zIndex(if (dragging) 1f else 0f)
+            .graphicsLayer { translationX = dragOffsetX }
             .padding(end = TitanDimens.SpaceXs)
-            .background(if (selected) TitanColors.Surface else TitanColors.Canvas)
+            .background(
+                when {
+                    dragging -> TitanColors.SurfaceElevated
+                    selected -> TitanColors.Surface
+                    else -> TitanColors.Canvas
+                },
+            )
             .border(
                 TitanDimens.Hairline,
-                if (selected) TitanColors.Accent else TitanColors.HairlineStrong,
+                if (selected || dragging) TitanColors.Accent else TitanColors.HairlineStrong,
                 RoundedCornerShape(TitanDimens.RadiusSm),
             )
             .clickable(onClick = onSelect)
+            // Drag-to-reorder starts after a long press, so a quick horizontal
+            // drag still scrolls the strip and a tap still selects the tab.
+            .pointerInput(tab.id) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { onDragStart() },
+                    onDragEnd = { onDragEnd() },
+                    onDragCancel = { onDragEnd() },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        onDrag(dragAmount.x)
+                    },
+                )
+            }
             .padding(horizontal = TitanDimens.SpaceSm, vertical = TitanDimens.SpaceXs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -192,11 +254,6 @@ private fun TabChip(
             style = MaterialTheme.typography.bodyMedium,
             color = if (selected) TitanColors.Ink else TitanColors.Mute,
         )
-        if (selected) {
-            Spacer(Modifier.width(TitanDimens.SpaceXs))
-            MiniGlyph("[<]", onMoveLeft)
-            MiniGlyph("[>]", onMoveRight)
-        }
         Spacer(Modifier.width(TitanDimens.SpaceXs))
         MiniGlyph("[x]", onClose, color = TitanColors.Mute)
     }

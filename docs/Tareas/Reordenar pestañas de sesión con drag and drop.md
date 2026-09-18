@@ -1,11 +1,11 @@
 ---
 Nombre: "Reordenar pestañas de sesión con drag and drop"
-Estado: Pendiente
+Estado: En curso
 Resumen: 'UX del terminal: reordenar las pestañas de sesión debe ser drag-and-drop (arrastrar la pestaña), no los botones [<]/[>] actuales. Es lo más natural y libera espacio en la tira. Se eliminan esos iconos; el cierre [x] se mantiene. El modelo TabList.move(from,to) ya soporta reordenar a índice.'
 Decisiones: Ajuste de [[Terminal multipestaña con sesiones simultáneas]]; sigue el lenguaje visual [[Vocabulario ASCII ampliado y disciplina de color]].
 Bloqueada: []
 Fecha de creación: 2026-09-18T17:15:00+02:00
-Última modificación: 2026-09-18T17:15:00+02:00
+Última modificación: 2026-09-18T17:25:00+02:00
 ---
 
 # Reordenar pestañas de sesión con drag and drop
@@ -29,9 +29,28 @@ activa. Además de ser más intuitivo, **libera espacio** en la tira de pestaña
 
 ## Verificación
 
-<Se rellena al completar: build de ambos targets y comprobación real del gesto en
-el pixel-9-pro-xl (la interacción de arrastre necesita dispositivo).>
+- Build OK (`GRADLE_EXIT=0`, JBR + wrapper): `:shared:compileKotlinDesktop`,
+  `:shared:compileAndroidMain`, `:desktopApp:compileKotlin`,
+  `:androidApp:assembleDebug` → BUILD SUCCESSFUL. `:shared:desktopTest` sin fallos
+  (la lógica de orden `TabList`/`TabListTest` no cambia; el reordenado sigue
+  pasando por `SessionManager.move`).
+- **Pendiente (por eso queda `En curso`)**: la interacción de arrastre no se puede
+  verificar headless; falta comprobar en el pixel-9-pro-xl que arrastrar (tras
+  pulsación mantenida) reordena, que un toque sigue activando y que el scroll de la
+  tira sigue funcionando.
 
-## Resultado
+## Resultado (implementado, a falta de verificación en dispositivo)
 
-<Se rellena al completar.>
+En `shared/src/commonMain/kotlin/im/gar/titanssh/ui/SessionsArea.kt`:
+
+- Eliminados los `[<]` / `[>]` de `TabChip` (se mantiene `[x]`, `[+]`, `[#]`, `[^]`).
+- `TabChip` reordena por **arrastre tras pulsación mantenida**
+  (`detectDragGesturesAfterLongPress`), para no chocar con el `horizontalScroll` de
+  la tira (arrastre rápido = scroll; toque = activar). Feedback visual: la pestaña
+  arrastrada se eleva (`SurfaceElevated` + borde accent, `zIndex`, `translationX`).
+- Cada pestaña reporta su ancho (`onGloballyPositioned` → `it.size.width`); al
+  soltar se calcula el índice destino por suma de prefijos de anchos frente a la
+  posición arrastrada y se llama a `SessionManager.move(from, to)`.
+- Nota técnica: en esta versión de Compose `LayoutCoordinates.positionInParent()`/
+  `positionInRoot()` no resuelven; por eso la geometría se deriva solo de los
+  anchos capturados.
