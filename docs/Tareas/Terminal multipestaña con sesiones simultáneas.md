@@ -147,7 +147,9 @@ Terminal multipestaña entregado en el paquete `im.gar.titanssh.terminal`
 
 ## Nota catálogo técnico
 
-Aparecen superficies reutilizables (`TerminalEmulator`, `SessionManager`/
-`SessionTab`, `TabList`, `TerminalKeys`, `CredentialResolver`, `TerminalView`),
-pero la taxonomía del Catálogo (Tipo/Área/Feature/Ámbito) sigue **por definir**
-en el README; no se inventan valores. Se catalogarán al acordar el vocabulario.
+Las superficies reutilizables **ya están catalogadas** (la taxonomía del Catálogo
+estaba acordada desde el registro de `SecretStore`; el texto "por definir" era
+stale y se ha corregido): [[TerminalEmulator]] (con `AnsiPalette`/snapshot),
+[[SessionManager]] (con `SessionTab`), [[TabList]], [[TerminalKeys]],
+[[CredentialResolver]] y [[TerminalView]]. Se añadió el valor `Terminal` al
+vocabulario de Feature (el README autoriza ampliarlo cuando un caso no encaje).

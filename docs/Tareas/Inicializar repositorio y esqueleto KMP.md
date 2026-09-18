@@ -58,10 +58,11 @@ Esqueleto KMP + Compose Multiplatform en el módulo único `composeApp` con
   LF), commit inicial `ec866f2`, publicado en el remoto
   `https://github.com/danielperezmartinez/titan-ssh` (`origin/main`).
 
-Nota: no se crean entradas en el Catálogo técnico todavía; su taxonomía (Tipo,
-Área, Feature, Ámbito) sigue **por definir** y el README prohíbe inventar
-valores. Las superficies reutilizables (`TitanTheme`, `TitanColors`, `App`,
-seam `platformName`) se catalogarán al acordar el vocabulario.
+Nota: la taxonomía del Catálogo técnico se acordó después, al registrar la primera
+superficie (`SecretStore`); el "por definir" de aquí quedó stale. `TitanTheme` /
+`TitanColors` ya están catalogados en [[Tema y tokens visuales]]. `App` y el seam
+`platformName` siguen sin ficha por ser andamiaje del esqueleto, no superficie
+reutilizable estable.
 
 Remoto indicado por el usuario y `git push -u origin main` correcto (las
 credenciales ya estaban configuradas en la máquina). Todos los criterios de

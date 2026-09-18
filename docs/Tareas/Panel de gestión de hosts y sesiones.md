@@ -102,10 +102,10 @@ snippets viven dentro del editor de sesión). El terminal multipestaña real sig
 en [[Terminal multipestaña con sesiones simultáneas]]; aquí el área de Sesiones
 es una lanzadera que ya demuestra la resolución config → motor.
 
-Nota catálogo técnico: aparecen nuevas superficies reutilizables (modelo de
-config, `ConfigStore`/`ConfigController`, componentes de UI), pero la taxonomía
-del Catálogo (Tipo/Área/Feature/Ámbito) sigue **por definir** y el README prohíbe
-inventar valores; se catalogarán al acordar el vocabulario.
+Nota catálogo técnico: las nuevas superficies reutilizables **ya están
+catalogadas** (la taxonomía estaba acordada desde `SecretStore`; el "por definir"
+era stale y se ha corregido): [[Modelo de configuración]], [[ConfigStore]],
+[[ConfigController]], [[Tema y tokens visuales]] y [[Componentes UI compartidos]].
 
 ## Repaso de diseño (2026-09-18)
 

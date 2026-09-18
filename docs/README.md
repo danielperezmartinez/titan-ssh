@@ -107,8 +107,10 @@ nota-índice en `Catálogo técnico.md`.
 - Se añade o actualiza la entrada **en el mismo cambio** que crea o altera una
   superficie reutilizable.
 - `Tipo`, `Área`, `Feature` y `Ámbito` son vocabularios propios del proyecto:
-  aún **por definir** (ver `<!-- TODO -->` en la nota-índice); no inventar
-  valores hasta acordarlos.
+  **ya acordados** (se fijaron al registrar la primera superficie, `SecretStore`);
+  la lista vigente vive en la nota-índice `Catálogo técnico.md`. No inventar
+  valores fuera de ese set; se amplía solo cuando aparezca un caso que ninguno
+  cubra, actualizando la nota-índice en el mismo cambio.
 - Cada nota es un puntero corto: la **implementación** sigue siendo la fuente
   de verdad técnica del contrato.
 
@@ -214,5 +216,6 @@ Se refinará a medida que aparezca código; ver
   (candidatas: credential-secure-storage-for-java, java-keyring); se cierra en la
   implementación (ver [[Decisiones/ADR-0001 Credenciales en almacén nativo del SO]]).
 - Empaquetado de escritorio concreto (formatos Windows/Linux).
-- Taxonomía del catálogo técnico (Tipo, Área, Feature, Ámbito): se acordará
-  cuando exista la primera superficie reutilizable.
+- Taxonomía del catálogo técnico (Tipo, Área, Feature, Ámbito): **resuelto** —
+  acordada al registrar la primera superficie (`SecretStore`); ver la nota-índice
+  `Catálogo técnico.md`.
