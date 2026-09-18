@@ -127,6 +127,13 @@ Terminal multipestaña entregado en el paquete `im.gar.titanssh.terminal`
   set `jvmShared`) y deprecación de `LocalClipboardManager` (no rompe; migrar a
   `LocalClipboard` es trabajo futuro).
 
+**Comprobado en dispositivo (2026-09-18, usuario)** en el pixel-9-pro-xl: crear
+hosts y sesiones y su persistencia; abrir **dos sesiones simultáneas**, tenerlas a
+la vez, **reordenar** y **cerrar** pestañas — todo correcto. Quedan un par de
+ajustes menores (a concretar más adelante). La **conexión viva** aún no se ha
+podido probar porque falta la UI de generación/aprovisionamiento de claves (no
+entraba en esta entrega): ver [[Gestión de claves y secretos UI]].
+
 **Pendiente de comprobación real (por eso queda `En curso`):**
 
 - **Conexión viva a través de la UI**: no verificada por mí (no puedo arrancar la
