@@ -1,11 +1,11 @@
 ---
 Nombre: "Gestión de claves y secretos (UI)"
-Estado: En curso
-Resumen: 'Aprovisionar material de autenticación desde la app para que los métodos de auth del host sean usables de punta a punta. Falta la UI que genera una clave hardware no exportable (y muestra su línea authorized_keys para enrolar), importa/genera una clave software y guarda contraseñas/passphrases en el SecretStore. Hoy el editor de host solo REFERENCIA material que nada crea; sin esto no se puede probar una conexión real desde la app.'
+Estado: Hecha
+Resumen: 'Aprovisionar material de autenticación desde la app. ENTREGADO y verificado en dispositivo (el usuario generó la clave hardware desde el editor de host, la enroló y CONECTÓ): seam expect/actual de clave hardware, SecretProvisioner (guardar contraseña / importar clave software PEM en el SecretStore) y la UI del editor de host que crea el material (no solo lo referencia), sin texto plano. Stretch pendiente: generar par ed25519 in-app.'
 Decisiones: Consume [[ADR-0001 Credenciales en almacén nativo del SO]] y [[ADR-0005 Autenticación SSH y verificación de host]]. Se apoya en la fundación de [[Almacenamiento seguro de credenciales]] y el signer de [[Autenticación SSH signer en hardware y verificación de host]].
 Bloqueada: []
 Fecha de creación: 2026-09-18T16:10:00+02:00
-Última modificación: 2026-09-18T17:05:00+02:00
+Última modificación: 2026-09-18T18:20:00+02:00
 ---
 
 # Gestión de claves y secretos (UI)
@@ -68,19 +68,17 @@ lleva esa capacidad a la UI real y añade el aprovisionamiento de secretos softw
 - Warning conocido y benigno: deprecación de `LocalClipboardManager` (mismo que ya
   usa `TerminalView`; migrar a `LocalClipboard` es trabajo futuro).
 
-**Pendiente de comprobación real del usuario (por eso queda `En curso`, mismo
-criterio que el terminal):**
+**Comprobado en dispositivo (2026-09-18, usuario)** en el pixel-9-pro-xl: generó
+la clave hardware desde el editor de host, la enroló en el host de pruebas y
+**conectó** autenticando con la firma del Keystore. Esto cierra el objetivo v1
+(auth usable de punta a punta desde la UI) y confirma también la conexión viva del
+[[Terminal multipestaña con sesiones simultáneas]]. Por eso la tarea pasa a
+`Hecha`.
 
-- **Clave hardware en el pixel-9-pro-xl**: generar la clave desde el editor de host
-  con el alias elegido, copiar la línea `authorized_keys`, enrolarla en el host de
-  pruebas y **conectar desde el terminal** autenticando con la firma del Keystore.
-  La capacidad de bajo nivel ya está verificada en dispositivo (ver
-  [[Autenticación SSH signer en hardware y verificación de host]]); falta ejercerla
-  por la UI de producto.
-- **Contraseña / clave software**: guardar el secreto desde el editor y conectar
-  una sesión que lo referencie, en escritorio (`:desktopApp:run`) y/o Android.
-- No puedo arrancar la ventana de escritorio ni un dispositivo ni conectar a un
-  host real con credenciales; queda a la comprobación del usuario.
+**Opcional, aún no ejercido por el usuario** (no bloquea; cubierto por
+`SecretProvisionerTest`): guardar contraseña / importar clave software desde el
+editor y conectar una sesión que las referencie (escritorio y/o Android). Si algo
+fallara al ejercerlo, se reabre o se abre un ajuste puntual.
 
 ## Resultado
 
