@@ -7,17 +7,21 @@ package im.gar.titanssh.terminal
  * [im.gar.titanssh.ssh.SshShell] and produces immutable [TerminalSnapshot]s for
  * the UI to render.
  *
- * ## Scope (v1)
+ * ## Scope
  * Implemented: printable UTF-8 text with line wrap, the C0 controls
  * `BEL/BS/HT/LF/VT/FF/CR`, CSI cursor motion (`CUU/CUD/CUF/CUB/CUP/HVP`, `CHA`),
- * erase (`ED/EL`), `SGR` rendition (bold, inverse, the 16 ANSI colours, `38/48;5`
- * indexed and `38/48;2` true colour), save/restore cursor and reverse index,
- * and it consumes-and-ignores OSC (window title) and private DEC mode sequences
- * so they never leak to the screen as garbage.
+ * erase (`ED/EL/ECH`), line/char editing (`IL/DL/ICH/DCH`), the alternate screen
+ * buffer (`47/1047/1049`) with no scrollback of its own, scroll regions
+ * (`DECSTBM`) with region-aware `LF/RI/SU/SD`, `SGR` rendition (bold, inverse,
+ * the 16 ANSI colours, `38/48;5` indexed and `38/48;2` true colour),
+ * save/restore cursor and reverse index. It consumes-and-ignores OSC (window
+ * title) and the private DEC modes it does not act on (cursor visibility,
+ * bracketed paste…) so they never leak to the screen as garbage. This is enough
+ * for full-screen apps (tmux/screen, vim, less, htop) to render — the base for
+ * resilience level 2 ([[Resiliencia nivel 2 auto-tmux o screen]]).
  *
- * Deliberately out of scope for v1 (the shell degrades gracefully without them):
- * the alternate screen buffer, scroll regions (`DECSTBM`), tab-stop programming,
- * and character-set selection. These are noted in the terminal task.
+ * Still out of scope (the shell degrades gracefully without them): origin mode
+ * (`DECOM`), tab-stop programming, and character-set selection.
  *
  * Not thread-safe: callers confine [feed]/[resize]/[snapshot] to a single
  * coroutine (the session tab does this behind a mutex).
@@ -39,6 +43,18 @@ class TerminalEmulator(
     private var cursorCol = 0
     private var savedRow = 0
     private var savedCol = 0
+
+    // Scroll region (DECSTBM), 0-based inclusive; the whole screen by default.
+    private var scrollTop = 0
+    private var scrollBottom = this.rows - 1
+
+    // Alternate screen buffer (xterm 47/1047/1049): a full-screen app (tmux, vim,
+    // less, htop) switches to it so its UI never lands in the scrollback. The alt
+    // screen keeps no scrollback of its own; leaving it restores the main screen.
+    private var inAltScreen = false
+    private var savedMainScreen: Array<Array<TerminalCell>>? = null
+    private var altReturnRow = 0
+    private var altReturnCol = 0
 
     // Current rendition (SGR state).
     private var fg: TermColor = TermColor.Default
@@ -161,8 +177,14 @@ class TerminalEmulator(
     private fun dispatchCsi(final: Char) {
         val args = parseParams()
         if (csiPrivate) {
-            // Private DEC modes (cursor visibility, alt screen, bracketed paste…):
-            // consumed and ignored in v1 so they never print as garbage.
+            // Private DEC modes. We act on the alternate-screen switch (47/1047/
+            // 1049) so full-screen apps render on their own buffer; the rest
+            // (cursor visibility, bracketed paste…) are consumed and ignored.
+            when (final) {
+                'h' -> setPrivateModes(args, true)
+                'l' -> setPrivateModes(args, false)
+                else -> Unit
+            }
             return
         }
         when (final) {
@@ -178,9 +200,135 @@ class TerminalEmulator(
             }
             'J' -> eraseDisplay(argOr(args, 0, 0))
             'K' -> eraseLine(argOr(args, 0, 0))
+            'L' -> insertLines(argOr(args, 0, 1)) // IL
+            'M' -> deleteLines(argOr(args, 0, 1)) // DL
+            '@' -> insertChars(argOr(args, 0, 1)) // ICH
+            'P' -> deleteChars(argOr(args, 0, 1)) // DCH
+            'X' -> eraseChars(argOr(args, 0, 1)) // ECH
+            'S' -> scrollRegionUp(argOr(args, 0, 1)) // SU
+            'T' -> scrollRegionDown(argOr(args, 0, 1)) // SD
+            'r' -> setScrollRegion(args) // DECSTBM
             'm' -> applySgr(args)
             else -> Unit // unsupported CSI: ignore
         }
+    }
+
+    /** Applies the private DEC modes we honor (currently the alternate screen). */
+    private fun setPrivateModes(args: List<Int>, set: Boolean) {
+        for (mode in args) {
+            when (mode) {
+                // 1049 also saves/restores the cursor around the switch; 47/1047
+                // switch buffers without the cursor dance. We treat them alike for
+                // entering/leaving and only 1049 carries the cursor.
+                1049 -> if (set) enterAltScreen(saveCursor = true) else exitAltScreen(restoreCursor = true)
+                47, 1047 -> if (set) enterAltScreen(saveCursor = false) else exitAltScreen(restoreCursor = false)
+                else -> Unit // other private modes: ignored
+            }
+        }
+    }
+
+    private fun enterAltScreen(saveCursor: Boolean) {
+        if (inAltScreen) return
+        if (saveCursor) { altReturnRow = cursorRow; altReturnCol = cursorCol }
+        savedMainScreen = screen
+        screen = blankScreen(columns, rows)
+        inAltScreen = true
+        scrollTop = 0
+        scrollBottom = rows - 1
+        cursorRow = 0
+        cursorCol = 0
+    }
+
+    private fun exitAltScreen(restoreCursor: Boolean) {
+        val main = savedMainScreen ?: return
+        screen = main
+        savedMainScreen = null
+        inAltScreen = false
+        scrollTop = 0
+        scrollBottom = rows - 1
+        if (restoreCursor) {
+            cursorRow = altReturnRow.coerceIn(0, rows - 1)
+            cursorCol = altReturnCol.coerceIn(0, columns - 1)
+        } else {
+            cursorRow = cursorRow.coerceIn(0, rows - 1)
+            cursorCol = cursorCol.coerceIn(0, columns - 1)
+        }
+    }
+
+    /** DECSTBM: sets the scroll region [top,bottom] (1-based args) and homes the cursor. */
+    private fun setScrollRegion(args: List<Int>) {
+        val top = (argOr(args, 0, 1) - 1)
+        val bottom = (argOr(args, 1, rows) - 1)
+        if (top in 0 until bottom && bottom <= rows - 1) {
+            scrollTop = top
+            scrollBottom = bottom
+        } else {
+            scrollTop = 0
+            scrollBottom = rows - 1
+        }
+        cursorRow = 0
+        cursorCol = 0
+    }
+
+    /** Scrolls the region up by [n], feeding evicted top lines to scrollback only
+     * for a full-height main screen (no region set, not the alt buffer). */
+    private fun scrollRegionUp(n: Int) {
+        repeat(n.coerceIn(0, scrollBottom - scrollTop + 1)) {
+            val evicted = screen[scrollTop]
+            if (scrollTop == 0 && !inAltScreen) {
+                scrollback.addLast(evicted.toList())
+                while (scrollback.size > maxScrollback) scrollback.removeFirst()
+            }
+            for (r in scrollTop until scrollBottom) screen[r] = screen[r + 1]
+            screen[scrollBottom] = blankRow(columns)
+        }
+    }
+
+    /** Scrolls the region down by [n] (blank lines enter at the top of the region). */
+    private fun scrollRegionDown(n: Int) {
+        repeat(n.coerceIn(0, scrollBottom - scrollTop + 1)) {
+            for (r in scrollBottom downTo scrollTop + 1) screen[r] = screen[r - 1]
+            screen[scrollTop] = blankRow(columns)
+        }
+    }
+
+    /** IL: inserts [n] blank lines at the cursor, within the scroll region. */
+    private fun insertLines(n: Int) {
+        if (cursorRow < scrollTop || cursorRow > scrollBottom) return
+        val count = n.coerceIn(0, scrollBottom - cursorRow + 1)
+        for (r in scrollBottom downTo cursorRow + count) screen[r] = screen[r - count]
+        for (r in cursorRow until cursorRow + count) screen[r] = blankRow(columns)
+    }
+
+    /** DL: deletes [n] lines at the cursor, within the scroll region. */
+    private fun deleteLines(n: Int) {
+        if (cursorRow < scrollTop || cursorRow > scrollBottom) return
+        val count = n.coerceIn(0, scrollBottom - cursorRow + 1)
+        for (r in cursorRow..scrollBottom - count) screen[r] = screen[r + count]
+        for (r in scrollBottom - count + 1..scrollBottom) screen[r] = blankRow(columns)
+    }
+
+    /** ICH: inserts [n] blank cells at the cursor, shifting the rest of the line right. */
+    private fun insertChars(n: Int) {
+        val row = screen[cursorRow]
+        val count = n.coerceIn(0, columns - cursorCol)
+        for (c in columns - 1 downTo cursorCol + count) row[c] = row[c - count]
+        for (c in cursorCol until cursorCol + count) row[c] = TerminalCell.Blank
+    }
+
+    /** DCH: deletes [n] cells at the cursor, shifting the rest of the line left. */
+    private fun deleteChars(n: Int) {
+        val row = screen[cursorRow]
+        val count = n.coerceIn(0, columns - cursorCol)
+        for (c in cursorCol until columns - count) row[c] = row[c + count]
+        for (c in columns - count until columns) row[c] = TerminalCell.Blank
+    }
+
+    /** ECH: erases [n] cells from the cursor without shifting. */
+    private fun eraseChars(n: Int) {
+        val row = screen[cursorRow]
+        val end = (cursorCol + n).coerceAtMost(columns)
+        for (c in cursorCol until end) row[c] = TerminalCell.Blank
     }
 
     private fun putChar(ch: Char) {
@@ -193,23 +341,19 @@ class TerminalEmulator(
     }
 
     private fun lineFeed() {
-        if (cursorRow >= rows - 1) {
-            val evicted = screen[0].toList()
-            scrollback.addLast(evicted)
-            while (scrollback.size > maxScrollback) scrollback.removeFirst()
-            for (r in 0 until rows - 1) screen[r] = screen[r + 1]
-            screen[rows - 1] = blankRow(columns)
-        } else {
-            cursorRow++
+        when {
+            // At the bottom margin: scroll the region up (feeds scrollback only for
+            // a full-height main screen, see scrollRegionUp).
+            cursorRow == scrollBottom -> scrollRegionUp(1)
+            cursorRow < rows - 1 -> cursorRow++
+            // Below the region at the physical bottom: stay put.
         }
     }
 
     private fun reverseIndex() {
-        if (cursorRow == 0) {
-            for (r in rows - 1 downTo 1) screen[r] = screen[r - 1]
-            screen[0] = blankRow(columns)
-        } else {
-            cursorRow--
+        when {
+            cursorRow == scrollTop -> scrollRegionDown(1)
+            cursorRow > 0 -> cursorRow--
         }
     }
 
@@ -292,28 +436,33 @@ class TerminalEmulator(
         state = State.ESC
     }
 
-    /** Resizes the grid, preserving content top-left and clamping the cursor. */
+    /** Resizes the grid, preserving content top-left and clamping the cursor. The
+     * scroll region is reset to the full screen and, if a full-screen app is on
+     * the alternate buffer, the saved main screen is resized alongside it. */
     fun resize(columns: Int, rows: Int) {
         val newCols = columns.coerceAtLeast(1)
         val newRows = rows.coerceAtLeast(1)
         if (newCols == this.columns && newRows == this.rows) return
-        val next = blankScreen(newCols, newRows)
-        val copyRows = minOf(this.rows, newRows)
-        val copyCols = minOf(this.columns, newCols)
-        for (r in 0 until copyRows) {
-            for (c in 0 until copyCols) next[r][c] = screen[r][c]
-        }
-        screen = next
+        val oldCols = this.columns
+        val oldRows = this.rows
+        screen = resizeGrid(screen, oldCols, oldRows, newCols, newRows)
+        savedMainScreen = savedMainScreen?.let { resizeGrid(it, oldCols, oldRows, newCols, newRows) }
         this.columns = newCols
         this.rows = newRows
+        scrollTop = 0
+        scrollBottom = newRows - 1
         cursorRow = cursorRow.coerceIn(0, newRows - 1)
         cursorCol = cursorCol.coerceIn(0, newCols - 1)
     }
 
     /** Clears the screen, scrollback and rendition (full reset, RIS). */
     fun reset() {
+        inAltScreen = false
+        savedMainScreen = null
         screen = blankScreen(columns, rows)
         scrollback.clear()
+        scrollTop = 0
+        scrollBottom = rows - 1
         cursorRow = 0
         cursorCol = 0
         resetRendition()
@@ -338,6 +487,23 @@ class TerminalEmulator(
 
         fun blankScreen(cols: Int, rows: Int): Array<Array<TerminalCell>> =
             Array(rows) { blankRow(cols) }
+
+        /** A new grid of [dstCols]x[dstRows] with [src]'s content copied top-left. */
+        fun resizeGrid(
+            src: Array<Array<TerminalCell>>,
+            srcCols: Int,
+            srcRows: Int,
+            dstCols: Int,
+            dstRows: Int,
+        ): Array<Array<TerminalCell>> {
+            val next = blankScreen(dstCols, dstRows)
+            val copyRows = minOf(srcRows, dstRows)
+            val copyCols = minOf(srcCols, dstCols)
+            for (r in 0 until copyRows) {
+                for (c in 0 until copyCols) next[r][c] = src[r][c]
+            }
+            return next
+        }
 
         fun utf8Length(lead: Int): Int = when {
             lead and 0xE0 == 0xC0 -> 2

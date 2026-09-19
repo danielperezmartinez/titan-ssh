@@ -5,7 +5,7 @@ Resumen: 'Terminal multipestaña v1 ENTREGADO y verificado en dispositivo (usuar
 Decisiones: Enmarcada en [[Arquitectura de dos áreas Configuración y Sesiones]]; consume [[Motor de conexión SSH]], [[ADR-0003 Modelo de resiliencia por niveles]] y [[ADR-0005 Autenticación SSH y verificación de host]] (TOFU).
 Bloqueada: []
 Fecha de creación: 2026-09-17T15:32:11+02:00
-Última modificación: 2026-09-18T19:35:00+02:00
+Última modificación: 2026-09-19T17:35:00+02:00
 ---
 
 # Terminal multipestaña con sesiones simultáneas
@@ -59,7 +59,10 @@ Terminal multipestaña entregado en el paquete `im.gar.titanssh.terminal`
   modos privados DEC para que no ensucien la pantalla. Produce
   `TerminalSnapshot` inmutable. **Fuera de v1** (degradan sin romper): pantalla
   alterna (`1049`), regiones de scroll (`DECSTBM`), tab-stops programables y
-  selección de charset.
+  selección de charset. (Actualización: la pantalla alterna, las regiones de
+  scroll y la edición `IL/DL/ICH/DCH/ECH` se añadieron después en
+  [[Resiliencia nivel 2 auto-tmux o screen]]; quedan pendientes solo origin mode,
+  tab-stops y charsets. Ver [[TerminalEmulator]].)
 - **`AnsiPalette`** — paleta del terminal: índices 0..15 según
   [[Tokens visuales dark-first base opencode]], más cubo 6x6x6 (16..231) y rampa
   de grises (232..255) estándar de xterm.

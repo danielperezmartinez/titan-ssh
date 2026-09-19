@@ -128,4 +128,113 @@ class TerminalEmulatorTest {
         assertEquals('h', s.screen[0][0].char)
         assertEquals('l', s.screen[0][2].char)
     }
+
+    /** Prepends ESC so a CSI/escape can be written from a plain string. */
+    private fun esc(s: String): ByteArray = bytes("$s")
+
+    @Test
+    fun alternate_screen_isolates_content_and_restores_main() {
+        val e = TerminalEmulator(10, 3)
+        e.feed(bytes("main"))            // main screen, cursor at col 4
+        e.feed(esc("[?1049h"))           // enter alt (blank), saving the cursor
+        e.feed(bytes("ALT"))
+        var s = e.snapshot()
+        assertEquals('A', s.screen[0][0].char, "alt buffer shows its own content")
+        assertEquals(0, s.scrollback.size, "the alt screen keeps no scrollback")
+
+        e.feed(esc("[?1049l"))           // leave alt: main screen + cursor restored
+        s = e.snapshot()
+        assertEquals('m', s.screen[0][0].char, "main content is back")
+        assertEquals('n', s.screen[0][3].char)
+        assertEquals(4, s.cursorColumn, "the saved cursor is restored")
+    }
+
+    @Test
+    fun alt_screen_scrolling_does_not_grow_scrollback() {
+        val e = TerminalEmulator(10, 2)
+        e.feed(esc("[?1049h"))
+        e.feed(bytes("a\r\nb\r\nc"))      // scrolls within the alt buffer
+        assertEquals(0, e.snapshot().scrollback.size)
+    }
+
+    @Test
+    fun scroll_region_confines_line_feed() {
+        val e = TerminalEmulator(4, 4)
+        e.feed(esc("[1;1H")); e.feed(bytes("A"))
+        e.feed(esc("[2;1H")); e.feed(bytes("B"))
+        e.feed(esc("[3;1H")); e.feed(bytes("C"))
+        e.feed(esc("[4;1H")); e.feed(bytes("D"))
+        e.feed(esc("[2;3r"))              // region = rows 2..3 (index 1..2)
+        e.feed(esc("[3;1H"))              // cursor at the bottom margin (index 2)
+        e.feed(bytes("\n"))               // LF scrolls only the region up
+        val s = e.snapshot()
+        assertEquals('A', s.screen[0][0].char, "row above the region is untouched")
+        assertEquals('C', s.screen[1][0].char, "B evicted, C moved up inside region")
+        assertEquals(' ', s.screen[2][0].char, "blank enters at the region bottom")
+        assertEquals('D', s.screen[3][0].char, "row below the region is untouched")
+        assertEquals(0, s.scrollback.size, "a region scroll below the top feeds no scrollback")
+    }
+
+    @Test
+    fun insert_and_delete_lines_within_region() {
+        fun filled(): TerminalEmulator {
+            val e = TerminalEmulator(4, 4)
+            e.feed(esc("[1;1H")); e.feed(bytes("A"))
+            e.feed(esc("[2;1H")); e.feed(bytes("B"))
+            e.feed(esc("[3;1H")); e.feed(bytes("C"))
+            e.feed(esc("[4;1H")); e.feed(bytes("D"))
+            return e
+        }
+        val il = filled()
+        il.feed(esc("[2;1H")); il.feed(esc("[L")) // insert a line at row 2
+        var s = il.snapshot()
+        assertEquals('A', s.screen[0][0].char)
+        assertEquals(' ', s.screen[1][0].char)
+        assertEquals('B', s.screen[2][0].char)
+        assertEquals('C', s.screen[3][0].char) // D pushed off the bottom
+
+        val dl = filled()
+        dl.feed(esc("[2;1H")); dl.feed(esc("[M")) // delete row 2
+        s = dl.snapshot()
+        assertEquals('A', s.screen[0][0].char)
+        assertEquals('C', s.screen[1][0].char)
+        assertEquals('D', s.screen[2][0].char)
+        assertEquals(' ', s.screen[3][0].char)
+    }
+
+    @Test
+    fun insert_delete_erase_chars() {
+        val ich = TerminalEmulator(6, 1)
+        ich.feed(bytes("abcd")); ich.feed(esc("[1;3H")); ich.feed(esc("[@"))
+        var s = ich.snapshot()
+        assertEquals(' ', s.screen[0][2].char)
+        assertEquals('c', s.screen[0][3].char)
+
+        val dch = TerminalEmulator(6, 1)
+        dch.feed(bytes("abcd")); dch.feed(esc("[1;3H")); dch.feed(esc("[P"))
+        s = dch.snapshot()
+        assertEquals('d', s.screen[0][2].char)
+
+        val ech = TerminalEmulator(6, 1)
+        ech.feed(bytes("abcd")); ech.feed(esc("[1;2H")); ech.feed(esc("[2X"))
+        s = ech.snapshot()
+        assertEquals('a', s.screen[0][0].char)
+        assertEquals(' ', s.screen[0][1].char)
+        assertEquals(' ', s.screen[0][2].char)
+        assertEquals('d', s.screen[0][3].char)
+    }
+
+    @Test
+    fun scroll_up_feeds_scrollback_on_full_screen() {
+        val e = TerminalEmulator(4, 3)
+        e.feed(esc("[1;1H")); e.feed(bytes("A"))
+        e.feed(esc("[2;1H")); e.feed(bytes("B"))
+        e.feed(esc("[3;1H")); e.feed(bytes("C"))
+        e.feed(esc("[S")) // SU: whole-screen scroll up, top row goes to scrollback
+        val s = e.snapshot()
+        assertEquals(1, s.scrollback.size)
+        assertEquals('A', s.scrollback[0][0].char)
+        assertEquals('B', s.screen[0][0].char)
+        assertEquals(' ', s.screen[2][0].char)
+    }
 }
