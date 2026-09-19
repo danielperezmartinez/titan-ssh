@@ -3,8 +3,13 @@ package im.gar.titanssh.terminal
 import im.gar.titanssh.config.Host
 import im.gar.titanssh.config.HostAuth
 import im.gar.titanssh.config.ResolvedConnection
+import im.gar.titanssh.config.ScriptBehavior
+import im.gar.titanssh.config.ScriptPhase
 import im.gar.titanssh.config.Session
+import im.gar.titanssh.config.SessionScript
 import im.gar.titanssh.config.TerminalAppearance
+import im.gar.titanssh.secret.SecretRef
+import im.gar.titanssh.secret.SecretStore
 import im.gar.titanssh.ssh.InMemoryKnownHostsStore
 import im.gar.titanssh.ssh.SshCredentials
 import im.gar.titanssh.ssh.SshEndpoint
@@ -111,6 +116,90 @@ class SessionTabIntegrationTest {
 
             println("[integration] tab snapshot tail: ${text.trim().takeLast(120)}")
             assertTrue(text.contains("titan-ok"), "the echoed command output should appear in the terminal snapshot")
+        }
+    }
+
+    /** Empty store: the start-script test uses no secret refs. */
+    private class EmptySecretStore : SecretStore {
+        override suspend fun put(ref: SecretRef, secret: ByteArray) {}
+        override suspend fun get(ref: SecretRef): ByteArray? = null
+        override suspend fun remove(ref: SecretRef) {}
+        override suspend fun contains(ref: SecretRef): Boolean = false
+    }
+
+    @Test
+    fun start_scripts_run_on_connect_with_initial_cd() {
+        val p = params() ?: return
+
+        runBlocking {
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+            val host = Host(
+                id = "h",
+                alias = "test",
+                hostname = p.host,
+                port = p.port,
+                username = p.user,
+                auth = HostAuth.SoftwareKey(secretRef = "unused-in-test"),
+            )
+            // `echo "PWD=$(pwd)"` proves both the initial cd (PWD=/tmp) and that
+            // the script actually ran: only the command's OUTPUT reads "PWD=/tmp",
+            // the echoed command line still shows the literal `$(pwd)`.
+            val session = Session(
+                id = "s",
+                name = "scripts",
+                hostId = "h",
+                initialDirectory = "/tmp",
+                scripts = listOf(
+                    SessionScript(
+                        id = "sc1",
+                        label = "show pwd",
+                        phase = ScriptPhase.ON_SHELL_START,
+                        body = "echo \"PWD=\$(pwd)\"",
+                        behavior = ScriptBehavior(waitForCompletion = true),
+                    ),
+                ),
+            )
+            val resolved = ResolvedConnection(
+                session = session,
+                host = host,
+                endpoint = SshEndpoint(p.host, p.port, p.user),
+                auth = host.auth,
+                appearance = TerminalAppearance(),
+                proxyJump = null,
+            )
+
+            val tab = SessionTab(
+                id = "tab-scripts",
+                resolved = resolved,
+                connector = createSshConnector(),
+                credentials = {
+                    SshCredentials.PrivateKey(File(p.keyPath).readText().toCharArray(), p.passphrase)
+                },
+                knownHostsStore = InMemoryKnownHostsStore(),
+                scope = scope,
+                columns = 80,
+                rows = 24,
+                automation = StartScriptAutomation(EmptySecretStore()),
+            )
+
+            val accepter = scope.launch { tab.pendingHostKey.collect { it?.accept() } }
+            tab.start()
+
+            val ran = withTimeoutOrNull(15_000) {
+                while (!snapshotText(tab).contains("PWD=/tmp")) {
+                    if (tab.status.value.phase == TabPhase.FAILED) break
+                    kotlinx.coroutines.delay(100)
+                }
+                snapshotText(tab).contains("PWD=/tmp")
+            }
+
+            val text = snapshotText(tab)
+            tab.close()
+            accepter.cancel()
+            scope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
+
+            println("[integration] scripts snapshot tail: ${text.trim().takeLast(160)}")
+            assertTrue(ran == true, "the start script should cd to /tmp and print PWD=/tmp; status=${tab.status.value}")
         }
     }
 

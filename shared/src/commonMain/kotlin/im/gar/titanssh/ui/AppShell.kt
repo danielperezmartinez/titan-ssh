@@ -30,6 +30,7 @@ import im.gar.titanssh.ssh.createKnownHostsStore
 import im.gar.titanssh.ssh.createSshConnector
 import im.gar.titanssh.terminal.CredentialResolver
 import im.gar.titanssh.terminal.SessionManager
+import im.gar.titanssh.terminal.StartScriptAutomation
 import im.gar.titanssh.theme.TitanColors
 import im.gar.titanssh.theme.TitanDimens
 import im.gar.titanssh.theme.TitanTheme
@@ -60,6 +61,7 @@ fun AppShell() {
                 connector = createSshConnector(),
                 credentialResolver = CredentialResolver(secretStore),
                 knownHostsStore = createKnownHostsStore(),
+                automation = StartScriptAutomation(secretStore),
             )
         }
         var area by remember { mutableStateOf(Area.CONFIG) }

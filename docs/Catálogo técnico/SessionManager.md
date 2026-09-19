@@ -7,8 +7,8 @@ Estado: "Vigente"
 Ámbito: "Aplicación"
 Fuente: "shared/src/commonMain/kotlin/im/gar/titanssh/terminal/SessionManager.kt"
 Entrada pública: "im.gar.titanssh.terminal"
-Resumen: "Dueño de las pestañas abiertas y del flujo de lanzamiento (config resuelta → motor → pestaña viva) que la lanzadera de Sesiones dejó pendiente. open(ResolvedConnection) crea un SessionTab, lo activa y conecta; activate/close/move(Left/Right) delegan el orden en el TabList puro. Expone tabs y activeId como StateFlow para la UI. Cada SessionTab gobierna una conexión + shell, alimenta un TerminalEmulator, expone status (TabPhase) y snapshot observables, resize real del PTY, TOFU inline (PendingHostKey) y el enganche onShellReady para los scripts de inicio."
-Última modificación: 2026-09-18T15:45:00+02:00
+Resumen: "Dueño de las pestañas abiertas y del flujo de lanzamiento (config resuelta → motor → pestaña viva) que la lanzadera de Sesiones dejó pendiente. open(ResolvedConnection) crea un SessionTab, lo activa y conecta; activate/close/move(Left/Right) delegan el orden en el TabList puro. Expone tabs y activeId como StateFlow para la UI. Cada SessionTab gobierna una conexión + shell, alimenta un TerminalEmulator, expone status (TabPhase) y snapshot observables, resize real del PTY, TOFU inline (PendingHostKey), difunde un tee decodificado del output y ejecuta la automatización de arranque (ShellAutomation) en paralelo al pintado."
+Última modificación: 2026-09-19T13:20:00+02:00
 ---
 
 # SessionManager
@@ -30,7 +30,9 @@ Contrato y colaboradores:
   (lo aporta [[Resiliencia de sesión ante microcortes de red]], ADR-0003 nivel 1).
 - **TOFU**: `pendingHostKey` aflora la confirmación de primera vez
   ([[KnownHostsVerifier]], [[ADR-0005 Autenticación SSH y verificación de host]]).
-- **Scripts de inicio**: `onShellReady(shell, resolved)` es el punto de enganche
-  (hoy no-op) que desbloquea [[Scripts de inicio por sesión]].
+- **Scripts de inicio**: el constructor recibe una `ShellAutomation` (por defecto
+  `None`); el tab la invoca con un `ShellIo` (send + tee de salida) una vez la
+  shell está viva y en paralelo al pintado. La implementación es [[ScriptRunner]]
+  ([[Scripts de inicio por sesión]]).
 
 Entregado en [[Terminal multipestaña con sesiones simultáneas]].

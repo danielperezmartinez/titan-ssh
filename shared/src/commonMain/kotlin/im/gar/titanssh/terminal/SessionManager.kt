@@ -4,7 +4,6 @@ import im.gar.titanssh.config.Ids
 import im.gar.titanssh.config.ResolvedConnection
 import im.gar.titanssh.ssh.KnownHostsStore
 import im.gar.titanssh.ssh.SshConnector
-import im.gar.titanssh.ssh.SshShell
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,8 +24,8 @@ class SessionManager(
     private val connector: SshConnector,
     private val credentialResolver: CredentialResolver,
     private val knownHostsStore: KnownHostsStore,
-    /** Start-scripts hook, injected by the scripts task; no-op here (see [SessionTab]). */
-    private val onShellReady: suspend (SshShell, ResolvedConnection) -> Unit = { _, _ -> },
+    /** Start-scripts automation run on connect; no-op by default (see [SessionTab]). */
+    private val automation: ShellAutomation = ShellAutomation.None,
 ) {
     private val byId = mutableMapOf<String, SessionTab>()
 
@@ -51,7 +50,7 @@ class SessionManager(
             credentials = { credentialResolver.resolve(resolved.auth) },
             knownHostsStore = knownHostsStore,
             scope = scope,
-            onShellReady = onShellReady,
+            automation = automation,
         )
         byId[tabId] = tab
         _list.value = _list.value.add(tabId)

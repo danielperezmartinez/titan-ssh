@@ -1,11 +1,11 @@
 ---
 Nombre: Scripts de inicio por sesión
-Estado: En curso
-Resumen: 'Automatización clave. Modelo y formulario guiado ENTREGADOS dentro del editor de sesión (crear/editar/habilitar/reordenar scripts con todos los atributos v1: fase, comportamiento, expect, reconnect, secretos por ref, snippets como scripts bajo demanda). Falta la EJECUCIÓN al conectar/reconectar, que depende del flujo de lanzamiento del terminal.'
-Decisiones: Enmarcada en [[Arquitectura de dos áreas Configuración y Sesiones]]; el modelo se formaliza en [[ADR-0007 Modelo y persistencia de configuración]] y consume [[ADR-0001 Credenciales en almacén nativo del SO]].
-Bloqueada: [[Terminal multipestaña con sesiones simultáneas]]
+Estado: Hecha
+Resumen: 'Automatización clave ENTREGADA y verificada. Modelo y formulario guiado en el editor de sesión; EJECUCIÓN AL CONECTAR: runner que corre el `cd` inicial y los scripts habilitados por fase (ON_SHELL_START → POST_INIT) sobre la shell viva, con ${VAR}/secretos por ref, envVars, delay, expect, esperar-a-terminar (centinela con $?/timeout) y continuar/abortar. Verificado headless (ScriptRunnerTest 10/10) y de punta a punta contra host real (nocendland-petit: cd /tmp + script imprime PWD=/tmp). La ejecución al RECONECTAR queda para [[Resiliencia de sesión ante microcortes de red]] (fase ON_RECONNECT); PRE_CONNECT_LOCAL diferida (sin ejecutor local); silent no suprimible sobre PTY compartida.'
+Decisiones: Enmarcada en [[Arquitectura de dos áreas Configuración y Sesiones]]; el modelo se formaliza en [[ADR-0007 Modelo y persistencia de configuración]] y consume [[ADR-0001 Credenciales en almacén nativo del SO]]. La ejecución al reconectar y las fases ON_RECONNECT quedan para [[Resiliencia de sesión ante microcortes de red]]; PRE_CONNECT_LOCAL diferida (sin ejecutor local aún). Superficie catalogada en [[ScriptRunner]].
+Bloqueada: []
 Fecha de creación: 2026-09-17T15:32:11+02:00
-Última modificación: 2026-09-18T14:10:00+02:00
+Última modificación: 2026-09-19T13:45:00+02:00
 ---
 
 # Scripts de inicio por sesión
@@ -78,18 +78,64 @@ persistencia de configuración]].
 - Persistencia verificada (round-trip JSON con scripts, ver la verificación de la
   tarea del panel) y build de ambos targets OK.
 
-**Pendiente (ejecución):** ejecutar los scripts habilitados **en orden según su
-fase al conectar**, y respetar `ReconnectBehavior` al reconectar. Se apoya en el
-`SshShell` del [[Motor de conexión SSH]] (ya disponible) pero necesita el flujo de
-lanzamiento de sesión que aporta [[Terminal multipestaña con sesiones simultáneas]];
-por eso la tarea queda **bloqueada por** ella y en `En curso`.
+## Estado del trabajo (2026-09-19): ejecución al conectar
+
+Desbloqueada: [[Terminal multipestaña con sesiones simultáneas]] ya está `Hecha`,
+así que el flujo de lanzamiento existe. Implementada la **ejecución al conectar**.
+
+**Hecho (ejecución):**
+
+- `ScriptRunner` (commonMain, `terminal`): motor puro que, sobre la shell viva,
+  envía el `cd` inicial y luego los scripts en el orden recibido, honrando todos
+  los atributos v1 salvo `silent`: `${ref}` (sustitución **solo** de secretos del
+  `SecretStore`; cualquier otro `${...}` se deja para que lo expanda la shell
+  remota), `export` de `envVars` antes del cuerpo, `delaySeconds`, `expectPattern`
+  (espera el patrón antes de enviar), `waitForCompletion` + `timeoutSeconds` (envía
+  un centinela `printf` que arrastra `$?` y espera su eco) y `onFailure`
+  (CONTINUE / ABORT la cadena). Devuelve un `ScriptOutcome` por unidad.
+- `StartScriptAutomation` + seam `ShellAutomation`/`ShellIo`: selecciona las fases
+  de conexión (`ON_SHELL_START` → `POST_INIT`, habilitadas, en orden) y resuelve
+  los secretos del `SecretStore` solo en tiempo de ejecución (ADR-0001). Cableado
+  en `AppShell` → `SessionManager`.
+- `SessionTab` reestructurado: el `output` de sshj es de **un solo consumidor**
+  (`receiveAsFlow`), que el pintor ya drena; ahora el pump difunde además una
+  copia decodificada por un tee (`SharedFlow`, `tryEmit`, DROP_OLDEST) y el runner
+  corre **en paralelo** al pintado para poder esperar prompts/centinela sin robarle
+  bytes al emulador.
+- Tests headless: `ScriptRunnerTest` (10/10) con un shell falso que hace de host
+  para los centinela; cubren orden+cd, fases, sustitución de secretos, secreto
+  ausente (skip), export de env, fire-and-forget, ABORT/CONTINUE, expect y la
+  selección de fases de `StartScriptAutomation`. Compila `:shared` en desktop y
+  android.
+
+**Alcance de esta pasada (acordado):** solo **al conectar**. Quedan fuera:
+`PRE_CONNECT_LOCAL` (no hay ejecutor local multiplataforma) y `ON_RECONNECT` /
+`ReconnectBehavior` (dependen de [[Resiliencia de sesión ante microcortes de red]]).
+`ON_DEMAND` son los snippets manuales.
+
+**Limitación conocida:** `silent` no es aplicable sobre una PTY compartida (la
+remota hace eco de la entrada); se acepta pero aún no se suprime. Los comandos con
+`waitForCompletion` deben volver al prompt (no interactivos de larga duración).
 
 ## Verificación
 
-Autoría/modelo: cubierto por los tests de [[Panel de gestión de hosts y sesiones]]
-(`ConfigModelTest`, `JsonFileConfigStoreTest`) y el build de ambos targets. La
-ejecución se verificará contra un host real al completar la parte pendiente.
+- Autoría/modelo: `ConfigModelTest`, `JsonFileConfigStoreTest` (de
+  [[Panel de gestión de hosts y sesiones]]).
+- Ejecución (headless): `ScriptRunnerTest` 10/10 verde.
+- **Punta a punta (host real):** `SessionTabIntegrationTest
+  .start_scripts_run_on_connect_with_initial_cd` (opt-in) conecta a
+  `nocendland-petit`, hace `cd /tmp` y comprueba que el script imprime `PWD=/tmp`
+  (que solo puede venir de ejecución real: el eco del comando muestra el literal
+  `$(pwd)`). **Verde** el 2026-09-19.
+- Nota: en esa misma clase, el test previo `tab_connects_paints_output_and_accepts_input`
+  (entrada por teclado, de [[Terminal multipestaña con sesiones simultáneas]]) falla,
+  pero es **pre-existente e independiente**: reproduce igual sobre el código original
+  (mis cambios stasheados) y no cubre esta tarea. Seguimiento aparte.
 
 ## Resultado
 
-<Se completará al cerrar la ejecución de scripts en el flujo de lanzamiento.>
+Ejecución de scripts al conectar entregada y verificada (headless + host real).
+Runner completo: cd inicial, fases ON_SHELL_START/POST_INIT en orden, `${ref}` de
+secretos, envVars, delay, expect, esperar-a-terminar con `$?`/timeout y
+continuar/abortar. Reconexión y `ON_RECONNECT` se abordan en
+[[Resiliencia de sesión ante microcortes de red]].
