@@ -34,6 +34,10 @@ Contrato y colaboradores:
 - **Secretos**: `StartScriptAutomation` los lee del [[SecretStore]] solo en tiempo
   de ejecución; nunca vuelven a la config (ADR-0001). Un ref ausente salta el
   script (`ScriptOutcome` = SKIPPED).
+- **Readiness**: `StartScriptAutomation` espera la primera salida de la shell (el
+  prompt) antes de enviar nada; una PTY remota descarta la entrada escrita antes
+  de que la shell empiece a leer stdin, así que un primer comando ansioso se
+  perdería. Ver [[ptty-drops-early-input]].
 - **Fases**: selecciona `ON_SHELL_START` → `POST_INIT` con `Session.scriptsFor`.
   `ON_RECONNECT` (y `ReconnectBehavior`) lo aporta
   [[Resiliencia de sesión ante microcortes de red]]; `PRE_CONNECT_LOCAL` no tiene

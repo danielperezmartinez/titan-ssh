@@ -250,6 +250,9 @@ class ScriptRunnerTest {
             proxyJump = null,
         )
 
+        // The automation waits for the shell's first output (its prompt) before
+        // sending, so make the fake shell announce one.
+        out.tryEmit("[user@host ~]$ ")
         StartScriptAutomation(FakeSecretStore(emptyMap())).onShellReady(ShellIo(fake, out), resolved)
 
         val commands = fake.sent.filterNot { it.startsWith("printf ") }.map { it.trim() }

@@ -104,6 +104,15 @@ class SessionTabIntegrationTest {
             }
             assertTrue(connected == TabPhase.CONNECTED, "the tab should reach CONNECTED, was ${tab.status.value}")
 
+            // Wait for the shell to paint its prompt before typing: a remote PTY
+            // drops input sent before the shell starts reading stdin, and a real
+            // user only types once the prompt is on screen.
+            val promptSeen = withTimeoutOrNull(10_000) {
+                while (!snapshotText(tab).contains("$")) kotlinx.coroutines.delay(50)
+                true
+            } ?: false
+            assertTrue(promptSeen, "the shell prompt should appear, was ${tab.status.value}")
+
             tab.sendBytes("echo titan-ok\n".encodeToByteArray())
             withTimeoutOrNull(4_000) {
                 while (!snapshotText(tab).contains("titan-ok")) kotlinx.coroutines.delay(100)

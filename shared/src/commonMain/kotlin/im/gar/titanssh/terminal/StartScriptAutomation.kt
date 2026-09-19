@@ -5,6 +5,8 @@ import im.gar.titanssh.config.ScriptPhase
 import im.gar.titanssh.config.scriptsFor
 import im.gar.titanssh.secret.SecretRef
 import im.gar.titanssh.secret.SecretStore
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Wires the start-scripts feature ([[Scripts de inicio por sesión]]) into a tab:
@@ -19,9 +21,15 @@ import im.gar.titanssh.secret.SecretStore
  *
  * Secrets are read from the [SecretStore] only at run time and passed straight
  * into the command; they are never written back to the config (ADR-0001).
+ *
+ * Before sending anything it waits for the shell to be ready (its first output,
+ * i.e. the prompt): a remote PTY drops input written before the shell starts
+ * reading stdin, so an eager first command could otherwise be lost.
  */
 class StartScriptAutomation(
     private val secretStore: SecretStore,
+    /** How long to wait for the shell's first output before running anyway. */
+    private val readyTimeoutMillis: Long = 10_000,
 ) : ShellAutomation {
 
     override suspend fun onShellReady(io: ShellIo, resolved: ResolvedConnection) {
@@ -30,6 +38,9 @@ class StartScriptAutomation(
         val postInit = session.scriptsFor(ScriptPhase.POST_INIT)
         val scripts = onStart + postInit
         if (session.initialDirectory.isNullOrBlank() && scripts.isEmpty()) return
+
+        // Wait for the shell to print its prompt/banner so early input isn't lost.
+        withTimeoutOrNull(readyTimeoutMillis) { io.output.first { it.isNotEmpty() } }
 
         val runner = ScriptRunner(
             io = io,
