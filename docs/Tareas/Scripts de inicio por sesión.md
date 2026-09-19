@@ -5,7 +5,7 @@ Resumen: 'Automatización clave ENTREGADA y verificada. Modelo y formulario guia
 Decisiones: Enmarcada en [[Arquitectura de dos áreas Configuración y Sesiones]]; el modelo se formaliza en [[ADR-0007 Modelo y persistencia de configuración]] y consume [[ADR-0001 Credenciales en almacén nativo del SO]]. La ejecución al reconectar y las fases ON_RECONNECT quedan para [[Resiliencia de sesión ante microcortes de red]]; PRE_CONNECT_LOCAL diferida (sin ejecutor local aún). Superficie catalogada en [[ScriptRunner]].
 Bloqueada: []
 Fecha de creación: 2026-09-17T15:32:11+02:00
-Última modificación: 2026-09-19T13:45:00+02:00
+Última modificación: 2026-09-19T16:45:00+02:00
 ---
 
 # Scripts de inicio por sesión
@@ -137,5 +137,6 @@ remota hace eco de la entrada); se acepta pero aún no se suprime. Los comandos 
 Ejecución de scripts al conectar entregada y verificada (headless + host real).
 Runner completo: cd inicial, fases ON_SHELL_START/POST_INIT en orden, `${ref}` de
 secretos, envVars, delay, expect, esperar-a-terminar con `$?`/timeout y
-continuar/abortar. Reconexión y `ON_RECONNECT` se abordan en
-[[Resiliencia de sesión ante microcortes de red]].
+continuar/abortar. Reconexión y `ON_RECONNECT` (fase + `ReconnectBehavior`, vía
+`ShellAutomation.onReconnected`) **ya entregados** en
+[[Resiliencia de sesión ante microcortes de red]] (nivel 1).

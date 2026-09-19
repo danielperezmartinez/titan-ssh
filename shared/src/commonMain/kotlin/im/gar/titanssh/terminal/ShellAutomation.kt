@@ -21,18 +21,29 @@ class ShellIo internal constructor(
 }
 
 /**
- * Hook run once a tab's shell is live, concurrently with terminal painting. The
+ * Hooks run over a tab's live shell, concurrently with terminal painting. The
  * start-scripts feature ([[Scripts de inicio por sesión]]) plugs in here; the
  * default is a no-op so a tab with no automation behaves exactly as before.
  *
- * It must return when the start scripts finish (or abort); the tab keeps
- * painting output the whole time through the same [ShellIo.output] tee.
+ * A hook must return when its scripts finish (or abort); the tab keeps painting
+ * output the whole time through the same [ShellIo.output] tee.
  */
-fun interface ShellAutomation {
+interface ShellAutomation {
+    /** Runs once, when the tab first opens its shell (connect-time phases). */
     suspend fun onShellReady(io: ShellIo, resolved: ResolvedConnection)
+
+    /**
+     * Runs after the client transparently reconnects following a network
+     * micro-cut ([[Resiliencia de sesión ante microcortes de red]]), over the
+     * fresh shell. Honors the session's `ReconnectBehavior` (re-run the start
+     * chain / restore only the working directory / do nothing). Default: no-op.
+     */
+    suspend fun onReconnected(io: ShellIo, resolved: ResolvedConnection) {}
 
     companion object {
         /** Does nothing: the tab opens a plain shell with no start scripts. */
-        val None: ShellAutomation = ShellAutomation { _, _ -> }
+        val None: ShellAutomation = object : ShellAutomation {
+            override suspend fun onShellReady(io: ShellIo, resolved: ResolvedConnection) {}
+        }
     }
 }

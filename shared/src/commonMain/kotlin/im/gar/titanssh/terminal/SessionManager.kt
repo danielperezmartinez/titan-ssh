@@ -26,6 +26,8 @@ class SessionManager(
     private val knownHostsStore: KnownHostsStore,
     /** Start-scripts automation run on connect; no-op by default (see [SessionTab]). */
     private val automation: ShellAutomation = ShellAutomation.None,
+    /** Client-side reconnection cadence for level-1 resilience (see [SessionTab]). */
+    private val reconnect: ReconnectPolicy = ReconnectPolicy.Default,
 ) {
     private val byId = mutableMapOf<String, SessionTab>()
 
@@ -51,6 +53,7 @@ class SessionManager(
             knownHostsStore = knownHostsStore,
             scope = scope,
             automation = automation,
+            reconnect = reconnect,
         )
         byId[tabId] = tab
         _list.value = _list.value.add(tabId)

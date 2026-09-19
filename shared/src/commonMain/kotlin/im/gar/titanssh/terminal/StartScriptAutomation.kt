@@ -1,7 +1,9 @@
 package im.gar.titanssh.terminal
 
+import im.gar.titanssh.config.ReconnectBehavior
 import im.gar.titanssh.config.ResolvedConnection
 import im.gar.titanssh.config.ScriptPhase
+import im.gar.titanssh.config.effectiveReconnectBehavior
 import im.gar.titanssh.config.scriptsFor
 import im.gar.titanssh.secret.SecretRef
 import im.gar.titanssh.secret.SecretStore
@@ -14,10 +16,14 @@ import kotlinx.coroutines.withTimeoutOrNull
  * [ScriptPhase.ON_SHELL_START] scripts, then the [ScriptPhase.POST_INIT] ones,
  * in order, over the live shell via a [ScriptRunner].
  *
+ * On a transparent reconnect after a micro-cut ([onReconnected],
+ * [[Resiliencia de sesión ante microcortes de red]]) it honors the session's
+ * `ReconnectBehavior`: re-run the whole start chain, restore only the working
+ * directory (`cd`), or do nothing.
+ *
  * Out of scope here (by design): [ScriptPhase.PRE_CONNECT_LOCAL] (no local
- * executor yet) and [ScriptPhase.ON_RECONNECT] (depends on
- * [[Resiliencia de sesión ante microcortes de red]]); [ScriptPhase.ON_DEMAND]
- * scripts are the manual snippets, triggered from the session, not on connect.
+ * executor yet); [ScriptPhase.ON_DEMAND] scripts are the manual snippets,
+ * triggered from the session, not on connect.
  *
  * Secrets are read from the [SecretStore] only at run time and passed straight
  * into the command; they are never written back to the config (ADR-0001).
@@ -36,16 +42,49 @@ class StartScriptAutomation(
         val session = resolved.session
         val onStart = session.scriptsFor(ScriptPhase.ON_SHELL_START)
         val postInit = session.scriptsFor(ScriptPhase.POST_INIT)
-        val scripts = onStart + postInit
-        if (session.initialDirectory.isNullOrBlank() && scripts.isEmpty()) return
+        runChain(io, onStart + postInit, session.initialDirectory)
+    }
 
-        // Wait for the shell to print its prompt/banner so early input isn't lost.
+    /**
+     * After a transparent reconnect, replays automation according to the
+     * session's [ReconnectBehavior]:
+     * - [ReconnectBehavior.NONE]: nothing runs.
+     * - [ReconnectBehavior.RESTORE_CD_ONLY]: only the initial `cd`.
+     * - [ReconnectBehavior.RERUN_ALL]: the whole start chain — `cd`, the
+     *   connect-time scripts and the [ScriptPhase.ON_RECONNECT] scripts, in order.
+     */
+    override suspend fun onReconnected(io: ShellIo, resolved: ResolvedConnection) {
+        val session = resolved.session
+        when (session.effectiveReconnectBehavior()) {
+            ReconnectBehavior.NONE -> return
+            ReconnectBehavior.RESTORE_CD_ONLY ->
+                runChain(io, scripts = emptyList(), initialDirectory = session.initialDirectory)
+            ReconnectBehavior.RERUN_ALL -> {
+                val scripts = session.scriptsFor(ScriptPhase.ON_SHELL_START) +
+                    session.scriptsFor(ScriptPhase.POST_INIT) +
+                    session.scriptsFor(ScriptPhase.ON_RECONNECT)
+                runChain(io, scripts, session.initialDirectory)
+            }
+        }
+    }
+
+    private suspend fun runChain(
+        io: ShellIo,
+        scripts: List<im.gar.titanssh.config.SessionScript>,
+        initialDirectory: String?,
+    ) {
+        if (initialDirectory.isNullOrBlank() && scripts.isEmpty()) return
+
+        // Wait for the shell to print its prompt/banner so early input isn't lost
+        // (a remote PTY drops input written before it starts reading stdin). On a
+        // reconnect this is the *new* shell's first output: the tab hands us a
+        // fresh tee with no stale replay from before the drop.
         withTimeoutOrNull(readyTimeoutMillis) { io.output.first { it.isNotEmpty() } }
 
         val runner = ScriptRunner(
             io = io,
             resolveSecret = { ref -> secretStore.get(SecretRef(ref))?.decodeToString() },
         )
-        runner.run(scripts, session.initialDirectory)
+        runner.run(scripts, initialDirectory)
     }
 }

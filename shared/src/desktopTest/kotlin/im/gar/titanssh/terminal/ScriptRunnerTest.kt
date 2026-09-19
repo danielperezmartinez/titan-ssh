@@ -2,6 +2,7 @@ package im.gar.titanssh.terminal
 
 import im.gar.titanssh.config.Host
 import im.gar.titanssh.config.HostAuth
+import im.gar.titanssh.config.ReconnectBehavior
 import im.gar.titanssh.config.ResolvedConnection
 import im.gar.titanssh.config.ScriptBehavior
 import im.gar.titanssh.config.ScriptFailurePolicy
@@ -257,5 +258,78 @@ class ScriptRunnerTest {
 
         val commands = fake.sent.filterNot { it.startsWith("printf ") }.map { it.trim() }
         assertEquals(listOf("cd -- '/work'", "on-start", "post-init"), commands)
+    }
+
+    private fun reconnectResolved(session: Session) = ResolvedConnection(
+        session = session,
+        host = Host(id = "h", alias = "h", hostname = "x", username = "u", auth = HostAuth.Password("r")),
+        endpoint = SshEndpoint("x", 22, "u"),
+        auth = HostAuth.Password("r"),
+        appearance = TerminalAppearance(),
+        proxyJump = null,
+    )
+
+    @Test
+    fun on_reconnect_restore_cd_only_replays_just_the_cd() = runTest {
+        val out = newOut()
+        val fake = FakeShell(out)
+        // No ON_RECONNECT script: the session defaults to RESTORE_CD_ONLY.
+        val session = Session(
+            id = "s", name = "n", hostId = "h", initialDirectory = "/work",
+            scripts = listOf(
+                script("start", "on-start", phase = ScriptPhase.ON_SHELL_START),
+                script("post", "post-init", phase = ScriptPhase.POST_INIT),
+            ),
+        )
+
+        out.tryEmit("[user@host ~]$ ")
+        StartScriptAutomation(FakeSecretStore(emptyMap())).onReconnected(ShellIo(fake, out), reconnectResolved(session))
+
+        val commands = fake.sent.filterNot { it.startsWith("printf ") }.map { it.trim() }
+        assertEquals(listOf("cd -- '/work'"), commands, "only the working directory is restored")
+    }
+
+    @Test
+    fun on_reconnect_rerun_all_replays_the_whole_chain() = runTest {
+        val out = newOut()
+        val fake = FakeShell(out)
+        val session = Session(
+            id = "s", name = "n", hostId = "h", initialDirectory = "/work",
+            scripts = listOf(
+                script("start", "on-start", phase = ScriptPhase.ON_SHELL_START),
+                script("post", "post-init", phase = ScriptPhase.POST_INIT),
+                SessionScript(
+                    id = "recon", label = "recon", phase = ScriptPhase.ON_RECONNECT,
+                    body = "reattach", reconnectBehavior = ReconnectBehavior.RERUN_ALL,
+                ),
+            ),
+        )
+
+        out.tryEmit("[user@host ~]$ ")
+        StartScriptAutomation(FakeSecretStore(emptyMap())).onReconnected(ShellIo(fake, out), reconnectResolved(session))
+
+        val commands = fake.sent.filterNot { it.startsWith("printf ") }.map { it.trim() }
+        assertEquals(listOf("cd -- '/work'", "on-start", "post-init", "reattach"), commands)
+    }
+
+    @Test
+    fun on_reconnect_none_replays_nothing() = runTest {
+        val out = newOut()
+        val fake = FakeShell(out)
+        val session = Session(
+            id = "s", name = "n", hostId = "h", initialDirectory = "/work",
+            scripts = listOf(
+                script("start", "on-start", phase = ScriptPhase.ON_SHELL_START),
+                SessionScript(
+                    id = "recon", label = "recon", phase = ScriptPhase.ON_RECONNECT,
+                    body = "", reconnectBehavior = ReconnectBehavior.NONE,
+                ),
+            ),
+        )
+
+        out.tryEmit("[user@host ~]$ ")
+        StartScriptAutomation(FakeSecretStore(emptyMap())).onReconnected(ShellIo(fake, out), reconnectResolved(session))
+
+        assertTrue(fake.sent.isEmpty(), "NONE runs nothing on reconnect")
     }
 }

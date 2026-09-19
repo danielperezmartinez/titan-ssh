@@ -77,3 +77,14 @@ fun HostAuth.toAuthMethod(): AuthMethod = when (this) {
 /** Ordered scripts of a session for a given [phase], enabled ones first excluded. */
 fun Session.scriptsFor(phase: ScriptPhase): List<SessionScript> =
     scripts.filter { it.enabled && it.phase == phase }
+
+/**
+ * The session's effective behavior when the client reconnects after a micro-cut
+ * (ADR-0003 / [[Resiliencia de sesión ante microcortes de red]]). It is carried
+ * by the enabled [ScriptPhase.ON_RECONNECT] scripts; when the session declares
+ * none, the baseline is [ReconnectBehavior.RESTORE_CD_ONLY] — restoring the
+ * working directory is the minimum win the product promises over Termius.
+ */
+fun Session.effectiveReconnectBehavior(): ReconnectBehavior =
+    scriptsFor(ScriptPhase.ON_RECONNECT).firstOrNull()?.reconnectBehavior
+        ?: ReconnectBehavior.RESTORE_CD_ONLY
