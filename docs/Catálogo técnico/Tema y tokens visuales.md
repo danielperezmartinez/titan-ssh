@@ -5,21 +5,21 @@ Tipo: "Token"
 Feature: "Shared UI"
 Estado: "Vigente"
 Ámbito: "Aplicación"
-Fuente: "shared/src/commonMain/kotlin/im/gar/titanssh/theme/Color.kt"
-Entrada pública: "im.gar.titanssh.theme"
+Fuente: "shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/theme/Color.kt"
+Entrada pública: "io.github.danielperezmartinez.titanssh.theme"
 Resumen: "Tokens visuales dark-first y su mapeo a Material 3. TitanColors (superficies Canvas/Surface/SurfaceElevated/TerminalBg, textos Ink/Body/Mute/Stone, HairlineStrong, y rampa semántica Accent/Success/Warning/Danger reservada a estado, no a decoración). TitanTheme envuelve MaterialTheme con darkColorScheme y una escala tipográfica mono con JetBrains Mono bundleada como recurso de Compose (fallback al monospace del sistema). Es la base visual de toda la UI compartida; no se introducen colores fuera del set acordado."
-Última modificación: 2026-09-18T15:30:00+02:00
+Última modificación: 2026-09-24T12:00:00+02:00
 ---
 
 # Tema y tokens visuales
 
 Después de descubrir esta pieza en el catálogo, consulta como fuente de verdad
-[Color.kt](../../shared/src/commonMain/kotlin/im/gar/titanssh/theme/Color.kt)
+[Color.kt](../../shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/theme/Color.kt)
 (`TitanColors`) y
-[Theme.kt](../../shared/src/commonMain/kotlin/im/gar/titanssh/theme/Theme.kt)
+[Theme.kt](../../shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/theme/Theme.kt)
 (`TitanTheme`, escala tipográfica y mapeo a Material 3). Las medidas
 (`TitanDimens`: hairline, radios 4px/0px, espaciado, `TouchTarget`) viven en el
-mismo paquete `im.gar.titanssh.theme`.
+mismo paquete `io.github.danielperezmartinez.titanssh.theme`.
 
 Reglas de uso:
 

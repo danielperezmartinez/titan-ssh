@@ -5,16 +5,16 @@ Tipo: "Servicio"
 Feature: "Custodia de credenciales"
 Estado: "Vigente"
 Ámbito: "Aplicación"
-Fuente: "shared/src/commonMain/kotlin/im/gar/titanssh/secret/SecretProvisioner.kt"
-Entrada pública: "im.gar.titanssh.secret"
+Fuente: "shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/secret/SecretProvisioner.kt"
+Entrada pública: "io.github.danielperezmartinez.titanssh.secret"
 Resumen: "Lado de escritura del SecretStore (ADR-0001): materializa en el almacén el material de autenticación que el HostAuth solo referencia. savePassword(ref, password) guarda una contraseña; importPrivateKey(keyRef, pem, passphraseRef?, passphrase?) importa una clave privada PEM existente (+ passphrase opcional) validando que parezca PEM; has/remove consultan y borran. Codifica a UTF-8 y borra (wipe) la copia transitoria tras put. Es el contraparte de escritura del CredentialResolver (lectura); el documento de config sigue guardando solo referencias. Generar un par nuevo in-app queda como stretch pendiente."
-Última modificación: 2026-09-18T17:05:00+02:00
+Última modificación: 2026-09-24T12:00:00+02:00
 ---
 
 # SecretProvisioner
 
 Después de descubrir esta pieza en el catálogo, consulta como fuente de verdad
-[SecretProvisioner.kt](../../shared/src/commonMain/kotlin/im/gar/titanssh/secret/SecretProvisioner.kt).
+[SecretProvisioner.kt](../../shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/secret/SecretProvisioner.kt).
 
 Es el puente de **escritura** entre la UI del editor de host y el almacén, usado
 por [[Gestión de claves y secretos UI]]:

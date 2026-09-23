@@ -5,20 +5,20 @@ Tipo: "Servicio"
 Feature: "Autenticación"
 Estado: "Vigente"
 Ámbito: "Aplicación"
-Fuente: "shared/src/commonMain/kotlin/im/gar/titanssh/ssh/HardwareKeyProvisioning.kt"
-Entrada pública: "im.gar.titanssh.ssh"
+Fuente: "shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/ssh/HardwareKeyProvisioning.kt"
+Entrada pública: "io.github.danielperezmartinez.titanssh.ssh"
 Resumen: "Seam expect/actual para generar/reutilizar desde commonMain una clave no exportable en el almacén de claves del SO y obtener su línea authorized_keys (ADR-0005). isHardwareKeyProvisioningSupported() decide si la acción está disponible; ensureHardwareKey(alias) genera bajo el alias elegido y devuelve la línea OpenSSH (o lanza HardwareKeyUnsupported). Android: actual sobre AndroidHardwareKeys (EC P-256 en Android Keystore/StrongBox, off-main). Escritorio v1: no soportado (sin clave no exportable portable). La privada nunca sale del hardware; el editor de host lo usa para 'Generar / mostrar clave'."
-Última modificación: 2026-09-18T17:05:00+02:00
+Última modificación: 2026-09-24T12:00:00+02:00
 ---
 
 # Aprovisionamiento de clave hardware
 
 Fuente de verdad: el seam en
-[HardwareKeyProvisioning.kt](../../shared/src/commonMain/kotlin/im/gar/titanssh/ssh/HardwareKeyProvisioning.kt)
+[HardwareKeyProvisioning.kt](../../shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/ssh/HardwareKeyProvisioning.kt)
 y su `actual` de Android en
-[HardwareKeyProvisioning.android.kt](../../shared/src/androidMain/kotlin/im/gar/titanssh/ssh/HardwareKeyProvisioning.android.kt)
+[HardwareKeyProvisioning.android.kt](../../shared/src/androidMain/kotlin/io/github/danielperezmartinez/titanssh/ssh/HardwareKeyProvisioning.android.kt)
 (sobre [[Signer SSH delegado]] / `AndroidHardwareKeys`) y el `actual` de escritorio
-[HardwareKeyProvisioning.desktop.kt](../../shared/src/desktopMain/kotlin/im/gar/titanssh/ssh/HardwareKeyProvisioning.desktop.kt).
+[HardwareKeyProvisioning.desktop.kt](../../shared/src/desktopMain/kotlin/io/github/danielperezmartinez/titanssh/ssh/HardwareKeyProvisioning.desktop.kt).
 
 Permite a la UI de `commonMain` ([[Gestión de claves y secretos UI]]) aprovisionar
 la clave sin tocar el almacén nativo:

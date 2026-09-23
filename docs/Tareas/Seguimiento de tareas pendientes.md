@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-24T00:05:00+02:00
+Última modificación: 2026-09-24T12:00:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -153,3 +153,13 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   distribución de ADR-0011, el paraguas del nivel 3 portable con sus 6
   subtareas, y 3 más: scripts sobre el agente, scripts reutilizables y la
   verificación del agente en la APK). Ninguna completada todavía.
+- 2026-09-24 — **Paso 1** hecho salvo una comprobación. Commits `fee92e8`
+  (renombrado mecánico a `io.github.danielperezmartinez.titanssh` y módulo Go
+  `github.com/danielperezmartinez/titan-ssh/agent`), `b528900` (dependencia de
+  Gradle de los binarios del agente, que rompía la APK tras un `clean`) y
+  `de7dbc4` (`LICENSE`, avisos en los README y `THIRD_PARTY_NOTICES.md`).
+  Tests, APK de debug y arranque en escritorio verificados. **Falta arrancar la
+  APK en el Pixel** para pasar el renombrado a `Hecha` y marcar la casilla. La
+  licencia sigue `En curso` hasta la pantalla Acerca de (paso 2) y la inclusión
+  en los paquetes (paso 4). El ID de Flatpak queda con dos formas válidas, a
+  elegir en el paso 11.

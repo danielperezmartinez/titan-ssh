@@ -5,18 +5,18 @@ Tipo: "Servicio"
 Feature: "Terminal"
 Estado: "Vigente"
 Ámbito: "Aplicación"
-Fuente: "shared/src/commonMain/kotlin/im/gar/titanssh/terminal/SessionManager.kt"
-Entrada pública: "im.gar.titanssh.terminal"
+Fuente: "shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/SessionManager.kt"
+Entrada pública: "io.github.danielperezmartinez.titanssh.terminal"
 Resumen: "Dueño de las pestañas abiertas y del flujo de lanzamiento (config resuelta → motor → pestaña viva) que la lanzadera de Sesiones dejó pendiente. open(ResolvedConnection) crea un SessionTab, lo activa y conecta; activate/close/move(Left/Right) delegan el orden en el TabList puro. Expone tabs y activeId como StateFlow para la UI. Cada SessionTab gobierna una conexión + shell, alimenta un TerminalEmulator, expone status (TabPhase) y snapshot observables, resize real del PTY, TOFU inline (PendingHostKey), difunde un tee decodificado del output y ejecuta la automatización de arranque (ShellAutomation) en paralelo al pintado. Resiliencia nivel 1: ante un microcorte el SessionTab conserva el emulador (pantalla + scrollback), pasa a RECONNECTING y reconecta con backoff según ReconnectPolicy, reabriendo un shell nuevo en el MISMO emulador y reejecutando la automatización (onReconnected); una salida limpia (transporte vivo) cierra la pestaña en vez de reconectar."
-Última modificación: 2026-09-19T16:40:00+02:00
+Última modificación: 2026-09-24T12:00:00+02:00
 ---
 
 # SessionManager
 
 Después de descubrir esta pieza en el catálogo, consulta como fuente de verdad
-[SessionManager.kt](../../shared/src/commonMain/kotlin/im/gar/titanssh/terminal/SessionManager.kt)
+[SessionManager.kt](../../shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/SessionManager.kt)
 y la pestaña
-[SessionTab.kt](../../shared/src/commonMain/kotlin/im/gar/titanssh/terminal/SessionTab.kt)
+[SessionTab.kt](../../shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/SessionTab.kt)
 (`TabPhase`, `TabStatus`, `PendingHostKey`).
 
 Contrato y colaboradores:

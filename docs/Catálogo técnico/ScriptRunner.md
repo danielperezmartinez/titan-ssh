@@ -5,21 +5,21 @@ Tipo: "Servicio"
 Feature: "Terminal"
 Estado: "Vigente"
 Ámbito: "Feature"
-Fuente: "shared/src/commonMain/kotlin/im/gar/titanssh/terminal/ScriptRunner.kt"
-Entrada pública: "im.gar.titanssh.terminal"
+Fuente: "shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/ScriptRunner.kt"
+Entrada pública: "io.github.danielperezmartinez.titanssh.terminal"
 Resumen: "Motor de ejecución de los scripts de inicio de sesión al conectar y al reconectar, más el envoltorio en multiplexor (nivel 2). ScriptRunner (puro, testeable) recibe un ShellIo (send + tee de salida) y, sobre la shell viva, envía el cd inicial y los scripts en orden honrando ${ref} (solo secretos; el resto de ${...} lo expande la shell remota), export de envVars, delay, expect, waitForCompletion con centinela printf que arrastra $? y timeout, y onFailure CONTINUE/ABORT; devuelve un ScriptOutcome por unidad. StartScriptAutomation implementa el seam ShellAutomation: onShellReady selecciona las fases de conexión (ON_SHELL_START → POST_INIT); onReconnected replica según el ReconnectBehavior (NONE/RESTORE_CD_ONLY/RERUN_ALL). Nivel 2: si resilienceLevel>=AUTO_MULTIPLEXER y hay tmux/screen, TerminalMultiplexer detecta y hace attach-or-create de una sesión titan-<id> (re-engancha sin reejecutar si ya existía; degrada al nivel 1 si no hay multiplexor). Resuelve secretos del SecretStore solo en runtime. silent no se suprime aún; PRE_CONNECT_LOCAL fuera de alcance."
-Última modificación: 2026-09-19T17:30:00+02:00
+Última modificación: 2026-09-24T12:00:00+02:00
 ---
 
 # ScriptRunner
 
 Después de descubrir esta pieza en el catálogo, consulta como fuente de verdad
-[ScriptRunner.kt](../../shared/src/commonMain/kotlin/im/gar/titanssh/terminal/ScriptRunner.kt),
-[StartScriptAutomation.kt](../../shared/src/commonMain/kotlin/im/gar/titanssh/terminal/StartScriptAutomation.kt),
+[ScriptRunner.kt](../../shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/ScriptRunner.kt),
+[StartScriptAutomation.kt](../../shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/StartScriptAutomation.kt),
 el seam
-[ShellAutomation.kt](../../shared/src/commonMain/kotlin/im/gar/titanssh/terminal/ShellAutomation.kt)
+[ShellAutomation.kt](../../shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/ShellAutomation.kt)
 (`ShellAutomation`, `ShellIo`) y el multiplexor
-[TerminalMultiplexer.kt](../../shared/src/commonMain/kotlin/im/gar/titanssh/terminal/TerminalMultiplexer.kt).
+[TerminalMultiplexer.kt](../../shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/TerminalMultiplexer.kt).
 
 Contrato y colaboradores:
 

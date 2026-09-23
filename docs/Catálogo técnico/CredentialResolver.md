@@ -5,16 +5,16 @@ Tipo: "Servicio"
 Feature: "Custodia de credenciales"
 Estado: "Vigente"
 Ámbito: "Aplicación"
-Fuente: "shared/src/commonMain/kotlin/im/gar/titanssh/terminal/CredentialResolver.kt"
-Entrada pública: "im.gar.titanssh.terminal"
+Fuente: "shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/CredentialResolver.kt"
+Entrada pública: "io.github.danielperezmartinez.titanssh.terminal"
 Resumen: "Materializa las SshCredentials vivas a partir del HostAuth (solo referencias) leyendo el material del SecretStore en tiempo de conexión (ADR-0001). Password y SoftwareKey (con passphrase opcional) se leen del almacén; la HardwareKey NO se materializa como bytes: devuelve SshCredentials.HardwareKey(alias) y el motor resuelve el signer delegado en el almacén del SO (ADR-0005). Lanza MissingSecret si falta una referencia. El llamante (SessionTab) borra el material tras el handshake."
-Última modificación: 2026-09-18T15:45:00+02:00
+Última modificación: 2026-09-24T12:00:00+02:00
 ---
 
 # CredentialResolver
 
 Después de descubrir esta pieza en el catálogo, consulta como fuente de verdad
-[CredentialResolver.kt](../../shared/src/commonMain/kotlin/im/gar/titanssh/terminal/CredentialResolver.kt).
+[CredentialResolver.kt](../../shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/CredentialResolver.kt).
 
 Es el puente entre la configuración (referencias) y el motor (credenciales vivas),
 usado por el flujo de lanzamiento de [[SessionManager]]:

@@ -5,19 +5,19 @@ Tipo: "Contrato"
 Feature: "Custodia de credenciales"
 Estado: "Vigente"
 Ámbito: "Aplicación"
-Fuente: "shared/src/commonMain/kotlin/im/gar/titanssh/secret/SecretStore.kt"
-Entrada pública: "im.gar.titanssh.secret"
+Fuente: "shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/secret/SecretStore.kt"
+Entrada pública: "io.github.danielperezmartinez.titanssh.secret"
 Resumen: "Contrato expect/actual que custodia material secreto (contraseñas, passphrases, claves software de fallback) en el almacén nativo del SO sin texto plano. put/get/remove/contains sobre SecretRef; falla cerrado con SecretStoreUnavailable si no hay almacén. Se construye con createSecretStore(). Backends: Android Keystore (AES-GCM) y escritorio java-keyring (Windows Credential Store / Linux Secret Service)."
-Última modificación: 2026-09-17T19:20:00+02:00
+Última modificación: 2026-09-24T12:00:00+02:00
 ---
 
 # SecretStore
 
 Después de descubrir esta pieza en el catálogo, consulta
-[su implementación](../../shared/src/commonMain/kotlin/im/gar/titanssh/secret/SecretStore.kt)
+[su implementación](../../shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/secret/SecretStore.kt)
 como fuente de verdad de su contrato detallado.
 
-Piezas relacionadas del mismo paquete `im.gar.titanssh.secret`:
+Piezas relacionadas del mismo paquete `io.github.danielperezmartinez.titanssh.secret`:
 
 - `SecretRef` — handle opaco (alias) de un secreto; nunca lleva material.
 - `AuthMethod` / `SshKeyType` / `KeyStorage` — modelo de dominio de autenticación

@@ -5,16 +5,16 @@ Tipo: "Contrato"
 Feature: "Resiliencia"
 Estado: "Vigente"
 Ámbito: "Feature"
-Fuente: "shared/src/commonMain/kotlin/im/gar/titanssh/terminal/AgentProtocol.kt"
-Entrada pública: "im.gar.titanssh.terminal"
+Fuente: "shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/AgentProtocol.kt"
+Entrada pública: "io.github.danielperezmartinez.titanssh.terminal"
 Resumen: "Códec puro del protocolo por tramas cliente↔agente del nivel 3 de resiliencia (ADR-0008): binario, con prefijo de longitud, sobre el stdio del canal exec de SSH. Fuente de verdad del formato de cable (el agente Go en agent/ lo replica byte a byte). encode(frame)→ByteArray y FrameDecoder.feed(chunk)→List<AgentFrame> tolerante a troceo del stream. Tramas: HELLO/HELLO_OK/DATA/INPUT/RESIZE/REPLAY_FROM/ACK/BYE, con offsets de byte (DATA es autodescriptivo) para replay-desde-offset. Sin dependencias de plataforma ni de SSH; testeable headless (AgentProtocolTest). Probado en ambos lados y de punta a punta contra host real (lo usa [[AgentTransport]] en el cliente y el binario Go en el destino)."
-Última modificación: 2026-09-23T20:10:00+02:00
+Última modificación: 2026-09-24T12:00:00+02:00
 ---
 
 # AgentProtocol
 
 Después de descubrir esta pieza en el catálogo, consulta como fuente de verdad
-[AgentProtocol.kt](../../shared/src/commonMain/kotlin/im/gar/titanssh/terminal/AgentProtocol.kt);
+[AgentProtocol.kt](../../shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/AgentProtocol.kt);
 su cobertura está en `AgentProtocolTest`.
 
 Define el formato de cable del **nivel 3** de resiliencia

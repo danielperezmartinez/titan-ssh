@@ -5,16 +5,16 @@ Tipo: "Servicio"
 Feature: "Resiliencia"
 Estado: "En revisión"
 Ámbito: "Feature"
-Fuente: "shared/src/commonMain/kotlin/im/gar/titanssh/terminal/AgentTransport.kt"
-Entrada pública: "im.gar.titanssh.terminal"
+Fuente: "shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/AgentTransport.kt"
+Entrada pública: "io.github.danielperezmartinez.titanssh.terminal"
 Resumen: "Extremo cliente del nivel 3 de resiliencia (ADR-0008): ejecuta titan-agent por un SshExecChannel y habla AgentProtocol con él. run() envía HELLO(sessionId,lastOffset,cols,rows) y bombea las tramas DATA del agente a un onOutput (el emulador de la pestaña) hasta que el canal cierra; sendInput/resize mandan INPUT/RESIZE y cada DATA se confirma con ACK. Mantiene appliedOffset (bytes aplicados) para reconectar con replay exacto, con dedupe de replay solapado y aceptación de huecos por buffer capado. Serializa las escrituras (sendMutex) para no entrelazar tramas. Acompaña a AgentInstaller/AgentDeployer (instalación) y se enchufa en SessionTab cuando ResilienceLevel.AGENT y hay deployer; sin él degrada al nivel 2/1. EN REVISIÓN: falta empaquetar binarios y cablear el deployer en el arranque para uso desde la UI."
-Última modificación: 2026-09-19T19:55:00+02:00
+Última modificación: 2026-09-24T12:00:00+02:00
 ---
 
 # AgentTransport
 
 Después de descubrir esta pieza en el catálogo, consulta como fuente de verdad
-[AgentTransport.kt](../../shared/src/commonMain/kotlin/im/gar/titanssh/terminal/AgentTransport.kt);
+[AgentTransport.kt](../../shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/AgentTransport.kt);
 su cobertura está en `AgentTransportTest` (headless, canal fake) y
 `AgentTransportIntegrationTest` (host real, opt-in).
 

@@ -5,18 +5,18 @@ Tipo: "Modelo de dominio"
 Feature: "Gestión de hosts"
 Estado: "Vigente"
 Ámbito: "Feature"
-Fuente: "shared/src/commonMain/kotlin/im/gar/titanssh/config/Model.kt"
-Entrada pública: "im.gar.titanssh.config"
+Fuente: "shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/config/Model.kt"
+Entrada pública: "io.github.danielperezmartinez.titanssh.config"
 Resumen: "Modelo de dominio @Serializable del área Configuración. Host (dónde/cómo conectar, reutilizable) y Session (qué hacer al conectar, referencia a host con overrides), más SessionScript, Snippet, Group, Tunnel, TerminalAppearance y la raíz TitanConfig (versionada). Nunca contiene material secreto: contraseñas/passphrases/claves software van por SecretRef y la clave hardware por alias del almacén del SO. resolve(session) fusiona overrides y devuelve un ResolvedConnection (SshEndpoint + auth + apariencia + ProxyJump); toAuthMethod() mapea al AuthMethod runtime con la preferencia de ADR-0005."
-Última modificación: 2026-09-18T15:30:00+02:00
+Última modificación: 2026-09-24T12:00:00+02:00
 ---
 
 # Modelo de configuración
 
 Después de descubrir esta pieza en el catálogo, consulta como fuente de verdad
-[Model.kt](../../shared/src/commonMain/kotlin/im/gar/titanssh/config/Model.kt)
+[Model.kt](../../shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/config/Model.kt)
 (los tipos `@Serializable`) y
-[Resolution.kt](../../shared/src/commonMain/kotlin/im/gar/titanssh/config/Resolution.kt)
+[Resolution.kt](../../shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/config/Resolution.kt)
 (`resolve`, `mergedWith`, `toAuthMethod`, `scriptsFor`).
 
 Piezas y detalles relacionados:
@@ -32,7 +32,7 @@ Piezas y detalles relacionados:
 - `ResolvedConnection` — lo que consume el motor: produce el `SshEndpoint` del
   contrato [[SshConnector]].
 - Ids opacos en
-  [Ids.kt](../../shared/src/commonMain/kotlin/im/gar/titanssh/config/Ids.kt).
+  [Ids.kt](../../shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/config/Ids.kt).
 
 Formalizado en [[ADR-0007 Modelo y persistencia de configuración]]; consume
 [[ADR-0001 Credenciales en almacén nativo del SO]] y

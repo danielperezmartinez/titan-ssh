@@ -8,7 +8,7 @@ Bloqueada:
   - "[[Icono y recursos gráficos de la app]]"
   - "[[Versionado único desde tag de git]]"
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-23T22:50:00+02:00
+Última modificación: 2026-09-24T12:00:00+02:00
 ---
 
 # Configuración de release del escritorio
@@ -33,7 +33,9 @@ recortado de ese JDK.
   - `upgradeUuid` generado **una vez** y fijado para siempre (documentarlo en
     esta tarea; si cambia, las actualizaciones se instalan en paralelo).
   - `menuGroup`, `shortcut`, `dirChooser`, `iconFile` (.ico) y
-    `licenseFile` (ver [[Licencia GPL-3.0-or-later del proyecto]]).
+    `licenseFile` (ver [[Licencia GPL-3.0-or-later del proyecto]]). Incluir
+    también `LICENSE` y `THIRD_PARTY_NOTICES.md` de la raíz en todos los
+    paquetes (MSI, `.deb`, `.rpm`, `tar.gz`).
   - Decidir `perUserInstall` (instalación sin administrador en
     `%LOCALAPPDATA%`, sin UAC; encaja con una herramienta de usuario).
   - Probar la **actualización** de una versión N a N+1 y la instalación

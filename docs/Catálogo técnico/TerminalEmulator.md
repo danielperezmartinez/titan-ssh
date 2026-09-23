@@ -5,20 +5,20 @@ Tipo: "Servicio"
 Feature: "Terminal"
 Estado: "Vigente"
 Ámbito: "Feature"
-Fuente: "shared/src/commonMain/kotlin/im/gar/titanssh/terminal/TerminalEmulator.kt"
-Entrada pública: "im.gar.titanssh.terminal"
+Fuente: "shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/TerminalEmulator.kt"
+Entrada pública: "io.github.danielperezmartinez.titanssh.terminal"
 Resumen: "Emulador VT100/ANSI pragmático, libre de tipos Compose (testeable headless). feed(bytes) parsea texto UTF-8, controles C0, CSI de cursor/borrado (ED/EL/ECH), edición de líneas/caracteres (IL/DL/ICH/DCH), pantalla alterna (47/1047/1049, sin scrollback propio), regiones de scroll (DECSTBM) con LF/RI/SU/SD conscientes de la región, SGR (negrita, inverso, 16 colores, indexado 38/48;5 y true-color 38/48;2) y guardar/restaurar cursor; consume-e-ignora OSC y los modos privados DEC que no maneja. resize(cols,rows) (redimensiona también la pantalla guardada; resetea la región) y snapshot() → TerminalSnapshot inmutable (scrollback acotado + rejilla + cursor). Suficiente para apps de pantalla completa (tmux/screen, vim, less, htop). Aún fuera: origin mode (DECOM), tab-stops, charsets. La paleta a color Compose la aporta AnsiPalette."
-Última modificación: 2026-09-19T17:30:00+02:00
+Última modificación: 2026-09-24T12:00:00+02:00
 ---
 
 # TerminalEmulator
 
 Después de descubrir esta pieza en el catálogo, consulta como fuente de verdad
-[TerminalEmulator.kt](../../shared/src/commonMain/kotlin/im/gar/titanssh/terminal/TerminalEmulator.kt),
+[TerminalEmulator.kt](../../shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/TerminalEmulator.kt),
 el modelo de pantalla en
-[TerminalModel.kt](../../shared/src/commonMain/kotlin/im/gar/titanssh/terminal/TerminalModel.kt)
+[TerminalModel.kt](../../shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/TerminalModel.kt)
 (`TerminalSnapshot`, `TerminalCell`, `TermColor`) y la paleta en
-[AnsiPalette.kt](../../shared/src/commonMain/kotlin/im/gar/titanssh/terminal/AnsiPalette.kt).
+[AnsiPalette.kt](../../shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/AnsiPalette.kt).
 
 Notas de contrato:
 

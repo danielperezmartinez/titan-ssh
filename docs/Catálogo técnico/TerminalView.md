@@ -5,16 +5,16 @@ Tipo: "Componente UI"
 Feature: "Terminal"
 Estado: "Vigente"
 Ámbito: "Feature"
-Fuente: "shared/src/commonMain/kotlin/im/gar/titanssh/ui/TerminalView.kt"
-Entrada pública: "im.gar.titanssh.ui"
+Fuente: "shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/ui/TerminalView.kt"
+Entrada pública: "io.github.danielperezmartinez.titanssh.ui"
 Resumen: "Composable que pinta un TerminalSnapshot (colores ANSI vía AnsiPalette, cursor) con JetBrains Mono, mide la celda mono para calcular columnas/filas y disparar un resize real del PTY, y captura entrada por eventos de teclado (onPreviewKeyEvent: teclados físicos y escritorio) traducida con TerminalKeys hacia SessionTab.sendBytes. En Android añade la barra de teclas accesorias, pegar desde el portapapeles y un campo oculto que levanta el teclado software. Dark-first, sin chrome de Material."
-Última modificación: 2026-09-18T15:45:00+02:00
+Última modificación: 2026-09-24T12:00:00+02:00
 ---
 
 # TerminalView
 
 Después de descubrir esta pieza en el catálogo, consulta como fuente de verdad
-[TerminalView.kt](../../shared/src/commonMain/kotlin/im/gar/titanssh/ui/TerminalView.kt).
+[TerminalView.kt](../../shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/ui/TerminalView.kt).
 
 Colaboradores:
 
