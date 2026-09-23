@@ -2,7 +2,7 @@
 Nombre: Inicializar repositorio y esqueleto KMP
 Estado: Hecha
 Resumen: 'Poner en marcha el proyecto: inicializar git con repositorio remoto y crear el esqueleto Kotlin Multiplatform + Compose (Gradle, source sets commonMain/androidMain/desktopMain). Es el paso previo al resto del trabajo.'
-Decisiones: Sigue [[ADR-0002 Stack KMP y alcance multiplataforma]]. Toolchain de la máquina: JDK 21 (JBR de Android Studio) y Android SDK (compileSdk 35). Gradle 8.10.2, Kotlin 2.1.0, AGP 8.7.3, Compose Multiplatform 1.7.3. Módulo único `composeApp` con targets android + desktop (jvm). Paquete `im.gar.titanssh`. JetBrains Mono se pospone (se usa monospace del sistema) por evitar bundling de fuente en el esqueleto.
+Decisiones: 'Sigue [[ADR-0002 Stack KMP y alcance multiplataforma]]. Toolchain de la máquina: JDK 21 (JBR de Android Studio) y Android SDK (compileSdk 35). Gradle 8.10.2, Kotlin 2.1.0, AGP 8.7.3, Compose Multiplatform 1.7.3. Módulo único `composeApp` con targets android + desktop (jvm). Paquete `im.gar.titanssh`. JetBrains Mono se pospone (se usa monospace del sistema) por evitar bundling de fuente en el esqueleto.'
 Bloqueada: []
 Fecha de creación: 2026-09-17T15:40:00+02:00
 Última modificación: 2026-09-17T18:35:00+02:00

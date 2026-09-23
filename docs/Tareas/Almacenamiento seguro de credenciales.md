@@ -2,7 +2,7 @@
 Nombre: Almacenamiento seguro de credenciales
 Estado: Hecha
 Resumen: Fundación SecretStore entregada y verificada (interfaz expect/actual + backends nativos Android Keystore y escritorio java-keyring, fail-closed sin texto plano; modelo de dominio de auth con preferencia ed25519). El signer delegado en hardware y la verificación known_hosts se movieron a [[Autenticación SSH signer en hardware y verificación de host]] por depender del motor SSH.
-Decisiones: Sigue [[ADR-0001 Credenciales en almacén nativo del SO]] y [[ADR-0005 Autenticación SSH y verificación de host]]. Librería de escritorio elegida: java-keyring (Windows Credential Store / Linux Secret Service), fail-closed sin texto plano.
+Decisiones: 'Sigue [[ADR-0001 Credenciales en almacén nativo del SO]] y [[ADR-0005 Autenticación SSH y verificación de host]]. Librería de escritorio elegida: java-keyring (Windows Credential Store / Linux Secret Service), fail-closed sin texto plano.'
 Bloqueada: []
 Fecha de creación: 2026-09-17T15:32:11+02:00
 Última modificación: 2026-09-17T19:35:00+02:00

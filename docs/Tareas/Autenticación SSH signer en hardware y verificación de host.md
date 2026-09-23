@@ -1,7 +1,7 @@
 ---
 Nombre: "Autenticación SSH: signer en hardware y verificación de host"
 Estado: Hecha
-Resumen: Autenticación SSH sobre el motor, verificada de punta a punta. Verificación de host TOFU (known_hosts) y signer delegado en clave no exportable (Android Keystore EC P-256 vía DelegatedKeyProvider; fallback software por PEM). La firma real en hardware se validó en un dispositivo real (StrongBox) contra el host de pruebas. Clave del arreglo en Android: BouncyCastle disponible pero NO forzado, para que la firma se enrute al proveedor AndroidKeyStore.
+Resumen: 'Autenticación SSH sobre el motor, verificada de punta a punta. Verificación de host TOFU (known_hosts) y signer delegado en clave no exportable (Android Keystore EC P-256 vía DelegatedKeyProvider; fallback software por PEM). La firma real en hardware se validó en un dispositivo real (StrongBox) contra el host de pruebas. Clave del arreglo en Android: BouncyCastle disponible pero NO forzado, para que la firma se enrute al proveedor AndroidKeyStore.'
 Decisiones: Sigue [[ADR-0005 Autenticación SSH y verificación de host]] y [[ADR-0004 Librería SSH]].
 Bloqueada: []
 Fecha de creación: 2026-09-17T19:20:00+02:00

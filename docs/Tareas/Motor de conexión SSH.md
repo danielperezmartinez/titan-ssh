@@ -1,7 +1,7 @@
 ---
 Nombre: "Motor de conexión SSH"
 Estado: Hecha
-Resumen: Primitiva de conexión SSH sobre sshj entregada y verificada (headless + handshake real contra un host por Tailscale): sshj + source set jvmShared cableados, sesión autenticada por clave, canal shell (PTY) con flujos de E/S, cierre limpio y heartbeat expuesto. Base sobre la que se apoyan la autenticación (signer/known_hosts), la resiliencia y el terminal multipestaña.
+Resumen: 'Primitiva de conexión SSH sobre sshj entregada y verificada (headless + handshake real contra un host por Tailscale): sshj + source set jvmShared cableados, sesión autenticada por clave, canal shell (PTY) con flujos de E/S, cierre limpio y heartbeat expuesto. Base sobre la que se apoyan la autenticación (signer/known_hosts), la resiliencia y el terminal multipestaña.'
 Decisiones: Sigue [[ADR-0004 Librería SSH]] y [[ADR-0002 Stack KMP y alcance multiplataforma]]; consume [[ADR-0001 Credenciales en almacén nativo del SO]] y [[ADR-0005 Autenticación SSH y verificación de host]].
 Bloqueada: []
 Fecha de creación: 2026-09-17T19:40:00+02:00
