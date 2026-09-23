@@ -28,6 +28,12 @@ class SessionManager(
     private val automation: ShellAutomation = ShellAutomation.None,
     /** Client-side reconnection cadence for level-1 resilience (see [SessionTab]). */
     private val reconnect: ReconnectPolicy = ReconnectPolicy.Default,
+    /**
+     * Level-3 agent deployer (ADR-0008). Null by default, so `AGENT` sessions
+     * degrade to level 2/1; provide one (built in `jvmShared` via `agentDeployer`,
+     * with bundled binaries) to enable the persistent agent.
+     */
+    private val agentDeployer: AgentDeployer? = null,
 ) {
     private val byId = mutableMapOf<String, SessionTab>()
 
@@ -54,6 +60,7 @@ class SessionManager(
             scope = scope,
             automation = automation,
             reconnect = reconnect,
+            agentDeployer = agentDeployer,
         )
         byId[tabId] = tab
         _list.value = _list.value.add(tabId)

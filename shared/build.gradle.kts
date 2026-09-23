@@ -8,6 +8,35 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
 }
 
+// --- Level-3 agent (titan-agent) multi-arch build → bundled resources ----------
+//
+// Cross-compiles the Go agent in `agent/` for each destination target into JVM
+// resources (packaged under /agent/). Best-effort: if the Go toolchain is not
+// found the build still succeeds with no binaries bundled, and a
+// `ResilienceLevel.AGENT` session simply degrades to level 2/1 (AgentInstaller
+// returns Unsupported). See ADR-0008.
+val agentModuleDir = rootProject.file("agent")
+val agentBinariesDir = layout.buildDirectory.dir("generated/agentBinaries")
+val agentTargets = listOf("linux" to "amd64", "linux" to "arm64", "darwin" to "arm64")
+
+fun resolveGo(): String? {
+    val candidates = listOfNotNull(
+        System.getenv("GO"),
+        System.getenv("GOROOT")?.let { "$it/bin/go" },
+        "go",
+        "C:\\Program Files\\Go\\bin\\go.exe",
+        "/usr/local/go/bin/go",
+        "/usr/bin/go",
+    )
+    for (c in candidates) {
+        try {
+            val p = ProcessBuilder(c, "version").redirectErrorStream(true).start()
+            if (p.waitFor() == 0) return c
+        } catch (_: Exception) { /* try next */ }
+    }
+    return null
+}
+
 kotlin {
     // Android target as a KMP library (AGP 9 native plugin
     // com.android.kotlin.multiplatform.library), so it coexists with
@@ -79,8 +108,58 @@ kotlin {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
         }
+
+        // The level-3 agent binaries (ADR-0008) are built by `buildAgentBinaries`
+        // into a generated resources dir and packaged as JVM resources under
+        // /agent/, so both the desktop app and the Android app can ship them and
+        // install them on the destination on first use (AgentInstaller). Loaded via
+        // the classloader by AgentBinaries.
+        getByName("jvmSharedMain").resources.srcDir(agentBinariesDir)
     }
 }
+
+val buildAgentBinaries by tasks.registering {
+    description = "Cross-compiles titan-agent (level-3) for each destination target into bundled resources."
+    inputs.dir(agentModuleDir)
+    outputs.dir(agentBinariesDir)
+    doLast {
+        val outDir = agentBinariesDir.get().dir("agent").asFile
+        outDir.mkdirs()
+        val go = resolveGo()
+        if (go == null) {
+            logger.warn("titan-agent: Go toolchain not found; level-3 agent binaries NOT bundled (AGENT sessions will degrade to level 2/1).")
+            return@doLast
+        }
+        agentTargets.forEach { (os, arch) ->
+            val out = File(outDir, "titan-agent-$os-$arch")
+            try {
+                val pb = ProcessBuilder(
+                    go, "build", "-trimpath", "-ldflags", "-s -w",
+                    "-o", out.absolutePath, "./cmd/titan-agent",
+                )
+                pb.directory(agentModuleDir)
+                pb.environment()["GOOS"] = os
+                pb.environment()["GOARCH"] = arch
+                pb.redirectErrorStream(true)
+                val process = pb.start()
+                val log = process.inputStream.bufferedReader().readText()
+                val code = process.waitFor()
+                if (code != 0) {
+                    logger.warn("titan-agent: cross-compile failed for $os/$arch (exit $code): ${log.take(500)}")
+                }
+            } catch (e: Exception) {
+                logger.warn("titan-agent: cross-compile error for $os/$arch: ${e.message}")
+            }
+        }
+    }
+}
+
+// Make every resource-processing/packaging task depend on the agent build, so the
+// binaries are present whenever resources are assembled (desktop jar, Android apk).
+tasks.matching {
+    it.name.contains("ProcessResources", ignoreCase = true) ||
+        (it.name.startsWith("merge") && it.name.contains("JavaResource", ignoreCase = true))
+}.configureEach { dependsOn(buildAgentBinaries) }
 
 // Generate a stable, importable accessor (`im.gar.titanssh.resources.Res`) for
 // the bundled Compose resources (JetBrains Mono fonts).
@@ -100,6 +179,9 @@ tasks.withType<Test>().configureEach {
         "titanSshTestUser" to "TITAN_SSH_TEST_USER",
         "titanSshTestKey" to "TITAN_SSH_TEST_KEY",
         "titanSshTestPassphrase" to "TITAN_SSH_TEST_PASSPHRASE",
+        // Path to a built titan-agent binary matching the test host's arch, for
+        // AgentInstallerIntegrationTest (level-3 agent install, ADR-0008).
+        "titanAgentBin" to "TITAN_AGENT_BIN",
     ).forEach { (prop, env) ->
         (project.findProperty(prop) as String?)?.let { environment(env, it) }
     }

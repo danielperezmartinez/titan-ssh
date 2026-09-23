@@ -1,5 +1,6 @@
 package im.gar.titanssh.terminal
 
+import im.gar.titanssh.config.ResilienceLevel
 import im.gar.titanssh.config.ResolvedConnection
 import im.gar.titanssh.ssh.HostKeyInfo
 import im.gar.titanssh.ssh.KnownHostsStore
@@ -83,6 +84,13 @@ class SessionTab(
     private val automation: ShellAutomation = ShellAutomation.None,
     /** Client-side reconnection cadence for level-1 resilience. */
     private val reconnect: ReconnectPolicy = ReconnectPolicy.Default,
+    /**
+     * Level-3 agent deployer ([[Resiliencia nivel 3 agente propio en el destino]],
+     * ADR-0008). When non-null and the session's [ResilienceLevel] is `AGENT`, the
+     * tab installs and drives `titan-agent` for full persistence; when null (or the
+     * install degrades), an `AGENT` session falls back to the level-2/1 shell path.
+     */
+    private val agentDeployer: AgentDeployer? = null,
 ) {
     val title: String get() = resolved.session.name
 
@@ -125,6 +133,12 @@ class SessionTab(
     private var shell: SshShell? = null
     private var connectJob: Job? = null
     private var automationJob: Job? = null
+
+    /** Active level-3 agent transport (null on the shell path). */
+    private var agent: AgentTransport? = null
+
+    /** Bytes the emulator has applied from the agent; carried across reconnects for replay. */
+    private var agentOffset: Long = 0
 
     /** Set once by [close] so the reconnect loop stops instead of retrying. */
     private var closed = false
@@ -226,6 +240,30 @@ class SessionTab(
                 keepAliveSeconds = resolved.host.keepAliveSeconds,
             )
             session = opened
+
+            // Level-3 agent path (ADR-0008): install + drive titan-agent for full
+            // persistence. If it can't be provisioned, fall through to the shell
+            // path below (degrade to level 2/1).
+            if (agentDeployer != null && resolved.session.resilienceLevel == ResilienceLevel.AGENT) {
+                val agentPath = agentDeployer.ensureInstalled(opened)
+                if (agentPath != null) {
+                    _status.value = TabStatus(TabPhase.CONNECTED)
+                    val transport = AgentTransport(
+                        session = opened,
+                        agentSessionId = resolved.session.id,
+                        agentPath = agentPath,
+                        onOutput = { bytes -> feedBytes(bytes) },
+                        initialColumns = desiredColumns,
+                        initialRows = desiredRows,
+                        startOffset = agentOffset,
+                    )
+                    agent = transport
+                    transport.run()
+                    agentOffset = transport.appliedOffset
+                    return if (droppedWithin(opened)) AttemptResult.DROPPED else AttemptResult.CLEAN_EXIT
+                }
+            }
+
             val newShell = opened.openShell(desiredColumns, desiredRows)
             shell = newShell
             _status.value = TabStatus(TabPhase.CONNECTED)
@@ -262,8 +300,10 @@ class SessionTab(
         } finally {
             wipe(creds)
             automationJob?.cancel()
+            runCatching { agent?.close() }
             runCatching { shell?.close() }
             runCatching { opened?.close() }
+            agent = null
             shell = null
             session = null
         }
@@ -285,16 +325,22 @@ class SessionTab(
 
     private suspend fun pumpOutput(shell: SshShell) {
         shell.output.collect { bytes ->
-            emulatorLock.withLock {
-                emulator.feed(bytes)
-                _snapshot.value = emulator.snapshot()
-            }
+            feedBytes(bytes)
             // Re-publish a decoded copy for automation; tryEmit never suspends, so
             // painting is never blocked by a slow observer.
             outputTee.tryEmit(bytes.decodeToString())
         }
         // The flow completes when the channel closes (remote exit / drop); the
         // run loop classifies the cause and decides whether to reconnect.
+    }
+
+    /** Feeds raw output bytes into the emulator and refreshes the snapshot. Used by
+     *  both the shell pump and the level-3 [AgentTransport]. */
+    private suspend fun feedBytes(bytes: ByteArray) {
+        emulatorLock.withLock {
+            emulator.feed(bytes)
+            _snapshot.value = emulator.snapshot()
+        }
     }
 
     private suspend fun promptHostKey(info: HostKeyInfo): Boolean {
@@ -307,9 +353,11 @@ class SessionTab(
         }
     }
 
-    /** Sends raw input bytes to the shell (no-op if not connected yet). */
+    /** Sends raw input bytes to the shell — or, on the agent path, as INPUT frames
+     *  (no-op if not connected yet). */
     suspend fun sendBytes(bytes: ByteArray) {
-        shell?.send(bytes)
+        val a = agent
+        if (a != null) a.sendInput(bytes) else shell?.send(bytes)
     }
 
     /** Records a new grid size and forwards it to the emulator and the PTY. */
@@ -321,7 +369,8 @@ class SessionTab(
             emulator.resize(columns, rows)
             _snapshot.value = emulator.snapshot()
         }
-        shell?.resize(columns, rows)
+        val a = agent
+        if (a != null) a.resize(columns, rows) else shell?.resize(columns, rows)
     }
 
     /** Closes the shell and the session and stops the reconnect loop. */
@@ -329,8 +378,10 @@ class SessionTab(
         closed = true
         automationJob?.cancel()
         connectJob?.cancel()
+        runCatching { agent?.close() }
         runCatching { shell?.close() }
         runCatching { session?.close() }
+        agent = null
         shell = null
         session = null
     }

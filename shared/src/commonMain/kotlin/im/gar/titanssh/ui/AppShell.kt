@@ -30,6 +30,7 @@ import im.gar.titanssh.ssh.createKnownHostsStore
 import im.gar.titanssh.ssh.createSshConnector
 import im.gar.titanssh.terminal.CredentialResolver
 import im.gar.titanssh.terminal.SessionManager
+import im.gar.titanssh.terminal.createAgentDeployer
 import im.gar.titanssh.terminal.StartScriptAutomation
 import im.gar.titanssh.theme.TitanColors
 import im.gar.titanssh.theme.TitanDimens
@@ -62,6 +63,9 @@ fun AppShell() {
                 credentialResolver = CredentialResolver(secretStore),
                 knownHostsStore = createKnownHostsStore(),
                 automation = StartScriptAutomation(secretStore),
+                // Level-3 agent (ADR-0008): installs & drives titan-agent for
+                // AGENT sessions; degrades to level 2/1 when unavailable.
+                agentDeployer = createAgentDeployer(),
             )
         }
         var area by remember { mutableStateOf(Area.CONFIG) }

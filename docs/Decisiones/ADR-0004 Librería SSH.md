@@ -2,13 +2,13 @@
 Nombre: Librería SSH (sshj en el cliente, MINA SSHD para el agente)
 Número: 4
 Estado: Aceptada
-Resumen: El cliente SSH usa sshj (API de alto nivel, mantenida, BouncyCastle opcional desde 0.39.0, apta para Android). Apache MINA SSHD queda reservada para el futuro agente propio del nivel 3, por ser la única con cliente y servidor.
+Resumen: El cliente SSH usa sshj (API de alto nivel, mantenida, BouncyCastle opcional desde 0.39.0, apta para Android). La reserva de Apache MINA SSHD para el agente del nivel 3 quedó ANULADA por ADR-0008 (el agente es un binario nativo Go sobre el canal exec, sin servidor SSH que implementar); sshj como cliente sigue plenamente vigente.
 Decisión: Adoptar sshj como librería SSH del cliente y reservar Apache MINA SSHD para el agente propio (nivel 3) si habla SSH.
 Consecuencias: sshj es pure-Java y vive en un source set JVM compartido por Android y escritorio; el keepalive/heartbeat de sshj alimenta la reconexión del nivel 1.
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-09-17T16:34:18+02:00
-Última modificación: 2026-09-17T16:34:18+02:00
+Última modificación: 2026-09-19T18:10:00+02:00
 ---
 
 # ADR-0004 · Librería SSH (sshj en el cliente, MINA SSHD para el agente)
@@ -30,6 +30,15 @@ mwiede/jsch.
 - **Agente propio (nivel 3): reservar Apache MINA SSHD.** Es la única que ofrece
   **cliente y servidor**; si el agente del nivel 3 habla SSH, se construye con
   ella. No condiciona la elección del cliente por ser una pieza opcional y futura.
+
+  > **Actualización (ADR-0008, 2026-09-19): reserva ANULADA.** El diseño del
+  > agente ([[ADR-0008 Diseño del agente de resiliencia nivel 3]]) adopta la
+  > **opción B** (agente ayudante sobre el canal `exec` de sshj, sin servidor SSH
+  > propio) implementado como **binario nativo Go**. Sin servidor SSH que
+  > implementar, MINA no aporta, y un agente JVM exigiría Java en el destino,
+  > contra el objetivo de "agente ligero". Esta parte de la decisión queda
+  > superada; **el resto de ADR-0004 (sshj como cliente) sigue vigente**, por lo
+  > que la ADR no se marca `Reemplazada`.
 
 ## Alternativas consideradas
 

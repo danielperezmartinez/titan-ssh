@@ -31,6 +31,32 @@ interface SshShell {
 }
 
 /**
+ * A non-interactive `exec` channel: runs one remote command and exposes its raw
+ * stdio. Unlike [SshShell] there is **no PTY** — the bytes are the command's own
+ * stdout ([output]) and stdin ([send]), untouched by any line discipline.
+ *
+ * This is the transport for the resilience level-3 agent (ADR-0008,
+ * [[Resiliencia nivel 3 agente propio en el destino]]): the client `exec`s
+ * `titan-agent` and speaks the binary framed protocol ([AgentProtocol]) over
+ * this channel's stdout/stdin. The agent creates its own PTY on the destination,
+ * so this channel must stay PTY-free. [errors] carries the command's stderr for
+ * diagnostics.
+ */
+interface SshExecChannel {
+    /** Raw stdout bytes from the remote command. Completes when the channel closes. */
+    val output: Flow<ByteArray>
+
+    /** Raw stderr bytes from the remote command (agent diagnostics). */
+    val errors: Flow<ByteArray>
+
+    /** Writes raw bytes to the command's stdin. */
+    suspend fun send(data: ByteArray)
+
+    /** Closes the channel. Returns the command's exit status if the server sent one. */
+    suspend fun close(): Int?
+}
+
+/**
  * A live SSH session to one endpoint. Owns the transport; can open a shell and
  * exposes [state] so resiliency (level 1) and the UI can react to drops.
  */
@@ -40,6 +66,14 @@ interface SshSession {
 
     /** Opens an interactive shell with an initial terminal size. */
     suspend fun openShell(columns: Int = 80, rows: Int = 24): SshShell
+
+    /**
+     * Runs [command] on a non-interactive `exec` channel (no PTY) and returns it.
+     * The transport for the level-3 agent (ADR-0008). Implementations that do not
+     * support it (e.g. test fakes) may leave the default, which throws.
+     */
+    suspend fun exec(command: String): SshExecChannel =
+        throw NotImplementedError("exec channel not supported by this session")
 
     /** Closes the session and its transport. */
     suspend fun close()

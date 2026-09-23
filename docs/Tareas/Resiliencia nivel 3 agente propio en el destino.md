@@ -1,11 +1,11 @@
 ---
 Nombre: Resiliencia nivel 3 agente propio en el destino
-Estado: Pendiente
-Resumen: 'Nivel 3 del modelo de resiliencia (ADR-0003): componente ligero de titan-ssh instalable en la máquina remota que mantiene PTYs persistentes y hace buffer/replay al reconectar, para persistencia total ("app en ambos extremos"). APLAZADO: requiere ADR de diseño propia antes de implementar. Investigación previa volcada en la nota (bifurcación clave: agente-servidor-SSH con MINA vs ayudante sobre el canal exec existente; tensión MINA-JVM vs binario nativo ligero que revisaría ADR-0004; protocolo por tramas, distribución multi-arch, seguridad, ciclo de vida). Mejora opcional máxima sobre los niveles 1-2.'
-Decisiones: Sigue [[ADR-0003 Modelo de resiliencia por niveles]]; [[ADR-0004 Librería SSH]] reserva MINA SSHD para el agente, pero la investigación previa sugiere revisarlo (posible binario nativo). Se apoya en los niveles 1-2 de [[Resiliencia de sesión ante microcortes de red]].
+Estado: Hecha
+Resumen: 'ENTREGADO y verificado de punta a punta (host real nocendland-petit). Nivel 3 del modelo de resiliencia (ADR-0003): agente propio de titan-ssh en el destino para persistencia total. Diseño en [[ADR-0008 Diseño del agente de resiliencia nivel 3]] (opción B: ayudante sobre el canal exec de sshj; binario nativo Go, no MINA/JVM → anula esa reserva de ADR-0004). Piezas: protocolo por tramas AgentProtocol (cliente + agente Go), SshExecChannel (canal exec sshj), agente agent/ (PTY real, daemon UDS+front que sobrevive a la desconexión, tee vivo, replay al reconectar), AgentInstaller (instala por exec+checksum, idempotente, espacio de usuario), AgentTransport (transporte cliente con dedupe de replay) integrado en SessionTab tras un AgentDeployer, y empaquetado de binarios multi-arch como recursos (task Gradle buildAgentBinaries) cableado en la app (createAgentDeployer). El usuario elige "agente" en el editor de sesión y todo es automático (nada que instalar a mano en el host). Follow-ups menores: scripts de inicio sobre el agente y capar buffer por ACK.'
+Decisiones: 'Sigue [[ADR-0003 Modelo de resiliencia por niveles]] y su diseño [[ADR-0008 Diseño del agente de resiliencia nivel 3]] (que matiza [[ADR-0004 Librería SSH]]: la reserva de MINA para el agente queda anulada a favor de un binario nativo Go; sshj sigue vigente en el cliente). Se apoya en los niveles 1-2 de [[Resiliencia de sesión ante microcortes de red]]. Superficie catalogada en [[AgentProtocol]].'
 Bloqueada: []
 Fecha de creación: 2026-09-19T16:45:00+02:00
-Última modificación: 2026-09-19T17:05:00+02:00
+Última modificación: 2026-09-23T22:10:00+02:00
 ---
 
 # Resiliencia nivel 3: agente propio en el destino
@@ -25,11 +25,85 @@ el cliente recupere exactamente el estado, incluso tras una caída total.
 - Diseño de seguridad del agente (identidad, superficie de ataque,
   instalación/actualización) tratado explícitamente.
 
+## Diseño resuelto (2026-09-19) → ADR-0008
+
+La condición de arranque de esta tarea (una ADR de diseño propia antes de
+implementar) está **cumplida**: ver
+[[ADR-0008 Diseño del agente de resiliencia nivel 3]]. Resuelve las seis preguntas
+abiertas de abajo:
+
+1. **Transporte:** opción **B** (ayudante sobre el canal `exec` de sshj), no
+   servidor SSH propio (opción A descartada).
+2. **Runtime:** **binario nativo estático en Go**, no MINA/JVM → **anula la
+   reserva de MINA de [[ADR-0004 Librería SSH]]** para el agente (sshj sigue en el
+   cliente; ADR-0004 no se marca `Reemplazada`, solo se le añade la nota de
+   enlace).
+3. **Distribución:** subida por SFTP con detección `uname`, ruta versionada y
+   verificación de **checksum**; solo espacio de usuario.
+4. **Buffer/replay:** ring buffer por sesión con offsets de byte; `HELLO(offset)`
+   → replay desde ese offset o desde `tail` si expiró.
+5. **Ciclo de vida:** daemoniza (double-fork/setsid), reengancha por id, GC por
+   TTL, capa por bytes.
+6. **Seguridad:** corre como el usuario ya autenticado, sin nueva superficie de
+   auth; buffer en memoria (o fichero `0600`); integridad por checksum.
+
+La investigación previa que sustentó estas decisiones se conserva abajo.
+
+## Esqueleto entregado (2026-09-19)
+
+Alcance acordado con el usuario para esta sesión: **ADR + esqueleto del agente**.
+Entregado y verificado:
+
+- **`AgentProtocol`** (`shared/.../terminal/AgentProtocol.kt`, `commonMain`):
+  códec puro del protocolo por tramas (encode + `FrameDecoder` tolerante a troceo),
+  fuente de verdad del formato de cable. Catalogado en [[AgentProtocol]].
+- **`titan-agent`** (`agent/`, Go): módulo con el protocolo espejo
+  (`internal/protocol`), el ring buffer con offsets (`internal/buffer`), el
+  bosquejo de registro/sesión/proxy (`internal/session`) y el entrypoint
+  (`cmd/titan-agent`). PTY real y daemonización marcados `TODO(level3)`. No se
+  compila en esta máquina (sin toolchain Go); los tests Go quedan escritos para
+  cuando la haya.
+
+## Subtareas de implementación
+
+Estado (todas siguen la ADR-0008):
+
+- ✅ **`Hecha`** [[Nivel 3 canal exec en el motor SSH]] — `SshExecChannel` +
+  `SshSession.exec` (impl sshj), verificado contra host real.
+- ✅ **`Hecha`** [[titan-agent PTY y daemonización]] — binario Go funcional (PTY
+  real, daemon UDS + front, tee vivo, reenganche), verificado de punta a punta en
+  `nocendland-petit` (crea PTY, teea el prompt, INPUT llega, replay al reconectar).
+- ✅ **`Hecha`** [[titan-agent distribución multi-arch e instalación]] —
+  instalación por exec+checksum (idempotente) **y** empaquetado: el task Gradle
+  `buildAgentBinaries` cross-compila a recursos JVM `/agent/`, `AgentBinaries` los
+  carga por classloader. Verificado (ELF en classpath + instalación en host).
+- ✅ **`Hecha`** [[Nivel 3 transporte cliente e integración de resiliencia]] —
+  `AgentTransport` sobre `AgentProtocol` + el canal exec (dedupe/replay), integrado
+  en `SessionTab` tras un `AgentDeployer` opcional (degrada limpio sin él).
+  Verificado headless y de punta a punta contra host real (echo + replay al
+  reconectar). Superficie: [[AgentTransport]].
+
+**Cableado de app completo:** `createAgentDeployer()` (expect/actual) se inyecta en
+el `SessionManager` desde `AppShell`, y el editor de sesión ya ofrece elegir
+**"agente"**. Una sesión con `ResilienceLevel.AGENT` instala y conduce el agente
+automáticamente; sin binario para la arquitectura del destino (o si algo falla),
+degrada al nivel 2/1.
+
+## Follow-ups menores (no bloquean el nivel 3)
+
+- [[Scripts de inicio por sesión sobre el agente]] — hoy no se invoca
+  `StartScriptAutomation` en la ruta del agente; el `$SHELL -il` del agente sí
+  corre los rc del usuario.
+- [[Verificar empaquetado del agente en APK Android]] — mecanismo idéntico al de
+  escritorio (ya verificado); no ejecutado on-device esta sesión.
+- Capar el ring buffer del agente por el mínimo de los `ACK` (hoy capa por bytes).
+  Mejora interna del agente Go; sin tarea propia por ahora.
+
 ## Investigación previa (2026-09-19) — para no re-investigar
 
 Recopilado al cerrar el nivel 1. Este nivel **no es una pasada de código**: es una
 arquitectura que necesita su **propia ADR de diseño** antes de implementar. Lo
-averiguado:
+averiguado (ya consolidado en [[ADR-0008 Diseño del agente de resiliencia nivel 3]]):
 
 ### Por qué no basta con niveles 1-2
 
@@ -140,8 +214,48 @@ averiguado:
 
 ## Verificación
 
-<Se rellena al completar.>
+El **mecanismo completo del nivel 3** está implementado y verificado (headless +
+punta a punta contra el host real [[ssh-test-host]]). La tarea sigue **En curso**
+solo porque `AGENT` aún no es alcanzable desde la UI (falta empaquetar binarios y
+cablear el deployer).
+
+- **Códec** (`AgentProtocolTest`): 7/7 — round-trip de cada trama, `FrameDecoder`
+  tolerante a troceo, rechazo de tipo/longitud inválidos.
+- **Agente Go** (`go test ./...`, `go vet`): protocolo, ring buffer y sesión
+  (proxy con PTY fake) verdes; cross-compila a linux amd64/arm64 y darwin/arm64.
+- **Agente en host real**: `HELLO`→`HELLO_OK`+`DATA` con el prompt real (PTY
+  creado y teeado), `INPUT` ejecutado por el shell, y **reconexión**: el daemon
+  (setsid) sobrevive y reproduce el historial desde offset 0.
+- **Instalador** (`AgentInstallTest` + `AgentInstallerIntegrationTest` en host):
+  detección `uname`, subida por exec+`head -c`, checksum SHA-256, idempotencia.
+- **Transporte cliente** (`AgentTransportTest` + `AgentTransportIntegrationTest`
+  en host): `AgentTransport` conduce el agente, dedupe de replay, y al reconectar
+  recupera el historial.
+- **Gate**: ambos targets (`:shared:compileAndroidMain` + `compileKotlinDesktop`)
+  y la suite de escritorio completa en verde; Go verde.
 
 ## Resultado
 
-<Se rellena al completar.>
+Nivel 3 construido y verificado (diseño en
+[[ADR-0008 Diseño del agente de resiliencia nivel 3]]):
+
+- **Cliente (KMP)**: `AgentProtocol` (códec, [[AgentProtocol]]), `SshExecChannel`
+  + `SshSession.exec` (sshj), `AgentInstaller`/`AgentDeployer` (instalación por
+  exec+checksum), `AgentTransport` ([[AgentTransport]]), integrado en `SessionTab`
+  tras un `AgentDeployer` opcional (degrada al nivel 2/1 sin él → cero regresión).
+- **Agente del destino** (`agent/`, Go): binario funcional — PTY real, daemon UDS
+  + front, tee vivo, reenganche con replay; cross-compila multi-arch.
+- **ADR-0004 matizada** (reserva de MINA anulada para el agente).
+- **Subtareas**: exec (Hecha), PTY/daemon (Hecha), transporte/integración (Hecha),
+  distribución (En curso: falta empaquetar binarios).
+
+**Pendiente para cerrar la tarea**: empaquetar los binarios multi-arch como
+recursos de la app y cablear un `AgentDeployer` al arrancar, para que
+`ResilienceLevel.AGENT` sea seleccionable y funcione desde la UI.
+
+**Rediseño portable (2026-09-23)**: el agente entregado solo funciona en destinos
+Unix y pierde sesiones cuando systemd borra `/run/user`. El rediseño para Windows,
+macOS, BSD y cualquier Linux está en
+[[ADR-0009 Agente de nivel 3 portable a todos los destinos]] (`Aceptada`
+2026-09-23, tras [[Experimento supervivencia de procesos en Win32-OpenSSH]]). Implementación en
+[[Nivel 3 portable a todos los destinos]].

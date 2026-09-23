@@ -88,6 +88,37 @@ class SshjIntegrationTest {
     }
 
     @Test
+    fun exec_channel_runs_a_command_without_a_pty() {
+        val p = params() ?: return
+
+        runBlocking {
+            val session = createSshConnector().connect(
+                endpoint = SshEndpoint(p.host, p.port, p.user),
+                credentials = p.credentials(),
+                hostKeyVerifier = { true },
+                keepAliveSeconds = 0,
+            )
+
+            // No PTY: `tty` reports "not a tty" on an exec channel, which is
+            // exactly what the level-3 agent needs (raw stdout for the framed
+            // protocol, ADR-0008).
+            val channel = session.exec("echo titan-exec-ok; tty")
+            val out = StringBuilder()
+            val reader = launch(Dispatchers.IO) {
+                channel.output.collect { out.append(it.decodeToString()) }
+            }
+            delay(2000)
+            val status = channel.close()
+            reader.cancel()
+            session.close()
+
+            println("[integration] exec output: ${out.toString().trim().take(200)} (status=$status)")
+            assertTrue(out.contains("titan-exec-ok"), "exec should return the command's stdout")
+            assertTrue(out.contains("not a tty"), "an exec channel must have no PTY")
+        }
+    }
+
+    @Test
     fun known_hosts_tofu_persists_across_connections_and_rejects_a_mismatch() {
         val p = params() ?: return
 

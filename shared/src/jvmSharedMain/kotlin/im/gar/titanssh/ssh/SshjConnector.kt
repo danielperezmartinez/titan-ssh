@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -178,6 +179,14 @@ internal class SshjSession(private val ssh: SSHClient) : SshSession {
         SshjShell(session, shell, scope)
     }
 
+    override suspend fun exec(command: String): SshExecChannel = withContext(Dispatchers.IO) {
+        // No PTY: the level-3 agent (ADR-0008) speaks a binary framed protocol
+        // over raw stdout/stdin; a PTY's line discipline would corrupt it.
+        val session = ssh.startSession()
+        val cmd = session.exec(command)
+        SshjExecChannel(session, cmd, scope)
+    }
+
     override suspend fun close() = withContext(Dispatchers.IO) {
         _state.value = SshConnectionState.DISCONNECTED
         scope.cancel()
@@ -232,6 +241,62 @@ internal class SshjShell(
         runCatching { session.close() }
         outChannel.close()
         Unit
+    }
+
+    private companion object {
+        const val READ_BUFFER = 8192
+    }
+}
+
+/**
+ * Non-interactive `exec` channel over sshj (no PTY): raw stdout/stderr/stdin of
+ * one remote command. Transport for the level-3 agent (ADR-0008,
+ * [[Resiliencia nivel 3 agente propio en el destino]]).
+ */
+internal class SshjExecChannel(
+    private val session: Session,
+    private val cmd: Session.Command,
+    scope: CoroutineScope,
+) : SshExecChannel {
+
+    private val outChannel = Channel<ByteArray>(Channel.BUFFERED)
+    override val output = outChannel.receiveAsFlow()
+
+    private val errChannel = Channel<ByteArray>(Channel.BUFFERED)
+    override val errors = errChannel.receiveAsFlow()
+
+    private val stdoutReader = scope.launch(Dispatchers.IO) { pump(cmd.inputStream, outChannel) }
+    private val stderrReader = scope.launch(Dispatchers.IO) { pump(cmd.errorStream, errChannel) }
+
+    private suspend fun pump(input: java.io.InputStream, out: Channel<ByteArray>) {
+        val buffer = ByteArray(READ_BUFFER)
+        try {
+            while (currentCoroutineContext().isActive) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                if (read > 0) out.send(buffer.copyOf(read))
+            }
+        } catch (_: Throwable) {
+            // Stream closed / connection dropped; fall through to close the flow.
+        } finally {
+            out.close()
+        }
+    }
+
+    override suspend fun send(data: ByteArray) = withContext(Dispatchers.IO) {
+        cmd.outputStream.write(data)
+        cmd.outputStream.flush()
+    }
+
+    override suspend fun close(): Int? = withContext(Dispatchers.IO) {
+        stdoutReader.cancel()
+        stderrReader.cancel()
+        runCatching { cmd.close() }
+        val status = runCatching { cmd.exitStatus }.getOrNull()
+        runCatching { session.close() }
+        outChannel.close()
+        errChannel.close()
+        status
     }
 
     private companion object {

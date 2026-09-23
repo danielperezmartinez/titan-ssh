@@ -130,8 +130,11 @@ class StartScriptAutomation(
         session.scriptsFor(ScriptPhase.ON_SHELL_START) + session.scriptsFor(ScriptPhase.POST_INIT)
 
     /**
-     * Level 2 (and, until it lands, level 3/AGENT) route through the multiplexer;
-     * BASE stays on plain client-side reconnection.
+     * Level 2 routes through the multiplexer; BASE stays on plain client-side
+     * reconnection. A level-3/`AGENT` session drives `titan-agent` in
+     * [SessionTab] and never reaches this automation — unless it *degraded* (no
+     * agent deployer, or the install failed), in which case it lands here and,
+     * like level 2, uses the multiplexer.
      */
     private fun usesMultiplexer(session: Session): Boolean =
         session.resilienceLevel.ordinal >= ResilienceLevel.AUTO_MULTIPLEXER.ordinal
