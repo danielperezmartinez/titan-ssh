@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "im.gar.titanssh.android"
+    namespace = "io.github.danielperezmartinez.titanssh.android"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "im.gar.titanssh"
+        applicationId = "io.github.danielperezmartinez.titanssh"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1

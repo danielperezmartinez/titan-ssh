@@ -1,6 +1,6 @@
 // Package protocol implements the titan-ssh level-3 agent wire protocol
 // (ADR-0008). It is the exact mirror of the client-side codec in
-// shared/src/commonMain/kotlin/im/gar/titanssh/terminal/AgentProtocol.kt —
+// shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/AgentProtocol.kt —
 // keep the two in lockstep.
 //
 // Frame layout (binary, big-endian, length-prefixed):

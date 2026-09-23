@@ -43,7 +43,7 @@ agent/
 ```
 
 El formato de cable es idéntico al del cliente en
-`shared/src/commonMain/kotlin/im/gar/titanssh/terminal/AgentProtocol.kt`; **mantener
+`shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/AgentProtocol.kt`; **mantener
 ambos en sincronía**.
 
 ## Modelo de ejecución

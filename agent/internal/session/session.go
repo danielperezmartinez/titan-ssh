@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/danigar/titan-ssh/agent/internal/buffer"
-	"github.com/danigar/titan-ssh/agent/internal/protocol"
+	"github.com/danielperezmartinez/titan-ssh/agent/internal/buffer"
+	"github.com/danielperezmartinez/titan-ssh/agent/internal/protocol"
 )
 
 // Pty is the seam over a pseudo-terminal + child shell.

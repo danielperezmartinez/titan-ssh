@@ -10,7 +10,7 @@
 //
 // The PTY (internal/session/pty_unix.go) uses github.com/creack/pty; that file
 // only builds on unix, so the module still builds/tests on non-unix hosts.
-module github.com/danigar/titan-ssh/agent
+module github.com/danielperezmartinez/titan-ssh/agent
 
 go 1.22
 

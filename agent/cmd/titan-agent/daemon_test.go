@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/danigar/titan-ssh/agent/internal/protocol"
-	"github.com/danigar/titan-ssh/agent/internal/session"
+	"github.com/danielperezmartinez/titan-ssh/agent/internal/protocol"
+	"github.com/danielperezmartinez/titan-ssh/agent/internal/session"
 )
 
 // idlePty is a PTY that produces no output until closed.

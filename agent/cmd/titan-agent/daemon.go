@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/danigar/titan-ssh/agent/internal/protocol"
-	"github.com/danigar/titan-ssh/agent/internal/session"
+	"github.com/danielperezmartinez/titan-ssh/agent/internal/protocol"
+	"github.com/danielperezmartinez/titan-ssh/agent/internal/session"
 )
 
 const (

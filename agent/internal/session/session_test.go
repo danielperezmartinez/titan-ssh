@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/danigar/titan-ssh/agent/internal/protocol"
+	"github.com/danielperezmartinez/titan-ssh/agent/internal/protocol"
 )
 
 // fakePty is an in-memory PTY: Read delivers whatever is pushed via push(),

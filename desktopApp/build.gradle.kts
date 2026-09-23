@@ -27,7 +27,7 @@ dependencies {
 
 compose.desktop {
     application {
-        mainClass = "im.gar.titanssh.desktop.MainKt"
+        mainClass = "io.github.danielperezmartinez.titanssh.desktop.MainKt"
 
         nativeDistributions {
             // macOS/iOS están fuera de alcance (ver ADR-0002).

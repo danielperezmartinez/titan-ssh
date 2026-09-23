@@ -42,7 +42,7 @@ kotlin {
     // com.android.kotlin.multiplatform.library), so it coexists with
     // kotlin.multiplatform without the legacy com.android.library + compat flags.
     android {
-        namespace = "im.gar.titanssh.shared"
+        namespace = "io.github.danielperezmartinez.titanssh.shared"
         compileSdk = libs.versions.android.compileSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
 
@@ -161,11 +161,11 @@ tasks.matching {
         (it.name.startsWith("merge") && it.name.contains("JavaResource", ignoreCase = true))
 }.configureEach { dependsOn(buildAgentBinaries) }
 
-// Generate a stable, importable accessor (`im.gar.titanssh.resources.Res`) for
+// Generate a stable, importable accessor (`io.github.danielperezmartinez.titanssh.resources.Res`) for
 // the bundled Compose resources (JetBrains Mono fonts).
 compose.resources {
     publicResClass = true
-    packageOfResClass = "im.gar.titanssh.resources"
+    packageOfResClass = "io.github.danielperezmartinez.titanssh.resources"
 }
 
 // Opt-in integration tests reach a real SSH host. Connection details are passed
