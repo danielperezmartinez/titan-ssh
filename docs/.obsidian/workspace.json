@@ -11,14 +11,13 @@
             "id": "3c33552a8fffffab",
             "type": "leaf",
             "state": {
-              "type": "markdown",
+              "type": "bases",
               "state": {
-                "file": "Tareas/Revisar formateo de la terminal.md",
-                "mode": "source",
-                "source": false
+                "file": "Tareas/Tareas.base",
+                "viewName": "Todo"
               },
-              "icon": "lucide-file",
-              "title": "Revisar formateo de la terminal"
+              "icon": "lucide-table",
+              "title": "Tareas"
             }
           }
         ]
@@ -99,7 +98,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "Tareas/Revisar formateo de la terminal.md",
+                "file": "Tareas/Tareas.base",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -118,7 +117,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "Tareas/Revisar formateo de la terminal.md",
+                "file": "Tareas/Tareas.base",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
@@ -161,7 +160,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "Tareas/Revisar formateo de la terminal.md",
+                "file": "Tareas/Tareas.base",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
@@ -190,18 +189,34 @@
   },
   "active": "3c33552a8fffffab",
   "lastOpenFiles": [
-    "Tareas/Animar el reordenado de pestañas.md.tmp.13156.b5f8e844079a",
-    "Tareas/Animar el reordenado de pestañas.md.tmp.13156.22b41620145d",
-    "Tareas/Bug reordenar pestaña por segunda vez.md.tmp.13156.36216ad6170e",
-    "Tareas/Bug reordenar pestaña por segunda vez.md.tmp.13156.1ac078c5fd33",
-    "Tareas/Bug reordenar pestaña por segunda vez.md.tmp.13156.ffdda45d0a84",
-    "Tareas/Revisar formateo de la terminal.md.tmp.13156.157b6b579625",
-    "Tareas/Revisar formateo de la terminal.md.tmp.13156.ad336f3a27f3",
-    "Tareas/Quitar el ripple del terminal.md.tmp.13156.e55196591d19",
-    "Tareas/Quitar el ripple del terminal.md.tmp.13156.c6a0548e3cae",
-    "Tareas/Revisar formateo de la terminal.md.tmp.13156.8918afb39468",
-    "Tareas/Revisar formateo de la terminal.md.tmp.13156.d55199cad8ce",
+    "Tareas/Resiliencia nivel 3 agente propio en el destino.md.tmp.36988.a264b4989699",
+    "Decisiones/ADR-0008 Diseño del agente de resiliencia nivel 3.md.tmp.36988.68439d427bb5",
+    "Decisiones/ADR-0008 Diseño del agente de resiliencia nivel 3.md.tmp.36988.33915abfaa78",
+    "Decisiones/ADR-0008 Diseño del agente de resiliencia nivel 3.md.tmp.36988.5f5acd200deb",
+    "Decisiones/ADR-0009 Agente de nivel 3 portable a todos los destinos.md.tmp.36988.f0df0c25d432",
+    "Decisiones/ADR-0009 Agente de nivel 3 portable a todos los destinos.md.tmp.36988.3a21243367ba",
+    "Decisiones/ADR-0009 Agente de nivel 3 portable a todos los destinos.md.tmp.36988.1ecf4ac88910",
+    "Decisiones/ADR-0009 Agente de nivel 3 portable a todos los destinos.md.tmp.36988.0c7bcd8b9793",
+    "Decisiones/ADR-0009 Agente de nivel 3 portable a todos los destinos.md.tmp.36988.337dcf2eeaab",
+    "Decisiones/ADR-0009 Agente de nivel 3 portable a todos los destinos.md.tmp.36988.e9e53d077430",
+    "Decisiones/ADR-0009 Agente de nivel 3 portable a todos los destinos.md.tmp.36988.04e44643002f",
+    "Tareas/Experimento supervivencia de procesos en Win32-OpenSSH.md",
+    "Decisiones/ADR-0009 Agente de nivel 3 portable a todos los destinos.md",
+    "Tareas/titan-agent fuga previa al HELLO y permisos del socket.md",
+    "Tareas/Verificar empaquetado del agente en APK Android.md",
+    "Tareas/Scripts de inicio por sesión sobre el agente.md",
+    "Catálogo técnico/AgentTransport.md",
+    "Tareas/Resiliencia nivel 3 agente propio en el destino.md",
+    "Tareas/Nivel 3 transporte cliente e integración de resiliencia.md",
+    "Tareas/titan-agent distribución multi-arch e instalación.md",
+    "Tareas/titan-agent PTY y daemonización.md",
+    "Tareas/Nivel 3 canal exec en el motor SSH.md",
+    "Catálogo técnico/AgentProtocol.md",
+    "Decisiones/ADR-0008 Diseño del agente de resiliencia nivel 3.md",
+    "Tareas/Resiliencia de sesión ante microcortes de red.md",
+    "Tareas/Resiliencia nivel 2 auto-tmux o screen.md",
     "Tareas/Revisar formateo de la terminal.md",
+    "Catálogo técnico/ScriptRunner.md",
     "Inicio.md",
     "Screenshot_20260918-213655.png",
     "Tareas/Quitar el ripple del terminal.md",
@@ -210,22 +225,6 @@
     "Tareas/Animar el reordenado de pestañas.md",
     "Tareas/Editores de script y túnel como pantalla propia.md",
     "Tareas/Reordenar pestañas de sesión con drag and drop.md",
-    "Catálogo técnico/Aprovisionamiento de clave hardware.md",
-    "Catálogo técnico/SecretProvisioner.md",
-    "Tareas/Gestión de claves y secretos UI.md",
-    "Catálogo técnico/TerminalView.md",
-    "Catálogo técnico/CredentialResolver.md",
-    "Catálogo técnico/TerminalKeys.md",
-    "Catálogo técnico/TabList.md",
-    "Catálogo técnico/SessionManager.md",
-    "Catálogo técnico/TerminalEmulator.md",
-    "Catálogo técnico/Componentes UI compartidos.md",
-    "Catálogo técnico/Tema y tokens visuales.md",
-    "Catálogo técnico/ConfigController.md",
-    "Catálogo técnico/ConfigStore.md",
-    "Catálogo técnico/Modelo de configuración.md",
-    "Decisiones visuales/Vocabulario ASCII ampliado y disciplina de color.md",
-    "Decisiones/ADR-0007 Modelo y persistencia de configuración.md",
-    "Catálogo técnico/Signer SSH delegado.md"
+    "Catálogo técnico/Aprovisionamiento de clave hardware.md"
   ]
 }
