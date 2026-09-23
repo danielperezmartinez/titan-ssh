@@ -139,9 +139,17 @@ nota-índice en `Catálogo técnico.md`.
 
 ### 4. Despliegue y distribución
 
-- **Android**: Google Play Store.
-- **Escritorio (Windows/Linux)**: empaquetado nativo de Compose Multiplatform
-  (p. ej. `.msi`/`.exe` y `.deb`/binario). El detalle concreto queda por afinar.
+- **Coste cero**: solo canales y servicios gratuitos. Licencia
+  **GPL-3.0-or-later**; ID de la app `io.github.danielperezmartinez.*`.
+- **Fuente única de artefactos**: GitHub Releases generados por GitHub Actions
+  a partir de un tag `vX.Y.Z`.
+- **Windows**: MSI (Compose/jpackage) y winget; firma con SignPath Foundation
+  cuando se conceda.
+- **Linux**: Flatpak en Flathub (principal), AUR para Arch, y `.deb`/`.rpm`/`tar.gz`.
+- **Android**: APK firmada en Releases (Obtainium) e IzzyOnDroid; Google Play
+  aplazado (cuota de 25 $), con AAB y clave de subida preparados.
+- Detalle y alternativas descartadas en
+  [[Decisiones/ADR-0011 Distribución y canales de publicación]].
 - El código se versiona con git y repositorio remoto (ver regla 2).
 
 ## Propósito del proyecto
@@ -215,7 +223,8 @@ Se refinará a medida que aparezca código; ver
 - Librería de escritorio concreta para el `SecretStore` en Windows/Linux
   (candidatas: credential-secure-storage-for-java, java-keyring); se cierra en la
   implementación (ver [[Decisiones/ADR-0001 Credenciales en almacén nativo del SO]]).
-- Empaquetado de escritorio concreto (formatos Windows/Linux).
+- Empaquetado de escritorio concreto (formatos Windows/Linux): **resuelto** en
+  [[Decisiones/ADR-0011 Distribución y canales de publicación]].
 - Taxonomía del catálogo técnico (Tipo, Área, Feature, Ámbito): **resuelto** —
   acordada al registrar la primera superficie (`SecretStore`); ver la nota-índice
   `Catálogo técnico.md`.
