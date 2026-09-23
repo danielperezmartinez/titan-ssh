@@ -23,3 +23,10 @@ Thumbs.db
 
 # Device screenshots dropped into the vault (may show real host/user; kept local)
 docs/**/Screenshot_*.png
+
+# Agent skills: .agents/ + skills-lock.json are versioned; .claude/skills/ holds
+# per-machine Windows junctions (absolute paths) into .agents/skills, so it is
+# recreated locally by the skills CLI instead of committed.
+.claude/skills/
+# Personal Claude Code settings (never shared)
+.claude/settings.local.json

@@ -39,8 +39,9 @@ necesita 4.
 - **Punto de partida en git**: el estado del agente y del cliente del nivel 3
   descrito aquí quedó en `main` en los commits del 2026-09-23 (agente de nivel 3
   + integración en el cliente, y documentación de ADR-0009/ADR-0010). Comparar
-  contra ellos. Las skills instaladas (`.agents/`, `.claude/skills/`,
-  `skills-lock.json`) **no** están en git.
+  contra ellos. Las skills instaladas están versionadas en `.agents/skills/` con
+  `skills-lock.json`; `.claude/skills/` son *junctions* locales (rutas
+  absolutas) ignoradas por git, que se recrean en cada equipo.
 - Agente Go en `agent/` (módulo `github.com/danigar/titan-ssh/agent`, `go 1.22`,
   única dependencia `github.com/creack/pty v1.1.24`):
   - `cmd/titan-agent/main.go`: modos front (por defecto) y `--daemon`; flags
