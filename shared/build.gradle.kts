@@ -158,7 +158,7 @@ val buildAgentBinaries by tasks.registering {
 // binaries are present whenever resources are assembled (desktop jar, Android apk).
 tasks.matching {
     it.name.contains("ProcessResources", ignoreCase = true) ||
-        (it.name.startsWith("merge") && it.name.contains("JavaResource", ignoreCase = true))
+        it.name.contains("JavaRes", ignoreCase = true)
 }.configureEach { dependsOn(buildAgentBinaries) }
 
 // Generate a stable, importable accessor (`io.github.danielperezmartinez.titanssh.resources.Res`) for
