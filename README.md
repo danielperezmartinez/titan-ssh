@@ -50,3 +50,20 @@ Stack: Gradle 9.7.1, AGP 9.4.0, Kotlin 2.4.20, Compose Multiplatform 1.9.3.
 
 Código, identificadores y comentarios en **inglés**; la documentación de `docs/`
 en **español** (convención del proyecto).
+
+## Licencia
+
+Copyright (C) 2026 Daniel Pérez Martínez
+
+titan-ssh es software libre: puedes redistribuirlo y/o modificarlo según los
+términos de la **GNU General Public License** publicada por la Free Software
+Foundation, en su versión 3 o (a tu elección) cualquier versión posterior
+(`SPDX-License-Identifier: GPL-3.0-or-later`).
+
+Se distribuye con la esperanza de que sea útil, pero **SIN NINGUNA GARANTÍA**,
+ni siquiera la garantía implícita de COMERCIABILIDAD o IDONEIDAD PARA UN FIN
+DETERMINADO. Consulta el texto completo en [`LICENSE`](LICENSE).
+
+Los componentes de terceros (bibliotecas, la fuente JetBrains Mono y las
+dependencias del agente Go) conservan sus propias licencias; ver
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).

@@ -75,3 +75,10 @@ GOOS=linux  GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o dist/titan-agent
   `ResilienceLevel.AGENT` degrada al nivel 2 (`Nivel 3 transporte cliente e
   integración de resiliencia`).
 - Mejora menor: capar el buffer por el mínimo de los `ACK` (hoy capa por bytes).
+
+## Licencia
+
+Copyright (C) 2026 Daniel Pérez Martínez. Forma parte de titan-ssh y se
+distribuye bajo la licencia **GPL-3.0-or-later**, sin ninguna garantía; ver
+[`LICENSE`](../LICENSE) y los avisos de terceros en
+[`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).
