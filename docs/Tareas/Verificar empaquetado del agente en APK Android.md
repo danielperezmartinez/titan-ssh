@@ -1,11 +1,11 @@
 ---
 Nombre: Verificar empaquetado del agente en APK Android
-Estado: Pendiente
+Estado: 'En curso'
 Resumen: 'Follow-up del nivel 3 (ADR-0008): verificar en un dispositivo Android real que los binarios del agente (recursos JVM /agent/ generados por el task buildAgentBinaries) viajan dentro del APK y AgentBinaries.load(target) los carga por classloader, igual que ya se verificó en escritorio (AgentBinariesResourceTest, chequeo ELF en el classpath). El mecanismo es idéntico (recurso Java por classloader; los tasks merge*JavaResource dependen de buildAgentBinaries), pero no se ejecutó on-device. Confirmar también que una sesión AGENT desde el móvil instala y conduce el agente contra el host de pruebas.'
 Decisiones: 'Sigue [[ADR-0008 Diseño del agente de resiliencia nivel 3]]. Verifica el empaquetado hecho en [[titan-agent distribución multi-arch e instalación]] sobre el target Android. Prueba on-device como en [[ssh-test-host]] (Pixel de pruebas).'
 Bloqueada: []
 Fecha de creación: 2026-09-23T08:05:00+02:00
-Última modificación: 2026-09-24T12:00:00+02:00
+Última modificación: 2026-09-24T14:20:00+02:00
 ---
 
 # Verificar empaquetado del agente en APK Android
@@ -55,3 +55,14 @@ el recurso debería quedar en el APK. `AgentBinaries.load(target)` lo lee por
   `b528900`) y, con eso, la APK de debug lleva `agent/titan-agent-linux-amd64`,
   `-linux-arm64` y `-darwin-arm64` (comprobado con `unzip -l`). Quedan por
   comprobar la build de release y R8, y la prueba en el dispositivo.
+- **Avance del 2026-09-24** (paso 5, rama `fase2-release`): la APK de
+  **release con R8** lleva los tres binarios y los textos legales (`unzip -l`).
+  En el emulador `Pixel_9_Pro_XL` (Android 15), una sesión "agente" con clave
+  hardware contra un sshd temporal en Docker instaló
+  `~/.local/share/titan-ssh/agent-0.1.0-beta.1-linux-amd64` y lo condujo. Al
+  matar la sesión SSH en el servidor, la app reconectó sola al mismo daemon y
+  el marcador escrito antes del corte seguía en pantalla. Es decir,
+  `AgentBinaries.load` funciona en Android con R8. **Falta** repetirlo en el
+  Pixel físico con la APK firmada con la clave real, junto con
+  [[Firma y configuración de release Android]]. Con eso la tarea pasa a
+  `Hecha`.

@@ -205,6 +205,17 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   Fedora) están en [[Pipeline de release en GitHub Actions]]. Al integrar el
   paso 3 hay que cablear `iconFile`, el icono de la ventana y los iconos
   hicolor del `tar.gz`. Siguiente: paso 5.
+- 2026-09-24 — **Paso 5** hecho en la misma rama, a falta de la parte del
+  usuario. La release de Android queda con firma leída de `-P` o del
+  entorno, R8 activo (8,5 MB frente a 18,7 MB de debug), sin el bloque de
+  dependencias y con APK universal y AAB. En el emulador, la APK de release
+  firmada con una clave desechable conecta con clave hardware, instala y
+  conduce el agente, se recupera de un corte y admite una actualización sobre
+  sí misma. Las barras del sistema ya no tapan nada, en vertical ni en
+  horizontal, y los iconos de las barras se ven claros. Las tres tareas
+  siguen `En curso` hasta que el usuario cree el keystore real (el comando
+  está en [[Firma y configuración de release Android]]) y se pruebe en el
+  Pixel físico. El paso 6 espera a eso y al icono.
 - 2026-09-25 — **Paso 3 completado**. De tres bocetos, el usuario eligió la
   T cuyo tallo se corta y sigue en azul, como el cursor tras un microcorte
   ([[Icono de la app T que sobrevive al microcorte]]).

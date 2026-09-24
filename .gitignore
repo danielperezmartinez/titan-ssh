@@ -30,3 +30,7 @@ docs/**/Screenshot_*.png
 .claude/skills/
 # Personal Claude Code settings (never shared)
 .claude/settings.local.json
+
+# Android release signing keys: never versioned (ADR-0011 §5)
+*.jks
+*.keystore

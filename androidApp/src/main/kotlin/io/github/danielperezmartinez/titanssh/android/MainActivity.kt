@@ -1,7 +1,9 @@
 package io.github.danielperezmartinez.titanssh.android
 
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import io.github.danielperezmartinez.titanssh.App
@@ -23,7 +25,13 @@ class MainActivity : ComponentActivity() {
         // Register full BouncyCastle so sshj can negotiate with modern OpenSSH
         // on Android (ADR-0004).
         SshAndroidCrypto.install()
-        enableEdgeToEdge()
+        // The app is dark-only (TitanTheme), so the system bars always get light
+        // icons; the default would follow the system theme and draw dark icons
+        // on the dark canvas when the device is in light mode.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+        )
         super.onCreate(savedInstanceState)
         setContent {
             // Real product UI: the two-area shell (Configuración / Sesiones).

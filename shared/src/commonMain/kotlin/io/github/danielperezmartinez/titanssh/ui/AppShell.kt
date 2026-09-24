@@ -6,10 +6,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -72,7 +75,12 @@ fun AppShell() {
         var showAbout by remember { mutableStateOf(false) }
 
         Surface(Modifier.fillMaxSize(), color = TitanColors.Canvas) {
-            Column(Modifier.fillMaxSize()) {
+            // The canvas colour reaches the screen edges (edge-to-edge on Android);
+            // the content keeps clear of the system bars, the display cutout and the
+            // soft keyboard. safeDrawing includes the IME, so the terminal's own
+            // imePadding finds it already consumed and does not apply it twice. On
+            // desktop every inset is zero.
+            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                 AreaHeader(
                     current = area.takeUnless { showAbout },
                     onSelect = { area = it; showAbout = false },
