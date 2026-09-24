@@ -33,7 +33,15 @@ compose.desktop {
             // macOS/iOS están fuera de alcance (ver ADR-0002).
             targetFormats(TargetFormat.Msi, TargetFormat.Deb)
             packageName = "titan-ssh"
-            packageVersion = "1.0.0"
+            // Single app version, resolved in the root build file (ADR-0011 §3),
+            // mapped per format to what each installer can order correctly.
+            packageVersion = rootProject.extra["titanPackageVersion"] as String
+            windows {
+                msiPackageVersion = rootProject.extra["titanMsiVersion"] as String
+            }
+            linux {
+                debPackageVersion = rootProject.extra["titanDebVersion"] as String
+            }
         }
     }
 }

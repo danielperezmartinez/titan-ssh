@@ -1,14 +1,17 @@
 package io.github.danielperezmartinez.titanssh.terminal
 
+import io.github.danielperezmartinez.titanssh.BuildInfo
+
 /**
  * Bundled `titan-agent` binaries, cross-compiled by the `buildAgentBinaries`
  * Gradle task into JVM resources under `/agent/` and loaded here via the
  * classloader (works for both the desktop app and the Android app, since both
- * package `jvmShared` resources). [VERSION] matches the agent binary's own
- * version and drives the versioned install path (ADR-0008 §5).
+ * package `jvmShared` resources). [VERSION] is the single app version, which
+ * the build also stamps into the binary, and drives the versioned install path
+ * (ADR-0008 §5).
  */
 object AgentBinaries {
-    const val VERSION: String = "0.0.1"
+    const val VERSION: String = BuildInfo.VERSION
 
     /** Bytes of the bundled agent for [target], or null if none is packaged. */
     fun load(target: AgentTarget): ByteArray? =

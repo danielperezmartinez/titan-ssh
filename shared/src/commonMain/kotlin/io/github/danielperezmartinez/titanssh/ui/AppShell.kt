@@ -69,15 +69,21 @@ fun AppShell() {
             )
         }
         var area by remember { mutableStateOf(Area.CONFIG) }
+        var showAbout by remember { mutableStateOf(false) }
 
         Surface(Modifier.fillMaxSize(), color = TitanColors.Canvas) {
             Column(Modifier.fillMaxSize()) {
-                AreaHeader(current = area, onSelect = { area = it })
+                AreaHeader(
+                    current = area.takeUnless { showAbout },
+                    onSelect = { area = it; showAbout = false },
+                    onAbout = { showAbout = true },
+                )
                 Hairline()
                 Box(Modifier.weight(1f).fillMaxWidth()) {
-                    when (area) {
-                        Area.CONFIG -> ConfigArea(controller, provisioner)
-                        Area.SESSIONS -> SessionsArea(controller, sessionManager)
+                    when {
+                        showAbout -> AboutScreen(onBack = { showAbout = false })
+                        area == Area.CONFIG -> ConfigArea(controller, provisioner)
+                        else -> SessionsArea(controller, sessionManager)
                     }
                 }
             }
@@ -85,14 +91,19 @@ fun AppShell() {
     }
 }
 
+/** App title with the `[i]` About action, over the area tabs; [current] is null while About is open. */
 @Composable
-private fun AreaHeader(current: Area, onSelect: (Area) -> Unit) {
+private fun AreaHeader(current: Area?, onSelect: (Area) -> Unit, onAbout: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(horizontal = TitanDimens.SpaceLg, vertical = TitanDimens.SpaceMd)) {
-        Text(
-            text = "titan-ssh",
-            style = MaterialTheme.typography.headlineSmall,
-            color = TitanColors.Ink,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "titan-ssh",
+                style = MaterialTheme.typography.headlineSmall,
+                color = TitanColors.Ink,
+                modifier = Modifier.weight(1f),
+            )
+            GlyphButton("[i]", onClick = onAbout, color = if (current == null) TitanColors.Accent else TitanColors.Mute)
+        }
         Spacer(Modifier.height(TitanDimens.SpaceMd))
         Row {
             Area.entries.forEach { entry ->

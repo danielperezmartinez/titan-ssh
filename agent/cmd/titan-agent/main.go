@@ -21,8 +21,10 @@ import (
 )
 
 // version is stamped into the install path so versions can coexist and the
-// client can verify the expected binary by checksum (ADR-0008 §5).
-const version = "0.0.1"
+// client can verify the expected binary by checksum (ADR-0008 §5). It is the
+// single app version, set at build time with -ldflags "-X main.version=..." by
+// the Gradle build; a plain `go build` reports the development value.
+var version = "0.0.0-dev"
 
 func main() {
 	daemon := flag.Bool("daemon", false, "run the persistent session daemon")

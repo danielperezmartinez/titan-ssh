@@ -1,5 +1,6 @@
 package io.github.danielperezmartinez.titanssh.terminal
 
+import io.github.danielperezmartinez.titanssh.BuildInfo
 import io.github.danielperezmartinez.titanssh.ssh.SshExecChannel
 import io.github.danielperezmartinez.titanssh.ssh.SshSession
 import java.security.MessageDigest
@@ -20,7 +21,7 @@ import kotlinx.coroutines.launch
  */
 class AgentInstaller(
     private val session: SshSession,
-    private val version: String = "0.0.1",
+    private val version: String = BuildInfo.VERSION,
     private val baseDir: String = AgentInstall.DEFAULT_BASE_DIR,
 ) {
 
@@ -98,7 +99,7 @@ class AgentInstaller(
  * bytes for a detected [AgentTarget] (e.g. from app resources).
  */
 fun agentDeployer(
-    version: String = "0.0.1",
+    version: String = BuildInfo.VERSION,
     binaryFor: suspend (AgentTarget) -> ByteArray?,
 ): AgentDeployer = AgentDeployer { session ->
     when (val result = AgentInstaller(session, version).ensureInstalled(binaryFor)) {

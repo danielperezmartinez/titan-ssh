@@ -14,8 +14,9 @@ android {
         applicationId = "io.github.danielperezmartinez.titanssh"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "0.1.0"
+        // Single app version, resolved in the root build file (ADR-0011 §3).
+        versionCode = rootProject.extra["titanVersionCode"] as Int
+        versionName = rootProject.extra["titanVersion"] as String
     }
 
     compileOptions {
