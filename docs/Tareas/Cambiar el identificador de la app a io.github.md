@@ -1,11 +1,11 @@
 ---
 Nombre: 'Cambiar el identificador de la app a io.github'
-Estado: 'En curso'
+Estado: 'Hecha'
 Resumen: 'Sustituir im.gar.titanssh (gar.im no es del usuario y no quiere usarlo) por io.github.danielperezmartinez.titanssh en todas partes: applicationId y namespaces de Android, paquetes Kotlin (unos 100 ficheros bajo im/gar/titanssh), mainClass de escritorio, paquete de Res de Compose, alias del Keystore y referencias en el agente Go. Tiene que hacerse antes de la primera versión pública, porque en Android el applicationId no se puede cambiar sin perder las actualizaciones. Gratis: el ID io.github.* se verifica en Flathub con la cuenta de GitHub, sin comprar dominio.'
 Decisiones: 'Sigue [[ADR-0011 Distribución y canales de publicación]] §2.'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-24T12:00:00+02:00
+Última modificación: 2026-09-24T12:30:00+02:00
 ---
 
 # Cambiar el identificador de la app a io.github
@@ -65,8 +65,11 @@ Hecho el 2026-09-24:
   del agente en `agent/`.
 - Agente Go: `go build`, `go vet` y `go test ./...` en verde con el módulo nuevo.
 - `:desktopApp:run`: se abre la ventana `titan-ssh` sin excepciones.
-- **Falta**: arrancar la APK en el Pixel (no estaba conectado por adb). Es lo
-  único que impide pasar la tarea a `Hecha`.
+- Android: la APK de debug se instala y arranca en el emulador
+  `Pixel_9_Pro_XL`. `MainActivity` de `io.github.danielperezmartinez.titanssh`
+  queda en primer plano con la pantalla de hosts vacía y no hay entradas en el
+  buffer de crash de logcat. Se usó el emulador porque el Pixel físico no estaba
+  conectado. Para el renombrado basta: no depende de hardware.
 
 ## Resultado
 

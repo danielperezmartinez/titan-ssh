@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-24T12:00:00+02:00
+Última modificación: 2026-09-24T12:30:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -35,7 +35,7 @@ mismo commit).
 
 ### Fase 1 · Antes de publicar nada
 
-- [ ] **1. Identificador y licencia** (juntas)
+- [x] **1. Identificador y licencia** (juntas)
   - [[Cambiar el identificador de la app a io.github]]
   - [[Licencia GPL-3.0-or-later del proyecto]] (el fichero `LICENSE`, los
     avisos y el README; la pantalla Acerca de puede esperar al paso 2)
@@ -163,3 +163,9 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   licencia sigue `En curso` hasta la pantalla Acerca de (paso 2) y la inclusión
   en los paquetes (paso 4). El ID de Flatpak queda con dos formas válidas, a
   elegir en el paso 11.
+- 2026-09-24 — **Paso 1 completado**. La APK arranca en el emulador
+  `Pixel_9_Pro_XL` sin fallos y
+  [[Cambiar el identificador de la app a io.github]] pasa a `Hecha`. La
+  licencia sigue `En curso` por lo que tiene asignado en los pasos 2 y 4. De
+  paso se corrigió la regla 2 del [[README]] (el proyecto ya está en git).
+  Siguiente: paso 2.
