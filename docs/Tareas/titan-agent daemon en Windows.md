@@ -1,11 +1,11 @@
 ---
 Nombre: 'titan-agent daemon en Windows'
 Estado: 'Pendiente'
-Resumen: 'Subtarea 4 de ADR-0009 (§5): que el daemon sobreviva en Windows al cierre de la sesión SSH, sin administrador. El front comprueba su Job Object (IsProcessInJob por kernel32 + QueryInformationJobObject) y, si el job lo permite, lanza el daemon con CREATE_BREAKAWAY_FROM_JOB | DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP; si el job tiene KILL_ON_JOB_CLOSE sin BREAKAWAY_OK, sale con E_JOB_NO_BREAKAWAY. Une las subtareas 1 (ConPTY) y 3 (TCP loopback) y se verifica de punta a punta con un usuario estándar, en cierre limpio y en corte brusco. El mecanismo ya se validó en el experimento del 2026-09-23; el método de prueba en Windows está por decidir con el usuario.'
+Resumen: 'Subtarea 4 de ADR-0009 (§5): que el daemon sobreviva en Windows al cierre de la sesión SSH, sin administrador. El front comprueba su Job Object (IsProcessInJob por kernel32 + QueryInformationJobObject) y, si el job lo permite, lanza el daemon con CREATE_BREAKAWAY_FROM_JOB | DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP; si el job tiene KILL_ON_JOB_CLOSE sin BREAKAWAY_OK, sale con E_JOB_NO_BREAKAWAY. Une las subtareas 1 (ConPTY) y 3 (TCP loopback) y se verifica de punta a punta con un usuario estándar, en cierre limpio y en corte brusco. El mecanismo ya se validó en el experimento del 2026-09-23; la prueba en Windows es manual con ayuda del usuario (ADR-0012).'
 Decisiones: 'Implementa §5 (Windows) de [[ADR-0009 Agente de nivel 3 portable a todos los destinos]], con el mecanismo validado en [[Experimento supervivencia de procesos en Win32-OpenSSH]]. Contexto común en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: ['[[titan-agent PTY propio multiplataforma]]', '[[titan-agent punto de encuentro TCP loopback con token]]']
 Fecha de creación: 2026-09-23T22:05:00+02:00
-Última modificación: 2026-09-23T22:30:00+02:00
+Última modificación: 2026-09-24T15:00:00+02:00
 ---
 
 # titan-agent: daemon en Windows
@@ -74,12 +74,13 @@ implementar:
 
 ## Verificación
 
-> **Método de prueba en Windows: por decidir.** El usuario quiere explorar otras
-> opciones antes de fijarlo y lo decidirá al llegar a este punto: **preguntarle
-> antes de montar nada.** Lo que sí es obligatorio, sea cual sea el método: un
+> **Método de prueba en Windows: manual, con ayuda del usuario** (decidido el
+> 2026-09-24 al rechazar un entorno automático, ver
+> [[ADR-0012 Entorno de pruebas automático multiplataforma]]). Por defecto se
+> usa la opción ya probada de abajo (sshd local + usuario estándar temporal);
+> el usuario hace los pasos que necesitan administrador. Obligatorio: un
 > usuario **estándar** (sin administrador), cierre limpio **y** corte brusco, y
-> limpieza completa al terminar. Abajo queda, como una opción ya probada, el
-> método del experimento (sshd local + usuario estándar temporal).
+> limpieza completa al terminar.
 
 ### Opción ya probada: sshd local con usuario estándar temporal
 
@@ -105,8 +106,8 @@ opcional): repetir el paso 4 y anotar los flags del job.
 ## Criterios de finalización
 
 - En Windows, la sesión del agente sobrevive al cierre limpio y al corte brusco
-  de la sesión SSH, con un usuario estándar, probado con el método que decida el
-  usuario.
+  de la sesión SSH, con un usuario estándar, probado a mano como indica la
+  Verificación.
 - `E_JOB_NO_BREAKAWAY` probado con un test unitario de la función de decisión
   (flags simulados).
 - Limpieza completa del entorno de prueba.

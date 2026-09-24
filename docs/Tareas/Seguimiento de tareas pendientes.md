@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-24T14:00:00+02:00
+Última modificación: 2026-09-24T15:00:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -103,8 +103,8 @@ mismo commit).
   - [ ] 9.3 [[titan-agent punto de encuentro TCP loopback con token]] (tras 9.2;
     *juntas*: 9.2 y 9.3 tocan el mismo directorio de estado y el arranque
     del daemon, así que pueden ir en una misma sesión)
-  - [ ] 9.4 [[titan-agent daemon en Windows]] 👤 (el método de prueba en Windows
-    está por decidir con el usuario) (tras 9.1 y 9.3)
+  - [ ] 9.4 [[titan-agent daemon en Windows]] 👤 (prueba manual en Windows:
+    el usuario crea el usuario estándar temporal) (tras 9.1 y 9.3)
   - [ ] 9.5 [[Instalación del agente en destinos Windows y multi-SO]] 👤 (cerrar
     el origen de descarga de
     [[ADR-0010 Empaquetado del agente y descarga bajo demanda]]; con el
@@ -187,3 +187,9 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   jpackage, y conviene fijar `upgradeUuid`. En Android, el `[i]` queda en
   parte bajo la barra de estado (paso 5). Siguiente: paso 3 (icono, 👤) o,
   si el usuario aún no tiene el diseño, adelantar lo que no dependa de él.
+- 2026-09-24 — Se estudió un entorno de pruebas automático para las
+  conexiones entre plataformas y el usuario lo rechazó
+  ([[ADR-0012 Entorno de pruebas automático multiplataforma]]): se sigue
+  probando a mano, con su ayuda cuando haga falta. Queda resuelto el método de
+  prueba del paso 9.4. Nueva regla 5 del [[README]]: nada sensible ni personal
+  en el repositorio público.
