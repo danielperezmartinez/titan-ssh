@@ -125,8 +125,8 @@ nota-índice en `Catálogo técnico.md`.
 
 ### 2. Versionado
 
-- El proyecto se versiona con **git y repositorio remoto** (p. ej. GitHub). El
-  directorio **aún no es un repositorio git**: inicializarlo es un paso pendiente.
+- El proyecto se versiona con **git y repositorio remoto**: el repositorio
+  público `danielperezmartinez/titan-ssh` en GitHub, con rama principal `main`.
 
 ### 3. Framework/stack y gestor de paquetes
 
