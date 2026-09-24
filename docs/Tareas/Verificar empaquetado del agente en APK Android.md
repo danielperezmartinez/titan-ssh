@@ -2,7 +2,7 @@
 Nombre: Verificar empaquetado del agente en APK Android
 Estado: Pendiente
 Resumen: 'Follow-up del nivel 3 (ADR-0008): verificar en un dispositivo Android real que los binarios del agente (recursos JVM /agent/ generados por el task buildAgentBinaries) viajan dentro del APK y AgentBinaries.load(target) los carga por classloader, igual que ya se verificó en escritorio (AgentBinariesResourceTest, chequeo ELF en el classpath). El mecanismo es idéntico (recurso Java por classloader; los tasks merge*JavaResource dependen de buildAgentBinaries), pero no se ejecutó on-device. Confirmar también que una sesión AGENT desde el móvil instala y conduce el agente contra el host de pruebas.'
-Decisiones: 'Sigue [[ADR-0008 Diseño del agente de resiliencia nivel 3]]. Verifica el empaquetado hecho en [[titan-agent distribución multi-arch e instalación]] sobre el target Android. Prueba on-device como en [[ssh-test-host]] (pixel-9-pro-xl).'
+Decisiones: 'Sigue [[ADR-0008 Diseño del agente de resiliencia nivel 3]]. Verifica el empaquetado hecho en [[titan-agent distribución multi-arch e instalación]] sobre el target Android. Prueba on-device como en [[ssh-test-host]] (Pixel de pruebas).'
 Bloqueada: []
 Fecha de creación: 2026-09-23T08:05:00+02:00
 Última modificación: 2026-09-24T12:00:00+02:00
@@ -30,8 +30,8 @@ el recurso debería quedar en el APK. `AgentBinaries.load(target)` lo lee por
 - Construir el APK (`:androidApp:assembleDebug`) y confirmar que
   `/agent/titan-agent-linux-*` está dentro (p. ej. inspeccionar el APK, o un test
   instrumentado que haga `AgentBinaries.load(...)` y valide magia ELF).
-- Prueba on-device ([[ssh-test-host]], pixel-9-pro-xl): una sesión con nivel
-  "agente" contra `nocendland-petit` instala el binario, conecta por el agente y
+- Prueba on-device ([[ssh-test-host]], Pixel de pruebas): una sesión con nivel
+  "agente" contra `<host-de-pruebas>` instala el binario, conecta por el agente y
   sobrevive a un corte con replay.
 - Si el recurso NO viaja en el APK (empaquetado de resources KMP/AGP distinto al
   esperado), ajustar el cableado (srcDir/merge task) hasta que lo haga.

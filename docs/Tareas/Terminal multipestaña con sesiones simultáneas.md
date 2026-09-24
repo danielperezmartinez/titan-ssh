@@ -130,7 +130,7 @@ Terminal multipestaña entregado en el paquete `im.gar.titanssh.terminal`
   set `jvmShared`) y deprecación de `LocalClipboardManager` (no rompe; migrar a
   `LocalClipboard` es trabajo futuro).
 
-**Comprobado en dispositivo (2026-09-18, usuario)** en el pixel-9-pro-xl: crear
+**Comprobado en dispositivo (2026-09-18, usuario)** en el Pixel de pruebas: crear
 hosts y sesiones y su persistencia; abrir **dos sesiones simultáneas**, tenerlas a
 la vez, **reordenar** y **cerrar** pestañas — todo correcto. Tras entregar la
 [[Gestión de claves y secretos UI]], **la conexión viva funciona** (generó clave
@@ -166,7 +166,7 @@ Ajustes detectados en esa prueba y su tratamiento:
   credenciales** y confirme visualmente `:desktopApp:run`.
 - **Android**: barra accesoria, pegar, pantalla completa y sobre todo la
   **entrada por teclado software** (truco de ancla; el IME puede interferir) son
-  compile-verified pero necesitan comprobación en el pixel-9-pro-xl. La ruta
+  compile-verified pero necesitan comprobación en el Pixel de pruebas. La ruta
   fiable de entrada es teclado físico + barra accesoria.
 - **Estado "reconectando" (loader nivel 1)**: el estado existe y se pinta, pero
   **nada lo dispara todavía**: el motor de reconexión de cliente es

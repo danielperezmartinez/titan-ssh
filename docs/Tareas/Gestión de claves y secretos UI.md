@@ -68,7 +68,7 @@ lleva esa capacidad a la UI real y añade el aprovisionamiento de secretos softw
 - Warning conocido y benigno: deprecación de `LocalClipboardManager` (mismo que ya
   usa `TerminalView`; migrar a `LocalClipboard` es trabajo futuro).
 
-**Comprobado en dispositivo (2026-09-18, usuario)** en el pixel-9-pro-xl: generó
+**Comprobado en dispositivo (2026-09-18, usuario)** en el Pixel de pruebas: generó
 la clave hardware desde el editor de host, la enroló en el host de pruebas y
 **conectó** autenticando con la firma del Keystore. Esto cierra el objetivo v1
 (auth usable de punta a punta desde la UI) y confirma también la conexión viva del

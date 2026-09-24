@@ -95,7 +95,7 @@ el experimento).
 - Kotlin: `AgentTransportIntegrationTest` limpia con
   `pkill -x titan-agent; rm -f /run/user/1000/titan-agent.sock $path`
   (línea 88): cambiar a `<binario> --stop` y borrar el directorio de estado.
-- Punta a punta en Linux (Docker o `nocendland-petit`) con el binario real.
+- Punta a punta en Linux (Docker o `<host-de-pruebas>`) con el binario real.
 
 ## Criterios de finalización
 

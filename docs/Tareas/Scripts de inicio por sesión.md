@@ -1,7 +1,7 @@
 ---
 Nombre: Scripts de inicio por sesión
 Estado: Hecha
-Resumen: 'Automatización clave ENTREGADA y verificada. Modelo y formulario guiado en el editor de sesión; EJECUCIÓN AL CONECTAR: runner que corre el `cd` inicial y los scripts habilitados por fase (ON_SHELL_START → POST_INIT) sobre la shell viva, con ${VAR}/secretos por ref, envVars, delay, expect, esperar-a-terminar (centinela con $?/timeout) y continuar/abortar. Verificado headless (ScriptRunnerTest 10/10) y de punta a punta contra host real (nocendland-petit: cd /tmp + script imprime PWD=/tmp). La ejecución al RECONECTAR queda para [[Resiliencia de sesión ante microcortes de red]] (fase ON_RECONNECT); PRE_CONNECT_LOCAL diferida (sin ejecutor local); silent no suprimible sobre PTY compartida.'
+Resumen: 'Automatización clave ENTREGADA y verificada. Modelo y formulario guiado en el editor de sesión; EJECUCIÓN AL CONECTAR: runner que corre el `cd` inicial y los scripts habilitados por fase (ON_SHELL_START → POST_INIT) sobre la shell viva, con ${VAR}/secretos por ref, envVars, delay, expect, esperar-a-terminar (centinela con $?/timeout) y continuar/abortar. Verificado headless (ScriptRunnerTest 10/10) y de punta a punta contra host real (<host-de-pruebas>: cd /tmp + script imprime PWD=/tmp). La ejecución al RECONECTAR queda para [[Resiliencia de sesión ante microcortes de red]] (fase ON_RECONNECT); PRE_CONNECT_LOCAL diferida (sin ejecutor local); silent no suprimible sobre PTY compartida.'
 Decisiones: Enmarcada en [[Arquitectura de dos áreas Configuración y Sesiones]]; el modelo se formaliza en [[ADR-0007 Modelo y persistencia de configuración]] y consume [[ADR-0001 Credenciales en almacén nativo del SO]]. La ejecución al reconectar y las fases ON_RECONNECT quedan para [[Resiliencia de sesión ante microcortes de red]]; PRE_CONNECT_LOCAL diferida (sin ejecutor local aún). Superficie catalogada en [[ScriptRunner]].
 Bloqueada: []
 Fecha de creación: 2026-09-17T15:32:11+02:00
@@ -124,7 +124,7 @@ remota hace eco de la entrada); se acepta pero aún no se suprime. Los comandos 
 - Ejecución (headless): `ScriptRunnerTest` 10/10 verde.
 - **Punta a punta (host real):** `SessionTabIntegrationTest
   .start_scripts_run_on_connect_with_initial_cd` (opt-in) conecta a
-  `nocendland-petit`, hace `cd /tmp` y comprueba que el script imprime `PWD=/tmp`
+  `<host-de-pruebas>`, hace `cd /tmp` y comprueba que el script imprime `PWD=/tmp`
   (que solo puede venir de ejecución real: el eco del comando muestra el literal
   `$(pwd)`). **Verde** el 2026-09-19.
 - Nota: en esa misma clase, el test previo `tab_connects_paints_output_and_accepts_input`

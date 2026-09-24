@@ -7,7 +7,7 @@ Bloqueada:
   - "[[Configuración de release del escritorio]]"
   - "[[Firma y configuración de release Android]]"
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-23T22:50:00+02:00
+Última modificación: 2026-09-24T14:00:00+02:00
 ---
 
 # Pipeline de release en GitHub Actions
@@ -37,7 +37,10 @@ Release con todos los instaladores firmados donde proceda.
     `go test ./...` del agente).
   - **Publicación**: `gh release create` con todos los artefactos,
     `SHA256SUMS` y notas generadas. Pre-release si el tag contiene `-`.
-- Versión inyectada desde el tag ([[Versionado único desde tag de git]]).
+- Versión inyectada desde el tag ([[Versionado único desde tag de git]]):
+  `./gradlew ... -PtitanVersion=${GITHUB_REF_NAME#v}`. El build rechaza tags
+  que no sean `X.Y.Z` o `X.Y.Z-(alpha|beta|rc).N`. Para el MSI hace falta un
+  JDK completo con jpackage (el JBR de Android Studio no lo trae).
 - Secretos: keystore de Android (base64 + contraseñas). Más adelante se añaden
   los de SignPath, AUR y winget en sus tareas.
 - Seguridad del workflow: `permissions` mínimos (`contents: write` solo en el

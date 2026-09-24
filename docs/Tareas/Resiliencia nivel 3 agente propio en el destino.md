@@ -1,7 +1,7 @@
 ---
 Nombre: Resiliencia nivel 3 agente propio en el destino
 Estado: Hecha
-Resumen: 'ENTREGADO y verificado de punta a punta (host real nocendland-petit). Nivel 3 del modelo de resiliencia (ADR-0003): agente propio de titan-ssh en el destino para persistencia total. Diseño en [[ADR-0008 Diseño del agente de resiliencia nivel 3]] (opción B: ayudante sobre el canal exec de sshj; binario nativo Go, no MINA/JVM → anula esa reserva de ADR-0004). Piezas: protocolo por tramas AgentProtocol (cliente + agente Go), SshExecChannel (canal exec sshj), agente agent/ (PTY real, daemon UDS+front que sobrevive a la desconexión, tee vivo, replay al reconectar), AgentInstaller (instala por exec+checksum, idempotente, espacio de usuario), AgentTransport (transporte cliente con dedupe de replay) integrado en SessionTab tras un AgentDeployer, y empaquetado de binarios multi-arch como recursos (task Gradle buildAgentBinaries) cableado en la app (createAgentDeployer). El usuario elige "agente" en el editor de sesión y todo es automático (nada que instalar a mano en el host). Follow-ups menores: scripts de inicio sobre el agente y capar buffer por ACK.'
+Resumen: 'ENTREGADO y verificado de punta a punta (host real <host-de-pruebas>). Nivel 3 del modelo de resiliencia (ADR-0003): agente propio de titan-ssh en el destino para persistencia total. Diseño en [[ADR-0008 Diseño del agente de resiliencia nivel 3]] (opción B: ayudante sobre el canal exec de sshj; binario nativo Go, no MINA/JVM → anula esa reserva de ADR-0004). Piezas: protocolo por tramas AgentProtocol (cliente + agente Go), SshExecChannel (canal exec sshj), agente agent/ (PTY real, daemon UDS+front que sobrevive a la desconexión, tee vivo, replay al reconectar), AgentInstaller (instala por exec+checksum, idempotente, espacio de usuario), AgentTransport (transporte cliente con dedupe de replay) integrado en SessionTab tras un AgentDeployer, y empaquetado de binarios multi-arch como recursos (task Gradle buildAgentBinaries) cableado en la app (createAgentDeployer). El usuario elige "agente" en el editor de sesión y todo es automático (nada que instalar a mano en el host). Follow-ups menores: scripts de inicio sobre el agente y capar buffer por ACK.'
 Decisiones: 'Sigue [[ADR-0003 Modelo de resiliencia por niveles]] y su diseño [[ADR-0008 Diseño del agente de resiliencia nivel 3]] (que matiza [[ADR-0004 Librería SSH]]: la reserva de MINA para el agente queda anulada a favor de un binario nativo Go; sshj sigue vigente en el cliente). Se apoya en los niveles 1-2 de [[Resiliencia de sesión ante microcortes de red]]. Superficie catalogada en [[AgentProtocol]].'
 Bloqueada: []
 Fecha de creación: 2026-09-19T16:45:00+02:00
@@ -72,7 +72,7 @@ Estado (todas siguen la ADR-0008):
   `SshSession.exec` (impl sshj), verificado contra host real.
 - ✅ **`Hecha`** [[titan-agent PTY y daemonización]] — binario Go funcional (PTY
   real, daemon UDS + front, tee vivo, reenganche), verificado de punta a punta en
-  `nocendland-petit` (crea PTY, teea el prompt, INPUT llega, replay al reconectar).
+  `<host-de-pruebas>` (crea PTY, teea el prompt, INPUT llega, replay al reconectar).
 - ✅ **`Hecha`** [[titan-agent distribución multi-arch e instalación]] —
   instalación por exec+checksum (idempotente) **y** empaquetado: el task Gradle
   `buildAgentBinaries` cross-compila a recursos JVM `/agent/`, `AgentBinaries` los

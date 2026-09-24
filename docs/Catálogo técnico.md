@@ -35,7 +35,9 @@ que ninguno de los valores existentes cubra.
 - **Área**: `Seguridad` · `Conexión SSH` · `Terminal` · `Configuración` ·
   `UI compartida` · `Plataforma`.
 - **Feature**: `Custodia de credenciales` · `Autenticación` · `Conexión` ·
-  `Resiliencia` · `Gestión de hosts` · `Shared UI` · `Terminal`.
+  `Resiliencia` · `Gestión de hosts` · `Shared UI` · `Terminal` ·
+  `Distribución` (añadido con `BuildInfo`: versión y avisos legales de los
+  artefactos publicados).
 - **Ámbito**: `Aplicación` · `Feature` · `Shell`.
 
 <!-- Opcional: si el proyecto tiene una comprobación automatizada del catálogo

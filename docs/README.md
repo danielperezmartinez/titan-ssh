@@ -143,6 +143,14 @@ nota-índice en `Catálogo técnico.md`.
   **GPL-3.0-or-later**; ID de la app `io.github.danielperezmartinez.*`.
 - **Fuente única de artefactos**: GitHub Releases generados por GitHub Actions
   a partir de un tag `vX.Y.Z`.
+- **Versión única**: la versión de Android, escritorio y agente sale de un solo
+  sitio, el `build.gradle.kts` raíz, y **nunca se escribe a mano en otro
+  fichero**. Para subir versión se crea y se sube el tag `vX.Y.Z` (o
+  `vX.Y.Z-beta.N`, `-alpha.N`, `-rc.N`) en `main`; el build lo lee (en CI con
+  `-PtitanVersion`, en local también del tag que apunte a HEAD). Sin tag, la
+  versión es `0.0.0-dev`. `./gradlew printVersion` muestra los valores
+  derivados. Formato admitido, fórmula del `versionCode` y límites en
+  [[Versionado único desde tag de git]].
 - **Windows**: MSI (Compose/jpackage) y winget; firma con SignPath Foundation
   cuando se conceda.
 - **Linux**: Flatpak en Flathub (principal), AUR para Arch, y `.deb`/`.rpm`/`tar.gz`.
@@ -151,6 +159,45 @@ nota-índice en `Catálogo técnico.md`.
 - Detalle y alternativas descartadas en
   [[Decisiones/ADR-0011 Distribución y canales de publicación]].
 - El código se versiona con git y repositorio remoto (ver regla 2).
+
+### 5. Repositorio público: nada sensible ni personal
+
+El repositorio es **público**. Todo lo que se sube a GitHub (código, esta
+bóveda `docs/`, mensajes de commit, nombres de rama, workflows, logs de CI y
+artefactos) queda a la vista de cualquiera y **no se puede retirar**: borrarlo
+después no lo quita del historial, de los forks ni de las cachés.
+
+**Nunca se sube:**
+
+- Secretos: claves privadas, contraseñas, tokens, keystores, claves de firma,
+  `local.properties` o ficheros `.env`.
+- Datos del entorno personal del usuario: nombres de host o de máquina,
+  direcciones IP (de LAN, de Tailscale o públicas), nombres de la tailnet o de
+  dominios propios, nombres de dispositivos, usuarios del sistema operativo,
+  rutas personales (`C:\Users\<nombre>`, `/home/<nombre>`, unidades y carpetas
+  propias), huellas de claves de host, correos personales ni la topología de su
+  red.
+
+**Cómo se hace en su lugar:**
+
+- En la documentación se usan marcadores genéricos: `<host-de-pruebas>`,
+  `<usuario>`, `<clave-de-pruebas>`, `<ruta-a-un-jdk-completo>`, "el Pixel de
+  pruebas". Los valores reales viven **fuera del repositorio** (la memoria local
+  del agente, que no se versiona).
+- Los tests contra entornos reales reciben los datos por propiedades `-P` o
+  variables de entorno en tiempo de ejecución, y se saltan si faltan. Nunca van
+  escritos en el código.
+- CI no depende de máquinas, redes ni cuentas personales del usuario (nada de
+  runners propios ni de su tailnet). Los secretos que CI necesite de verdad
+  (p. ej. el keystore de firma) van solo en GitHub Secrets y nunca se imprimen
+  en los logs.
+- **Antes de cada commit y de cada push** se revisa el diff buscando estos
+  datos, incluidos los mensajes de commit. Una comprobación rápida:
+  `git diff --cached | grep -niE 'BEGIN .*PRIVATE KEY|password|token|[0-9]{1,3}(\.[0-9]{1,3}){3}|Users[/\\]|/home/'`,
+  más el nombre de las máquinas y del usuario del entorno real.
+- Si algo sensible ya se ha subido, se avisa al usuario **de inmediato**. No se
+  reescribe el historial ni se fuerza un push sin su permiso explícito. Si era
+  un secreto, se da por comprometido y se revoca o se rota.
 
 ## Propósito del proyecto
 

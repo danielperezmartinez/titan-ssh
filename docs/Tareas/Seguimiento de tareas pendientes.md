@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-24T12:45:00+02:00
+Última modificación: 2026-09-24T14:00:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -44,7 +44,7 @@ mismo commit).
     antes de que el resto de tareas añada código bajo `im/gar/titanssh`. El
     `applicationId` queda fijado para siempre en la primera versión pública.
     La licencia es corta y comparte el mismo commit de "preparar el repositorio".
-- [ ] **2. Versionado único** + pantalla Acerca de
+- [x] **2. Versionado único** + pantalla Acerca de
   - [[Versionado único desde tag de git]]
   - La parte de UI de [[Licencia GPL-3.0-or-later del proyecto]] (Acerca de, con
     versión y avisos legales), que necesita la versión.
@@ -175,3 +175,15 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   Siguiente: paso 2.
 - 2026-09-24 — Nueva tarea [[Respetar las barras del sistema en Android]],
   detectada al verificar el paso 1 en el emulador. Va junto al paso 5.
+- 2026-09-24 — **Paso 2 completado** (código en el commit `8cc0482`).
+  [[Versionado único desde tag de git]] pasa a `Hecha`: la versión sale de
+  `-PtitanVersion`, del tag `vX.Y.Z` en HEAD o vale `0.0.0-dev`. De ella salen
+  el `versionCode` (siempre creciente, también entre betas), las versiones del
+  MSI y del deb, y la del agente, que ya no lleva una propia. jpackage acepta
+  `0.x` en el MSI. Pantalla **Acerca de** hecha en escritorio y Android, con
+  la licencia y los avisos de terceros legibles sin red.
+  [[Licencia GPL-3.0-or-later del proyecto]] sigue `En curso` solo por el
+  paso 4. Hallazgos para el paso 4: el JBR de Android Studio no trae
+  jpackage, y conviene fijar `upgradeUuid`. En Android, el `[i]` queda en
+  parte bajo la barra de estado (paso 5). Siguiente: paso 3 (icono, 👤) o,
+  si el usuario aún no tiene el diseño, adelantar lo que no dependa de él.

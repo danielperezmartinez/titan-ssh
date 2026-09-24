@@ -5,7 +5,7 @@ Resumen: 'Subtarea 2 de ADR-0009 (§3): un único daemon por usuario mediante un
 Decisiones: 'Implementa §3 de [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. Resuelve el fallo previo anotado en [[titan-agent fuga previa al HELLO y permisos del socket]]. Contexto común en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:05:00+02:00
-Última modificación: 2026-09-23T22:05:00+02:00
+Última modificación: 2026-09-24T14:00:00+02:00
 ---
 
 # titan-agent: instancia única y directorio de estado
@@ -89,3 +89,8 @@ socket desaparece.
 - El directorio de estado se crea y valida en todos los sistemas; en
   Solaris/AIX al menos compila (`GOOS=solaris`/`GOOS=aix go vet`).
 - Errores `E_STATE_DIR` y `E_LOCK` emitidos con el formato del contrato.
+- Limpieza de binarios antiguos: desde [[Versionado único desde tag de git]]
+  cada versión de la app instala `agent-<versión>-<os>-<arch>` y los anteriores
+  se quedan en el directorio. Con el candado de instancia única se sabe si
+  algún daemon los usa; decidir aquí si se borran (o llevarlo a
+  [[Instalación del agente en destinos Windows y multi-SO]]).

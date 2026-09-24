@@ -8,7 +8,7 @@ Consecuencias: La UI deja de pintar filas/CTAs con colores de estado; el verde/�
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-09-18T14:36:16+02:00
-Última modificación: 2026-09-18T14:36:16+02:00
+Última modificación: 2026-09-24T14:00:00+02:00
 ---
 
 # Vocabulario ASCII ampliado y disciplina de color semántico
@@ -33,6 +33,10 @@ Ampliación (todos ASCII, sin glifos Unicode como `✓`):
 - `[<]` — volver / atrás en un editor.
 - `[ok]` — confirmar / guardar (sustituye al `[✓]` no-ASCII que se coló).
 - `[ ]` / `[x]` — casilla desmarcada / marcada (toggle de formulario).
+- `[i]` — información / Acerca de (acción de la cabecera de la app; en
+  `accent` mientras la pantalla está abierta). Añadido el 2026-09-24.
+- `[=]` — documento de texto que se abre para leer (licencia, avisos).
+  Añadido el 2026-09-24.
 
 Regla: los marcadores son **ASCII imprimible dentro de brackets**; si hace falta
 uno nuevo, se añade aquí antes de usarlo, no ad hoc.

@@ -21,7 +21,7 @@ class JsonFileConfigStoreTest {
     private val sample = TitanConfig(
         hosts = listOf(
             Host(
-                id = "h1", alias = "casa", hostname = "casa.ts.net", port = 22, username = "nocend",
+                id = "h1", alias = "casa", hostname = "casa.ts.net", port = 22, username = "user",
                 auth = HostAuth.HardwareKey(SshKeyType.ECDSA_P256, "titan-hw-casa"),
                 hostKeyPolicy = HostKeyPolicy.TOFU, keepAliveSeconds = 30, groupId = "g1",
                 tags = listOf("prod"),

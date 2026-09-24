@@ -5,7 +5,7 @@ Resumen: 'En Android el título "titan-ssh" de la app se pinta encima de la barr
 Decisiones: ''
 Bloqueada: []
 Fecha de creación: 2026-09-24T12:45:00+02:00
-Última modificación: 2026-09-24T12:45:00+02:00
+Última modificación: 2026-09-24T14:00:00+02:00
 ---
 
 # Respetar las barras del sistema en Android
@@ -28,6 +28,9 @@ Android 15.
   `imePadding()` en `TerminalView`, junto con `adjustResize` (ver
   [[Terminal multipestaña con sesiones simultáneas]] y la memoria
   `android-ime-terminal`).
+- Consecuencia vista el 2026-09-24: el botón `[i]` (Acerca de) de la cabecera
+  queda en parte bajo la barra de estado y los toques en su mitad superior no
+  llegan a la app. Comprobar que responde entero al terminar.
 - En escritorio los insets son cero, así que un `windowInsetsPadding` en
   `commonMain` no le afecta.
 

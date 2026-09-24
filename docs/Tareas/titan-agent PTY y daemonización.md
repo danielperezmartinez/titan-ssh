@@ -1,7 +1,7 @@
 ---
 Nombre: titan-agent PTY y daemonización
 Estado: Hecha
-Resumen: 'ENTREGADO y verificado en host real. El binario Go del agente (agent/) es funcional: PTY real (creack/pty corriendo $SHELL -il) con Resize; arquitectura daemon UDS + front fino — cada `exec titan-agent` es un front que empalma su stdio al daemon por un socket Unix (/run/user/<uid> o temp), y el daemon (setsid, sobrevive al cierre del front) sostiene los PTY y el ring buffer por sesión; tee de salida viva a tramas DATA con offsets, concurrente con INPUT/RESIZE/ACK/REPLAY_FROM; GC de sesiones ociosas por TTL. Verificado headless (go test: session proxy con PTY fake) y de punta a punta contra nocendland-petit (subido linux/amd64: crea PTY y teea el prompt, INPUT llega al shell, y al RECONECTAR el daemon sobrevive y reproduce el historial desde offset 0). Cross-compila a linux amd64/arm64 y darwin/arm64 (~2.5 MB estáticos).'
+Resumen: 'ENTREGADO y verificado en host real. El binario Go del agente (agent/) es funcional: PTY real (creack/pty corriendo $SHELL -il) con Resize; arquitectura daemon UDS + front fino — cada `exec titan-agent` es un front que empalma su stdio al daemon por un socket Unix (/run/user/<uid> o temp), y el daemon (setsid, sobrevive al cierre del front) sostiene los PTY y el ring buffer por sesión; tee de salida viva a tramas DATA con offsets, concurrente con INPUT/RESIZE/ACK/REPLAY_FROM; GC de sesiones ociosas por TTL. Verificado headless (go test: session proxy con PTY fake) y de punta a punta contra <host-de-pruebas> (subido linux/amd64: crea PTY y teea el prompt, INPUT llega al shell, y al RECONECTAR el daemon sobrevive y reproduce el historial desde offset 0). Cross-compila a linux amd64/arm64 y darwin/arm64 (~2.5 MB estáticos).'
 Decisiones: 'Sigue [[ADR-0008 Diseño del agente de resiliencia nivel 3]]; refina su §6 (ciclo de vida) con el modelo daemon-sobre-socket-Unix + front fino (el id de sesión viaja en el HELLO). Completa el esqueleto sembrado en [[Resiliencia nivel 3 agente propio en el destino]] (`agent/internal/session`).'
 Bloqueada: []
 Fecha de creación: 2026-09-19T18:25:00+02:00
@@ -48,9 +48,9 @@ front es agnóstico al id. El daemon (`cmd/titan-agent/daemon.go`) mantiene el
   INPUT→PTY, RESIZE, reenganche desde offset, reuse de sesión por id). Verde.
 - **Cross-compile + vet** para `linux/amd64`, `linux/arm64` (compilan `pty_unix.go`
   + creack/pty) y `darwin/arm64`; binarios ~2.5 MB estáticos.
-- **Host real** ([[ssh-test-host]], `nocendland-petit`, linux/amd64): subido el
+- **Host real** ([[ssh-test-host]], `<host-de-pruebas>`, linux/amd64): subido el
   binario y hablado el protocolo por SSH.
-  1. `HELLO` → `HELLO_OK` + `DATA@0` con el prompt real (`[nocend@…]$ `) → **PTY
+  1. `HELLO` → `HELLO_OK` + `DATA@0` con el prompt real (`[<usuario>@…]$ `) → **PTY
      creado y teeado**; `INPUT("echo TITAN_MARKER")` → el shell lo ejecuta y su
      salida vuelve como `DATA` (offsets monótonos correctos).
   2. **Reconexión** (`HELLO` mismo id, sin teclear): el daemon seguía vivo

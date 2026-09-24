@@ -5,7 +5,7 @@ Resumen: 'Subtarea 5 de ADR-0009 (§6 y §7), lado cliente: que AgentInstaller i
 Decisiones: 'Implementa §6 y §7 de [[ADR-0009 Agente de nivel 3 portable a todos los destinos]] y el empaquetado de [[ADR-0010 Empaquetado del agente y descarga bajo demanda]]. Vuelve a la subida por SFTP que preveía §5 de [[ADR-0008 Diseño del agente de resiliencia nivel 3]] (la implementación de [[titan-agent distribución multi-arch e instalación]] la sustituyó por exec+head). Contexto común en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:05:00+02:00
-Última modificación: 2026-09-23T22:30:00+02:00
+Última modificación: 2026-09-24T14:00:00+02:00
 ---
 
 # Instalación del agente en destinos Windows y multi-SO
@@ -31,7 +31,9 @@ necesita [[titan-agent daemon en Windows]].
   `mkdir -p … && head -c <n> > tmp && chmod 700 && mv && sha256sum`.
   Resultado `Installed / Unsupported / Failed`.
 - `AgentDeployerFactory.jvmShared.kt`: `AgentBinaries` carga
-  `/agent/titan-agent-<slug>` del classpath; `VERSION = "0.0.1"`;
+  `/agent/titan-agent-<slug>` del classpath; `VERSION = BuildInfo.VERSION`
+  (versión única de la app desde 2026-09-24, ver
+  [[Versionado único desde tag de git]]);
   `createAgentDeployer()`.
 - `AgentTransport.kt` línea 49: `session.exec("$agentPath --session $safeId")`.
 - `shared/build.gradle.kts`: `agentTargets = listOf("linux" to "amd64", "linux" to "arm64", "darwin" to "arm64")`;
@@ -130,7 +132,7 @@ recibe solo `agentPath`).
   cmd/PowerShell/sh (incluidas rutas con espacios), verificación del SHA-256
   fijado para los binarios descargados.
 - Integración (opt-in): `AgentInstallerIntegrationTest` contra Linux
-  (`nocendland-petit` si está disponible).
+  (`<host-de-pruebas>` si está disponible).
 - **Pruebas en Windows: método por decidir.** El usuario quiere explorar otras
   opciones además del `sshd` local con un usuario estándar temporal (el que se
   usó en [[Experimento supervivencia de procesos en Win32-OpenSSH]]). Se decide

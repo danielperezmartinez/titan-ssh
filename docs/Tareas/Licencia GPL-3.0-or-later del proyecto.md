@@ -5,7 +5,7 @@ Resumen: 'Publicar el proyecto con licencia GPL-3.0-or-later, titular Daniel Pé
 Decisiones: 'Sigue [[ADR-0011 Distribución y canales de publicación]] §1. Variante or-later elegida por el usuario (2026-09-23).'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-24T12:00:00+02:00
+Última modificación: 2026-09-24T14:00:00+02:00
 ---
 
 # Licencia GPL-3.0-or-later del proyecto
@@ -74,11 +74,27 @@ Hecho (commit `de7dbc4`):
   opcionales). La licencia queda declarada en `LICENSE`, en los README y en
   los metadatos de los paquetes.
 
+Pantalla **Acerca de** (2026-09-24, paso 2, junto a
+[[Versionado único desde tag de git]]):
+
+- Se abre con `[i]` en la cabecera de la app (glifo añadido a
+  [[Vocabulario ASCII ampliado y disciplina de color]]) y ocupa el área de
+  contenido con `[<]` para volver. Pulsar un área también la cierra.
+- Muestra versión y plataforma, `Copyright (C) 2026 Daniel Pérez Martínez`, el
+  aviso de GPL-3.0-or-later, el de que no hay garantía, y el enlace al código
+  fuente. En una versión publicada el enlace apunta al tag
+  (`.../tree/vX.Y.Z`); en desarrollo, al repositorio.
+- `LICENSE` y `THIRD_PARTY_NOTICES.md` se leen dentro de la app, sin red: la
+  tarea `bundleLegalTexts` copia los ficheros de la raíz como recursos
+  `/legal/`, así que no hay una segunda lista de licencias que mantener.
+- Verificado en escritorio (Windows 10: pantalla, visor de la licencia) y en el
+  emulador `Pixel_9_Pro_XL` (pantalla, visor de avisos, y el enlace abre el
+  navegador). En Android, el `[i]` queda en parte bajo la barra de estado y
+  solo responde en su mitad inferior; se arregla con
+  [[Respetar las barras del sistema en Android]].
+
 Pendiente, repartido en la hoja de ruta:
 
-- Pantalla **Acerca de** (versión, copyright, sin garantía, enlaces a la
-  licencia y al código, licencias de terceros): paso 2, junto a
-  [[Versionado único desde tag de git]].
 - Incluir `LICENSE` y `THIRD_PARTY_NOTICES.md` en los paquetes, más
   `licenseFile` del MSI y `rpmLicenseType`: paso 4,
   [[Configuración de release del escritorio]]. El campo `license` de AUR y el

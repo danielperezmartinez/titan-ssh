@@ -46,7 +46,7 @@ que la opción B de [[ADR-0008 Diseño del agente de resiliencia nivel 3]] neces
   `:shared:compileKotlinDesktop`) y **suite de escritorio completa en verde**
   (17 suites, 104 tests, 0 fallos; el test de integración exec se salta sin
   credenciales).
-- **Real contra host** ([[ssh-test-host]], `nocendland-petit`): `SshjIntegrationTest`
+- **Real contra host** ([[ssh-test-host]], `<host-de-pruebas>`): `SshjIntegrationTest`
   `tests=3 skipped=0 failures=0` — `exec_channel_runs_a_command_without_a_pty`
   ejecutó `echo …; tty` y verificó stdout (`titan-exec-ok`) y **ausencia de PTY**
   (`not a tty`). El canal exec queda verificado de punta a punta.

@@ -4,11 +4,9 @@ Estado: 'Pendiente'
 Resumen: 'Preparar la build de release de Android. Crear una clave de firma propia (keystore) que nunca va al repositorio, vive en los secretos de CI y tiene copia de seguridad del usuario, y que servirá también como clave de subida si algún día se usa Play. Añadir signingConfig leído de variables de entorno y el buildType release, decidir R8 (con reglas para sshj/BouncyCastle), desactivar el bloque de dependencias que añade AGP (IzzyOnDroid y F-Droid lo piden) y generar APK universal y AAB. Verificar la APK de release en el Pixel.'
 Decisiones: 'Sigue [[ADR-0011 Distribución y canales de publicación]] §5–6.'
 Bloqueada:
-  - "[[Cambiar el identificador de la app a io.github]]"
   - "[[Icono y recursos gráficos de la app]]"
-  - "[[Versionado único desde tag de git]]"
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-23T22:50:00+02:00
+Última modificación: 2026-09-24T14:00:00+02:00
 ---
 
 # Firma y configuración de release Android

@@ -5,7 +5,7 @@ Resumen: 'Tarea paraguas para implementar ADR-0009: que el agente titan-agent (n
 Decisiones: 'Implementa [[ADR-0009 Agente de nivel 3 portable a todos los destinos]], que sustituye en parte a [[ADR-0008 Diseño del agente de resiliencia nivel 3]], y el empaquetado de [[ADR-0010 Empaquetado del agente y descarga bajo demanda]]. El desacople en Windows se decidió con [[Experimento supervivencia de procesos en Win32-OpenSSH]]. Continúa [[Resiliencia nivel 3 agente propio en el destino]].'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:05:00+02:00
-Última modificación: 2026-09-23T22:30:00+02:00
+Última modificación: 2026-09-24T14:00:00+02:00
 ---
 
 # Nivel 3 portable a todos los destinos
@@ -46,7 +46,8 @@ necesita 4.
   única dependencia `github.com/creack/pty v1.1.24`):
   - `cmd/titan-agent/main.go`: modos front (por defecto) y `--daemon`; flags
     `--socket`, `--buffer-bytes`, `--session` (informativo), `--version`;
-    `version = "0.0.1"`.
+    `var version`, estampada por Gradle con `-ldflags -X main.version` (versión
+    única de la app desde 2026-09-24; `0.0.0-dev` en un `go build` suelto).
   - `cmd/titan-agent/daemon.go`: `runDaemon` (socket Unix) y `serveConn`. **Se
     conserva** `serveConn` con el arreglo de la fuga previa al HELLO
     (`helloTimeout`, la trama previa al HELLO corta la conexión, espera a su
@@ -87,8 +88,8 @@ necesita 4.
   Para pruebas entre usuarios (permisos), ejecutar como root y crear usuarios con
   `useradd` + `su`, como en
   [[titan-agent fuga previa al HELLO y permisos del socket]].
-- **Linux real**: host de pruebas `nocendland-petit` (Tailscale, usuario
-  `nocend`, clave `~/.ssh/nocendland-petit`). El 2026-09-23 rechazaba el puerto
+- **Linux real**: host de pruebas `<host-de-pruebas>` (Tailscale, usuario
+  `<usuario>`, clave `~/.ssh/<clave-de-pruebas>`). El 2026-09-23 rechazaba el puerto
   22; comprobar antes de contar con él.
 - **Windows como destino SSH — método de prueba por decidir.** El usuario
   quiere explorar otras opciones y lo decidirá al llegar a las subtareas 4 y 5:

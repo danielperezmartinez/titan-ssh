@@ -5,10 +5,9 @@ Resumen: 'Canal principal de Linux. Flatpak en Flathub (gratis) funciona en prá
 Decisiones: 'Sigue [[ADR-0011 Distribución y canales de publicación]] §4. ID según [[Cambiar el identificador de la app a io.github]].'
 Bloqueada:
   - "[[Licencia GPL-3.0-or-later del proyecto]]"
-  - "[[Cambiar el identificador de la app a io.github]]"
   - "[[Pipeline de release en GitHub Actions]]"
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-23T22:50:00+02:00
+Última modificación: 2026-09-24T14:00:00+02:00
 ---
 
 # Canal Linux Flatpak en Flathub
