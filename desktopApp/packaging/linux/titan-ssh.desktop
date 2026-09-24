@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=titan-ssh
+Comment=Resilient multi-platform SSH client
+Exec=titan-ssh
+Icon=titan-ssh
+Terminal=false
+Categories=Network;RemoteAccess;
+Keywords=ssh;terminal;remote;

@@ -11,10 +11,12 @@ plugins {
 // --- Level-3 agent (titan-agent) multi-arch build → bundled resources ----------
 //
 // Cross-compiles the Go agent in `agent/` for each destination target into JVM
-// resources (packaged under /agent/). Best-effort: if the Go toolchain is not
-// found the build still succeeds with no binaries bundled, and a
-// `ResilienceLevel.AGENT` session simply degrades to level 2/1 (AgentInstaller
-// returns Unsupported). See ADR-0008.
+// resources (packaged under /agent/). In development it is best-effort: if the
+// Go toolchain is not found the build still succeeds with no binaries bundled,
+// and a `ResilienceLevel.AGENT` session simply degrades to level 2/1
+// (AgentInstaller returns Unsupported). See ADR-0008. A release build (any
+// version other than the dev one) must bundle every target, so a missing Go or a
+// failed cross-compile fails it instead of shipping a package without level 3.
 //
 // The agent carries the single app version (root build file): it is stamped
 // into the binary with -ldflags and drives the versioned install path.
@@ -162,22 +164,29 @@ kotlin {
     }
 }
 
+val agentRequired = rootProject.extra["titanIsRelease"] as Boolean
+
 val buildAgentBinaries by tasks.registering {
     description = "Cross-compiles titan-agent (level-3) for each destination target into bundled resources."
     inputs.dir(agentModuleDir)
     inputs.property("titanVersion", titanVersion)
     outputs.dir(agentBinariesDir)
     doLast {
+        // Development: warn and bundle what could be built. Release: fail.
+        fun problem(message: String) {
+            if (agentRequired) throw GradleException("$message (a release build must bundle the level-3 agent)")
+            logger.warn(message)
+        }
         val outDir = agentBinariesDir.get().dir("agent").asFile
         outDir.mkdirs()
         val go = resolveGo()
         if (go == null) {
-            logger.warn("titan-agent: Go toolchain not found; level-3 agent binaries NOT bundled (AGENT sessions will degrade to level 2/1).")
+            problem("titan-agent: Go toolchain not found; level-3 agent binaries NOT bundled (AGENT sessions will degrade to level 2/1).")
             return@doLast
         }
         agentTargets.forEach { (os, arch) ->
             val out = File(outDir, "titan-agent-$os-$arch")
-            try {
+            val failure = try {
                 val pb = ProcessBuilder(
                     go, "build", "-trimpath", "-ldflags", "-s -w -X main.version=$titanVersion",
                     "-o", out.absolutePath, "./cmd/titan-agent",
@@ -189,12 +198,11 @@ val buildAgentBinaries by tasks.registering {
                 val process = pb.start()
                 val log = process.inputStream.bufferedReader().readText()
                 val code = process.waitFor()
-                if (code != 0) {
-                    logger.warn("titan-agent: cross-compile failed for $os/$arch (exit $code): ${log.take(500)}")
-                }
+                if (code != 0) "titan-agent: cross-compile failed for $os/$arch (exit $code): ${log.take(500)}" else null
             } catch (e: Exception) {
-                logger.warn("titan-agent: cross-compile error for $os/$arch: ${e.message}")
+                "titan-agent: cross-compile error for $os/$arch: ${e.message}"
             }
+            failure?.let(::problem)
         }
     }
 }

@@ -7,7 +7,7 @@ Bloqueada:
   - "[[Configuración de release del escritorio]]"
   - "[[Firma y configuración de release Android]]"
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-24T14:00:00+02:00
+Última modificación: 2026-09-24T14:10:00+02:00
 ---
 
 # Pipeline de release en GitHub Actions
@@ -26,7 +26,21 @@ Release con todos los instaladores firmados donde proceda.
   Linux (`rpm` instalado para `.rpm`).
 - Gradle se ejecuta con JDK 21; el proyecto compila a JVM 17.
 - El agente Go se cross-compila en `buildAgentBinaries` (hace falta
-  `actions/setup-go`; la versión, de `agent/go.mod`).
+  `actions/setup-go`; la versión, de `agent/go.mod`). Con una versión de
+  release (`-PtitanVersion`), la build **falla** si no hay Go o si no compila
+  algún destino.
+- Hallazgos de [[Configuración de release del escritorio]] (2026-09-24):
+  - Tareas: `:desktopApp:packageMsi` (Windows), `packageDeb`, `packageRpm` y
+    `packageTarGz` (Linux; la última solo se ejecuta en Linux). Se usan las
+    `package*`, no las `packageRelease*` (sin ProGuard). Las de escritorio no
+    necesitan el SDK de Android.
+  - jpackage toma las dependencias del paquete de la máquina donde compila.
+    El **`.deb` hay que compilarlo en Ubuntu 22.04** (en 24.04 depende de
+    `libpng16-16t64`, que no existe en 22.04 ni en Debian 12). El **`.rpm`,
+    dentro de un contenedor Fedora** (en Ubuntu solo declara `xdg-utils` y en
+    un Fedora mínimo falta `libfontconfig`).
+  - Un JDK 21 completo (Temurin) sirve para todo: un `eclipse-temurin:21-jdk`
+    con Go, `rpm` y `fakeroot` generó los tres paquetes de Linux.
 
 ## Criterios de finalización
 

@@ -38,6 +38,8 @@ plugins {
 //                        Limits: X, Y <= 255 and Z*100+S <= 65535 (Z <= 654).
 //   titanDebVersion      `X.Y.Z~pre`: Debian sorts `~` before the empty string,
 //                        so a pre-release orders below its final version.
+//   titanRpmVersion      same as titanDebVersion: RPM also sorts `~` first and
+//                        does not allow `-` in a version.
 val DEV_VERSION = "0.0.0-dev"
 
 val titanVersion: String = (findProperty("titanVersion") as String?)?.removePrefix("v")
@@ -85,9 +87,12 @@ if (titanVersion == DEV_VERSION) {
     extra["titanMsiVersion"] = "$major.$minor.${patch * 100 + rank}"
     extra["titanDebVersion"] = if (preKind.isEmpty()) "$major.$minor.$patch" else "$major.$minor.$patch~$preKind.$preNumber"
 }
+extra["titanRpmVersion"] = extra["titanDebVersion"]
 extra["titanVersion"] = titanVersion
+// True for any real version (flag or tag): release-only requirements key off it.
+extra["titanIsRelease"] = titanVersion != DEV_VERSION
 
-val versionValues = listOf("titanVersion", "titanVersionCode", "titanPackageVersion", "titanMsiVersion", "titanDebVersion")
+val versionValues = listOf("titanVersion", "titanVersionCode", "titanPackageVersion", "titanMsiVersion", "titanDebVersion", "titanRpmVersion")
     .associateWith { extra[it].toString() }
 tasks.register("printVersion") {
     description = "Prints the resolved app version and every value derived from it."

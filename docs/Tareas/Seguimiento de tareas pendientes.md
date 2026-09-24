@@ -193,6 +193,18 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   probando a mano, con su ayuda cuando haga falta. Queda resuelto el método de
   prueba del paso 9.4. Nueva regla 5 del [[README]]: nada sensible ni personal
   en el repositorio público.
+- 2026-09-24 — **Paso 4** adelantado mientras el paso 3 (icono) avanza en otra
+  sesión. Se trabajó en la rama `fase2-release`, en un worktree aparte, para
+  no pisar su árbol de trabajo.
+  [[Configuración de release del escritorio]] queda hecha y verificada salvo
+  los iconos, así que sigue `En curso` y bloqueada por el paso 3. Resultados:
+  el MSI se instala por usuario, se actualiza y se desinstala; `.deb`, `.rpm`
+  y `tar.gz` se instalan y arrancan en Ubuntu, Fedora y Arch (en
+  contenedores); el JRE recortado pasa los tests de SSH real y del agente. Los
+  hallazgos para el CI (compilar el `.deb` en Ubuntu 22.04 y el `.rpm` en
+  Fedora) están en [[Pipeline de release en GitHub Actions]]. Al integrar el
+  paso 3 hay que cablear `iconFile`, el icono de la ventana y los iconos
+  hicolor del `tar.gz`. Siguiente: paso 5.
 - 2026-09-25 — **Paso 3 completado**. De tres bocetos, el usuario eligió la
   T cuyo tallo se corta y sigue en azul, como el cursor tras un microcorte
   ([[Icono de la app T que sobrevive al microcorte]]).
