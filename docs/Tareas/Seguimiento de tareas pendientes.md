@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-24T12:30:00+02:00
+Última modificación: 2026-09-24T12:45:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -65,6 +65,10 @@ mismo commit).
     comprobar que los binarios del agente sobreviven a R8 y a la build de
     release, no solo a la de debug.
   - Depende de 1–3. Se puede hacer en paralelo a 4.
+  - Tarea pequeña que va junto a este paso:
+    [[Respetar las barras del sistema en Android]] (el título se solapa con la
+    barra de estado). Se verifica en el mismo dispositivo y conviene que la
+    primera pre-release ya no lo tenga.
 - [ ] **6. Pipeline y Obtainium** (juntas) — **hito: primera pre-release**
   - [[Pipeline de release en GitHub Actions]]
   - [[Canal Android Obtainium desde GitHub Releases]]
@@ -169,3 +173,5 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   licencia sigue `En curso` por lo que tiene asignado en los pasos 2 y 4. De
   paso se corrigió la regla 2 del [[README]] (el proyecto ya está en git).
   Siguiente: paso 2.
+- 2026-09-24 — Nueva tarea [[Respetar las barras del sistema en Android]],
+  detectada al verificar el paso 1 en el emulador. Va junto al paso 5.
