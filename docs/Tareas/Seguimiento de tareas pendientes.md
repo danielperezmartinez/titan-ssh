@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-26T18:34:00+02:00
+Última modificación: 2026-09-26T18:46:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -69,7 +69,7 @@ mismo commit).
     [[Respetar las barras del sistema en Android]] (el título se solapa con la
     barra de estado). Se verifica en el mismo dispositivo y conviene que la
     primera pre-release ya no lo tenga.
-- [ ] **6. Pipeline y Obtainium** (juntas) — **hito: primera pre-release**
+- [x] **6. Pipeline y Obtainium** (juntas) — **hito: primera pre-release**
   - [[Pipeline de release en GitHub Actions]]
   - [[Canal Android Obtainium desde GitHub Releases]]
   - *Juntas*: la prueba del pipeline es publicar `v0.1.0-beta.1` y recibirla en
@@ -274,3 +274,11 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   versión) no se adelanta, también por decisión suya. Se publica
   `v0.1.0-beta.2` para probar una actualización con `versionCode` mayor y el
   arreglo de los nombres con `~`.
+- 2026-09-26 — **Paso 6 completado. Fin de la fase 2.**
+  [`v0.1.0-beta.2`](https://github.com/danielperezmartinez/titan-ssh/releases/tag/v0.1.0-beta.2)
+  sale con todos los jobs en verde, y `sha256sum -c SHA256SUMS` da `OK` en
+  todos los ficheros. El usuario la instaló en el Pixel encima de la `beta.1`
+  (`versionCode` 10031 → 10032): conserva los datos y funciona bien.
+  [[Pipeline de release en GitHub Actions]] pasa a `Hecha`. Ya no se pasa la
+  APK a mano. Para cada versión basta con crear el tag en `main` y subirlo.
+  Siguiente: paso 7 (AUR y winget, 👤).

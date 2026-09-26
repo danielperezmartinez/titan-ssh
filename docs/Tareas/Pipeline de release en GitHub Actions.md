@@ -1,11 +1,11 @@
 ---
 Nombre: 'Pipeline de release en GitHub Actions'
-Estado: 'En curso'
+Estado: 'Hecha'
 Resumen: 'Workflow de GitHub Actions (gratis en repositorios públicos) disparado por un tag vX.Y.Z que genera todos los artefactos y los publica en un GitHub Release: MSI (runner Windows, porque jpackage no compila para otra plataforma), .deb, .rpm y tar.gz (runner Ubuntu), APK firmada y AAB, más SHA256SUMS. Instala Go y hace obligatorio el agente, ejecuta los tests, marca como pre-release los tags con sufijo (canal interno del usuario) y, si ADR-0010 elige GitHub Releases, publica también los binarios del agente descargables. Es la base de todos los canales.'
 Decisiones: 'Sigue [[ADR-0011 Distribución y canales de publicación]] §3. Fuente única de artefactos para todos los canales.'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-26T18:20:00+02:00
+Última modificación: 2026-09-26T18:46:00+02:00
 ---
 
 # Pipeline de release en GitHub Actions
@@ -48,8 +48,8 @@ Release con todos los instaladores firmados donde proceda.
   - **ubuntu (versión antigua por glibc)**: `.deb`, `.rpm`, `tar.gz` de
     `createDistributable`, APK y AAB de release, y tests (`desktopTest`,
     `go test ./...` del agente).
-  - Hecho el 2026-09-26: ver **Resultado**. Primer Release `v0.1.0-beta.1`
-    publicado; ver **Verificación**.
+  - Hecho el 2026-09-26: ver **Resultado**. Publicados `v0.1.0-beta.1` y `beta.2`
+    (ver **Verificación**).
   - **Publicación**: `gh release create` con todos los artefactos,
     `SHA256SUMS` y notas generadas. Pre-release si el tag contiene `-`.
 - Versión inyectada desde el tag ([[Versionado único desde tag de git]]):
@@ -127,9 +127,19 @@ salió marcado como pre-release, con la APK (8,5 MB), el AAB, el MSI, el
   `~`. El Release `v0.1.0-beta.1` se queda como está; el arreglo sale a
   partir de `v0.1.0-beta.2`.
 
-Falta: la prueba de Obtainium en el Pixel
-([[Canal Android Obtainium desde GitHub Releases]]) y comprobar en
-`v0.1.0-beta.2` que el arreglo de los nombres funciona.
+**Segundo Release**
+([`v0.1.0-beta.2`](https://github.com/danielperezmartinez/titan-ssh/releases/tag/v0.1.0-beta.2),
+run `36255946035`, 2026-09-26): los seis jobs acaban bien. Los assets salen
+como `titan-ssh_0.1.0-beta.2_amd64.deb` y `titan-ssh-0.1.0-beta.2-1.x86_64.rpm`,
+y `sha256sum -c SHA256SUMS` da `OK` en los seis ficheros descargados. La APK
+va firmada con la clave de release, con `versionCode` 10032 (antes 10031) y
+`versionName` `0.1.0-beta.2`.
+
+**Actualización en el Pixel** (2026-09-26): el usuario descargó del Release
+la APK de `v0.1.0-beta.2` y la instaló encima de la `beta.1`. Conserva todos
+los datos y funciona bien. No usa Obtainium
+([[Canal Android Obtainium desde GitHub Releases]]). Queda comprobado el ciclo
+completo: tag, CI, Release, descarga y actualización firmada.
 
 ## Resultado
 
