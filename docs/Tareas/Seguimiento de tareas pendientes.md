@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-26T17:45:00+02:00
+Última modificación: 2026-09-26T18:20:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -257,3 +257,12 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   👤 Pendiente del usuario: cargar los tres secretos del keystore en GitHub,
   subir los cambios y el tag `v0.1.0-beta.1`, y probar Obtainium en el Pixel
   con `v0.1.0-beta.2` como actualización.
+- 2026-09-26 — **Primera pre-release publicada**:
+  [`v0.1.0-beta.1`](https://github.com/danielperezmartinez/titan-ssh/releases/tag/v0.1.0-beta.1),
+  con los seis jobs en verde. La APK está firmada con la clave de release, el
+  `.deb` y el `.rpm` se instalan y arrancan en contenedores limpios, y los
+  checksums cuadran. Fallo encontrado: GitHub cambia `~` por `.` en el nombre
+  de los assets, y el `SHA256SUMS` no encontraba el `.deb` ni el `.rpm`. Ya
+  está corregido en el workflow y sale con `v0.1.0-beta.2`. 👤 Falta que el
+  usuario instale con Obtainium en el Pixel; después se publica
+  `v0.1.0-beta.2` como actualización.

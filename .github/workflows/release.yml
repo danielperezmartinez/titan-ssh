@@ -192,6 +192,11 @@ jobs:
           cp desktopApp/build/compose/binaries/main/deb/*.deb dist/
           cp desktopApp/build/compose/binaries/main/rpm/*.rpm dist/
           cp desktopApp/build/compose/binaries/main/tar.gz/*.tar.gz dist/
+          # GitHub turns `~` into `.` in asset names, which would break
+          # SHA256SUMS. The version inside the packages keeps its `~`.
+          # (A stable version has no `~`: nullglob skips the loop.)
+          shopt -s nullglob
+          for f in dist/*~*; do mv "$f" "${f//\~/-}"; done
           ls -l dist
           dpkg-deb --field dist/*.deb Depends
           rpm -qpR dist/*.rpm
