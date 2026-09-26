@@ -151,10 +151,35 @@ nota-índice en `Catálogo técnico.md`.
   versión es `0.0.0-dev`. `./gradlew printVersion` muestra los valores
   derivados. Formato admitido, fórmula del `versionCode` y límites en
   [[Versionado único desde tag de git]].
+- **Publicar una versión** (workflow `.github/workflows/release.yml`; detalle
+  en [[Pipeline de release en GitHub Actions]]). Un agente **solo publica
+  cuando el usuario lo pide en esa sesión**: el tag y el Release son públicos
+  y no se pueden retirar. Si al agente le parece buen momento, lo propone y
+  espera la respuesta.
+  1. `main` con todo subido y el árbol limpio. Se revisa el diff según la
+     regla 5.
+  2. Versión: el siguiente `-beta.N` para el canal interno, o sin sufijo para
+     una estable. Nunca se reutiliza un tag. Se comprueba con
+     `./gradlew printVersion -PtitanVersion=<versión>`.
+  3. `git tag -a v<versión> -m "titan-ssh <versión>"` y
+     `git push origin v<versión>`.
+  4. Se sigue el run del workflow `Release` hasta que acaben sus seis jobs. Si
+     falla, se arregla en `main` y se publica el número siguiente: un tag
+     publicado no se mueve ni se borra sin permiso del usuario.
+  5. Se comprueba el Release: marcado como pre-release si la versión lleva
+     sufijo, `sha256sum -c SHA256SUMS` sin errores y la APK firmada con la
+     clave de release (su huella está en el `README.md` de la raíz; CI también
+     la comprueba).
+  6. El usuario instala la APK en el Pixel descargándola del Release (no usa
+     Obtainium) y confirma que funciona. Se anota en la tarea correspondiente.
+  - Para probar el pipeline sin publicar nada, se lanza el workflow a mano
+    (`workflow_dispatch`): genera los paquetes como artefactos del run.
+  - Los secretos del keystore (`TITAN_KEYSTORE_BASE64`, `TITAN_KEY_ALIAS`,
+    `TITAN_KEYSTORE_PASSWORD`) ya están en GitHub y los gestiona el usuario.
 - **Windows**: MSI (Compose/jpackage) y winget; firma con SignPath Foundation
   cuando se conceda.
 - **Linux**: Flatpak en Flathub (principal), AUR para Arch, y `.deb`/`.rpm`/`tar.gz`.
-- **Android**: APK firmada en Releases (Obtainium) e IzzyOnDroid; Google Play
+- **Android**: APK firmada en Releases (descarga directa u Obtainium) e IzzyOnDroid; Google Play
   aplazado (cuota de 25 $), con AAB y clave de subida preparados.
 - Detalle y alternativas descartadas en
   [[Decisiones/ADR-0011 Distribución y canales de publicación]].
