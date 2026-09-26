@@ -1,11 +1,11 @@
 ---
 Nombre: 'Nivel 3 portable a todos los destinos'
-Estado: 'Pendiente'
+Estado: 'En curso'
 Resumen: 'Tarea paraguas para implementar ADR-0009: que el agente titan-agent (nivel 3) funcione en Windows, macOS, BSD y cualquier Linux, y degrade con diagnóstico donde no pueda. Reúne el orden de las subtareas, el contexto común (estado del código actual, entornos de verificación, contrato de errores, hallazgos de la investigación y del experimento de Windows) para poder empezar en una sesión limpia sin repetir la investigación. Subtareas: PTY propio multiplataforma; instancia única y directorio de estado; punto de encuentro TCP loopback con token; daemon en Windows; instalación del agente en destinos Windows y multi-SO; diagnóstico cuando el nivel 3 no está disponible.'
 Decisiones: 'Implementa [[ADR-0009 Agente de nivel 3 portable a todos los destinos]], que sustituye en parte a [[ADR-0008 Diseño del agente de resiliencia nivel 3]], y el empaquetado de [[ADR-0010 Empaquetado del agente y descarga bajo demanda]]. El desacople en Windows se decidió con [[Experimento supervivencia de procesos en Win32-OpenSSH]]. Continúa [[Resiliencia nivel 3 agente propio en el destino]].'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:05:00+02:00
-Última modificación: 2026-09-24T14:00:00+02:00
+Última modificación: 2026-09-27T12:00:00+02:00
 ---
 
 # Nivel 3 portable a todos los destinos
@@ -23,7 +23,7 @@ investigar.
 
 | # | Subtarea | Depende de |
 |---|---|---|
-| 1 | [[titan-agent PTY propio multiplataforma]] | — |
+| 1 | [[titan-agent PTY propio multiplataforma]] (hecha el 2026-09-27) | — |
 | 2 | [[titan-agent instancia única y directorio de estado]] | — |
 | 3 | [[titan-agent punto de encuentro TCP loopback con token]] | 2 |
 | 4 | [[titan-agent daemon en Windows]] | 1, 3 |
@@ -43,7 +43,9 @@ necesita 4.
   `skills-lock.json`; `.claude/skills/` son *junctions* locales (rutas
   absolutas) ignoradas por git, que se recrean en cada equipo.
 - Agente Go en `agent/` (módulo `github.com/danigar/titan-ssh/agent`, `go 1.22`,
-  única dependencia `github.com/creack/pty v1.1.24`):
+  única dependencia `github.com/creack/pty v1.1.24`; desde la subtarea 1,
+  hecha el 2026-09-27, la única dependencia es `golang.org/x/sys` y `go.mod`
+  pide `go 1.26`):
   - `cmd/titan-agent/main.go`: modos front (por defecto) y `--daemon`; flags
     `--socket`, `--buffer-bytes`, `--session` (informativo), `--version`;
     `var version`, estampada por Gradle con `-ldflags -X main.version` (versión

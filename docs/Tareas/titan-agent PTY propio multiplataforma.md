@@ -1,11 +1,11 @@
 ---
 Nombre: 'titan-agent PTY propio multiplataforma'
-Estado: 'Pendiente'
-Resumen: 'Subtarea 1 de ADR-0009 (§4): sustituir creack/pty por un envoltorio de PTY propio y fino detrás del seam session.Pty existente, solo con la stdlib (syscall, os/exec) y golang.org/x/sys. Backends: Linux (/dev/ptmx + TIOCSPTLCK/TIOCGPTN), macOS (TIOCPTYGRANT/TIOCPTYUNLK/TIOCPTYGNAME), FreeBSD (posix_openpt), y Windows con ConPTY (CreatePseudoConsole + atributo PSEUDOCONSOLE + CreateProcess). Incluye la shell por defecto por sistema, tests de contrato comunes (eco, redimensionado, EOF al salir, cierre) y quitar creack/pty de go.mod. Verificación en Windows local y Linux en Docker; macOS y FreeBSD solo compilación cruzada.'
+Estado: 'Hecha'
+Resumen: 'Subtarea 1 de ADR-0009 (§4): sustituir creack/pty por un envoltorio de PTY propio y fino detrás del seam session.Pty existente, solo con la stdlib (syscall, os/exec) y golang.org/x/sys. Backends: Linux (/dev/ptmx + TIOCSPTLCK/TIOCGPTN), macOS (TIOCPTYGRANT/TIOCPTYUNLK/TIOCPTYGNAME), FreeBSD (posix_openpt), y Windows con ConPTY (CreatePseudoConsole + atributo PSEUDOCONSOLE + CreateProcess). Incluye la shell por defecto por sistema, tests de contrato comunes (eco, redimensionado, EOF al salir, cierre) y quitar creack/pty de go.mod. Hecha el 2026-09-27: tests de contrato verdes en Windows y en Linux (Docker, -race), prueba de punta a punta del binario en un contenedor, y macOS y FreeBSD compilados y enlazados pero sin ejecutar. go.mod pasa a go 1.26 por x/sys v0.48.0.'
 Decisiones: 'Implementa §4 de [[ADR-0009 Agente de nivel 3 portable a todos los destinos]] (sin librerías de terceros; x/sys es del proyecto Go). Contexto común y entornos en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:05:00+02:00
-Última modificación: 2026-09-23T22:05:00+02:00
+Última modificación: 2026-09-27T12:00:00+02:00
 ---
 
 # titan-agent: PTY propio multiplataforma
@@ -134,3 +134,51 @@ build tag que corresponda), sin tocar los de `fakePty`:
 - Los tests existentes (`protocol`, `buffer`, `session`, `cmd/titan-agent`)
   siguen verdes.
 - `agent/README.md` actualizado (estructura de ficheros y dependencia).
+
+## Resultado (2026-09-27)
+
+Hecha. `creack/pty` sale de `go.mod`; la única dependencia es
+`golang.org/x/sys` v0.48.0, que exige `go 1.26` en `go.mod` (el CI y los
+entornos locales ya usan Go 1.27). `THIRD_PARTY_NOTICES.md` y
+`agent/README.md` quedan actualizados.
+
+Ficheros en `agent/internal/session`:
+
+- `pty.go`: `PtyError` con los códigos del contrato `E_PTY` y `E_NO_CONPTY`.
+  El daemon todavía responde con un `BYE` sin motivo cuando falla
+  `AttachOrCreate`. Llevar el código hasta el cliente es trabajo de
+  [[Diagnóstico cuando el nivel 3 no está disponible]].
+- `pty_unix.go` (Linux, macOS y FreeBSD): shell de login, `Setsid` +
+  `Setctty`, `TIOCSWINSZ` y la traducción de `EIO` a `io.EOF`. Los ioctl van
+  por `SyscallConn`, no por `Fd()`, que pasaría el master a modo bloqueante.
+- `pty_linux.go`, `pty_darwin.go` y `pty_freebsd.go`: apertura del master y
+  del esclavo. En FreeBSD se usa `TIOCGPTN`, como dice la ADR, en lugar del
+  `FIODGNAME` de `creack/pty`. En macOS el nombre se lee con un ioctl directo,
+  porque `x/sys/unix` no tiene un envoltorio que acepte un buffer de 128 bytes.
+- `pty_windows.go`: ConPTY tal como lo describe este documento. Una goroutine
+  espera al proceso y cierra el ConPTY para que `Read` devuelva EOF. Si falla
+  `CreateProcess`, se cierran las tuberías antes que el ConPTY para que
+  `ClosePseudoConsole` no se bloquee (probado con un ejecutable inexistente).
+  El aviso de `go vet` sobre `unsafe.Pointer` es el esperado y está comentado.
+- `pty_other.go`: el stub devuelve `E_PTY` en los sistemas sin backend.
+  OpenBSD, NetBSD, Solaris y AIX, que antes compilaban con `creack/pty`, se
+  quedan ahí. Fuera de alcance según la ADR, y Gradle no los compila.
+
+Verificación:
+
+- Tests de contrato (`pty_contract*_test.go`: eco, redimensionado, EOF al
+  salir la shell, `Close` con la shell viva y `NewPty` real): verdes en
+  Windows local (repetidos 5 veces; `cmd.exe` para el eco y PowerShell para
+  leer el tamaño) y en Linux en Docker con `-race` (3 veces). El resto de
+  tests del módulo sigue verde.
+- Punta a punta en un contenedor `golang:1.27` con el binario real, como
+  usuario sin privilegios: `HELLO_OK`, `bash -il` en `pts/0` como terminal de
+  control, el comando se ejecuta, el reenganche desde el offset 0 repite el
+  historial y, al matar el daemon, no queda ningún proceso. El host de pruebas
+  real no respondía (tiempo de espera agotado), así que no se probó ahí.
+- `go vet` limpio para Linux, macOS, FreeBSD, OpenBSD, Solaris y AIX. Enlazan
+  los binarios de `linux/{amd64,arm64}`, `darwin/{amd64,arm64}`,
+  `freebsd/amd64` y `windows/{amd64,arm64}`. **macOS y FreeBSD no se han
+  ejecutado**: no hay máquina.
+- De paso, `gofmt` en `cmd/titan-agent/main.go` y
+  `internal/session/session_test.go`, que ya estaban mal formateados.

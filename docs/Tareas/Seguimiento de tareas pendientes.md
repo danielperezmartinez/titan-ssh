@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-27T09:00:00+02:00
+Última modificación: 2026-09-27T12:00:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -114,7 +114,7 @@ mismo commit).
     decisión del usuario (ver **Aparcada**).
 - [ ] **9. Nivel 3 portable a todos los destinos** (seguir el orden interno de
   [[Nivel 3 portable a todos los destinos]])
-  - [ ] 9.1 [[titan-agent PTY propio multiplataforma]]
+  - [x] 9.1 [[titan-agent PTY propio multiplataforma]] (`Hecha` el 2026-09-27)
   - [ ] 9.2 [[titan-agent instancia única y directorio de estado]] (independiente
     de 9.1)
   - [ ] 9.3 [[titan-agent punto de encuentro TCP loopback con token]] (tras 9.2;
@@ -344,3 +344,14 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   [[Indicar cuando la conexión deja de responder]] hasta haber usado más la
   app, y pasa a **Aparcada** (sigue `Pendiente`). Siguiente: paso 9.1
   ([[titan-agent PTY propio multiplataforma]]), o 9.2, que es independiente.
+- 2026-09-27 — **Paso 9.1 completado**:
+  [[titan-agent PTY propio multiplataforma]] pasa a `Hecha`. El agente ya no
+  depende de `creack/pty`. Tiene PTY propio en Linux, macOS y FreeBSD, y
+  ConPTY en Windows, y su única dependencia es `golang.org/x/sys`, que sube
+  `go.mod` a `go 1.26`. Los tests de contrato pasan en Windows y en Linux
+  (Docker, `-race`), y el binario real funciona de punta a punta en un
+  contenedor. macOS y FreeBSD solo se han compilado. El host de pruebas no
+  respondía, así que no se probó ahí. El cambio sale en la siguiente
+  pre-release. Siguiente: 9.2 y 9.3, juntas
+  ([[titan-agent instancia única y directorio de estado]] y
+  [[titan-agent punto de encuentro TCP loopback con token]]).
