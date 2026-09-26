@@ -1,12 +1,11 @@
 ---
 Nombre: 'Configuración de release del escritorio'
-Estado: 'En curso'
-Resumen: 'Dejar compose.desktop listo para distribuir. Añadir un upgradeUuid fijo (sin él, el MSI no se actualiza sobre sí mismo), metadatos (vendor, descripción, copyright, licencia, categoría), iconos, formato .rpm además de MSI y .deb, y un tar.gz de la imagen de la app para AUR y Flatpak. También fijar los módulos del JRE embebido (jpackage recorta el runtime y sshj/BouncyCastle suelen fallar solo empaquetado), hacer obligatorio el agente Go en builds de release y decidir si se usa ProGuard. Verificar instalando de verdad en Windows y Linux. Estado a 2026-09-24: hecho y verificado todo salvo los iconos, que esperan al paso 3.'
+Estado: 'Hecha'
+Resumen: 'Dejar compose.desktop listo para distribuir. Añadir un upgradeUuid fijo (sin él, el MSI no se actualiza sobre sí mismo), metadatos (vendor, descripción, copyright, licencia, categoría), iconos, formato .rpm además de MSI y .deb, y un tar.gz de la imagen de la app para AUR y Flatpak. También fijar los módulos del JRE embebido (jpackage recorta el runtime y sshj/BouncyCastle suelen fallar solo empaquetado), hacer obligatorio el agente Go en builds de release y decidir si se usa ProGuard. Verificar instalando de verdad en Windows y Linux. Hecha el 2026-09-26, con los iconos del paso 3 integrados.'
 Decisiones: 'Sigue [[ADR-0011 Distribución y canales de publicación]] §3–4. Instalación por usuario en Windows (sin UAC) y sin ProGuard; upgradeUuid fijado en aa0fe179-f4a1-4db1-92f3-f3b04240e849.'
-Bloqueada:
-  - "[[Icono y recursos gráficos de la app]]"
+Bloqueada: []
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-24T14:10:00+02:00
+Última modificación: 2026-09-26T16:55:00+02:00
 ---
 
 # Configuración de release del escritorio
@@ -165,12 +164,16 @@ Cambios en `desktopApp/build.gradle.kts`, en `build.gradle.kts` (raíz) y en
   reflexión, y el ahorro de tamaño no compensa el riesgo. El MSI ocupa unos
   83 MB y el `.deb` unos 74 MB.
 
-**Pendiente para cerrar la tarea** (paso 3, [[Icono y recursos gráficos de la app]]):
+**Iconos** (2026-09-26, al integrar
+[[Icono y recursos gráficos de la app]] con un rebase sobre `main`):
 
-- `windows.iconFile` (.ico) y `linux.iconFile` (.png). Hasta entonces, el
-  `.desktop` que genera jpackage apunta al icono por defecto
-  `/opt/titan-ssh/lib/titan-ssh.png`.
-- El icono de la ventana en `main.kt`.
-- Los iconos hicolor dentro del `tar.gz`. El `titan-ssh.desktop` ya declara
-  `Icon=titan-ssh`.
+- `windows.iconFile` (`desktopApp/icons/titan-ssh.ico`) y `linux.iconFile`
+  (`desktopApp/icons/titan-ssh.png`). El icono de la ventana en `main.kt` lo
+  dejó cableado la tarea del icono.
+- El `tar.gz` trae el tema hicolor en `icons/hicolor/{128x128,256x256,512x512}/apps/titan-ssh.png`
+  y `icons/hicolor/scalable/apps/titan-ssh.svg`, sacados de `branding/`. El
+  `titan-ssh.desktop` los usa con `Icon=titan-ssh`.
+- Verificado: `packageMsi` se genera con el `.ico`. En Docker, el `.deb` lleva
+  en `/opt/titan-ssh/lib/titan-ssh.png` el icono del proyecto (comprobado
+  byte a byte) y el `tar.gz` trae el tema hicolor completo.
 - Arquitectura ARM64: opcional, se decide en el pipeline.

@@ -1,12 +1,11 @@
 ---
 Nombre: 'Firma y configuración de release Android'
-Estado: 'En curso'
-Resumen: 'Preparar la build de release de Android. Crear una clave de firma propia (keystore) que nunca va al repositorio, vive en los secretos de CI y tiene copia de seguridad del usuario, y que servirá también como clave de subida si algún día se usa Play. Añadir signingConfig leído de variables de entorno y el buildType release, decidir R8 (con reglas para sshj/BouncyCastle), desactivar el bloque de dependencias que añade AGP (IzzyOnDroid y F-Droid lo piden) y generar APK universal y AAB. Verificar la APK de release en el Pixel. Estado a 2026-09-24: configuración hecha y verificada en el emulador con una clave desechable; falta que el usuario cree el keystore real y la prueba en el Pixel.'
+Estado: 'Hecha'
+Resumen: 'Preparar la build de release de Android. Crear una clave de firma propia (keystore) que nunca va al repositorio, vive en los secretos de CI y tiene copia de seguridad del usuario, y que servirá también como clave de subida si algún día se usa Play. Añadir signingConfig leído de variables de entorno y el buildType release, decidir R8 (con reglas para sshj/BouncyCastle), desactivar el bloque de dependencias que añade AGP (IzzyOnDroid y F-Droid lo piden) y generar APK universal y AAB. Verificar la APK de release en el Pixel. Hecha el 2026-09-26: keystore real RSA 4096 del usuario, APK de release verificada en el Pixel con clave hardware y nivel 3.'
 Decisiones: 'Sigue [[ADR-0011 Distribución y canales de publicación]] §5–6.'
-Bloqueada:
-  - "[[Icono y recursos gráficos de la app]]"
+Bloqueada: []
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-24T14:20:00+02:00
+Última modificación: 2026-09-26T16:55:00+02:00
 ---
 
 # Firma y configuración de release Android
@@ -75,6 +74,17 @@ prueba (validez de 1 día, borrada después) y se probó en el emulador
   encima con `adb install -r` (`versionCode` 10031 → 10032) y conserva el host
   y la sesión guardados.
 
+**En el Pixel físico, con la clave real** (2026-09-26): el usuario creó el
+keystore y generó `androidApp-release.apk` (`0.1.0-beta.1`). `apksigner
+verify` comprueba la firma v2, RSA de 4096 bits y certificado SHA-256
+`3929d8997ac2b23f61517a0561bbb10fe3d9e4a0a6547ee28e703c87c3ecdeab`, con los
+tres binarios del agente dentro. Se envió al Pixel por Tailscale. Hubo que
+desinstalar antes la versión firmada con la clave de debug y rehacer los hosts
+y las sesiones. El usuario conectó con clave hardware en nivel 3, contra este
+PC y contra [[ssh-test-host]]. Con modo avión activado y desactivado, la sesión
+se mantuvo. El único hallazgo fue que no hay aviso visual del corte:
+[[Indicar cuando la conexión deja de responder]].
+
 ## Resultado
 
 Cambios en `androidApp/build.gradle.kts` y `androidApp/proguard-rules.pro`,
@@ -108,14 +118,41 @@ nuevo:
 - Builds reproducibles: no se ha tratado. Queda para
   [[Canal Android IzzyOnDroid]].
 
-**Pendiente para cerrar la tarea** (👤 el usuario):
+### Clave de release
 
-1. Crear el keystore real. La contraseña la escribe el usuario, no pasa por el
-   agente:
-   `keytool -genkeypair -v -keystore titan-ssh-release.jks -alias titan-ssh -keyalg RSA -keysize 4096 -validity 10000`
-   (unos 27 años), fuera del repositorio.
-2. Guardar una copia de seguridad del `.jks` y de las contraseñas en el gestor
-   de contraseñas.
-3. Instalar en el Pixel una APK firmada con esa clave y repetir la conexión
-   con clave hardware y nivel 3. Los secretos de GitHub (keystore en base64,
-   alias y contraseñas) se cargan en el paso 6, con el pipeline.
+- Keystore PKCS12, alias `titan-ssh`, RSA 4096, validez 10000 días. Lo creó y
+  lo custodia el usuario, fuera del repositorio. La copia de seguridad del
+  `.jks` y de las contraseñas en el gestor de contraseñas corre a su cargo.
+  **Si se pierde, los usuarios no pueden actualizar sin desinstalar.**
+- Huella del certificado (SHA-256), para comprobar que una APK viene de esta
+  clave: `3929d8997ac2b23f61517a0561bbb10fe3d9e4a0a6547ee28e703c87c3ecdeab`.
+  Es pública: va dentro de cada APK.
+- En PKCS12 la clave usa la contraseña del almacén: `TITAN_KEY_PASSWORD` es la
+  misma que `TITAN_KEYSTORE_PASSWORD`.
+- Los secretos de GitHub (keystore en base64, alias y contraseña) se cargan en
+  el paso 6, con [[Pipeline de release en GitHub Actions]].
+
+### Firmar una release en local (Windows)
+
+`keytool` no está en el PATH: está en el JBR de Android Studio
+([[build-toolchain]]). Se hace desde una ventana de PowerShell **interactiva**,
+ejecutando las líneas una a una. `Read-Host` no funciona en la consola de un
+agente (no es interactiva) ni si se pegan todas las líneas de golpe.
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\Android Studio\jbr\bin\keytool.exe" -genkeypair -v -keystore titan-ssh-release.jks -alias titan-ssh -keyalg RSA -keysize 4096 -validity 10000
+```
+
+```powershell
+$env:JAVA_HOME = "$env:LOCALAPPDATA\Programs\Android Studio\jbr"
+$env:TITAN_KEYSTORE_FILE = "<ruta>\titan-ssh-release.jks"
+$env:TITAN_KEY_ALIAS = "titan-ssh"
+$env:TITAN_KEYSTORE_PASSWORD = [System.Net.NetworkCredential]::new('', (Read-Host "Contraseña" -AsSecureString)).Password
+$env:TITAN_KEY_PASSWORD = $env:TITAN_KEYSTORE_PASSWORD
+.\gradlew.bat :androidApp:assembleRelease '-PtitanVersion=0.1.0-beta.1'
+```
+
+- `Read-Host -MaskInput` no existe en Windows PowerShell 5.1; hay que usar
+  `-AsSecureString`, como arriba.
+- `-PtitanVersion=…` va **entre comillas**: sin ellas, PowerShell parte el
+  argumento en el punto y a Gradle le llega `titanVersion=0`.

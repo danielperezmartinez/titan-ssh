@@ -1,11 +1,11 @@
 ---
 Nombre: 'Licencia GPL-3.0-or-later del proyecto'
-Estado: 'En curso'
+Estado: 'Hecha'
 Resumen: 'Publicar el proyecto con licencia GPL-3.0-or-later, titular Daniel Pérez Martínez. Hoy el repositorio es público pero no tiene LICENSE, así que legalmente es "todos los derechos reservados", y los canales gratuitos (SignPath Foundation, IzzyOnDroid, Flathub, F-Droid) exigen licencia libre. Incluye el texto de la licencia, los avisos de terceros (sshj, BouncyCastle, JetBrains Mono con OFL, dependencias Go), un apartado en el README y los avisos legales en la UI que exige la GPLv3 para interfaces interactivas (pantalla Acerca de).'
 Decisiones: 'Sigue [[ADR-0011 Distribución y canales de publicación]] §1. Variante or-later elegida por el usuario (2026-09-23).'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-24T14:00:00+02:00
+Última modificación: 2026-09-26T16:55:00+02:00
 ---
 
 # Licencia GPL-3.0-or-later del proyecto
@@ -93,9 +93,12 @@ Pantalla **Acerca de** (2026-09-24, paso 2, junto a
   solo responde en su mitad inferior; se arregla con
   [[Respetar las barras del sistema en Android]].
 
-Pendiente, repartido en la hoja de ruta:
+Paquetes (2026-09-26, paso 4, [[Configuración de release del escritorio]]):
 
-- Incluir `LICENSE` y `THIRD_PARTY_NOTICES.md` en los paquetes, más
-  `licenseFile` del MSI y `rpmLicenseType`: paso 4,
-  [[Configuración de release del escritorio]]. El campo `license` de AUR y el
-  `project_license` de Flatpak van en sus tareas de canal.
+- `LICENSE` y `THIRD_PARTY_NOTICES.md` van en el MSI, el `.deb`, el `.rpm` y
+  el `tar.gz` (`app/resources`, o `lib/app/resources` en Linux). El MSI lleva
+  `licenseFile` y el `.rpm` declara `License: GPL-3.0-or-later`. Verificado
+  inspeccionando los paquetes.
+- El campo `license` de AUR y el `project_license` de Flatpak quedan en sus
+  tareas de canal ([[Canal Arch Linux AUR]] y
+  [[Canal Linux Flatpak en Flathub]]).

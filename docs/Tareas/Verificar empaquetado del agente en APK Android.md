@@ -1,11 +1,11 @@
 ---
 Nombre: Verificar empaquetado del agente en APK Android
-Estado: 'En curso'
+Estado: 'Hecha'
 Resumen: 'Follow-up del nivel 3 (ADR-0008): verificar en un dispositivo Android real que los binarios del agente (recursos JVM /agent/ generados por el task buildAgentBinaries) viajan dentro del APK y AgentBinaries.load(target) los carga por classloader, igual que ya se verificó en escritorio (AgentBinariesResourceTest, chequeo ELF en el classpath). El mecanismo es idéntico (recurso Java por classloader; los tasks merge*JavaResource dependen de buildAgentBinaries), pero no se ejecutó on-device. Confirmar también que una sesión AGENT desde el móvil instala y conduce el agente contra el host de pruebas.'
 Decisiones: 'Sigue [[ADR-0008 Diseño del agente de resiliencia nivel 3]]. Verifica el empaquetado hecho en [[titan-agent distribución multi-arch e instalación]] sobre el target Android. Prueba on-device como en [[ssh-test-host]] (Pixel de pruebas).'
 Bloqueada: []
 Fecha de creación: 2026-09-23T08:05:00+02:00
-Última modificación: 2026-09-24T14:20:00+02:00
+Última modificación: 2026-09-26T16:55:00+02:00
 ---
 
 # Verificar empaquetado del agente en APK Android
@@ -62,7 +62,8 @@ el recurso debería quedar en el APK. `AgentBinaries.load(target)` lo lee por
   `~/.local/share/titan-ssh/agent-0.1.0-beta.1-linux-amd64` y lo condujo. Al
   matar la sesión SSH en el servidor, la app reconectó sola al mismo daemon y
   el marcador escrito antes del corte seguía en pantalla. Es decir,
-  `AgentBinaries.load` funciona en Android con R8. **Falta** repetirlo en el
-  Pixel físico con la APK firmada con la clave real, junto con
-  [[Firma y configuración de release Android]]. Con eso la tarea pasa a
-  `Hecha`.
+  `AgentBinaries.load` funciona en Android con R8.
+- **Cerrada el 2026-09-26**: en el Pixel físico, con la APK de release firmada
+  con la clave real ([[Firma y configuración de release Android]]), el usuario
+  conectó en nivel 3 contra [[ssh-test-host]]. La sesión sobrevivió a activar
+  y quitar el modo avión.

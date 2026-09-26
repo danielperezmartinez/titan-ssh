@@ -103,7 +103,8 @@ compose.desktop {
 }
 
 // tar.gz of the Linux app image, for AUR and Flatpak (Compose does not build one).
-// Holds `titan-ssh/` (launcher, runtime, app) plus the desktop entry at the root.
+// Holds `titan-ssh/` (launcher, runtime, app), the desktop entry at the root and
+// the hicolor icon theme under `icons/`, ready to copy into `share/`.
 tasks.register<Tar>("packageTarGz") {
     group = "compose desktop"
     description = "Packs the Linux app image from createDistributable into a tar.gz."
@@ -119,4 +120,14 @@ tasks.register<Tar>("packageTarGz") {
     destinationDirectory.set(layout.buildDirectory.dir("compose/binaries/main/tar.gz"))
     from(layout.buildDirectory.dir("compose/binaries/main/app"))
     from(file("packaging/linux/titan-ssh.desktop"))
+    listOf(128, 256, 512).forEach { size ->
+        from(rootProject.file("branding/generated/png/titan-ssh-$size.png")) {
+            into("icons/hicolor/${size}x$size/apps")
+            rename { "titan-ssh.png" }
+        }
+    }
+    from(rootProject.file("branding/icon.svg")) {
+        into("icons/hicolor/scalable/apps")
+        rename { "titan-ssh.svg" }
+    }
 }

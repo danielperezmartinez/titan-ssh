@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-25T17:50:00+02:00
+Última modificación: 2026-09-26T16:55:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -54,10 +54,10 @@ mismo commit).
 
 ### Fase 2 · Primera pre-release (deja de pasarse la APK a mano)
 
-- [ ] **4. Release de escritorio**
+- [x] **4. Release de escritorio**
   - [[Configuración de release del escritorio]]
   - Depende de 1–3.
-- [ ] **5. Release de Android y agente en la APK** (juntas) 👤 (el usuario crea
+- [x] **5. Release de Android y agente en la APK** (juntas) 👤 (el usuario crea
   y custodia el keystore)
   - [[Firma y configuración de release Android]]
   - [[Verificar empaquetado del agente en APK Android]]
@@ -95,6 +95,10 @@ mismo commit).
     scripts (`SessionTab` retorna por la ruta de `AgentTransport` antes de
     `StartScriptAutomation`). Es independiente y pequeño comparado con el nivel
     3 portable.
+  - Tarea pequeña que puede ir junto a este paso:
+    [[Indicar cuando la conexión deja de responder]]. Salió en la prueba del
+    paso 5: durante un microcorte la pestaña sigue en "Conectado" sin avisar
+    de nada.
 - [ ] **9. Nivel 3 portable a todos los destinos** (seguir el orden interno de
   [[Nivel 3 portable a todos los destinos]])
   - [ ] 9.1 [[titan-agent PTY propio multiplataforma]]
@@ -227,3 +231,17 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   pantalla pasan a los pasos 11 y 12. Hallazgo: si el emulador arranca con adb
   `unauthorized`, basta con aceptar el diálogo de depuración en su pantalla.
   Siguiente: pasos 4 y 5, que se pueden hacer en paralelo.
+- 2026-09-26 — **Pasos 4 y 5 completados**. El usuario creó el keystore real
+  (RSA 4096) y probó en el Pixel la APK de release firmada con él: clave
+  hardware, nivel 3 contra [[ssh-test-host]], y la sesión sobrevive al modo
+  avión. Pasan a `Hecha` [[Firma y configuración de release Android]],
+  [[Verificar empaquetado del agente en APK Android]],
+  [[Respetar las barras del sistema en Android]] y
+  [[Licencia GPL-3.0-or-later del proyecto]], cuyo último pendiente eran los
+  paquetes. El trabajo del icono estaba sin commit en `main`: se confirmó
+  (`Add the app icon and generated graphics`) y la rama `fase2-release` se
+  rebasó encima. Con los iconos cableados (`iconFile` del MSI y de Linux, y
+  el tema hicolor en el `tar.gz`),
+  [[Configuración de release del escritorio]] pasa a `Hecha`. Nueva tarea
+  pequeña: [[Indicar cuando la conexión deja de responder]] (fase 4, junto
+  al paso 8). Siguiente: paso 6, el pipeline y la primera pre-release.

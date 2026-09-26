@@ -1,11 +1,11 @@
 ---
 Nombre: 'Respetar las barras del sistema en Android'
-Estado: 'En curso'
+Estado: 'Hecha'
 Resumen: 'En Android el título "titan-ssh" de la app se pinta encima de la barra de estado (sobre la hora y los iconos). MainActivity llama a enableEdgeToEdge(), pero la UI compartida no deja el hueco de las barras del sistema: solo aplica imePadding en el terminal. Hay que añadir el padding de safeDrawing o systemBars en la raíz de la UI, sin romper el ajuste del teclado, y comprobar también la barra de navegación inferior y la orientación horizontal.'
 Decisiones: ''
 Bloqueada: []
 Fecha de creación: 2026-09-24T12:45:00+02:00
-Última modificación: 2026-09-24T14:20:00+02:00
+Última modificación: 2026-09-26T16:55:00+02:00
 ---
 
 # Respetar las barras del sistema en Android
@@ -64,8 +64,9 @@ de release (rama `fase2-release`):
   pintaba los iconos de las barras en oscuro sobre el fondo oscuro de la app.
   Se corrigió.
 
-Falta repetirlo en el Pixel físico, con la APK firmada con la clave real (ver
-[[Firma y configuración de release Android]]).
+El 2026-09-26 el usuario lo probó en el Pixel físico, con la APK de release
+firmada con la clave real ([[Firma y configuración de release Android]]), y
+no vio ningún problema.
 
 ## Resultado
 
