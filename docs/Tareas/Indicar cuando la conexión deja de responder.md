@@ -5,7 +5,7 @@ Resumen: 'Durante un microcorte corto (p. ej. activar y quitar el modo avión) l
 Decisiones: 'Surge de la prueba en el Pixel de [[Firma y configuración de release Android]] (2026-09-26). Complementa el estado RECONNECTING de [[Resiliencia de sesión ante microcortes de red]], que solo se activa cuando la conexión se da por caída.'
 Bloqueada: []
 Fecha de creación: 2026-09-26T16:52:00+02:00
-Última modificación: 2026-09-26T16:52:00+02:00
+Última modificación: 2026-09-27T09:00:00+02:00
 ---
 
 # Indicar cuando la conexión deja de responder
@@ -24,6 +24,14 @@ aunque la sesión sobreviva sin reconectar.
 - `SessionTab` ya tiene `TabPhase.RECONNECTING` y `SessionsArea` lo pinta como
   `[-]` en color de aviso. Esa fase solo empieza cuando la conexión se da por
   caída; un corte corto no la rompe.
+
+## Aplazada
+
+El 2026-09-27 el usuario decide dejarla para más adelante: prefiere usar más
+la app antes, para dar mejores indicaciones sobre el umbral y la forma del
+aviso. Se retoma cuando lo pida el usuario; no bloquea nada. Propuesta de
+partida, sin decidir: en nivel 3, los ACK del agente; en niveles 1 y 2, un
+ping ligero propio; umbral de unos 5 s.
 
 ## Criterios de finalización
 

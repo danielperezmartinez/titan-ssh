@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-26T21:30:00+02:00
+Última modificación: 2026-09-27T09:00:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -102,17 +102,16 @@ mismo commit).
 
 ### Fase 4 · Producto
 
-- [ ] **8. Scripts de inicio en sesiones del agente**
+- [x] **8. Scripts de inicio en sesiones del agente**
   - [[Scripts de inicio por sesión sobre el agente]] (`Hecha` el 2026-09-26)
   - *Por qué aquí*: es un hueco en un pilar del producto (la automatización
     gratuita): hasta este paso, una sesión de nivel 3 no ejecutaba el `cd`
     inicial ni los scripts (`SessionTab` retornaba por la ruta de
     `AgentTransport` antes de `StartScriptAutomation`). Es independiente y
     pequeño comparado con el nivel 3 portable.
-  - Tarea pequeña que puede ir junto a este paso:
-    [[Indicar cuando la conexión deja de responder]]. Salió en la prueba del
-    paso 5: durante un microcorte la pestaña sigue en "Conectado" sin avisar
-    de nada.
+  - La tarea pequeña que iba junto a este paso,
+    [[Indicar cuando la conexión deja de responder]], queda **aplazada** por
+    decisión del usuario (ver **Aparcada**).
 - [ ] **9. Nivel 3 portable a todos los destinos** (seguir el orden interno de
   [[Nivel 3 portable a todos los destinos]])
   - [ ] 9.1 [[titan-agent PTY propio multiplataforma]]
@@ -165,6 +164,11 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
 
 ### Aparcada
 
+- [[Indicar cuando la conexión deja de responder]] (`Pendiente`): el usuario
+  prefiere retomarla cuando haya usado más la app, para dar mejores
+  indicaciones sobre el umbral y el aviso. No bloquea nada. Propuesta de
+  partida, sin decidir: ACK del agente en nivel 3, ping propio en niveles 1 y
+  2, umbral de unos 5 s.
 - [[Publicación en Google Play]] (`Planificando`): se retoma solo si el usuario
   decide pagar los 25 $. Lo que no cuesta nada (AAB y clave de subida) ya queda
   preparado en los pasos 5–6.
@@ -336,3 +340,7 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   [[ssh-test-host]]. El cambio del agente sale en la siguiente pre-release.
   Queda la tarea pequeña del paso,
   [[Indicar cuando la conexión deja de responder]].
+- 2026-09-27 — **Paso 8 completado.** El usuario aplaza
+  [[Indicar cuando la conexión deja de responder]] hasta haber usado más la
+  app, y pasa a **Aparcada** (sigue `Pendiente`). Siguiente: paso 9.1
+  ([[titan-agent PTY propio multiplataforma]]), o 9.2, que es independiente.
