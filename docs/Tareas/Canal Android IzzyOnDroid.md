@@ -7,7 +7,7 @@ Bloqueada:
   - "[[Licencia GPL-3.0-or-later del proyecto]]"
   - "[[Pipeline de release en GitHub Actions]]"
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-23T22:50:00+02:00
+Última modificación: 2026-09-25T17:50:00+02:00
 ---
 
 # Canal Android IzzyOnDroid
@@ -27,6 +27,9 @@ Play y sin coste para el proyecto.
   `short_description.txt`, `full_description.txt`,
   `changelogs/<versionCode>.txt`, `images/icon.png` y capturas), al menos en
   español e inglés. Los mismos textos servirán para Play.
+  El icono (`store-icon-512.png`) y el gráfico de 1024×500 ya están en
+  `branding/generated/` ([[Icono y recursos gráficos de la app]]). Las
+  **capturas** de Android se hacen aquí, con la UI de ese momento.
 - `dependenciesInfo` desactivado (ver
   [[Firma y configuración de release Android]]).
 - **Binarios del agente**: la APK lleva ejecutables ELF/Mach-O/PE en

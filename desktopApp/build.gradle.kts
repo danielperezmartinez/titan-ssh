@@ -36,11 +36,14 @@ compose.desktop {
             // Single app version, resolved in the root build file (ADR-0011 §3),
             // mapped per format to what each installer can order correctly.
             packageVersion = rootProject.extra["titanPackageVersion"] as String
+            // Generated from branding/icon.svg by branding/RenderIcon.java.
             windows {
                 msiPackageVersion = rootProject.extra["titanMsiVersion"] as String
+                iconFile.set(project.file("icons/titan-ssh.ico"))
             }
             linux {
                 debPackageVersion = rootProject.extra["titanDebVersion"] as String
+                iconFile.set(project.file("icons/titan-ssh.png"))
             }
         }
     }

@@ -7,7 +7,7 @@ Bloqueada:
   - "[[Licencia GPL-3.0-or-later del proyecto]]"
   - "[[Pipeline de release en GitHub Actions]]"
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-24T14:00:00+02:00
+Última modificación: 2026-09-25T17:50:00+02:00
 ---
 
 # Canal Linux Flatpak en Flathub
@@ -54,6 +54,9 @@ tienda de apps), con actualizaciones automáticas.
   `<releases>` por versión, `project_license` GPL-3.0-or-later, contenido OARS,
   URL del repositorio. Validar con `flatpak-builder-lint`/`appstreamcli`. Más el
   `.desktop` y los iconos hicolor ([[Icono y recursos gráficos de la app]]).
+  Los PNG 16–512 ya salen en `branding/generated/png/`: aquí se instalan con el
+  nombre del ID de la app. Las **capturas** de escritorio se hacen aquí, con la
+  UI de ese momento.
 - PR a `flathub/flathub` enviado y aceptado.
 - Actualizaciones: tras cada Release, PR al repositorio de la app en Flathub,
   automatizado con `flatpak-external-data-checker` o un job del release.

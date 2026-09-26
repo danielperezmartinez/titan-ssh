@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-24T15:00:00+02:00
+Última modificación: 2026-09-25T17:50:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -48,7 +48,7 @@ mismo commit).
   - [[Versionado único desde tag de git]]
   - La parte de UI de [[Licencia GPL-3.0-or-later del proyecto]] (Acerca de, con
     versión y avisos legales), que necesita la versión.
-- [ ] **3. Icono** 👤 (el usuario decide el diseño; se puede hacer en paralelo a
+- [x] **3. Icono** 👤 (el usuario decide el diseño; se puede hacer en paralelo a
   1–2)
   - [[Icono y recursos gráficos de la app]]
 
@@ -134,8 +134,8 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
     va sola.
 - [ ] **12. IzzyOnDroid**
   - [[Canal Android IzzyOnDroid]]
-  - Reutiliza los textos y capturas del icono (paso 3); los metadatos fastlane
-    servirán también para Play.
+  - Reutiliza el icono y el gráfico del paso 3. Las capturas se hacen aquí; los
+    metadatos fastlane servirán también para Play.
 - [ ] **13. Firma de Windows con SignPath** 👤 (el usuario envía la solicitud)
   - [[Firma de código Windows con SignPath Foundation]]
   - Al acabar, winget (paso 7) pasa a apuntar al MSI firmado.
@@ -193,3 +193,14 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   probando a mano, con su ayuda cuando haga falta. Queda resuelto el método de
   prueba del paso 9.4. Nueva regla 5 del [[README]]: nada sensible ni personal
   en el repositorio público.
+- 2026-09-25 — **Paso 3 completado**. De tres bocetos, el usuario eligió la
+  T cuyo tallo se corta y sigue en azul, como el cursor tras un microcorte
+  ([[Icono de la app T que sobrevive al microcorte]]).
+  [[Icono y recursos gráficos de la app]] pasa a `Hecha`: `branding/icon.svg`
+  es la fuente única y `java branding/RenderIcon.java` genera el `.ico`, los
+  PNG, el icono adaptativo de Android con monocromo, el icono de ventana y los
+  gráficos de tienda. Verificado en el cajón de apps del emulador, en la
+  ventana y la barra de tareas de Windows, y en `packageMsi`. Las capturas de
+  pantalla pasan a los pasos 11 y 12. Hallazgo: si el emulador arranca con adb
+  `unauthorized`, basta con aceptar el diálogo de depuración en su pantalla.
+  Siguiente: pasos 4 y 5, que se pueden hacer en paralelo.
