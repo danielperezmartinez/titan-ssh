@@ -1,11 +1,11 @@
 ---
 Nombre: 'Canal Windows winget'
 Estado: 'En curso'
-Resumen: 'Publicar titan-ssh en winget (gratis), el gestor de paquetes de Windows, con manifiestos en microsoft/winget-pkgs que apuntan al MSI del GitHub Release: DanielPerezMartinez.TitanSSH para las estables y DanielPerezMartinez.TitanSSH.Beta para las pre-releases. winget-pkgs acepta MSI sin firmar. El primer envío de cada ID se hace a mano (los manifiestos de la beta.2 ya están escritos y validados en desktopApp/packaging/winget/) y los siguientes los abre el job winget del workflow con Komac, desde un fork de winget-pkgs del usuario y un token clásico con public_repo. Fork creado y primer PR abierto (microsoft/winget-pkgs#441824, 2026-09-26). CLA firmado. Faltan la validación y la fusión, el token WINGET_TOKEN, la variable WINGET_ENABLED y la prueba con winget install/upgrade.'
+Resumen: 'Publicar titan-ssh en winget (gratis), el gestor de paquetes de Windows, con manifiestos en microsoft/winget-pkgs que apuntan al MSI del GitHub Release: DanielPerezMartinez.TitanSSH para las estables y DanielPerezMartinez.TitanSSH.Beta para las pre-releases. winget-pkgs acepta MSI sin firmar. El primer envío de cada ID se hace a mano (los manifiestos de la beta.2 ya están escritos y validados en desktopApp/packaging/winget/) y los siguientes los abre el job winget del workflow con Komac, desde un fork de winget-pkgs del usuario y un token clásico con public_repo. Fork creado y primer PR abierto (microsoft/winget-pkgs#441824, 2026-09-26). CLA firmado. Faltan la validación y la fusión, la variable WINGET_ENABLED (tras la fusión) y la prueba con winget install/upgrade.'
 Decisiones: 'Sigue [[ADR-0011 Distribución y canales de publicación]] §4. Decisiones del usuario (2026-09-26): PackageIdentifier DanielPerezMartinez.TitanSSH (Moniker titan-ssh), y las pre-releases van a un ID aparte, DanielPerezMartinez.TitanSSH.Beta, como Termius.Termius.Beta; mismo criterio que en [[Canal Arch Linux AUR]]. Se usa Komac fijado por hash en vez de winget-releaser, que descarga Komac sin fijar la versión.'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-26T20:10:00+02:00
+Última modificación: 2026-09-26T20:25:00+02:00
 ---
 
 # Canal Windows winget
@@ -82,8 +82,8 @@ Komac):
    se subieron a esa misma ruta (`manifests/d/…`) en la rama
    `danielperezmartinez-patch-1`, idénticos a los validados. CLA firmado el mismo día (el bot quitó `Needs-CLA` y `license/cla` está en verde), y el validador puso la etiqueta `New-Package`. Falta que
    acabe la validación automática y lo revise un moderador. La casilla de `winget install --manifest` quedó sin marcar porque no se probó.
-3. 👤 Crear un token clásico con solo `public_repo` y con caducidad, y
-   cargarlo en el secreto `WINGET_TOKEN` del repositorio. Ese token puede
+3. [x] Token clásico `titan-ssh winget (Komac)`, con solo `public_repo` y con caducidad,
+   cargado en el secreto `WINGET_TOKEN` (2026-09-26). Ese token puede
    escribir en todos los repos públicos de la cuenta: hay que renovarlo al
    caducar y revocarlo si se deja de usar.
 4. 👤 Con el PR fusionado, crear la variable del repositorio
