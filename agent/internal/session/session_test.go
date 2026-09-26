@@ -87,11 +87,11 @@ func TestHandleReplaysThenStreamsLiveAndAppliesInput(t *testing.T) {
 	var wmu sync.Mutex
 	out := func(f protocol.Frame) error { wmu.Lock(); defer wmu.Unlock(); frames <- f; return nil }
 	in := make(chan protocol.Frame, 8)
-	go func() { _ = s.Handle(protocol.Frame{Type: protocol.TypeHello, SessionID: "s1", LastOffset: 0, Cols: 80, Rows: 24}, out, in) }()
+	go func() { _ = s.Handle(protocol.Frame{Type: protocol.TypeHello, SessionID: "s1", LastOffset: 0, Cols: 80, Rows: 24}, true, out, in) }()
 
 	// 1) HELLO_OK announcing the range.
-	if f := recv(t, frames); f.Type != protocol.TypeHelloOK || f.HeadOffset != 6 {
-		t.Fatalf("expected HELLO_OK head=6, got %+v", f)
+	if f := recv(t, frames); f.Type != protocol.TypeHelloOK || f.HeadOffset != 6 || !f.Created {
+		t.Fatalf("expected HELLO_OK head=6 created, got %+v", f)
 	}
 	// 2) Replay of the buffered history from offset 0.
 	if f := recv(t, frames); f.Type != protocol.TypeData || f.Offset != 0 || string(f.Bytes) != "hello " {
@@ -134,10 +134,10 @@ func TestHandleReplaysFromClientOffsetOnReconnect(t *testing.T) {
 	out := func(f protocol.Frame) error { frames <- f; return nil }
 	in := make(chan protocol.Frame, 4)
 	// Reconnect: client already applied through offset 3, wants replay from there.
-	go func() { _ = s.Handle(protocol.Frame{Type: protocol.TypeHello, SessionID: "s2", LastOffset: 3, Cols: 80, Rows: 24}, out, in) }()
+	go func() { _ = s.Handle(protocol.Frame{Type: protocol.TypeHello, SessionID: "s2", LastOffset: 3, Cols: 80, Rows: 24}, false, out, in) }()
 
-	if f := recv(t, frames); f.Type != protocol.TypeHelloOK {
-		t.Fatalf("expected HELLO_OK, got %+v", f)
+	if f := recv(t, frames); f.Type != protocol.TypeHelloOK || f.Created {
+		t.Fatalf("expected HELLO_OK for a re-attach, got %+v", f)
 	}
 	if f := recv(t, frames); f.Type != protocol.TypeData || f.Offset != 3 || string(f.Bytes) != "def" {
 		t.Fatalf("expected replay DATA@3 'def', got %+v (%q)", f, f.Bytes)

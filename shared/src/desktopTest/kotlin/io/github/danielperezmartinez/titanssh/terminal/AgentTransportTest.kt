@@ -4,7 +4,9 @@ import io.github.danielperezmartinez.titanssh.ssh.SshConnectionState
 import io.github.danielperezmartinez.titanssh.ssh.SshExecChannel
 import io.github.danielperezmartinez.titanssh.ssh.SshSession
 import io.github.danielperezmartinez.titanssh.ssh.SshShell
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,6 +17,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -128,5 +131,68 @@ class AgentTransportTest {
         assertEquals(40, r.rows)
         ch.close()
         job.join()
+    }
+
+    /** Runs a transport through one HELLO_OK and returns what onAttached reported. */
+    private suspend fun attach(
+        helloOk: AgentFrame.HelloOk,
+        startOffset: Long,
+        then: suspend (FakeExec, Channel<String>, AgentTransport) -> Unit = { _, _, _ -> },
+    ): Boolean = coroutineScope {
+        val ch = FakeExec()
+        val outputs = Channel<String>(Channel.UNLIMITED)
+        val attached = CompletableDeferred<Boolean>()
+        val transport = AgentTransport(
+            session = FakeSession(ch),
+            agentSessionId = "s",
+            agentPath = "agent",
+            onOutput = { bytes -> outputs.trySend(bytes.decodeToString()) },
+            initialColumns = 80,
+            initialRows = 24,
+            startOffset = startOffset,
+            onAttached = { fresh -> attached.complete(fresh) },
+        )
+        val job = launch { transport.run() }
+        waitUntil { ch.sentFrames().any { it is AgentFrame.Hello } }
+        ch.emit(helloOk)
+        val fresh = withTimeout(2_000) { attached.await() }
+        then(ch, outputs, transport)
+        ch.close()
+        job.join()
+        fresh
+    }
+
+    @Test
+    fun a_fresh_session_resets_an_offset_carried_from_a_lost_one() = runBlocking {
+        // The tab had applied 500 bytes of a session the host no longer has.
+        val fresh = attach(AgentFrame.HelloOk(0, 0, created = true), startOffset = 500) { ch, outputs, t ->
+            ch.emit(AgentFrame.Data(offset = 0, bytes = "new$ ".encodeToByteArray()))
+            assertEquals("new$ ", outputs.receive())
+            assertEquals(5L, t.appliedOffset)
+        }
+        assertTrue(fresh)
+    }
+
+    @Test
+    fun a_reattach_is_not_fresh_and_keeps_the_offset() = runBlocking {
+        val fresh = attach(AgentFrame.HelloOk(6, 0, created = false), startOffset = 3) { ch, outputs, t ->
+            ch.emit(AgentFrame.Data(offset = 3, bytes = "def".encodeToByteArray()))
+            assertEquals("def", outputs.receive())
+            assertEquals(6L, t.appliedOffset)
+        }
+        assertFalse(fresh)
+    }
+
+    @Test
+    fun an_agent_without_the_flag_is_fresh_only_before_any_output() = runBlocking {
+        assertTrue(attach(AgentFrame.HelloOk(0, 0, created = null), startOffset = 0))
+        assertFalse(attach(AgentFrame.HelloOk(91, 0, created = null), startOffset = 0))
+        // Still resets when the agent's head is behind the tab (a different session).
+        attach(AgentFrame.HelloOk(4, 0, created = null), startOffset = 500) { ch, outputs, t ->
+            ch.emit(AgentFrame.Data(offset = 4, bytes = "$ ".encodeToByteArray()))
+            assertEquals("$ ", outputs.receive())
+            assertEquals(6L, t.appliedOffset)
+        }
+        Unit
     }
 }

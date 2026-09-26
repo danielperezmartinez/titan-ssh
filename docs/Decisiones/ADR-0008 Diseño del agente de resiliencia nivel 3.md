@@ -8,7 +8,7 @@ Consecuencias: 'Reutiliza el transporte y la auth de SSH (mínima superficie de 
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-09-19T18:10:00+02:00
-Última modificación: 2026-09-23T21:30:00+02:00
+Última modificación: 2026-09-26T21:30:00+02:00
 ---
 
 # ADR-0008 · Diseño del agente de resiliencia nivel 3
@@ -110,6 +110,14 @@ Tipos de trama y payload:
 | `REPLAY_FROM`| 6  | cliente → agente | offset (u64 BE) desde el que reproducir |
 | `ACK`        | 7  | cliente → agente | offset (u64 BE) consumido y persistible por el cliente |
 | `BYE`        | 8  | cualquiera       | vacío |
+
+> **Actualización (2026-09-26):** `HELLO_OK` lleva además un byte final de
+> flags. El bit 0 (`created`) indica que ese attach ha creado la sesión (un PTY
+> nuevo); en ese caso el agente reproduce desde el offset 0 aunque el `HELLO`
+> pida otro. Es compatible en los dos sentidos: un agente anterior envía solo
+> los dos offsets y un cliente anterior ignora el byte. Lo introduce
+> [[Scripts de inicio por sesión sobre el agente]] para ejecutar los scripts
+> de inicio solo en sesiones nuevas.
 
 - Los **offsets** son un contador monótono de bytes producidos por el PTY de la
   sesión desde su creación. `DATA` es autodescriptivo (lleva el offset de su

@@ -77,3 +77,26 @@ func TestOversizeRejected(t *testing.T) {
 		t.Fatalf("want ErrFrameTooLarge, got %v", err)
 	}
 }
+
+func TestHelloOKCarriesCreatedFlag(t *testing.T) {
+	for _, created := range []bool{true, false} {
+		got := roundTrip(t, Frame{Type: TypeHelloOK, HeadOffset: 91, TailOffset: 0, Created: created})
+		if got.HeadOffset != 91 || got.Created != created {
+			t.Errorf("created=%v: got %+v", created, got)
+		}
+	}
+}
+
+func TestHelloOKWithoutFlagsByteDecodesAsNotCreated(t *testing.T) {
+	// Agents before the flags byte sent a 16-byte payload: head and tail only.
+	wire := []byte{byte(TypeHelloOK), 0, 0, 0, 16,
+		0, 0, 0, 0, 0, 0, 0, 7, // head
+		0, 0, 0, 0, 0, 0, 0, 2} // tail
+	frames, err := (&Decoder{}).Feed(wire)
+	if err != nil || len(frames) != 1 {
+		t.Fatalf("decode: frames=%v err=%v", frames, err)
+	}
+	if f := frames[0]; f.HeadOffset != 7 || f.TailOffset != 2 || f.Created {
+		t.Fatalf("unexpected frame: %+v", f)
+	}
+}

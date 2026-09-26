@@ -125,12 +125,12 @@ func serveConn(conn net.Conn, reg *session.Registry) {
 		return // client closed, errored or stayed silent before HELLO
 	}
 	_ = conn.SetReadDeadline(time.Time{})
-	s, _, err := reg.AttachOrCreate(first.SessionID, clampSize(first.Cols, 80), clampSize(first.Rows, 24))
+	s, created, err := reg.AttachOrCreate(first.SessionID, clampSize(first.Cols, 80), clampSize(first.Rows, 24))
 	if err != nil {
 		_ = out(protocol.Frame{Type: protocol.TypeBye})
 		return
 	}
-	_ = s.Handle(first, out, in)
+	_ = s.Handle(first, created, out, in)
 }
 
 // clampSize substitutes a sane default for a zero terminal dimension.

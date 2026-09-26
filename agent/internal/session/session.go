@@ -76,11 +76,14 @@ func (s *Session) pump() {
 // (INPUT/RESIZE/ACK/REPLAY_FROM/BYE). It returns when the client goes away; the
 // Session keeps running for the next attach.
 //
+// created is whether this attach created the session (Registry.AttachOrCreate);
+// HELLO_OK echoes it so the client runs its start scripts only on a fresh PTY.
+//
 // out must be safe to call from two goroutines is NOT required — Handle
 // serializes its own writes: the live streamer is the only writer once the loop
 // starts, except REPLAY_FROM, which the caller-provided out should guard. The
 // daemon's serveConn provides a mutex-guarded out.
-func (s *Session) Handle(hello protocol.Frame, out func(protocol.Frame) error, in <-chan protocol.Frame) error {
+func (s *Session) Handle(hello protocol.Frame, created bool, out func(protocol.Frame) error, in <-chan protocol.Frame) error {
 	s.mu.Lock()
 	s.clients++
 	s.lastUsed = time.Now()
@@ -92,12 +95,18 @@ func (s *Session) Handle(hello protocol.Frame, out func(protocol.Frame) error, i
 		s.mu.Unlock()
 	}()
 
-	if err := out(protocol.Frame{Type: protocol.TypeHelloOK, HeadOffset: s.buf.Head(), TailOffset: s.buf.Tail()}); err != nil {
+	if err := out(protocol.Frame{Type: protocol.TypeHelloOK, HeadOffset: s.buf.Head(), TailOffset: s.buf.Tail(), Created: created}); err != nil {
 		return err
 	}
 
-	// Replay from the client's last offset (or from tail if it expired).
-	from, history := s.buf.Since(hello.LastOffset)
+	// Replay from the client's last offset (or from tail if it expired). On a
+	// fresh session that offset belongs to one that is gone (e.g. the host
+	// rebooted), so replay everything the new PTY has produced.
+	last := hello.LastOffset
+	if created {
+		last = 0
+	}
+	from, history := s.buf.Since(last)
 	cursor := from
 	if len(history) > 0 {
 		if err := out(protocol.Frame{Type: protocol.TypeData, Offset: from, Bytes: history}); err != nil {

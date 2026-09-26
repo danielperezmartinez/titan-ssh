@@ -78,8 +78,9 @@ class SessionTab(
     rows: Int = 24,
     /**
      * Session start scripts ([[Scripts de inicio por sesión]]), run once the
-     * shell is live and concurrently with painting. Defaults to a no-op so a tab
-     * with no automation behaves exactly as before.
+     * shell is live and concurrently with painting — on the level-3 path, only
+     * when the agent creates a fresh PTY. Defaults to a no-op so a tab with no
+     * automation behaves exactly as before.
      */
     private val automation: ShellAutomation = ShellAutomation.None,
     /** Client-side reconnection cadence for level-1 resilience. */
@@ -248,14 +249,29 @@ class SessionTab(
                 val agentPath = agentDeployer.ensureInstalled(opened)
                 if (agentPath != null) {
                     _status.value = TabStatus(TabPhase.CONNECTED)
+                    // Same tee as the shell path, fed from the agent's DATA; the
+                    // automation's input goes out as INPUT frames.
+                    val tee = newTee()
+                    outputTee = tee
+                    val io = ShellIo({ bytes -> agent?.sendInput(bytes) }, tee.asSharedFlow())
                     val transport = AgentTransport(
                         session = opened,
                         agentSessionId = resolved.session.id,
                         agentPath = agentPath,
-                        onOutput = { bytes -> feedBytes(bytes) },
+                        onOutput = { bytes ->
+                            feedBytes(bytes)
+                            tee.tryEmit(bytes.decodeToString())
+                        },
                         initialColumns = desiredColumns,
                         initialRows = desiredRows,
                         startOffset = agentOffset,
+                        // Start scripts run only on a fresh PTY: a re-attach
+                        // replays the live session as it was.
+                        onAttached = { fresh ->
+                            if (fresh) launchAutomation {
+                                automation.onAgentSessionCreated(io, resolved, afterDrop = reconnecting)
+                            }
+                        },
                     )
                     agent = transport
                     transport.run()
@@ -273,12 +289,9 @@ class SessionTab(
             val tee = newTee()
             outputTee = tee
             val io = ShellIo(newShell, tee.asSharedFlow())
-            automationJob?.cancel()
-            automationJob = scope.launch {
-                runCatching {
-                    if (reconnecting) automation.onReconnected(io, resolved)
-                    else automation.onShellReady(io, resolved)
-                }
+            launchAutomation {
+                if (reconnecting) automation.onReconnected(io, resolved)
+                else automation.onShellReady(io, resolved)
             }
 
             pumpOutput(newShell)
@@ -307,6 +320,12 @@ class SessionTab(
             shell = null
             session = null
         }
+    }
+
+    /** Runs [hook] concurrently with painting, replacing any automation still running. */
+    private fun launchAutomation(hook: suspend () -> Unit) {
+        automationJob?.cancel()
+        automationJob = scope.launch { runCatching { hook() } }
     }
 
     /**

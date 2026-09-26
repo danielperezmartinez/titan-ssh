@@ -7,8 +7,8 @@ Estado: "Vigente"
 Ámbito: "Feature"
 Fuente: "shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/ScriptRunner.kt"
 Entrada pública: "io.github.danielperezmartinez.titanssh.terminal"
-Resumen: "Motor de ejecución de los scripts de inicio de sesión al conectar y al reconectar, más el envoltorio en multiplexor (nivel 2). ScriptRunner (puro, testeable) recibe un ShellIo (send + tee de salida) y, sobre la shell viva, envía el cd inicial y los scripts en orden honrando ${ref} (solo secretos; el resto de ${...} lo expande la shell remota), export de envVars, delay, expect, waitForCompletion con centinela printf que arrastra $? y timeout, y onFailure CONTINUE/ABORT; devuelve un ScriptOutcome por unidad. StartScriptAutomation implementa el seam ShellAutomation: onShellReady selecciona las fases de conexión (ON_SHELL_START → POST_INIT); onReconnected replica según el ReconnectBehavior (NONE/RESTORE_CD_ONLY/RERUN_ALL). Nivel 2: si resilienceLevel>=AUTO_MULTIPLEXER y hay tmux/screen, TerminalMultiplexer detecta y hace attach-or-create de una sesión titan-<id> (re-engancha sin reejecutar si ya existía; degrada al nivel 1 si no hay multiplexor). Resuelve secretos del SecretStore solo en runtime. silent no se suprime aún; PRE_CONNECT_LOCAL fuera de alcance."
-Última modificación: 2026-09-24T12:00:00+02:00
+Resumen: "Motor de ejecución de los scripts de inicio de sesión al conectar y al reconectar, más el envoltorio en multiplexor (nivel 2). ScriptRunner (puro, testeable) recibe un ShellIo (send + tee de salida) y, sobre la shell viva, envía el cd inicial y los scripts en orden honrando ${ref} (solo secretos; el resto de ${...} lo expande la shell remota), export de envVars, delay, expect, waitForCompletion con centinela printf que arrastra $? y timeout, y onFailure CONTINUE/ABORT; devuelve un ScriptOutcome por unidad. StartScriptAutomation implementa el seam ShellAutomation: onShellReady selecciona las fases de conexión (ON_SHELL_START → POST_INIT); onReconnected replica según el ReconnectBehavior (NONE/RESTORE_CD_ONLY/RERUN_ALL); onAgentSessionCreated (nivel 3) corre la cadena de conexión cuando titan-agent crea un PTY nuevo, o el replay del ReconnectBehavior si ese PTY sustituye a uno perdido en un corte, sin multiplexor y nunca al reengancharse a un PTY vivo. ShellIo envía por el shell o, en nivel 3, por tramas INPUT. Nivel 2: si resilienceLevel>=AUTO_MULTIPLEXER y hay tmux/screen, TerminalMultiplexer detecta y hace attach-or-create de una sesión titan-<id> (re-engancha sin reejecutar si ya existía; degrada al nivel 1 si no hay multiplexor). Resuelve secretos del SecretStore solo en runtime. silent no se suprime aún; PRE_CONNECT_LOCAL fuera de alcance."
+Última modificación: 2026-09-26T21:30:00+02:00
 ---
 
 # ScriptRunner
@@ -60,6 +60,18 @@ Contrato y colaboradores:
   puro (sondas por centinela como el runner) y vive en el mismo paquete. Requiere
   pantalla alterna en el [[TerminalEmulator]] (añadida para este nivel). Aportado
   por [[Resiliencia nivel 2 auto-tmux o screen]].
+- **Agente (nivel 3)**: con `ResilienceLevel.AGENT` y el agente instalado, la
+  pestaña no usa los hooks de shell sino `onAgentSessionCreated(io, resolved,
+  afterDrop)`, y solo cuando `titan-agent` crea un PTY nuevo: al reengancharse a
+  uno vivo no se ejecuta nada, porque el agente reproduce la sesión tal como
+  estaba. En la primera conexión corre la cadena de conexión (`cd` +
+  `ON_SHELL_START` + `POST_INIT`). Si el PTY nuevo sustituye a uno perdido
+  durante un corte (`afterDrop`, p. ej. el destino se reinició), aplica el
+  replay del `ReconnectBehavior` como en el nivel 1. Nunca envuelve en
+  tmux/screen: el PTY del agente ya sobrevive a los cortes. El `ShellIo` de esta
+  ruta envía por tramas `INPUT` y su `output` es el mismo tee, alimentado con
+  los `DATA` del agente. Aportado por
+  [[Scripts de inicio por sesión sobre el agente]].
 
 Limitación: `silent` no es aplicable sobre una PTY compartida (la remota hace eco);
 se acepta pero no se suprime. Los comandos `waitForCompletion` deben volver al

@@ -27,6 +27,12 @@ class AgentTransport(
     initialColumns: Int,
     initialRows: Int,
     startOffset: Long = 0,
+    /**
+     * Called on `HELLO_OK` with whether the agent created the session (a fresh
+     * PTY) or re-attached to a live one, before any of its `DATA`. It runs on the
+     * reader, so it must not wait for output: launch any follow-up work instead.
+     */
+    private val onAttached: suspend (fresh: Boolean) -> Unit = {},
 ) {
     /** Bytes fed to the emulator so far; survives reconnects when the tab reuses it. */
     var appliedOffset: Long = startOffset
@@ -65,7 +71,15 @@ class AgentTransport(
                 applyData(frame.offset, frame.bytes)
                 sendFrame(ch, AgentFrame.Ack(appliedOffset))
             }
-            // HELLO_OK / BYE carry no output; the DATA offsets drive everything.
+            is AgentFrame.HelloOk -> {
+                val fresh = frame.created ?: isFreshLegacy(frame)
+                // A fresh PTY counts its bytes from 0, so an offset carried over
+                // from a session that is gone (the host rebooted, or the agent
+                // reaped it) would drop all of its output as already applied.
+                if (fresh || frame.headOffset < appliedOffset) appliedOffset = 0
+                onAttached(fresh)
+            }
+            // BYE carries no output; the DATA offsets drive everything.
             else -> Unit
         }
     }
@@ -102,6 +116,14 @@ class AgentTransport(
     private suspend fun sendFrame(ch: SshExecChannel, frame: AgentFrame) {
         sendMutex.withLock { ch.send(AgentProtocol.encode(frame)) }
     }
+
+    /**
+     * Agents that predate [AgentFrame.HelloOk.created] give no flag. A session
+     * that has produced nothing yet is taken as fresh: a live one has at least
+     * printed its prompt. A fresh one whose shell already wrote something reads
+     * as re-attached, which only skips the start scripts; it never re-runs them.
+     */
+    private fun isFreshLegacy(frame: AgentFrame.HelloOk): Boolean = frame.headOffset == 0L
 
     private companion object {
         /** Keeps the id shell-safe for the `--session` flag (it also travels in HELLO). */

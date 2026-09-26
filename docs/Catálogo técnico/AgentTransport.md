@@ -3,12 +3,12 @@ Nombre: "AgentTransport"
 Tipo: "Servicio"
 Área: "Terminal"
 Feature: "Resiliencia"
-Estado: "En revisión"
+Estado: "Vigente"
 Ámbito: "Feature"
 Fuente: "shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/AgentTransport.kt"
 Entrada pública: "io.github.danielperezmartinez.titanssh.terminal"
-Resumen: "Extremo cliente del nivel 3 de resiliencia (ADR-0008): ejecuta titan-agent por un SshExecChannel y habla AgentProtocol con él. run() envía HELLO(sessionId,lastOffset,cols,rows) y bombea las tramas DATA del agente a un onOutput (el emulador de la pestaña) hasta que el canal cierra; sendInput/resize mandan INPUT/RESIZE y cada DATA se confirma con ACK. Mantiene appliedOffset (bytes aplicados) para reconectar con replay exacto, con dedupe de replay solapado y aceptación de huecos por buffer capado. Serializa las escrituras (sendMutex) para no entrelazar tramas. Acompaña a AgentInstaller/AgentDeployer (instalación) y se enchufa en SessionTab cuando ResilienceLevel.AGENT y hay deployer; sin él degrada al nivel 2/1. EN REVISIÓN: falta empaquetar binarios y cablear el deployer en el arranque para uso desde la UI."
-Última modificación: 2026-09-24T12:00:00+02:00
+Resumen: "Extremo cliente del nivel 3 de resiliencia (ADR-0008): ejecuta titan-agent por un SshExecChannel y habla AgentProtocol con él. run() envía HELLO(sessionId,lastOffset,cols,rows) y bombea las tramas DATA del agente a un onOutput (el emulador de la pestaña) hasta que el canal cierra; sendInput/resize mandan INPUT/RESIZE y cada DATA se confirma con ACK. Mantiene appliedOffset (bytes aplicados) para reconectar con replay exacto, con dedupe de replay solapado y aceptación de huecos por buffer capado. Al recibir HELLO_OK avisa por onAttached(fresh) de si el agente creó la sesión (flag created; con agentes anteriores al flag, headOffset == 0) o se reenganchó a una viva, y si es nueva (o el head del agente va por detrás) reinicia appliedOffset a 0 para no descartar la salida del PTY nuevo. SessionTab lo usa para lanzar los scripts de inicio solo en un PTY nuevo. Serializa las escrituras (sendMutex) para no entrelazar tramas. Acompaña a AgentInstaller/AgentDeployer (instalación) y se enchufa en SessionTab cuando ResilienceLevel.AGENT y hay deployer (cableado en AppShell); sin él degrada al nivel 2/1."
+Última modificación: 2026-09-26T21:30:00+02:00
 ---
 
 # AgentTransport
@@ -26,6 +26,11 @@ contra el binario `titan-agent` (`agent/`, Go) instalado por `AgentInstaller`
 cuando la sesión pide `ResilienceLevel.AGENT` y hay un deployer, el tab enruta
 entrada/salida/resize por el transporte en vez del shell; si no, degrada al nivel
 2/1 (ver [[Resiliencia nivel 2 auto-tmux o screen]]).
+
+Al abrir cada conexión, `onAttached(fresh)` indica si el agente ha creado un PTY
+nuevo o se ha reenganchado a uno vivo. `SessionTab` solo lanza los scripts de
+inicio en el primer caso (ver [[ScriptRunner]] y
+[[Scripts de inicio por sesión sobre el agente]]).
 
 Piezas relacionadas:
 

@@ -5,7 +5,7 @@ Resumen: 'ENTREGADO y verificado de punta a punta (host real <host-de-pruebas>).
 Decisiones: 'Sigue [[ADR-0003 Modelo de resiliencia por niveles]] y su diseño [[ADR-0008 Diseño del agente de resiliencia nivel 3]] (que matiza [[ADR-0004 Librería SSH]]: la reserva de MINA para el agente queda anulada a favor de un binario nativo Go; sshj sigue vigente en el cliente). Se apoya en los niveles 1-2 de [[Resiliencia de sesión ante microcortes de red]]. Superficie catalogada en [[AgentProtocol]].'
 Bloqueada: []
 Fecha de creación: 2026-09-19T16:45:00+02:00
-Última modificación: 2026-09-23T22:10:00+02:00
+Última modificación: 2026-09-26T21:30:00+02:00
 ---
 
 # Resiliencia nivel 3: agente propio en el destino
@@ -91,9 +91,9 @@ degrada al nivel 2/1.
 
 ## Follow-ups menores (no bloquean el nivel 3)
 
-- [[Scripts de inicio por sesión sobre el agente]] — hoy no se invoca
-  `StartScriptAutomation` en la ruta del agente; el `$SHELL -il` del agente sí
-  corre los rc del usuario.
+- [[Scripts de inicio por sesión sobre el agente]] — hecha el 2026-09-26: la
+  ruta del agente ejecuta la automatización de inicio solo cuando el agente crea
+  un PTY nuevo.
 - [[Verificar empaquetado del agente en APK Android]] — mecanismo idéntico al de
   escritorio (ya verificado); no ejecutado on-device esta sesión.
 - Capar el ring buffer del agente por el mínimo de los `ACK` (hoy capa por bytes).

@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-26T20:30:00+02:00
+Última modificación: 2026-09-26T21:30:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -103,12 +103,12 @@ mismo commit).
 ### Fase 4 · Producto
 
 - [ ] **8. Scripts de inicio en sesiones del agente**
-  - [[Scripts de inicio por sesión sobre el agente]]
+  - [[Scripts de inicio por sesión sobre el agente]] (`Hecha` el 2026-09-26)
   - *Por qué aquí*: es un hueco en un pilar del producto (la automatización
-    gratuita): hoy una sesión de nivel 3 no ejecuta el `cd` inicial ni los
-    scripts (`SessionTab` retorna por la ruta de `AgentTransport` antes de
-    `StartScriptAutomation`). Es independiente y pequeño comparado con el nivel
-    3 portable.
+    gratuita): hasta este paso, una sesión de nivel 3 no ejecutaba el `cd`
+    inicial ni los scripts (`SessionTab` retornaba por la ruta de
+    `AgentTransport` antes de `StartScriptAutomation`). Es independiente y
+    pequeño comparado con el nivel 3 portable.
   - Tarea pequeña que puede ir junto a este paso:
     [[Indicar cuando la conexión deja de responder]]. Salió en la prueba del
     paso 5: durante un microcorte la pestaña sigue en "Conectado" sin avisar
@@ -324,3 +324,15 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   si AUR ha reabierto el registro. La tarea recoge los pasos que faltan en
   los dos canales. El paso 7 queda a la espera de terceros sin bloquear la
   fase 4. Siguiente: paso 8.
+- 2026-09-26 — **Paso 8**, primera parte:
+  [[Scripts de inicio por sesión sobre el agente]] pasa a `Hecha`. Las sesiones
+  de nivel 3 ejecutan el `cd` inicial y los scripts de conexión solo cuando
+  `titan-agent` crea un PTY nuevo. Al reengancharse a uno vivo (tras un corte
+  o al reabrir la app) no se repite nada. El agente lo indica con un flag
+  nuevo en `HELLO_OK`, compatible en los dos sentidos (nota en
+  [[ADR-0008 Diseño del agente de resiliencia nivel 3]]). De paso se corrigió
+  que, si la sesión del agente se perdía (reinicio del destino), la pestaña
+  descartaba toda la salida del PTY nuevo. Verificado con tests y contra
+  [[ssh-test-host]]. El cambio del agente sale en la siguiente pre-release.
+  Queda la tarea pequeña del paso,
+  [[Indicar cuando la conexión deja de responder]].

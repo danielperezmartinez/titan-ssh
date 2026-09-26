@@ -101,7 +101,12 @@ object AgentProtocol {
             val rows = readU16(payload, p)
             AgentFrame.Hello(sid, lastOffset, cols, rows)
         }
-        Type.HELLO_OK -> AgentFrame.HelloOk(readU64(payload, 0), readU64(payload, 8))
+        Type.HELLO_OK -> AgentFrame.HelloOk(
+            headOffset = readU64(payload, 0),
+            tailOffset = readU64(payload, 8),
+            // The flags byte is optional: agents before it sent only the two offsets.
+            created = if (payload.size > 16) (payload[16].toInt() and HELLO_OK_CREATED) != 0 else null,
+        )
         Type.DATA -> AgentFrame.Data(readU64(payload, 0), payload.copyOfRange(8, payload.size))
         Type.INPUT -> AgentFrame.Input(payload.copyOf())
         Type.RESIZE -> AgentFrame.Resize(readU16(payload, 0), readU16(payload, 2))
@@ -111,6 +116,9 @@ object AgentProtocol {
     }
 
     private const val HEADER_SIZE = 5
+
+    /** Bit 0 of `HELLO_OK`'s trailing flags byte (see [AgentFrame.HelloOk.created]). */
+    private const val HELLO_OK_CREATED = 0x01
 
     private fun AgentFrame.payload(): ByteArray = when (this) {
         is AgentFrame.Hello -> {
@@ -124,8 +132,9 @@ object AgentProtocol {
             writeU16(out, p, rows)
             out
         }
-        is AgentFrame.HelloOk -> ByteArray(16).also {
+        is AgentFrame.HelloOk -> ByteArray(if (created == null) 16 else 17).also {
             writeU64(it, 0, headOffset); writeU64(it, 8, tailOffset)
+            if (created == true) it[16] = HELLO_OK_CREATED.toByte()
         }
         is AgentFrame.Data -> ByteArray(8 + bytes.size).also {
             writeU64(it, 0, offset); bytes.copyInto(it, 8)
@@ -195,8 +204,16 @@ sealed interface AgentFrame {
      * [tailOffset] (oldest still available) to [headOffset] (total produced). If
      * the client's requested offset is below [tailOffset] it must reset its
      * emulator to the replay that follows.
+     *
+     * [created] (a trailing flags byte, bit 0) says whether this attach created
+     * the session — a fresh PTY, whose replay then starts at its first byte — or
+     * re-attached to a live one. It is `null` from agents that predate the flag.
      */
-    data class HelloOk(val headOffset: Long, val tailOffset: Long) : AgentFrame {
+    data class HelloOk(
+        val headOffset: Long,
+        val tailOffset: Long,
+        val created: Boolean? = null,
+    ) : AgentFrame {
         override val type get() = AgentProtocol.Type.HELLO_OK
     }
 

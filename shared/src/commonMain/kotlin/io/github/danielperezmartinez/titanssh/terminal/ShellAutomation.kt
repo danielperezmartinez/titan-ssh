@@ -7,17 +7,22 @@ import kotlinx.coroutines.flow.Flow
 /**
  * I/O seam handed to a [ShellAutomation]: an ordered way to [send] text to the
  * live shell plus [output], a decoded, broadcast view of everything the shell
- * emits. Unlike [SshShell.output] (a single-consumer channel already drained by
- * the terminal painter), [output] is a shared tee, so automation can wait for a
- * prompt or a completion sentinel without stealing bytes from the emulator.
+ * emits. The shell is either an [SshShell] or, at level 3, the agent's PTY, fed
+ * through `INPUT` frames ([AgentTransport]). Unlike [SshShell.output] (a
+ * single-consumer channel already drained by the terminal painter), [output] is
+ * a shared tee, so automation can wait for a prompt or a completion sentinel
+ * without stealing bytes from the emulator.
  */
 class ShellIo internal constructor(
-    private val shell: SshShell,
+    private val sendBytes: suspend (ByteArray) -> Unit,
     /** Broadcast, UTF-8 decoded view of the shell output (see [SessionTab]). */
     val output: Flow<String>,
 ) {
+    internal constructor(shell: SshShell, output: Flow<String>) :
+        this({ bytes -> shell.send(bytes) }, output)
+
     /** Sends [text] to the shell verbatim (the caller adds any newline it needs). */
-    suspend fun send(text: String) = shell.send(text.encodeToByteArray())
+    suspend fun send(text: String) = sendBytes(text.encodeToByteArray())
 }
 
 /**
@@ -39,6 +44,16 @@ interface ShellAutomation {
      * chain / restore only the working directory / do nothing). Default: no-op.
      */
     suspend fun onReconnected(io: ShellIo, resolved: ResolvedConnection) {}
+
+    /**
+     * Level 3 ([[Scripts de inicio por sesión sobre el agente]]): runs when
+     * `titan-agent` creates a fresh PTY for the tab, never when it re-attaches to
+     * a live one (the agent replays that session as it was). [afterDrop] is true
+     * when the fresh PTY replaces one that was lost while the tab was away (the
+     * host rebooted, or the agent reaped the idle session), so the hook can honor
+     * the session's `ReconnectBehavior` as on level 1. Default: no-op.
+     */
+    suspend fun onAgentSessionCreated(io: ShellIo, resolved: ResolvedConnection, afterDrop: Boolean) {}
 
     companion object {
         /** Does nothing: the tab opens a plain shell with no start scripts. */

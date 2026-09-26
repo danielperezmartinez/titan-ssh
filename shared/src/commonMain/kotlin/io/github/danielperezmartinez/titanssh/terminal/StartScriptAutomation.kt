@@ -31,6 +31,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  *   [TerminalMultiplexer]. The remote process then survives a drop, and a
  *   reconnect *re-attaches* to the live session instead of replaying scripts. If
  *   no multiplexer is present it degrades cleanly to level 1.
+ * - **Level 3** ([[Scripts de inicio por sesión sobre el agente]]): the start
+ *   chain runs only when `titan-agent` creates a fresh PTY
+ *   ([onAgentSessionCreated]); re-attaching to a live one replays nothing.
  *
  * Out of scope here (by design): [ScriptPhase.PRE_CONNECT_LOCAL] (no local
  * executor yet); [ScriptPhase.ON_DEMAND] scripts are the manual snippets,
@@ -97,6 +100,20 @@ class StartScriptAutomation(
         }
     }
 
+    /**
+     * Level 3: the agent created a fresh PTY. On the tab's first connection this
+     * is the plain start chain; after a drop the old PTY is gone, so it rebuilds
+     * per the session's [ReconnectBehavior], like level 2 does when it finds its
+     * multiplexer session lost. The agent's PTY already outlives drops, so this
+     * never wraps it in tmux/screen.
+     */
+    override suspend fun onAgentSessionCreated(io: ShellIo, resolved: ResolvedConnection, afterDrop: Boolean) {
+        val session = resolved.session
+        awaitReady(io)
+        if (afterDrop) replayForReconnect(io, session)
+        else runScripts(io, connectScripts(session), session.initialDirectory)
+    }
+
     private suspend fun replayForReconnect(io: ShellIo, session: Session) {
         when (session.effectiveReconnectBehavior()) {
             ReconnectBehavior.NONE -> return
@@ -131,10 +148,10 @@ class StartScriptAutomation(
 
     /**
      * Level 2 routes through the multiplexer; BASE stays on plain client-side
-     * reconnection. A level-3/`AGENT` session drives `titan-agent` in
-     * [SessionTab] and never reaches this automation — unless it *degraded* (no
-     * agent deployer, or the install failed), in which case it lands here and,
-     * like level 2, uses the multiplexer.
+     * reconnection. A level-3/`AGENT` session that drives `titan-agent` goes
+     * through [onAgentSessionCreated] instead and never reaches this check —
+     * unless it *degraded* (no agent deployer, or the install failed), in which
+     * case it lands on the shell hooks and, like level 2, uses the multiplexer.
      */
     private fun usesMultiplexer(session: Session): Boolean =
         session.resilienceLevel.ordinal >= ResilienceLevel.AUTO_MULTIPLEXER.ordinal

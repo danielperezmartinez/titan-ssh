@@ -25,6 +25,8 @@ class AgentProtocolTest {
         val frames = listOf(
             AgentFrame.Hello(sessionId = "titan-abc_123", lastOffset = 4096, columns = 120, rows = 40),
             AgentFrame.HelloOk(headOffset = 1_000_000, tailOffset = 983_616),
+            AgentFrame.HelloOk(headOffset = 91, tailOffset = 0, created = true),
+            AgentFrame.HelloOk(headOffset = 91, tailOffset = 0, created = false),
             AgentFrame.Data(offset = 42, bytes = "hola[0m mundo".encodeToByteArray()),
             AgentFrame.Input(bytes = byteArrayOf(0x03)), // Ctrl-C
             AgentFrame.Resize(columns = 80, rows = 24),
@@ -88,6 +90,23 @@ class AgentProtocolTest {
             (len ushr 24).toByte(), (len ushr 16).toByte(), (len ushr 8).toByte(), len.toByte(),
         )
         assertFailsWith<AgentProtocolException> { AgentProtocol.FrameDecoder().feed(header) }
+    }
+
+    @Test
+    fun hello_ok_from_an_agent_without_the_flags_byte_decodes_as_unknown() {
+        // Agents before the flags byte sent a 16-byte payload: head and tail only.
+        val wire = byteArrayOf(2, 0, 0, 0, 16) +
+            byteArrayOf(0, 0, 0, 0, 0, 0, 0, 7) + byteArrayOf(0, 0, 0, 0, 0, 0, 0, 2)
+        val frame = AgentProtocol.FrameDecoder().feed(wire).single()
+        assertEquals(AgentFrame.HelloOk(headOffset = 7, tailOffset = 2, created = null), frame)
+    }
+
+    @Test
+    fun hello_ok_flags_byte_matches_the_go_agent() {
+        // 16 bytes of offsets, then bit 0 set: what agent/internal/protocol writes.
+        val wire = AgentProtocol.encode(AgentFrame.HelloOk(headOffset = 0, tailOffset = 0, created = true))
+        assertEquals(17, wire[4].toInt())
+        assertEquals(1, wire.last().toInt())
     }
 
     @Test

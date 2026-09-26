@@ -24,6 +24,9 @@ const MaxPayload = 16 * 1024 * 1024
 // headerSize is the fixed frame header: 1-byte type + 4-byte length.
 const headerSize = 5
 
+// helloOKCreated is bit 0 of HELLO_OK's trailing flags byte (see Frame.Created).
+const helloOKCreated = 0x01
+
 // Type is the one-byte wire code identifying a frame.
 type Type uint8
 
@@ -58,6 +61,9 @@ type Frame struct {
 	// HelloOK
 	HeadOffset uint64
 	TailOffset uint64
+	// Created is true when this attach created the session (a fresh PTY), so
+	// the client runs its start scripts; false when it re-attached to a live one.
+	Created bool
 	// Data
 	Offset uint64
 	// Data / Input
@@ -90,9 +96,12 @@ func encodePayload(f Frame) []byte {
 		binary.BigEndian.PutUint16(buf[p:], f.Rows)
 		return buf
 	case TypeHelloOK:
-		buf := make([]byte, 16)
+		buf := make([]byte, 17)
 		binary.BigEndian.PutUint64(buf[0:8], f.HeadOffset)
 		binary.BigEndian.PutUint64(buf[8:16], f.TailOffset)
+		if f.Created {
+			buf[16] = helloOKCreated
+		}
 		return buf
 	case TypeData:
 		buf := make([]byte, 8+len(f.Bytes))
@@ -146,6 +155,8 @@ func decodePayload(t Type, payload []byte) (Frame, error) {
 		}
 		f.HeadOffset = binary.BigEndian.Uint64(payload[0:8])
 		f.TailOffset = binary.BigEndian.Uint64(payload[8:16])
+		// The flags byte is optional: agents before it sent only the two offsets.
+		f.Created = len(payload) > 16 && payload[16]&helloOKCreated != 0
 	case TypeData:
 		if len(payload) < 8 {
 			return f, io.ErrUnexpectedEOF

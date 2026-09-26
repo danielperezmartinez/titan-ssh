@@ -3,6 +3,7 @@ package io.github.danielperezmartinez.titanssh.terminal
 import io.github.danielperezmartinez.titanssh.config.Host
 import io.github.danielperezmartinez.titanssh.config.HostAuth
 import io.github.danielperezmartinez.titanssh.config.ReconnectBehavior
+import io.github.danielperezmartinez.titanssh.config.ResilienceLevel
 import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
 import io.github.danielperezmartinez.titanssh.config.ScriptBehavior
 import io.github.danielperezmartinez.titanssh.config.ScriptFailurePolicy
@@ -331,5 +332,47 @@ class ScriptRunnerTest {
         StartScriptAutomation(FakeSecretStore(emptyMap())).onReconnected(ShellIo(fake, out), reconnectResolved(session))
 
         assertTrue(fake.sent.isEmpty(), "NONE runs nothing on reconnect")
+    }
+
+    @Test
+    fun a_fresh_agent_session_runs_the_start_chain_without_a_multiplexer() = runTest {
+        val out = newOut()
+        val fake = FakeShell(out)
+        val session = Session(
+            id = "s", name = "n", hostId = "h", initialDirectory = "/work",
+            resilienceLevel = ResilienceLevel.AGENT,
+            scripts = listOf(
+                script("start", "on-start", phase = ScriptPhase.ON_SHELL_START),
+                script("post", "post-init", phase = ScriptPhase.POST_INIT),
+                script("recon", "reconnect", phase = ScriptPhase.ON_RECONNECT),
+            ),
+        )
+
+        out.tryEmit("[user@host ~]$ ")
+        StartScriptAutomation(FakeSecretStore(emptyMap()))
+            .onAgentSessionCreated(ShellIo(fake, out), reconnectResolved(session), afterDrop = false)
+
+        // The agent's PTY already survives drops: no tmux/screen probe or attach.
+        val commands = fake.sent.filterNot { it.startsWith("printf ") }.map { it.trim() }
+        assertEquals(listOf("cd -- '/work'", "on-start", "post-init"), commands)
+    }
+
+    @Test
+    fun an_agent_session_lost_in_a_drop_is_rebuilt_per_reconnect_behavior() = runTest {
+        val out = newOut()
+        val fake = FakeShell(out)
+        // No ON_RECONNECT script: the session defaults to RESTORE_CD_ONLY.
+        val session = Session(
+            id = "s", name = "n", hostId = "h", initialDirectory = "/work",
+            resilienceLevel = ResilienceLevel.AGENT,
+            scripts = listOf(script("start", "on-start", phase = ScriptPhase.ON_SHELL_START)),
+        )
+
+        out.tryEmit("[user@host ~]$ ")
+        StartScriptAutomation(FakeSecretStore(emptyMap()))
+            .onAgentSessionCreated(ShellIo(fake, out), reconnectResolved(session), afterDrop = true)
+
+        val commands = fake.sent.filterNot { it.startsWith("printf ") }.map { it.trim() }
+        assertEquals(listOf("cd -- '/work'"), commands)
     }
 }
