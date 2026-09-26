@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-26T18:20:00+02:00
+Última modificación: 2026-09-26T18:34:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -266,3 +266,11 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   está corregido en el workflow y sale con `v0.1.0-beta.2`. 👤 Falta que el
   usuario instale con Obtainium en el Pixel; después se publica
   `v0.1.0-beta.2` como actualización.
+- 2026-09-26 — El usuario **decide no usar Obtainium** en su móvil. Instaló la
+  APK de `v0.1.0-beta.1` descargándola del Release, encima de la que tenía:
+  conserva los datos, muestra el icono y funciona bien.
+  [[Canal Android Obtainium desde GitHub Releases]] pasa a `Hecha`, y
+  Obtainium queda documentado para quien lo quiera. El paso 14 (aviso de
+  versión) no se adelanta, también por decisión suya. Se publica
+  `v0.1.0-beta.2` para probar una actualización con `versionCode` mayor y el
+  arreglo de los nombres con `~`.
