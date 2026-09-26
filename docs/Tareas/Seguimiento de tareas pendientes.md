@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-26T18:46:00+02:00
+Última modificación: 2026-09-26T20:20:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -78,13 +78,23 @@ mismo commit).
 
 ### Fase 3 · Canales del propio usuario
 
-- [ ] **7. AUR y winget** (juntas) 👤 (el usuario crea la cuenta de AUR con su
-  clave SSH y un token de GitHub para el fork de `winget-pkgs`)
-  - [[Canal Arch Linux AUR]]
+- [ ] **7. winget** 👤 (el usuario firma el CLA y crea un token de GitHub para
+  el fork de `winget-pkgs`)
   - [[Canal Windows winget]]
-  - *Juntas*: los dos son un job más del pipeline que publica un manifiesto a
-    partir del Release, con el mismo patrón de secretos. Son pequeños.
-  - Hasta tener Flatpak (paso 11), en Bazzite se usa el `tar.gz` del Release.
+  - Primer PR abierto:
+    [microsoft/winget-pkgs#441824](https://github.com/microsoft/winget-pkgs/pull/441824).
+  - Las pre-releases van a su propio canal: `DanielPerezMartinez.TitanSSH.Beta`.
+  - Iba junto a AUR, que se separó el 2026-09-26 al cerrar AUR el registro de
+    cuentas (ver **A la espera**).
+
+### A la espera de terceros
+
+- [ ] **AUR** 👤 [[Canal Arch Linux AUR]] (`Pendiente`): todo lo técnico está
+  hecho y probado. Se retoma cuando AUR reabra el registro de cuentas nuevas
+  (ver las noticias de Arch), siguiendo los pasos de la sección **Pendiente**
+  de la tarea. No bloquea nada: el job `aur` no se ejecuta sin la variable
+  `AUR_ENABLED`. Hasta tener Flatpak (paso 11), en Bazzite y Arch se usa el
+  `tar.gz` del Release.
 
 ### Fase 4 · Producto
 
@@ -282,3 +292,26 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   [[Pipeline de release en GitHub Actions]] pasa a `Hecha`. Ya no se pasa la
   APK a mano. Para cada versión basta con crear el tag en `main` y subirlo.
   Siguiente: paso 7 (AUR y winget, 👤).
+- 2026-09-26 — **Paso 7** preparado, a falta de la parte del usuario. Por
+  decisión suya, las pre-releases van a un canal aparte en los dos gestores:
+  `titan-ssh-beta-bin` en AUR y `DanielPerezMartinez.TitanSSH.Beta` en
+  winget. Las estables irán a `titan-ssh-bin` y `DanielPerezMartinez.TitanSSH`.
+  El workflow tiene dos jobs nuevos tras `publish`: `aur` construye el
+  PKGBUILD a partir de la plantilla de `desktopApp/packaging/aur/` y lo sube
+  por SSH, y `winget` abre el PR en winget-pkgs con Komac. El paquete de AUR
+  se instala, actualiza, arranca y desinstala en un Arch limpio. Los
+  manifiestos de la beta.2 para el primer envío a winget pasan `winget
+  validate`, y winget-pkgs acepta el MSI sin firmar. 👤 Pendiente: cuenta de
+  AUR y clave SSH, fork de winget-pkgs, token, primer PR con el CLA y los dos
+  secretos. Después, la siguiente beta prueba los dos jobs y se comprueba
+  `yay` en el Arch del usuario y `winget` en Windows. Detalle en
+  [[Canal Arch Linux AUR]] y [[Canal Windows winget]].
+- 2026-09-26 — **AUR, a la espera**: AUR tiene cerrado el registro de cuentas
+  nuevas, sin fecha de reapertura. La clave SSH ya está en GitHub.
+  [[Canal Arch Linux AUR]] pasa a `Pendiente` con los pasos para retomarla, y
+  sale del paso 7 a la nueva sección **A la espera de terceros**. Los jobs
+  `aur` y `winget` solo se ejecutan si las variables del repositorio
+  `AUR_ENABLED` o `WINGET_ENABLED` valen `true`, para que las releases no
+  fallen mientras tanto. **winget**: fork creado y primer PR abierto,
+  [microsoft/winget-pkgs#441824](https://github.com/microsoft/winget-pkgs/pull/441824).
+  👤 Faltan el CLA, la fusión, el token y la variable `WINGET_ENABLED`.

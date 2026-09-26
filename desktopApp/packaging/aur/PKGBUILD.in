@@ -1,0 +1,57 @@
+# Maintainer: Daniel Pérez Martínez <danielperezmartinez at users dot noreply dot github dot com>
+#
+# Generated from desktopApp/packaging/aur/PKGBUILD.in in
+# https://github.com/danielperezmartinez/titan-ssh by the release workflow
+# (render.sh). Edit the template there: this file is overwritten on every
+# release.
+
+# titan-ssh-bin for stable versions, titan-ssh-beta-bin for pre-releases.
+pkgname=@PKGNAME@
+_pkgname=titan-ssh
+_version=@VERSION@
+# The upstream version without its `-`: pacman sorts 0.1.0beta.2 before 0.1.0,
+# while 0.1.0_beta.2 or 0.1.0.beta.2 would sort after it.
+pkgver=@PKGVER@
+pkgrel=1
+pkgdesc='@PKGDESC@'
+arch=('x86_64')
+url='https://github.com/danielperezmartinez/titan-ssh'
+license=('GPL-3.0-or-later')
+# The JRE is bundled; these are the system libraries it and Skiko link against.
+depends=(
+  'alsa-lib'
+  'fontconfig'
+  'glibc'
+  'hicolor-icon-theme'
+  'libglvnd'
+  'libx11'
+  'libxext'
+  'libxi'
+  'libxrender'
+  'libxtst'
+)
+optdepends=(
+  'gnome-keyring: Secret Service provider to store credentials'
+  'kwallet: Secret Service provider to store credentials (KDE)'
+  'keepassxc: Secret Service provider to store credentials'
+)
+# Both channels install /opt/titan-ssh: each provides and conflicts with
+# titan-ssh, so only one of them can be installed.
+provides=("$_pkgname")
+conflicts=("$_pkgname")
+# jpackage's launcher and runtime are already stripped; no debug package.
+options=('!strip' '!debug')
+source=("$_pkgname-$_version-linux-x64.tar.gz::$url/releases/download/v$_version/$_pkgname-$_version-linux-x64.tar.gz")
+sha256sums=('@SHA256@')
+
+package() {
+  install -d "$pkgdir/opt" "$pkgdir/usr/bin" "$pkgdir/usr/share"
+  cp -a "$srcdir/$_pkgname" "$pkgdir/opt/$_pkgname"
+  ln -s "/opt/$_pkgname/bin/$_pkgname" "$pkgdir/usr/bin/$_pkgname"
+
+  install -Dm644 "$srcdir/$_pkgname.desktop" "$pkgdir/usr/share/applications/$_pkgname.desktop"
+  cp -a "$srcdir/icons" "$pkgdir/usr/share/icons"
+
+  install -Dm644 "$srcdir/$_pkgname/lib/app/resources/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 "$srcdir/$_pkgname/lib/app/resources/THIRD_PARTY_NOTICES.md" "$pkgdir/usr/share/licenses/$pkgname/THIRD_PARTY_NOTICES.md"
+}

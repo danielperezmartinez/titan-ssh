@@ -163,9 +163,12 @@ nota-índice en `Catálogo técnico.md`.
      `./gradlew printVersion -PtitanVersion=<versión>`.
   3. `git tag -a v<versión> -m "titan-ssh <versión>"` y
      `git push origin v<versión>`.
-  4. Se sigue el run del workflow `Release` hasta que acaben sus seis jobs. Si
+  4. Se sigue el run del workflow `Release` hasta que acaben todos sus jobs. Si
      falla, se arregla en `main` y se publica el número siguiente: un tag
-     publicado no se mueve ni se borra sin permiso del usuario.
+     publicado no se mueve ni se borra sin permiso del usuario. Los jobs `aur`
+     y `winget` van después del Release: si solo falla uno de ellos, el
+     Release vale y basta con reintentar ese job. Solo se ejecutan si la
+     variable del repositorio `AUR_ENABLED` o `WINGET_ENABLED` vale `true`.
   5. Se comprueba el Release: marcado como pre-release si la versión lleva
      sufijo, `sha256sum -c SHA256SUMS` sin errores y la APK firmada con la
      clave de release (su huella está en el `README.md` de la raíz; CI también
@@ -175,7 +178,9 @@ nota-índice en `Catálogo técnico.md`.
   - Para probar el pipeline sin publicar nada, se lanza el workflow a mano
     (`workflow_dispatch`): genera los paquetes como artefactos del run.
   - Los secretos del keystore (`TITAN_KEYSTORE_BASE64`, `TITAN_KEY_ALIAS`,
-    `TITAN_KEYSTORE_PASSWORD`) ya están en GitHub y los gestiona el usuario.
+    `TITAN_KEYSTORE_PASSWORD`) ya están en GitHub y los gestiona el usuario,
+    igual que `AUR_SSH_PRIVATE_KEY` y `WINGET_TOKEN` (ver
+    [[Canal Arch Linux AUR]] y [[Canal Windows winget]]).
 - **Windows**: MSI (Compose/jpackage) y winget; firma con SignPath Foundation
   cuando se conceda.
 - **Linux**: Flatpak en Flathub (principal), AUR para Arch, y `.deb`/`.rpm`/`tar.gz`.

@@ -5,7 +5,7 @@ Resumen: 'Workflow de GitHub Actions (gratis en repositorios públicos) disparad
 Decisiones: 'Sigue [[ADR-0011 Distribución y canales de publicación]] §3. Fuente única de artefactos para todos los canales.'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-26T18:46:00+02:00
+Última modificación: 2026-09-26T19:20:00+02:00
 ---
 
 # Pipeline de release en GitHub Actions
@@ -164,6 +164,9 @@ completo: tag, CI, Release, descarga y actualización firmada.
   - `publish` (solo con tag, el único con `contents: write`): junta los
     artefactos, genera `SHA256SUMS` y crea el Release con `gh release create
     --verify-tag --generate-notes`, con `--prerelease` si toca.
+  - `aur` y `winget` (añadidos el 2026-09-26, solo con tag, tras `publish`):
+    pasan la versión a AUR y a winget-pkgs. Detalle en
+    [[Canal Arch Linux AUR]] y [[Canal Windows winget]].
 - **Nombres publicados**: `titan-ssh-<versión>.apk`, `titan-ssh-<versión>.aab`,
   `titan-ssh-<versión>-windows-x64.msi` (jpackage lo llama por su versión
   interna `X.Y.(Z*100+S)`), `titan-ssh_<versión>_amd64.deb`,
