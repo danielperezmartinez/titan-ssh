@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-26T16:55:00+02:00
+Última modificación: 2026-09-26T17:45:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -245,3 +245,15 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   [[Configuración de release del escritorio]] pasa a `Hecha`. Nueva tarea
   pequeña: [[Indicar cuando la conexión deja de responder]] (fase 4, junto
   al paso 8). Siguiente: paso 6, el pipeline y la primera pre-release.
+- 2026-09-26 — **Paso 6** preparado, a falta del primer tag.
+  `.github/workflows/release.yml` compila, prueba y publica el Release desde
+  un tag `v*`, y con un lanzamiento manual solo compila. Además, `gradlew`
+  pasa a ser ejecutable en git, y el README tiene una sección **Instalar**,
+  con Obtainium y la huella del certificado. Los jobs de Linux se
+  reprodujeron en Docker: los tests pasan y se generan el `.deb`, el `.rpm` y
+  el `tar.gz`. Hallazgo: jpackage nunca escribe las librerías en el
+  `Requires` del `.rpm`, ni compilando en Fedora, así que el `.rpm` se
+  compila en Ubuntu (detalle en [[Pipeline de release en GitHub Actions]]).
+  👤 Pendiente del usuario: cargar los tres secretos del keystore en GitHub,
+  subir los cambios y el tag `v0.1.0-beta.1`, y probar Obtainium en el Pixel
+  con `v0.1.0-beta.2` como actualización.

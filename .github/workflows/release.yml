@@ -1,0 +1,270 @@
+# Release pipeline (ADR-0011 §3): pushing a `vX.Y.Z[-(alpha|beta|rc).N]` tag on
+# `main` builds every package and publishes them, with SHA256SUMS, in a single
+# GitHub Release. A tag with a suffix becomes a pre-release (the internal
+# channel). A manual run builds the same packages as workflow artifacts and
+# publishes nothing, to try the pipeline without spending a version.
+#
+# The version comes only from the tag (or the manual input) and is passed to
+# Gradle as -PtitanVersion, which validates it and derives every per-format
+# version from it (root build.gradle.kts). A release version makes the level-3
+# agent mandatory, so a missing Go toolchain fails the build.
+#
+# Third-party actions are pinned by commit SHA. Secrets are only read by the
+# Android job, and this workflow never runs for pull requests.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build: X.Y.Z or X.Y.Z-(alpha|beta|rc).N (nothing is published)'
+        required: true
+        default: '0.0.1-alpha.1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  JAVA_VERSION: '21'
+  # The agent's go.mod only states the minimum language version; the shipped
+  # binaries are built with a current, supported toolchain.
+  GO_VERSION: '1.27.x'
+  GRADLE_OPTS: -Dorg.gradle.daemon=false
+  # SHA-256 of the release signing certificate (public: it is inside every APK).
+  # The Android job refuses to publish an APK signed with any other key, since
+  # Obtainium and IzzyOnDroid users could not update over it.
+  ANDROID_CERT_SHA256: 3929d8997ac2b23f61517a0561bbb10fe3d9e4a0a6547ee28e703c87c3ecdeab
+
+jobs:
+  version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      prerelease: ${{ steps.resolve.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: resolve
+        env:
+          RAW: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
+        run: |
+          version="${RAW#v}"
+          # Gradle performs the authoritative check; this only fails fast.
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
+            echo "::error::Invalid version '$RAW': expected X.Y.Z or X.Y.Z-(alpha|beta|rc).N"
+            exit 1
+          fi
+          if [[ "$GITHUB_EVENT_NAME" == push ]] && ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Tag $GITHUB_REF_NAME does not point to a commit on main"
+            exit 1
+          fi
+          prerelease=false
+          [[ "$version" == *-* ]] && prerelease=true
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo "Version $version (pre-release: $prerelease)"
+
+  test:
+    name: Tests
+    needs: version
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: agent/go.sum
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+      - name: Agent tests
+        working-directory: agent
+        run: go test -race -count=1 ./...
+      - name: Desktop tests
+        run: ./gradlew :shared:desktopTest "-PtitanVersion=$VERSION" --console=plain
+
+  android:
+    name: Android APK and AAB
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: agent/go.sum
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+      - name: Restore the signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.TITAN_KEYSTORE_BASE64 }}
+        run: |
+          if [[ -z "$KEYSTORE_BASE64" ]]; then
+            echo "::error::Secret TITAN_KEYSTORE_BASE64 is not set; an unsigned APK cannot be released"
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+      - name: Build
+        env:
+          TITAN_KEYSTORE_FILE: ${{ runner.temp }}/release.jks
+          TITAN_KEY_ALIAS: ${{ secrets.TITAN_KEY_ALIAS }}
+          TITAN_KEYSTORE_PASSWORD: ${{ secrets.TITAN_KEYSTORE_PASSWORD }}
+          # PKCS12: the key shares the store password.
+          TITAN_KEY_PASSWORD: ${{ secrets.TITAN_KEYSTORE_PASSWORD }}
+        run: ./gradlew :androidApp:assembleRelease :androidApp:bundleRelease "-PtitanVersion=$VERSION" --console=plain
+      - name: Remove the keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"
+      - name: Check the signature and collect
+        run: |
+          apk=androidApp/build/outputs/apk/release/androidApp-release.apk
+          aab=androidApp/build/outputs/bundle/release/androidApp-release.aab
+          # Without a signing config AGP writes androidApp-release-unsigned.apk.
+          test -f "$apk" || { echo "::error::No signed APK was produced"; exit 1; }
+          apksigner="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner | sort -V | tail -n 1)"
+          "$apksigner" verify --print-certs "$apk" | tee "$RUNNER_TEMP/certs.txt"
+          grep -qi "certificate SHA-256 digest: $ANDROID_CERT_SHA256" "$RUNNER_TEMP/certs.txt" \
+            || { echo "::error::The APK is not signed with the release key"; exit 1; }
+          # Stable, unambiguous names: Obtainium picks the only .apk asset.
+          mkdir dist
+          cp "$apk" "dist/titan-ssh-$VERSION.apk"
+          cp "$aab" "dist/titan-ssh-$VERSION.aab"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android
+          path: dist/
+          if-no-files-found: error
+
+  linux:
+    name: Linux deb, rpm and tar.gz
+    needs: version
+    # jpackage takes the .deb dependencies from the build machine: one built on
+    # 24.04 needs libpng16-16t64, missing from 22.04 and Debian 12. The .rpm
+    # only ever declares xdg-utils (jpackage 21 looks up the library packages,
+    # even inside Fedora, but does not write them), so it is built here too.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: agent/go.sum
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+      # jpackage only declares the libraries it finds installed, so they are
+      # installed explicitly instead of relying on the runner image.
+      - name: Install packaging tools and the app's libraries
+        run: >
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends
+          fakeroot rpm libx11-6 libxext6 libxi6 libxrender1 libxtst6 libasound2
+          libfreetype6 libfontconfig1
+      - name: Build
+        run: ./gradlew :desktopApp:packageDeb :desktopApp:packageRpm :desktopApp:packageTarGz "-PtitanVersion=$VERSION" --console=plain
+      - name: Collect
+        run: |
+          mkdir dist
+          cp desktopApp/build/compose/binaries/main/deb/*.deb dist/
+          cp desktopApp/build/compose/binaries/main/rpm/*.rpm dist/
+          cp desktopApp/build/compose/binaries/main/tar.gz/*.tar.gz dist/
+          ls -l dist
+          dpkg-deb --field dist/*.deb Depends
+          rpm -qpR dist/*.rpm
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: linux
+          path: dist/
+          if-no-files-found: error
+
+  windows:
+    name: Windows MSI
+    needs: version
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: agent/go.sum
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+      - name: Build
+        run: ./gradlew :desktopApp:packageMsi "-PtitanVersion=$VERSION" --console=plain
+      - name: Collect
+        run: |
+          # jpackage names the MSI after its internal X.Y.(Z*100+S) version;
+          # the published name carries the real one.
+          mkdir dist
+          cp desktopApp/build/compose/binaries/main/msi/*.msi "dist/titan-ssh-$VERSION-windows-x64.msi"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: Publish the GitHub Release
+    if: github.event_name == 'push'
+    needs: [version, test, android, linux, windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      PRERELEASE: ${{ needs.version.outputs.prerelease }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        working-directory: dist
+        run: |
+          sha256sum -- * > SHA256SUMS
+          cat SHA256SUMS
+      - name: Create the release
+        run: |
+          flags=()
+          [[ "$PRERELEASE" == true ]] && flags+=(--prerelease)
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "titan-ssh $VERSION" \
+            --generate-notes \
+            "${flags[@]}"

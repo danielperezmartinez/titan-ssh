@@ -1,12 +1,12 @@
 ---
 Nombre: 'Canal Android Obtainium desde GitHub Releases'
-Estado: 'Pendiente'
+Estado: 'En curso'
 Resumen: 'Sustituir el pasar la APK a mano por actualizaciones automáticas. El usuario instala Obtainium en el Pixel, lo apunta a los GitHub Releases del repositorio (con pre-releases activados para el canal interno) y cada tag le llega como actualización. Es gratis y no hace falta cuenta de Google Play. Incluye documentar en el README cómo instalar la app en Android y verificar el ciclo completo de actualización.'
 Decisiones: 'Sigue [[ADR-0011 Distribución y canales de publicación]] §4.'
 Bloqueada:
   - "[[Pipeline de release en GitHub Actions]]"
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-23T22:50:00+02:00
+Última modificación: 2026-09-26T17:45:00+02:00
 ---
 
 # Canal Android Obtainium desde GitHub Releases
@@ -52,4 +52,18 @@ APK en cada Release. Hoy la APK se pasa a mano (flujo de Tailscale en
 
 ## Resultado
 
-<Se rellena al completar.>
+Hecho el 2026-09-26, a falta de la prueba en el Pixel:
+
+- La APK se publica como `titan-ssh-<versión>.apk` y es el único `.apk` del
+  Release (el AAB lleva otra extensión), así que Obtainium no tiene que elegir.
+  La publica [[Pipeline de release en GitHub Actions]], que además comprueba
+  la huella del certificado antes de publicarla.
+- README: sección **Instalar → Android**, con Obtainium, la URL del
+  repositorio, la opción de incluir pre-releases y la huella SHA-256 del
+  certificado. Explica que una APK de debug compilada en local no se puede
+  instalar encima de la publicada, y que las versiones antiguas
+  `im.gar.titanssh` son otra app que convive con esta y se desinstala aparte.
+- En el Pixel está instalada `0.1.0-beta.1`, enviada a mano y firmada con la
+  clave de release. Si el primer Release es `v0.1.0-beta.1`, Obtainium debería
+  reconocerla como instalada, y `v0.1.0-beta.2` sirve de prueba de
+  actualización.
