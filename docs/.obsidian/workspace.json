@@ -11,13 +11,14 @@
             "id": "3c33552a8fffffab",
             "type": "leaf",
             "state": {
-              "type": "bases",
+              "type": "markdown",
               "state": {
-                "file": "Tareas/Tareas.base",
-                "viewName": "Todo"
+                "file": "Tareas/Seguimiento de tareas pendientes.md",
+                "mode": "source",
+                "source": false
               },
-              "icon": "lucide-table",
-              "title": "Tareas"
+              "icon": "lucide-file",
+              "title": "Seguimiento de tareas pendientes"
             }
           }
         ]
@@ -189,6 +190,7 @@
   },
   "active": "3c33552a8fffffab",
   "lastOpenFiles": [
+    "Tareas/Tareas.base",
     "Tareas/Resiliencia nivel 3 agente propio en el destino.md.tmp.36988.a264b4989699",
     "Decisiones/ADR-0008 Diseño del agente de resiliencia nivel 3.md.tmp.36988.68439d427bb5",
     "Decisiones/ADR-0008 Diseño del agente de resiliencia nivel 3.md.tmp.36988.33915abfaa78",
@@ -199,7 +201,6 @@
     "Decisiones/ADR-0009 Agente de nivel 3 portable a todos los destinos.md.tmp.36988.0c7bcd8b9793",
     "Decisiones/ADR-0009 Agente de nivel 3 portable a todos los destinos.md.tmp.36988.337dcf2eeaab",
     "Decisiones/ADR-0009 Agente de nivel 3 portable a todos los destinos.md.tmp.36988.e9e53d077430",
-    "Decisiones/ADR-0009 Agente de nivel 3 portable a todos los destinos.md.tmp.36988.04e44643002f",
     "Tareas/Experimento supervivencia de procesos en Win32-OpenSSH.md",
     "Decisiones/ADR-0009 Agente de nivel 3 portable a todos los destinos.md",
     "Tareas/titan-agent fuga previa al HELLO y permisos del socket.md",
