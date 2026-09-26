@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-26T20:20:00+02:00
+Última modificación: 2026-09-26T20:30:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -86,6 +86,9 @@ mismo commit).
   - Las pre-releases van a su propio canal: `DanielPerezMartinez.TitanSSH.Beta`.
   - Iba junto a AUR, que se separó el 2026-09-26 al cerrar AUR el registro de
     cuentas (ver **A la espera**).
+  - **A la espera de terceros**: solo falta que Microsoft fusione la PR. No
+    impide seguir: el siguiente paso es el 8. El seguimiento diario y lo
+    que queda por hacer están en [[Revisión diaria de winget y AUR]].
 
 ### A la espera de terceros
 
@@ -93,7 +96,8 @@ mismo commit).
   hecho y probado. Se retoma cuando AUR reabra el registro de cuentas nuevas
   (ver las noticias de Arch), siguiendo los pasos de la sección **Pendiente**
   de la tarea. No bloquea nada: el job `aur` no se ejecuta sin la variable
-  `AUR_ENABLED`. Hasta tener Flatpak (paso 11), en Bazzite y Arch se usa el
+  `AUR_ENABLED`. Se revisa cada día con
+  [[Revisión diaria de winget y AUR]]. Hasta tener Flatpak (paso 11), en Bazzite y Arch se usa el
   `tar.gz` del Release.
 
 ### Fase 4 · Producto
@@ -315,3 +319,8 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   fallen mientras tanto. **winget**: fork creado y primer PR abierto,
   [microsoft/winget-pkgs#441824](https://github.com/microsoft/winget-pkgs/pull/441824).
   👤 Faltan el CLA, la fusión, el token y la variable `WINGET_ENABLED`.
+- 2026-09-26 — Nueva tarea [[Revisión diaria de winget y AUR]], pedida por el
+  usuario: cada día se comprueba si Microsoft ha fusionado el PR de winget y
+  si AUR ha reabierto el registro. La tarea recoge los pasos que faltan en
+  los dos canales. El paso 7 queda a la espera de terceros sin bloquear la
+  fase 4. Siguiente: paso 8.
