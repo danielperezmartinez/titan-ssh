@@ -62,4 +62,3 @@ func defaultSocketPath() string {
 	}
 	return filepath.Join(dir, "titan-agent.sock")
 }
-

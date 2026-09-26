@@ -38,9 +38,19 @@ agent/
     ├── protocol/          # códec de tramas (espejo de AgentProtocol.kt) + tests
     ├── buffer/            # ring buffer de salida con offsets + tests
     └── session/           # Registry + Session (PTY, tee vivo, reenganche) + tests
-        ├── pty_unix.go    # PTY real (creack/pty), build tag unix
-        └── pty_other.go   # stub para no-unix (compila/testea en Windows)
+        ├── pty.go         # PtyError con los códigos E_PTY / E_NO_CONPTY
+        ├── pty_unix.go    # PTY Unix común: shell de login, TIOCSWINSZ, EIO → EOF
+        ├── pty_{linux,darwin,freebsd}.go  # apertura del master y del esclavo por sistema
+        ├── pty_windows.go # ConPTY (CreatePseudoConsole + CreateProcess)
+        ├── pty_other.go   # stub (E_PTY) para los sistemas sin backend
+        └── pty_contract*_test.go  # tests de contrato contra el PTY real
 ```
+
+El PTY es un envoltorio propio y fino sobre el sistema (ADR-0009 §4). La única
+dependencia del módulo es `golang.org/x/sys`, del proyecto Go; cualquier otra
+necesita una ADR. En Unix la shell es `$SHELL -il` (o `/bin/sh -il`); en
+Windows, la `DefaultShell` de OpenSSH o `%COMSPEC%`, y ConPTY exige Windows 10
+1809 / Server 2019 o posterior (si no, `E_NO_CONPTY`).
 
 El formato de cable es idéntico al del cliente en
 `shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/AgentProtocol.kt`; **mantener

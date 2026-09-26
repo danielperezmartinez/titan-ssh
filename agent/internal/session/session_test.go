@@ -87,7 +87,9 @@ func TestHandleReplaysThenStreamsLiveAndAppliesInput(t *testing.T) {
 	var wmu sync.Mutex
 	out := func(f protocol.Frame) error { wmu.Lock(); defer wmu.Unlock(); frames <- f; return nil }
 	in := make(chan protocol.Frame, 8)
-	go func() { _ = s.Handle(protocol.Frame{Type: protocol.TypeHello, SessionID: "s1", LastOffset: 0, Cols: 80, Rows: 24}, true, out, in) }()
+	go func() {
+		_ = s.Handle(protocol.Frame{Type: protocol.TypeHello, SessionID: "s1", LastOffset: 0, Cols: 80, Rows: 24}, true, out, in)
+	}()
 
 	// 1) HELLO_OK announcing the range.
 	if f := recv(t, frames); f.Type != protocol.TypeHelloOK || f.HeadOffset != 6 || !f.Created {
@@ -134,7 +136,9 @@ func TestHandleReplaysFromClientOffsetOnReconnect(t *testing.T) {
 	out := func(f protocol.Frame) error { frames <- f; return nil }
 	in := make(chan protocol.Frame, 4)
 	// Reconnect: client already applied through offset 3, wants replay from there.
-	go func() { _ = s.Handle(protocol.Frame{Type: protocol.TypeHello, SessionID: "s2", LastOffset: 3, Cols: 80, Rows: 24}, false, out, in) }()
+	go func() {
+		_ = s.Handle(protocol.Frame{Type: protocol.TypeHello, SessionID: "s2", LastOffset: 3, Cols: 80, Rows: 24}, false, out, in)
+	}()
 
 	if f := recv(t, frames); f.Type != protocol.TypeHelloOK || f.Created {
 		t.Fatalf("expected HELLO_OK for a re-attach, got %+v", f)

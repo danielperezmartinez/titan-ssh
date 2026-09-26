@@ -7,9 +7,9 @@ original; los textos completos acompañan a cada artefacto (POM de Maven,
 `LICENSE` del módulo Go o el fichero indicado).
 
 Inventario revisado el 2026-09-24 sobre los classpaths de ejecución
-`:desktopApp` (`runtimeClasspath`) y `:androidApp` (`releaseRuntimeClasspath`)
-y sobre `agent/go.sum`. Ninguna dependencia Apache-2.0 incluye un fichero
-`NOTICE` que haya que reproducir.
+`:desktopApp` (`runtimeClasspath`) y `:androidApp` (`releaseRuntimeClasspath`),
+y el 2026-09-27 sobre `agent/go.sum`. Ninguna dependencia Apache-2.0 incluye un
+fichero `NOTICE` que haya que reproducir.
 
 ## Cliente (Android y escritorio)
 
@@ -44,8 +44,8 @@ y sobre `agent/go.sum`. Ninguna dependencia Apache-2.0 incluye un fichero
 
 | Componente | Versión | Licencia |
 | --- | --- | --- |
-| Biblioteca estándar y toolchain de Go | 1.22+ | BSD-3-Clause |
-| `github.com/creack/pty` | 1.1.24 | MIT |
+| Biblioteca estándar y toolchain de Go | 1.26+ | BSD-3-Clause |
+| `golang.org/x/sys` (proyecto Go) | 0.48.0 | BSD-3-Clause |
 
 ## Mantenimiento
 

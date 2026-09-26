@@ -1,12 +1,12 @@
-//go:build !unix
+//go:build !linux && !darwin && !freebsd && !windows
 
 package session
 
 import "errors"
 
-// NewPty is unsupported off Unix; titan-agent only runs on the (Unix) SSH
-// destination. This stub keeps the package building and testable on other
-// hosts (e.g. the Windows dev machine) without pulling in a PTY dependency.
+// NewPty is unsupported on systems without a PTY backend (ADR-0009 covers
+// Linux, macOS, FreeBSD and Windows). This stub keeps the package building
+// there and reports the E_PTY error-contract code.
 func NewPty(cols, rows uint16) (Pty, error) {
-	return nil, errors.New("session: PTY not supported on this platform")
+	return nil, ptyError(CodePty, errors.New("PTY not supported on this platform"))
 }

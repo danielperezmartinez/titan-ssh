@@ -5,7 +5,7 @@
 // offset. Sessions outlive any single client connection: the daemon
 // (cmd/titan-agent) holds the Registry, and each client `exec` is a thin front
 // that attaches by id. The PTY itself is created behind the Pty seam (see
-// pty_unix.go / pty_other.go) so this logic is testable with a fake PTY.
+// pty_*.go) so this logic is testable with a fake PTY.
 package session
 
 import (
