@@ -1,11 +1,11 @@
 ---
 Nombre: 'Ejecutar los túneles de las sesiones'
-Estado: 'En curso'
-Resumen: 'Los túneles de una sesión (reenvío local, remoto y proxy SOCKS dinámico) ya funcionan: se abren al conectar sobre la misma conexión SSH en los tres niveles de resiliencia, se reabren tras un microcorte, se cierran al cerrar la pestaña, y la pestaña muestra cuáles están activos y cuáles han fallado y por qué ([=] túneles en la franja de estado). Los que fallan por puerto ocupado, aquí o en el servidor, se reintentan solos mientras la conexión siga viva. Verificado con tests (también contra un sshd en Docker) y en el emulador de Android. Falta que el usuario lo pruebe en el emulador y confirme qué pasa con los túneles en segundo plano en Android. Después se valorará una biblioteca de túneles como plantillas.'
-Decisiones: 'Sale del paso 10 de [[Seguimiento de tareas pendientes]] por decisión del usuario del 2026-09-27 ([[ADR-0013 Biblioteca de scripts unificada con los snippets]], punto 7): primero los túneles tienen que funcionar. Modelo en [[ADR-0007 Modelo y persistencia de configuración]]. El reenvío local y el SOCKS usan un bucle propio sobre canales direct-tcpip en vez del LocalPortForwarder de sshj, que no informa de las conexiones fallidas. Propuesta para Android, a confirmar: el túnel vive lo que viva la conexión de la pestaña, sin servicio en primer plano propio.'
+Estado: 'Hecha'
+Resumen: 'Los túneles de una sesión (reenvío local, remoto y proxy SOCKS dinámico) ya funcionan: se abren al conectar sobre la misma conexión SSH en los tres niveles de resiliencia, se reabren tras un microcorte, se cierran al cerrar la pestaña, y la pestaña muestra cuáles están activos y cuáles han fallado y por qué ([=] túneles en la franja de estado). Los que fallan por puerto ocupado, aquí o en el servidor, se reintentan solos mientras la conexión siga viva. Verificado con tests (también contra un sshd en Docker) y en el emulador de Android. En Android, el túnel dura lo que dure la conexión de la pestaña. Después se valorará una biblioteca de túneles como plantillas.'
+Decisiones: 'Sale del paso 10 de [[Seguimiento de tareas pendientes]] por decisión del usuario del 2026-09-27 ([[ADR-0013 Biblioteca de scripts unificada con los snippets]], punto 7): primero los túneles tienen que funcionar. Modelo en [[ADR-0007 Modelo y persistencia de configuración]]. El reenvío local y el SOCKS usan un bucle propio sobre canales direct-tcpip en vez del LocalPortForwarder de sshj, que no informa de las conexiones fallidas. En Android el túnel vive lo que viva la conexión de la pestaña, sin servicio en primer plano propio (decidido el 2026-09-28).'
 Bloqueada: []
 Fecha de creación: 2026-09-27T16:45:00+02:00
-Última modificación: 2026-09-27T22:30:00+02:00
+Última modificación: 2026-09-28T09:00:00+02:00
 ---
 
 # Ejecutar los túneles de las sesiones
@@ -36,8 +36,8 @@ mientras la pestaña está abierta.
   motivo (puerto local ocupado, el servidor rechaza el reenvío…), sin cortar la
   sesión.
 - [x] Se cierran al cerrar la pestaña.
-- [ ] 👤 En Android: decidir qué pasa con el túnel cuando la app va a segundo
-  plano. La propuesta está más abajo.
+- [x] En Android: decidir qué pasa con el túnel cuando la app va a segundo
+  plano. Decidido más abajo.
 - [x] Tests del reenvío contra un sshd en Docker.
 
 ## Diseño
@@ -69,10 +69,10 @@ mientras la pestaña está abierta.
   (activos/total), en color de aviso si alguno falla. Al pulsarlo se abre un
   panel con el estado de cada túnel y el motivo.
 
-## Android en segundo plano (👤 a confirmar)
+## Android en segundo plano
 
-Propuesta: el túnel vive lo mismo que la conexión SSH de la pestaña, sin nada
-propio. La app aún no tiene un servicio en primer plano para las sesiones. Si
+Decidido el 2026-09-28: el túnel vive lo mismo que la conexión SSH de la
+pestaña, sin nada propio. La app aún no tiene un servicio en primer plano para las sesiones. Si
 Android corta la red de la app en segundo plano, la conexión cae y, al volver,
 la pestaña reconecta y reabre los túneles como tras un microcorte. Un servicio
 en primer plano mantendría vivas las sesiones y sus túneles con la app oculta,
@@ -110,5 +110,7 @@ suelen ser propios de cada sesión.
 
 ## Resultado
 
-Hecho, a falta de la prueba del usuario en el emulador y de que confirme la
-propuesta para Android en segundo plano.
+Hecha el 2026-09-28. Los túneles funcionan en escritorio y en Android. La
+prueba en el emulador cubre la verificación en dispositivo (paso 0 de la regla
+4 del [[README]]); el emulador queda abierto con la sesión de ejemplo por si el
+usuario quiere probarla. Sale en la siguiente pre-release.

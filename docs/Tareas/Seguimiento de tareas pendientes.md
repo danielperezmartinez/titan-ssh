@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-27T22:30:00+02:00
+Última modificación: 2026-09-28T09:00:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -138,10 +138,8 @@ mismo commit).
   - Tarea pequeña que salió al cerrarlo:
     [[Scroll lateral en las pestañas de Configuración]] (`Hecha` el
     2026-09-27).
-- [ ] **10b. Túneles que funcionan**
-  - [[Ejecutar los túneles de las sesiones]] (`En curso`: hecha y probada en
-    el emulador; 👤 falta la prueba del usuario y confirmar qué pasa en
-    Android en segundo plano)
+- [x] **10b. Túneles que funcionan**
+  - [[Ejecutar los túneles de las sesiones]] (`Hecha` el 2026-09-28)
   - Sale del paso 10: los túneles se configuran pero nunca se abren. Es un
     hueco funcional anunciado en el editor de sesiones. No depende de nada. La
     biblioteca de túneles como plantillas se valora al terminarla.
@@ -519,3 +517,11 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   la conexión, sin servicio en primer plano. Hallazgo aparte: con 40 s sin red,
   la pestaña agota sus 6 reintentos y se queda caída. Sale en la siguiente
   pre-release.
+- 2026-09-28 — **Paso 10b completado**:
+  [[Ejecutar los túneles de las sesiones]] pasa a `Hecha`. En Android, el túnel
+  dura lo que dure la conexión de la pestaña. Mantener sesiones y túneles vivos
+  con la app oculta necesitaría un servicio en primer plano, que sería una tarea
+  aparte. La prueba en el emulador cubre la verificación en dispositivo. Con
+  esto se cierra la fase 4. Siguiente: la fase 5, cuando el usuario quiera abrir
+  la distribución pública. Antes conviene publicar una pre-release con los
+  pasos 10 y 10b.
