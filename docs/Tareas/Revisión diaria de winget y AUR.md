@@ -5,7 +5,7 @@ Resumen: 'Comprobación que se repite cada día hasta cerrar los dos canales del
 Decisiones: 'Pedida por el usuario el 2026-09-26 para revisar el estado cada día. No sustituye a [[Canal Windows winget]] ni a [[Canal Arch Linux AUR]]: es la rutina de seguimiento de las dos. La página de registro de AUR tiene una protección contra bots (Anubis) que el agente no debe saltarse, así que el registro lo mira el usuario en su navegador y el agente solo lee las noticias de Arch.'
 Bloqueada: []
 Fecha de creación: 2026-09-26T20:30:00+02:00
-Última modificación: 2026-09-26T20:30:00+02:00
+Última modificación: 2026-09-27T09:45:00+02:00
 ---
 
 # Revisión diaria de winget y AUR
@@ -57,7 +57,7 @@ Ya hecho: fork, primer PR
 ([#441824](https://github.com/microsoft/winget-pkgs/pull/441824)), CLA
 firmado y token en el secreto `WINGET_TOKEN`.
 
-1. [ ] Esperar a que Microsoft valide y fusione la PR. Hay que revisarla
+1. [ ] Esperar a que Microsoft valide y fusione la PR. La validación pasó el 2026-09-26; falta la aprobación de un moderador. Hay que revisarla
    cada día.
 2. [ ] 👤 Con la PR fusionada, comprobar `winget search titan-ssh` (el índice
    tarda unas horas en actualizarse) y probar
@@ -104,3 +104,8 @@ Ya hecho: plantilla, job, clave SSH y secreto `AUR_SSH_PRIVATE_KEY`.
   `New-Package` y validación en marcha, sin comentarios de moderadores.
   **AUR**: registro cerrado (lo comprobó el usuario) y sin noticias de
   reapertura en el feed de Arch. Lo dejamos para mañana.
+- 2026-09-27 — **winget**: la validación automática ha pasado (etiquetas
+  `Azure-Pipeline-Passed` y `Validation-Completed`). El bot avisó el
+  2026-09-26 de que un moderador voluntario tiene que aprobar la PR, y aún no
+  está fusionada. **AUR**: registro cerrado (página abierta en el navegador del
+  usuario) y sin noticias en el feed de Arch. Lo dejamos para mañana.
