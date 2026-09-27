@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-27T11:55:00+02:00
+Última modificación: 2026-09-27T14:00:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -125,7 +125,8 @@ mismo commit).
     y probada el 2026-09-27; el origen de descarga es GitHub Releases. Queda
     `En curso` solo hasta ver los binarios publicados en la siguiente
     pre-release; el pipeline ya pasa en CI)
-  - [ ] 9.6 [[Diagnóstico cuando el nivel 3 no está disponible]] (tras 9.3–9.5)
+  - [x] 9.6 [[Diagnóstico cuando el nivel 3 no está disponible]] (`Hecha` el
+    2026-09-27)
   - Cada subtarea que cambie el agente sale en la siguiente pre-release, y así se
     prueba desde Obtainium o la app instalada.
 - [ ] **10. Scripts y túneles reutilizables** 👤 (antes de tocar el modelo hay
@@ -415,3 +416,23 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   carpeta en la que cualquier usuario podía escribir. Sigue arrancando solo con
   el PC. **Siguiente sesión: paso 9.6**
   ([[Diagnóstico cuando el nivel 3 no está disponible]]).
+- 2026-09-27 — **Paso 9.6 completado**:
+  [[Diagnóstico cuando el nivel 3 no está disponible]] pasa a `Hecha`. Si el
+  nivel 3 no se puede usar, la pestaña ya no degrada en silencio. La franja de
+  estado muestra el nivel efectivo (agente, tmux/screen o base) y, debajo, el
+  motivo y qué hacer. El motivo se recuerda durante la vida de la pestaña, así
+  que las reconexiones no reintentan la instalación. En Linux con systemd,
+  `KillUserProcesses=yes` sin linger da un aviso con la acción **activar
+  linger**. Hueco encontrado de paso: los fallos de PTY del daemon (`E_PTY`,
+  `E_NO_CONPTY`) se perdían. Ahora viajan en un `BYE` con motivo, compatible en
+  los dos sentidos. Verificado con tests (Go en Windows y en Linux con `-race`,
+  159 tests de escritorio) y de punta a punta contra un sshd en Docker
+  (`E_STATE_DIR`, `E_NO_BINARY`, el aviso de systemd y activar linger). El
+  cambio del agente y de la app sale en la siguiente pre-release. El paso 9 solo
+  espera ya a ver los binarios de 9.5 publicados en esa pre-release.
+  Siguiente: paso 10 ([[Scripts y túneles reutilizables de primera clase]],
+  👤). Antes de tocar código hay que decidir con el usuario si se unifican con
+  los Snippets (posible ADR). No hay nada técnico que lo bloquee. Aparte, y
+  cuando el usuario lo pida, conviene publicar `v0.1.0-beta.3`: cierra 9.5 (los
+  13 binarios en el Release) y trae 9.6 a la app instalada para verlo en el
+  Pixel.

@@ -8,7 +8,7 @@ Consecuencias: 'Reutiliza el transporte y la auth de SSH (mínima superficie de 
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-09-19T18:10:00+02:00
-Última modificación: 2026-09-26T21:30:00+02:00
+Última modificación: 2026-09-27T14:00:00+02:00
 ---
 
 # ADR-0008 · Diseño del agente de resiliencia nivel 3
@@ -118,6 +118,14 @@ Tipos de trama y payload:
 > los dos offsets y un cliente anterior ignora el byte. Lo introduce
 > [[Scripts de inicio por sesión sobre el agente]] para ejecutar los scripts
 > de inicio solo en sesiones nuevas.
+>
+> **Actualización (2026-09-27):** `BYE` admite un payload opcional con el
+> motivo, `<código> <mensaje>` del contrato `TITAN_AGENT_ERROR`. El daemon lo
+> envía en lugar de `HELLO_OK` cuando no puede abrir la sesión (p. ej.
+> `E_NO_CONPTY` o `E_PTY`), porque en ese momento el front ya está conectado al
+> daemon y no escribe nada en stderr. Es compatible en los dos sentidos: un `BYE`
+> sin motivo se codifica igual que antes y los clientes anteriores ignoran el
+> payload. Lo introduce [[Diagnóstico cuando el nivel 3 no está disponible]].
 
 - Los **offsets** son un contador monótono de bytes producidos por el PTY de la
   sesión desde su creación. `DATA` es autodescriptivo (lleva el offset de su

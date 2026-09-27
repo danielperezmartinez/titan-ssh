@@ -5,7 +5,7 @@ Resumen: 'Tarea paraguas para implementar ADR-0009: que el agente titan-agent (n
 Decisiones: 'Implementa [[ADR-0009 Agente de nivel 3 portable a todos los destinos]], que sustituye en parte a [[ADR-0008 Diseño del agente de resiliencia nivel 3]], y el empaquetado de [[ADR-0010 Empaquetado del agente y descarga bajo demanda]]. El desacople en Windows se decidió con [[Experimento supervivencia de procesos en Win32-OpenSSH]]. Continúa [[Resiliencia nivel 3 agente propio en el destino]].'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:05:00+02:00
-Última modificación: 2026-09-27T11:55:00+02:00
+Última modificación: 2026-09-27T14:00:00+02:00
 ---
 
 # Nivel 3 portable a todos los destinos
@@ -28,7 +28,7 @@ investigar.
 | 3 | [[titan-agent punto de encuentro TCP loopback con token]] (hecha el 2026-09-27) | 2 |
 | 4 | [[titan-agent daemon en Windows]] (hecha el 2026-09-27) | 1, 3 |
 | 5 | [[Instalación del agente en destinos Windows y multi-SO]] (hecha y probada el 2026-09-27, también en CI; falta ver los binarios publicados en la siguiente pre-release) | 4 (solo la prueba de punta a punta en Windows) |
-| 6 | [[Diagnóstico cuando el nivel 3 no está disponible]] | 3, 4, 5 |
+| 6 | [[Diagnóstico cuando el nivel 3 no está disponible]] (hecha el 2026-09-27) | 3, 4, 5 |
 
 1 y 2 son independientes y pueden hacerse en cualquier orden. 5 puede avanzar
 en paralelo a 4 (detección, SFTP, rutas), pero su verificación en Windows
@@ -128,6 +128,12 @@ necesita 4.
   [[Experimento supervivencia de procesos en Win32-OpenSSH]]. **Al terminar,
   reiniciar `sshd` o el PC antes de borrar el perfil**: sshd lo deja cargado y
   el borrado falla con "archivo en uso".
+- **systemd sin systemd** (subtarea 6, 2026-09-27): el aviso de
+  `KillUserProcesses` se prueba en el sshd de Docker con un
+  `/etc/systemd/logind.conf` con `KillUserProcesses=yes` y un `loginctl` falso en
+  `/usr/local/bin` (responde `Linger=no` hasta que se ejecuta `enable-linger`).
+  Sin `busctl` la sonda lee `logind.conf`; la rama de `busctl` se comprobó a mano
+  en el host de pruebas, que tiene systemd de verdad.
 - **Otras arquitecturas de Linux**: Docker Desktop emula con QEMU
   (`--platform linux/arm/v7`, `linux/riscv64`, …). Con un sshd de Alpine en
   esa plataforma se prueban de punta a punta los binarios que se descargan
@@ -161,8 +167,21 @@ Códigos del lado agente:
 | `E_NO_CONPTY` | Windows sin ConPTY (anterior a 10 1809 / Server 2019) | 1 / 4 |
 | `E_PTY` | No se puede crear el PTY | 1 |
 
-Los códigos del lado cliente (SO no soportado, subida fallida, checksum,
-`noexec`, `KillUserProcesses`) se definen en la subtarea 6.
+Si el daemon no puede abrir la sesión (`E_PTY`, `E_NO_CONPTY`), el front ya
+está conectado a él y no escribe nada: el motivo, `<CÓDIGO> <mensaje>`, va en el
+payload opcional del `BYE` que el daemon envía en lugar de `HELLO_OK`.
+
+Códigos del lado cliente (subtarea 6, en `AgentDiagnostics`):
+
+| Código | Cuándo |
+|---|---|
+| `E_UNSUPPORTED_TARGET` | El SO o la arquitectura del destino no tiene agente, o no se pudo detectar |
+| `E_NO_BINARY` | Hay agente para el destino, pero la app no lo tiene y la descarga falló |
+| `E_UPLOAD` | No se pudo copiar el binario al destino |
+| `E_CHECKSUM` | El binario copiado no coincide con el SHA-256 esperado |
+| `E_NOEXEC` | El destino no deja ejecutarlo (sh sale con 126 o 127: `noexec`) |
+| `E_AGENT_EXIT` | El front terminó sin abrir la sesión y sin decir por qué (p. ej. AppLocker) |
+| `E_SYSTEMD_KILL` | Aviso, no impide el nivel 3: `KillUserProcesses=yes` sin linger |
 
 ## Hallazgos de la investigación (para no repetirla)
 

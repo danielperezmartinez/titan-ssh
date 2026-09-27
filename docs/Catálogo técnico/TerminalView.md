@@ -7,8 +7,8 @@ Estado: "Vigente"
 Ámbito: "Feature"
 Fuente: "shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/ui/TerminalView.kt"
 Entrada pública: "io.github.danielperezmartinez.titanssh.ui"
-Resumen: "Composable que pinta un TerminalSnapshot (colores ANSI vía AnsiPalette, cursor) con JetBrains Mono, mide la celda mono para calcular columnas/filas y disparar un resize real del PTY, y captura entrada por eventos de teclado (onPreviewKeyEvent: teclados físicos y escritorio) traducida con TerminalKeys hacia SessionTab.sendBytes. En Android añade la barra de teclas accesorias, pegar desde el portapapeles y un campo oculto que levanta el teclado software. Dark-first, sin chrome de Material."
-Última modificación: 2026-09-24T12:00:00+02:00
+Resumen: "Composable que pinta un TerminalSnapshot (colores ANSI vía AnsiPalette, cursor) con JetBrains Mono, mide la celda mono para calcular columnas/filas y disparar un resize real del PTY, y captura entrada por eventos de teclado (onPreviewKeyEvent: teclados físicos y escritorio) traducida con TerminalKeys hacia SessionTab.sendBytes. En Android añade la barra de teclas accesorias, pegar desde el portapapeles y un campo oculto que levanta el teclado software. La franja de estado muestra la fase, el nivel de resiliencia efectivo y, debajo, el aviso del nivel 3 (motivo de la degradación o aviso de systemd con la acción activar linger), que se puede cerrar con [x]. Dark-first, sin chrome de Material."
+Última modificación: 2026-09-27T14:00:00+02:00
 ---
 
 # TerminalView
