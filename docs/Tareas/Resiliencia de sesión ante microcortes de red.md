@@ -5,7 +5,7 @@ Resumen: 'ENTREGADO nivel 1 (reconexión de cliente): un microcorte ya no cierra
 Decisiones: Sigue [[ADR-0003 Modelo de resiliencia por niveles]] y [[ADR-0004 Librería SSH]]. Hereda la ejecución al reconectar (fase ON_RECONNECT y `ReconnectBehavior`) de [[Scripts de inicio por sesión]], reutilizando [[ScriptRunner]]. Superficie catalogada en [[SessionManager]] y [[ScriptRunner]].
 Bloqueada: []
 Fecha de creación: 2026-09-17T15:32:11+02:00
-Última modificación: 2026-09-19T16:45:00+02:00
+Última modificación: 2026-09-28T12:00:00+02:00
 ---
 
 # Resiliencia de sesión ante microcortes de red
@@ -64,7 +64,9 @@ El nivel 1 se apoya en la sesión y el heartbeat que expone
   sesión sana resetea el contador. El **primer** intento de conexión NO se
   auto-reintenta (un host inalcanzable es `FAILED`, no un microcorte). Fallos
   fatales (clave de host rechazada, autenticación) nunca se reintentan. Agotados
-  los reintentos → `DISCONNECTED` con el motivo.
+  los reintentos → `DISCONNECTED` con el motivo. (Desde el 2026-09-28 el
+  límite es un plazo de 15 min, con reconexión al volver la red y acción
+  "reconectar": ver [[Reconexión que no se rinde tras un corte largo]].)
 - **Preservación del trabajo.** El `TerminalEmulator` (pantalla + scrollback) es
   el mismo objeto entre reconexiones: el shell nuevo pinta a continuación del
   historial, sin perderlo. El único cambio visible es el estado `RECONNECTING`

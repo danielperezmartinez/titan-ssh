@@ -4,9 +4,11 @@ import io.github.danielperezmartinez.titanssh.config.ResilienceLevel
 import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
 import io.github.danielperezmartinez.titanssh.config.SessionScript
 import io.github.danielperezmartinez.titanssh.ssh.HostKeyInfo
+import io.github.danielperezmartinez.titanssh.ssh.HostKeyVerifier
 import io.github.danielperezmartinez.titanssh.ssh.KnownHostsStore
 import io.github.danielperezmartinez.titanssh.ssh.KnownHostsVerifier
 import io.github.danielperezmartinez.titanssh.ssh.SshAuthFailed
+import io.github.danielperezmartinez.titanssh.ssh.SshConnectFailed
 import io.github.danielperezmartinez.titanssh.ssh.SshConnectionState
 import io.github.danielperezmartinez.titanssh.ssh.SshConnector
 import io.github.danielperezmartinez.titanssh.ssh.SshCredentials
@@ -14,11 +16,12 @@ import io.github.danielperezmartinez.titanssh.ssh.SshException
 import io.github.danielperezmartinez.titanssh.ssh.SshHostKeyRejected
 import io.github.danielperezmartinez.titanssh.ssh.SshSession
 import io.github.danielperezmartinez.titanssh.ssh.SshShell
+import io.github.danielperezmartinez.titanssh.ssh.trust
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,6 +32,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 
 /** Lifecycle phase of one terminal tab, surfaced in the tab strip. */
 enum class TabPhase { CONNECTING, CONNECTED, RECONNECTING, DISCONNECTED, FAILED }
@@ -85,6 +90,11 @@ class PendingHostKey internal constructor(
  * [ShellAutomation.onReconnected] (honoring the session's `ReconnectBehavior`). A
  * clean remote exit (the transport stays up) ends the tab instead of reconnecting.
  *
+ * The wait between attempts ends early on [reconnectNow] (the user) or
+ * [onNetworkRestored] (the platform). A tab that gave up, ended or failed keeps
+ * its emulator, so [reconnectNow] brings it back without losing the scrollback
+ * ([[Reconexión que no se rinde tras un corte largo]]).
+ *
  * ## Tunnels ([[Ejecutar los túneles de las sesiones]])
  * The session's enabled tunnels open on every connection, right after it is
  * established, and close when it ends, so a reconnect reopens them on the new
@@ -116,6 +126,8 @@ class SessionTab(
      * session falls back to the level-2/1 shell path.
      */
     private val agentDeployer: AgentDeployer? = null,
+    /** Clock for the reconnect time budget; tests pass their virtual one. */
+    private val timeSource: TimeSource = TimeSource.Monotonic,
 ) {
     val title: String get() = resolved.session.name
 
@@ -188,6 +200,15 @@ class SessionTab(
     /** Set once by [close] so the reconnect loop stops instead of retrying. */
     private var closed = false
 
+    /** Whether a session in this tab has been live, so the next connection is a reconnect. */
+    private var everConnected = false
+
+    /** Set when the reconnect loop ran out of [ReconnectPolicy]; the network coming back retries. */
+    private var gaveUp = false
+
+    /** Cuts a reconnect backoff short: [reconnectNow] or [onNetworkRestored]. */
+    private val wake = Channel<Unit>(Channel.CONFLATED)
+
     /** Reason of the last establish failure, surfaced if the tab gives up. */
     private var lastFailure: String? = null
 
@@ -204,6 +225,12 @@ class SessionTab(
 
         /** Auth or host-key rejection: never retried, the user must act. */
         FATAL,
+
+        /**
+         * The attempt ran out while the host key prompt waited and the user then
+         * trusted the key: connect again at once, the key is now known.
+         */
+        TRUSTED_LATE,
     }
 
     /** Starts the connection. Idempotent: a second call is a no-op. */
@@ -213,32 +240,55 @@ class SessionTab(
     }
 
     /**
+     * The user's "reconectar": ends a reconnect backoff at once, or connects
+     * again a tab that gave up, ended or failed, in the same emulator. While an
+     * attempt is in flight it only shortens the next wait.
+     */
+    fun reconnectNow() {
+        if (closed || connectJob == null) return
+        if (connectJob?.isActive == true) {
+            wake.trySend(Unit)
+        } else {
+            gaveUp = false
+            connectJob = scope.launch { runSession(immediate = true) }
+        }
+    }
+
+    /**
+     * The platform saw the network come back: a tab waiting to reconnect tries
+     * now, and one that gave up tries again. A tab that ended cleanly or never
+     * connected is left alone.
+     */
+    fun onNetworkRestored() {
+        if (_status.value.phase == TabPhase.RECONNECTING || gaveUp) reconnectNow()
+    }
+
+    /**
      * The connect-then-reconnect lifecycle. The first connection is a plain
      * attempt; once a session has been live, drops and failed re-establishes are
-     * ridden out with backoff until [ReconnectPolicy.maxAttempts] is exhausted.
+     * ridden out with backoff until [ReconnectPolicy.giveUpReason] says stop.
+     * [immediate] skips the first backoff (the user asked to reconnect).
      */
-    private suspend fun runSession() {
-        var everConnected = false
+    private suspend fun runSession(immediate: Boolean = false) {
         var attempt = 0
+        var downSince: TimeMark? = null
+        var now = immediate
         while (!closed) {
-            if (everConnected) {
+            if (everConnected && !now) {
                 attempt++
-                if (attempt > reconnect.maxAttempts) {
-                    _status.value = TabStatus(
-                        TabPhase.DISCONNECTED,
-                        "No se pudo reconectar tras ${reconnect.maxAttempts} intentos",
-                    )
+                val since = downSince ?: timeSource.markNow().also { downSince = it }
+                reconnect.giveUpReason(attempt, since.elapsedNow())?.let { reason ->
+                    gaveUp = true
+                    _status.value = TabStatus(TabPhase.DISCONNECTED, reason)
                     return
                 }
-                _status.value = TabStatus(
-                    TabPhase.RECONNECTING,
-                    "Reconectando… (intento $attempt/${reconnect.maxAttempts})",
-                )
-                delay(reconnect.backoffMillis(attempt))
+                _status.value = TabStatus(TabPhase.RECONNECTING, reconnect.progress(attempt))
+                awaitBackoff(reconnect.backoffMillis(attempt))
                 if (closed) return
             } else {
-                _status.value = TabStatus(TabPhase.CONNECTING)
+                _status.value = TabStatus(if (everConnected) TabPhase.RECONNECTING else TabPhase.CONNECTING)
             }
+            now = false
 
             when (connectOnce(reconnecting = everConnected)) {
                 AttemptResult.CLEAN_EXIT -> {
@@ -248,10 +298,11 @@ class SessionTab(
                 AttemptResult.FATAL -> return // status is already FAILED
                 AttemptResult.DROPPED -> {
                     // Was live, now lost: (re)start the reconnect loop with a
-                    // fresh backoff — a healthy session resets the counter.
-                    everConnected = true
+                    // fresh backoff and time budget.
                     attempt = 0
+                    downSince = null
                 }
+                AttemptResult.TRUSTED_LATE -> now = true
                 AttemptResult.ESTABLISH_FAILED -> {
                     if (!everConnected) {
                         _status.value = TabStatus(TabPhase.FAILED, lastFailure ?: "Fallo de conexión")
@@ -264,12 +315,41 @@ class SessionTab(
         }
     }
 
+    /** Waits [millis] or until a [wake] sent during the wait (an older one is stale). */
+    private suspend fun awaitBackoff(millis: Long) {
+        wake.tryReceive()
+        withTimeoutOrNull(millis) { wake.receive() }
+    }
+
+    /** The shell or agent PTY is live: later connections are reconnects. */
+    private fun markConnected() {
+        everConnected = true
+        _status.value = TabStatus(TabPhase.CONNECTED)
+    }
+
     /**
      * One connection attempt: connect, open a shell, run automation and pump the
      * shell output into the emulator until it ends, then classify why it ended.
      */
     private suspend fun connectOnce(reconnecting: Boolean): AttemptResult {
-        val verifier = KnownHostsVerifier(knownHostsStore) { info -> promptHostKey(info) }
+        // First contact asks the user inside the SSH handshake, and the prompt can
+        // outlive it: sshj's key exchange (or the server's login grace time) runs
+        // out meanwhile and sshj interrupts the verifier. So the answer lives here,
+        // not in the verifier, and a key trusted late connects again.
+        val prompted = CompletableDeferred<HostKeyInfo>()
+        val answer = CompletableDeferred<Boolean>()
+        val verified = CompletableDeferred<Unit>()
+        val knownHosts = KnownHostsVerifier(knownHostsStore) { info ->
+            prompted.complete(info)
+            promptHostKey(info, answer)
+        }
+        val verifier = HostKeyVerifier { info ->
+            try {
+                knownHosts.verify(info)
+            } finally {
+                verified.complete(Unit)
+            }
+        }
         val creds = try {
             credentials()
         } catch (e: Exception) {
@@ -278,12 +358,21 @@ class SessionTab(
         }
         var opened: SshSession? = null
         try {
-            opened = connector.connect(
-                endpoint = resolved.endpoint,
-                credentials = creds,
-                hostKeyVerifier = verifier,
-                keepAliveSeconds = resolved.host.keepAliveSeconds,
-            )
+            opened = try {
+                connector.connect(
+                    endpoint = resolved.endpoint,
+                    credentials = creds,
+                    hostKeyVerifier = verifier,
+                    keepAliveSeconds = resolved.host.keepAliveSeconds,
+                )
+            } catch (e: SshConnectFailed) {
+                if (!prompted.isCompleted) throw e
+                // The prompt is still up: the user's answer decides.
+                if (!answer.await()) throw SshHostKeyRejected("Host key rejected after the attempt timed out", e)
+                verified.await() // let an uninterrupted verifier finish saving it
+                knownHostsStore.trust(prompted.await())
+                return AttemptResult.TRUSTED_LATE
+            }
             session = opened
             // Tunnels ride the SSH connection itself, whatever carries the PTY.
             sessionTunnels.open(opened)
@@ -301,7 +390,7 @@ class SessionTab(
 
             val newShell = opened.openShell(desiredColumns, desiredRows)
             shell = newShell
-            _status.value = TabStatus(TabPhase.CONNECTED)
+            markConnected()
             // Level 1 unless the automation finds a multiplexer, which it reports.
             _resilience.value = _resilience.value.copy(
                 level = if (resolved.session.resilienceLevel == ResilienceLevel.BASE) EffectiveLevel.BASE else null,
@@ -363,7 +452,7 @@ class SessionTab(
                 deployment.launch
             }
         }
-        _status.value = TabStatus(TabPhase.CONNECTED)
+        markConnected()
         // Same tee as the shell path, fed from the agent's DATA; the
         // automation's input goes out as INPUT frames.
         val tee = newTee()
@@ -484,14 +573,15 @@ class SessionTab(
         }
     }
 
-    private suspend fun promptHostKey(info: HostKeyInfo): Boolean {
-        val answer = CompletableDeferred<Boolean>()
-        _pendingHostKey.value = PendingHostKey(info, answer)
-        return try {
-            answer.await()
-        } finally {
-            _pendingHostKey.value = null
-        }
+    /**
+     * Shows [info] for the user to trust and waits for [answer]. The prompt stays
+     * up until the user answers, even if the waiting verifier is cancelled.
+     */
+    private suspend fun promptHostKey(info: HostKeyInfo, answer: CompletableDeferred<Boolean>): Boolean {
+        val pending = PendingHostKey(info, answer)
+        _pendingHostKey.value = pending
+        answer.invokeOnCompletion { _pendingHostKey.compareAndSet(pending, null) }
+        return answer.await()
     }
 
     /** Sends raw input bytes to the shell — or, on the agent path, as INPUT frames
@@ -529,6 +619,8 @@ class SessionTab(
     /** Closes the shell and the session and stops the reconnect loop. */
     suspend fun close() {
         closed = true
+        // Unblocks sshj's reader thread if a host key prompt is still open.
+        _pendingHostKey.value?.reject()
         automationJob?.cancel()
         connectJob?.cancel()
         tunnelRetryJob?.cancel()

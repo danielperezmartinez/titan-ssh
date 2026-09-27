@@ -5,7 +5,7 @@ Resumen: 'Comprobación que se repite cada día hasta cerrar los dos canales del
 Decisiones: 'Pedida por el usuario el 2026-09-26 para revisar el estado cada día. No sustituye a [[Canal Windows winget]] ni a [[Canal Arch Linux AUR]]: es la rutina de seguimiento de las dos. La página de registro de AUR tiene una protección contra bots (Anubis) que el agente no debe saltarse, así que el registro lo mira el usuario en su navegador y el agente solo lee las noticias de Arch.'
 Bloqueada: []
 Fecha de creación: 2026-09-26T20:30:00+02:00
-Última modificación: 2026-09-27T09:45:00+02:00
+Última modificación: 2026-09-28T10:00:00+02:00
 ---
 
 # Revisión diaria de winget y AUR
@@ -109,3 +109,10 @@ Ya hecho: plantilla, job, clave SSH y secreto `AUR_SSH_PRIVATE_KEY`.
   2026-09-26 de que un moderador voluntario tiene que aprobar la PR, y aún no
   está fusionada. **AUR**: registro cerrado (página abierta en el navegador del
   usuario) y sin noticias en el feed de Arch. Lo dejamos para mañana.
+- 2026-09-28 — **winget**: la PR sigue abierta y sin fusionar, con las mismas
+  etiquetas (`Azure-Pipeline-Passed`, `Validation-Completed`, `New-Package`)
+  y sin actividad desde el 2026-09-26. **AUR**: sin noticias de reapertura en
+  el feed de Arch (la entrada más reciente relacionada es el incidente de
+  paquetes maliciosos). La página de registro está tras un reto anti-bots que
+  no se puede comprobar por `curl`: 👤 la revisa el usuario en el navegador.
+  Lo dejamos para mañana.

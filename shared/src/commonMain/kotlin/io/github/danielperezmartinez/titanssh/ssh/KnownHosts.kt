@@ -55,16 +55,24 @@ class KnownHostsVerifier(
 
         // First contact for this host+type: defer to the user, then remember.
         if (!prompt.confirmNewHost(info)) return false
-        store.add(
-            KnownHostEntry(
-                host = info.host,
-                port = info.port,
-                keyType = info.keyType,
-                publicKeyBase64 = info.publicKeyBase64,
-            ),
-        )
+        store.trust(info)
         return true
     }
+}
+
+/** Remembers [info] as trusted, unless this exact key is already stored. */
+suspend fun KnownHostsStore.trust(info: HostKeyInfo) {
+    val known = entriesFor(info.host, info.port)
+        .any { it.keyType == info.keyType && it.publicKeyBase64 == info.publicKeyBase64 }
+    if (known) return
+    add(
+        KnownHostEntry(
+            host = info.host,
+            port = info.port,
+            keyType = info.keyType,
+            publicKeyBase64 = info.publicKeyBase64,
+        ),
+    )
 }
 
 /** In-memory [KnownHostsStore] for tests and ephemeral sessions. */

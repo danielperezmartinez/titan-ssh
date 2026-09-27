@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-28T09:00:00+02:00
+Última modificación: 2026-09-28T13:00:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -143,6 +143,13 @@ mismo commit).
   - Sale del paso 10: los túneles se configuran pero nunca se abren. Es un
     hueco funcional anunciado en el editor de sesiones. No depende de nada. La
     biblioteca de túneles como plantillas se valora al terminarla.
+- [x] **10c. Conexión que no se rinde** (juntas)
+  - [[Conectar tras confirmar tarde la clave del servidor]] (`Hecha` el
+    2026-09-28)
+  - [[Reconexión que no se rinde tras un corte largo]] (`Hecha` el 2026-09-28)
+  - Salen de dos hallazgos de las pruebas de 10b. *Juntas*: las dos tocan el
+    ciclo de conexión de `SessionTab` y se prueban con el mismo servidor y el
+    mismo emulador.
 
 ### Fase 5 · Distribución pública
 
@@ -525,3 +532,20 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   esto se cierra la fase 4. Siguiente: la fase 5, cuando el usuario quiera abrir
   la distribución pública. Antes conviene publicar una pre-release con los
   pasos 10 y 10b.
+- 2026-09-28 — **Paso 10c completado**, a partir de dos hallazgos de 10b
+  (uno estaba en una nota suelta, `Revisar.md`, que se sustituye por su
+  tarea):
+  - [[Conectar tras confirmar tarde la clave del servidor]]: la pregunta de
+    la clave de host sigue en pantalla aunque caduque el saludo SSH (sshj corta
+    a los 30 s), y al aceptarla la pestaña vuelve a conectar sola.
+  - [[Reconexión que no se rinde tras un corte largo]]: se reintenta durante
+    15 minutos en vez de unos 25 s, Android reconecta en cuanto vuelve la red,
+    y la franja ofrece **reconectar**, también en una pestaña caída o
+    fallida, sin perder el historial.
+
+  Verificado con 203 tests, un test de integración nuevo contra el servidor de
+  pruebas y en el emulador con el modo avión. Hallazgo anotado en
+  [[Indicar cuando la conexión deja de responder]] (sigue aparcada): sin red,
+  la pestaña tarda unos 3 minutos en darse cuenta del corte. Sale en la
+  siguiente pre-release, junto con 10 y 10b. Siguiente: publicar esa
+  pre-release cuando el usuario lo pida, o la fase 5.

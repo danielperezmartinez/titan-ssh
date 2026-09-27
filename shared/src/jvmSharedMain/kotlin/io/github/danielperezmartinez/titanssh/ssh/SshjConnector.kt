@@ -43,6 +43,9 @@ internal class SshjConnector : SshConnector {
             if (keepAliveSeconds > 0) keepAliveProvider = KeepAliveProvider.KEEP_ALIVE
         }
         val ssh = SSHClient(config)
+        // Without it an unreachable host takes the OS SYN timeout (about 2 min on
+        // Linux and Android), stalling the reconnect loop past the network's return.
+        ssh.connectTimeout = CONNECT_TIMEOUT_MILLIS
         ssh.addHostKeyVerifier(
             object : net.schmizz.sshj.transport.verification.HostKeyVerifier {
                 override fun verify(hostname: String, port: Int, key: PublicKey): Boolean {
@@ -153,6 +156,9 @@ internal fun sshFingerprintSha256(blob: ByteArray): String {
 /** Standard `SHA256:<base64-no-pad>` fingerprint of an SSH public key. */
 internal fun sshFingerprintSha256(key: PublicKey): String =
     sshFingerprintSha256(sshPublicKeyBlob(key))
+
+/** TCP connect timeout for every SSH connection. */
+private const val CONNECT_TIMEOUT_MILLIS = 15_000
 
 /** Internal marker thrown from the verifier so [SshjConnector] can map it precisely. */
 private class HostKeyRejectedSignal(val info: HostKeyInfo) : RuntimeException()

@@ -3,6 +3,8 @@
 
     <!-- SSH client: network access is the first capability it needs. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Reconnect tabs as soon as the network comes back. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
         android:icon="@mipmap/ic_launcher"

@@ -5,7 +5,7 @@ Resumen: 'Durante un microcorte corto (p. ej. activar y quitar el modo avión) l
 Decisiones: 'Surge de la prueba en el Pixel de [[Firma y configuración de release Android]] (2026-09-26). Complementa el estado RECONNECTING de [[Resiliencia de sesión ante microcortes de red]], que solo se activa cuando la conexión se da por caída.'
 Bloqueada: []
 Fecha de creación: 2026-09-26T16:52:00+02:00
-Última modificación: 2026-09-27T09:00:00+02:00
+Última modificación: 2026-09-28T12:45:00+02:00
 ---
 
 # Indicar cuando la conexión deja de responder
@@ -24,6 +24,14 @@ aunque la sesión sobreviva sin reconectar.
 - `SessionTab` ya tiene `TabPhase.RECONNECTING` y `SessionsArea` lo pinta como
   `[-]` en color de aviso. Esa fase solo empieza cuando la conexión se da por
   caída; un corte corto no la rompe.
+- Medido el 2026-09-28 en el emulador, al probar
+  [[Reconexión que no se rinde tras un corte largo]]: con el modo avión, la
+  pestaña sigue en "Conectado" unos 3 minutos (170–180 s) hasta que sshj da la
+  conexión por muerta, tras 5 keepalives sin respuesta cada 30 s
+  (`KeepAliveRunner`). Solo a veces cae antes, cuando Android cierra los sockets
+  de la red perdida. Si la red vuelve antes, la sesión sigue como si nada. Un
+  umbral más corto para *avisar* no debería adelantar la *reconexión*, porque
+  eso rompería sesiones que habrían sobrevivido.
 
 ## Aplazada
 

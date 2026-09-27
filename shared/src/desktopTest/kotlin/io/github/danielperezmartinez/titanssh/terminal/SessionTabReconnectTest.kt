@@ -26,13 +26,17 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 
 /**
  * Headless coverage of resilience level 1 in [SessionTab]
  * ([[Resiliencia de sesión ante microcortes de red]]): a drop is ridden out and
- * the scrollback preserved, a clean exit is not, and retries are bounded. Uses
+ * the scrollback preserved, a clean exit is not, and retries are bounded by
+ * time; "reconectar" and the network coming back cut the wait short
+ * ([[Reconexión que no se rinde tras un corte largo]]). Uses
  * fakes for the SSH engine so the reconnect lifecycle is driven on virtual time
  * without a network.
  */
@@ -64,10 +68,14 @@ class SessionTabReconnectTest {
         fun cleanExit() { shell.end() }
     }
 
-    /** Hands out a scripted sequence of sessions (or connection failures) per connect. */
+    /**
+     * Hands out a scripted sequence of sessions (or connection failures) per
+     * connect. While [down] every attempt fails without using the plan.
+     */
     private class FakeConnector(sessions: List<Result<FakeSession>>) : SshConnector {
         private val plan = ArrayDeque(sessions)
         var calls = 0
+        var down = false
         override suspend fun connect(
             endpoint: SshEndpoint,
             credentials: SshCredentials,
@@ -75,6 +83,7 @@ class SessionTabReconnectTest {
             keepAliveSeconds: Int,
         ): SshSession {
             calls++
+            if (down) throw SshConnectFailed("network down")
             val next = plan.removeFirstOrNull() ?: throw SshConnectFailed("no more sessions")
             return next.getOrElse { throw it }
         }
@@ -99,14 +108,27 @@ class SessionTabReconnectTest {
         dropGraceMillis = 100,
     )
 
-    private fun newTab(scope: CoroutineScope, connector: FakeConnector) = SessionTab(
+    /** No attempt limit: only the 5 s budget ends the retries. */
+    private val budgetPolicy = ReconnectPolicy(
+        giveUpAfterMillis = 5_000,
+        initialBackoffMillis = 10,
+        maxBackoffMillis = 1_000,
+        dropGraceMillis = 100,
+    )
+
+    private fun TestScope.newTab(
+        scope: CoroutineScope,
+        connector: FakeConnector,
+        policy: ReconnectPolicy = fastPolicy,
+    ) = SessionTab(
         id = "tab",
         resolved = resolved(),
         connector = connector,
         credentials = { SshCredentials.Password("pw".toCharArray()) },
         knownHostsStore = InMemoryKnownHostsStore(),
         scope = scope,
-        reconnect = fastPolicy,
+        reconnect = policy,
+        timeSource = testScheduler.timeSource,
     )
 
     private fun SessionTab.text(): String {
@@ -192,9 +214,161 @@ class SessionTabReconnectTest {
             "it reports giving up: ${tab.status.value.detail}",
         )
         // 1 initial + maxAttempts reconnects.
-        assertEquals(1 + fastPolicy.maxAttempts, connector.calls)
+        assertEquals(1 + fastPolicy.maxAttempts!!, connector.calls)
 
         tab.close()
+    }
+
+    @Test
+    fun keeps_retrying_well_past_six_attempts_within_the_budget() = runTest {
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + Job())
+        val s1 = FakeSession()
+        val s2 = FakeSession()
+        val failures = List(12) { Result.failure<FakeSession>(SshConnectFailed("down")) }
+        val connector = FakeConnector(listOf(Result.success(s1)) + failures + Result.success(s2))
+        val tab = newTab(scope, connector, budgetPolicy.copy(giveUpAfterMillis = 60_000))
+
+        tab.start()
+        advanceUntilIdle()
+        s1.drop()
+        advanceUntilIdle()
+
+        assertEquals(TabPhase.CONNECTED, tab.status.value.phase)
+        assertEquals(1 + 12 + 1, connector.calls, "it rode out twelve failed attempts")
+
+        tab.close()
+    }
+
+    @Test
+    fun gives_up_once_the_time_budget_is_spent() = runTest {
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + Job())
+        val s1 = FakeSession()
+        val connector = FakeConnector(listOf(Result.success(s1)))
+        val tab = newTab(scope, connector, budgetPolicy)
+
+        tab.start()
+        advanceUntilIdle()
+        val droppedAt = testScheduler.currentTime
+        connector.down = true
+        s1.drop()
+        advanceUntilIdle()
+
+        assertEquals(TabPhase.DISCONNECTED, tab.status.value.phase)
+        assertEquals("No se pudo reconectar en 5 s", tab.status.value.detail)
+        assertTrue(testScheduler.currentTime - droppedAt >= 5_000, "it kept trying for the whole budget")
+
+        tab.close()
+    }
+
+    @Test
+    fun reconnect_now_cuts_the_backoff_short() = runTest {
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + Job())
+        val s1 = FakeSession()
+        val s2 = FakeSession()
+        val connector = FakeConnector(listOf(Result.success(s1), Result.success(s2)))
+        val slow = ReconnectPolicy(initialBackoffMillis = 60_000, maxBackoffMillis = 60_000, dropGraceMillis = 100)
+        val tab = newTab(scope, connector, slow)
+
+        tab.start()
+        advanceUntilIdle()
+        s1.drop()
+        advanceTimeBy(1_000)
+        assertEquals(TabPhase.RECONNECTING, tab.status.value.phase)
+        assertEquals(1, connector.calls, "still waiting out the backoff")
+
+        tab.reconnectNow()
+        advanceTimeBy(1_000)
+        assertEquals(TabPhase.CONNECTED, tab.status.value.phase)
+        assertEquals(2, connector.calls)
+
+        tab.close()
+    }
+
+    @Test
+    fun reconnect_now_brings_back_a_tab_that_gave_up_with_its_scrollback() = runTest {
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + Job())
+        val s1 = FakeSession()
+        val s2 = FakeSession()
+        val connector = FakeConnector(listOf(Result.success(s1), Result.success(s2)))
+        val tab = newTab(scope, connector, budgetPolicy)
+
+        tab.start()
+        advanceUntilIdle()
+        s1.shell.emit("before-the-cut\n")
+        advanceUntilIdle()
+        connector.down = true
+        s1.drop()
+        advanceUntilIdle()
+        assertEquals(TabPhase.DISCONNECTED, tab.status.value.phase)
+
+        connector.down = false
+        tab.reconnectNow()
+        advanceUntilIdle()
+
+        assertEquals(TabPhase.CONNECTED, tab.status.value.phase)
+        assertTrue(tab.text().contains("before-the-cut"), "the same emulator carries on")
+
+        tab.close()
+    }
+
+    @Test
+    fun reconnect_now_retries_a_failed_first_connection() = runTest {
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + Job())
+        val s1 = FakeSession()
+        val connector = FakeConnector(listOf(Result.failure(SshConnectFailed("unreachable")), Result.success(s1)))
+        val tab = newTab(scope, connector)
+
+        tab.start()
+        advanceUntilIdle()
+        assertEquals(TabPhase.FAILED, tab.status.value.phase)
+
+        tab.reconnectNow()
+        advanceUntilIdle()
+        assertEquals(TabPhase.CONNECTED, tab.status.value.phase)
+        assertEquals(2, connector.calls)
+
+        tab.close()
+    }
+
+    @Test
+    fun the_network_coming_back_retries_only_tabs_that_were_cut() = runTest {
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + Job())
+
+        // Gave up after a cut: the network coming back revives it.
+        val first = FakeSession()
+        val cut = FakeConnector(listOf(Result.success(first), Result.success(FakeSession())))
+        val gaveUp = newTab(scope, cut, budgetPolicy)
+        gaveUp.start()
+        advanceUntilIdle()
+        cut.down = true
+        first.drop()
+        advanceUntilIdle()
+        assertEquals(TabPhase.DISCONNECTED, gaveUp.status.value.phase)
+
+        // Ended by the user, and failed on its very first connection: left alone.
+        val exiting = FakeSession()
+        val exited = FakeConnector(listOf(Result.success(exiting)))
+        val ended = newTab(scope, exited)
+        ended.start()
+        advanceUntilIdle()
+        exiting.cleanExit()
+        advanceUntilIdle()
+        val unreachable = FakeConnector(listOf(Result.failure(SshConnectFailed("unreachable"))))
+        val failed = newTab(scope, unreachable)
+        failed.start()
+        advanceUntilIdle()
+
+        cut.down = false
+        listOf(gaveUp, ended, failed).forEach { it.onNetworkRestored() }
+        advanceUntilIdle()
+
+        assertEquals(TabPhase.CONNECTED, gaveUp.status.value.phase)
+        assertEquals(TabPhase.DISCONNECTED, ended.status.value.phase)
+        assertEquals(1, exited.calls)
+        assertEquals(TabPhase.FAILED, failed.status.value.phase)
+        assertEquals(1, unreachable.calls)
+
+        listOf(gaveUp, ended, failed).forEach { it.close() }
     }
 
     @Test

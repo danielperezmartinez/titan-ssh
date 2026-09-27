@@ -5,9 +5,11 @@ import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
 import io.github.danielperezmartinez.titanssh.ssh.KnownHostsStore
 import io.github.danielperezmartinez.titanssh.ssh.SshConnector
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 
 /**
@@ -34,6 +36,11 @@ class SessionManager(
      * with bundled binaries) to enable the persistent agent.
      */
     private val agentDeployer: AgentDeployer? = null,
+    /**
+     * Emits when the network comes back ([networkRestored] on the platform);
+     * each tab then retries at once if it was waiting or had given up.
+     */
+    networkRestored: Flow<Unit> = emptyFlow(),
 ) {
     private val byId = mutableMapOf<String, SessionTab>()
 
@@ -44,6 +51,12 @@ class SessionManager(
 
     private val _activeId = MutableStateFlow<String?>(null)
     val activeId: StateFlow<String?> = _activeId.asStateFlow()
+
+    init {
+        scope.launch {
+            networkRestored.collect { _tabs.value.forEach { it.onNetworkRestored() } }
+        }
+    }
 
     /**
      * Opens [resolved] in a new tab, makes it active and starts connecting.

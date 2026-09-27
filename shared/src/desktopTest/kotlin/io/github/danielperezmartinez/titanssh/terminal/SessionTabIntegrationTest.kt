@@ -10,9 +10,12 @@ import io.github.danielperezmartinez.titanssh.config.SessionScript
 import io.github.danielperezmartinez.titanssh.config.TerminalAppearance
 import io.github.danielperezmartinez.titanssh.secret.SecretRef
 import io.github.danielperezmartinez.titanssh.secret.SecretStore
+import io.github.danielperezmartinez.titanssh.ssh.HostKeyVerifier
 import io.github.danielperezmartinez.titanssh.ssh.InMemoryKnownHostsStore
+import io.github.danielperezmartinez.titanssh.ssh.SshConnector
 import io.github.danielperezmartinez.titanssh.ssh.SshCredentials
 import io.github.danielperezmartinez.titanssh.ssh.SshEndpoint
+import io.github.danielperezmartinez.titanssh.ssh.SshSession
 import io.github.danielperezmartinez.titanssh.ssh.createSshConnector
 import java.io.File
 import kotlin.test.Test
@@ -125,6 +128,90 @@ class SessionTabIntegrationTest {
 
             println("[integration] tab snapshot tail: ${text.trim().takeLast(120)}")
             assertTrue(text.contains("titan-ok"), "the echoed command output should appear in the terminal snapshot")
+        }
+    }
+
+    /**
+     * The host key prompt left open past sshj's 30 s key exchange timeout: the
+     * attempt dies, yet accepting afterwards still connects the tab
+     * ([[Conectar tras confirmar tarde la clave del servidor]]). Takes ~40 s.
+     */
+    @Test
+    fun a_host_key_trusted_after_the_handshake_timed_out_still_connects() {
+        val p = params() ?: return
+
+        runBlocking {
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+            val host = Host(
+                id = "h",
+                alias = "test",
+                hostname = p.host,
+                port = p.port,
+                username = p.user,
+                auth = HostAuth.SoftwareKey(secretRef = "unused-in-test"),
+            )
+            val resolved = ResolvedConnection(
+                session = Session(id = "s", name = "late-trust", hostId = "h"),
+                host = host,
+                endpoint = SshEndpoint(p.host, p.port, p.user),
+                auth = host.auth,
+                appearance = TerminalAppearance(),
+                proxyJump = null,
+            )
+            val store = InMemoryKnownHostsStore()
+            // Counts attempts, to prove the first one really died meanwhile.
+            val real = createSshConnector()
+            var attempts = 0
+            val counting = object : SshConnector {
+                override suspend fun connect(
+                    endpoint: SshEndpoint,
+                    credentials: SshCredentials,
+                    hostKeyVerifier: HostKeyVerifier,
+                    keepAliveSeconds: Int,
+                ): SshSession {
+                    attempts++
+                    return real.connect(endpoint, credentials, hostKeyVerifier, keepAliveSeconds)
+                }
+            }
+            val tab = SessionTab(
+                id = "tab-late",
+                resolved = resolved,
+                connector = counting,
+                credentials = {
+                    SshCredentials.PrivateKey(File(p.keyPath).readText().toCharArray(), p.passphrase)
+                },
+                knownHostsStore = store,
+                scope = scope,
+            )
+            tab.start()
+
+            val prompt = withTimeoutOrNull(15_000) {
+                while (tab.pendingHostKey.value == null) kotlinx.coroutines.delay(100)
+                tab.pendingHostKey.value
+            }
+            assertTrue(prompt != null, "the first contact should prompt, was ${tab.status.value}")
+
+            kotlinx.coroutines.delay(40_000)
+            assertTrue(tab.pendingHostKey.value === prompt, "the prompt should still be up")
+            assertTrue(tab.status.value.phase == TabPhase.CONNECTING, "still connecting, was ${tab.status.value}")
+
+            prompt!!.accept()
+            val connected = withTimeoutOrNull(20_000) {
+                while (tab.status.value.phase != TabPhase.CONNECTED) {
+                    if (tab.status.value.phase == TabPhase.FAILED) break
+                    kotlinx.coroutines.delay(100)
+                }
+                tab.status.value.phase
+            }
+            val status = tab.status.value
+            val prompts = tab.pendingHostKey.value
+            tab.close()
+            scope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
+
+            assertTrue(connected == TabPhase.CONNECTED, "accepting late should connect, was $status")
+            assertTrue(attempts == 2, "the first attempt timed out and a second one connected, was $attempts")
+            assertTrue(prompts == null, "no second prompt")
+            assertTrue(store.entriesFor(p.host, p.port).size == 1, "the key is saved once")
         }
     }
 

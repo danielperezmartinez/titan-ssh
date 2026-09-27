@@ -38,6 +38,7 @@ import io.github.danielperezmartinez.titanssh.ssh.createSshConnector
 import io.github.danielperezmartinez.titanssh.terminal.CredentialResolver
 import io.github.danielperezmartinez.titanssh.terminal.SessionManager
 import io.github.danielperezmartinez.titanssh.terminal.createAgentDeployer
+import io.github.danielperezmartinez.titanssh.terminal.networkRestored
 import io.github.danielperezmartinez.titanssh.terminal.StartScriptAutomation
 import io.github.danielperezmartinez.titanssh.theme.TitanColors
 import io.github.danielperezmartinez.titanssh.theme.TitanDimens
@@ -73,6 +74,7 @@ fun AppShell() {
                 // Level-3 agent (ADR-0008): installs & drives titan-agent for
                 // AGENT sessions; degrades to level 2/1 when unavailable.
                 agentDeployer = createAgentDeployer(),
+                networkRestored = networkRestored(),
             )
         }
         var area by remember { mutableStateOf(Area.CONFIG) }

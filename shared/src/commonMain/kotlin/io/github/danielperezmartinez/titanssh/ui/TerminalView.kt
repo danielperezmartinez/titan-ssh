@@ -205,6 +205,7 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier, scripts: List<S
             status,
             resilience,
             onEnableLinger = { scope.launch { tab.enableLinger() } },
+            onReconnect = { tab.reconnectNow() },
             scriptsOpen = scriptsOpen && canRunScripts,
             onToggleScripts = if (canRunScripts) ({ scriptsOpen = !scriptsOpen; tunnelsOpen = false }) else null,
             tunnels = tunnels,
@@ -439,13 +440,15 @@ private fun cellColors(cell: TerminalCell, isCursor: Boolean): Pair<Color, Color
  * the resilience level it really runs at, and below it any level-3 issue
  * ([[Diagnóstico cuando el nivel 3 no está disponible]]): why the tab degraded,
  * or the systemd warning with its fix. The notice can be dismissed; a new issue
- * shows again.
+ * shows again. While the tab reconnects, or once it is down, "reconectar" tries
+ * again at once in the same tab.
  */
 @Composable
 private fun StatusStrip(
     status: io.github.danielperezmartinez.titanssh.terminal.TabStatus,
     resilience: ResilienceStatus,
     onEnableLinger: () -> Unit,
+    onReconnect: () -> Unit,
     scriptsOpen: Boolean,
     onToggleScripts: (() -> Unit)?,
     tunnels: List<TunnelStatus>,
@@ -475,6 +478,14 @@ private fun StatusStrip(
             color = TitanColors.Mute,
             modifier = Modifier.weight(1f),
         )
+        if (status.phase == TabPhase.RECONNECTING || status.phase == TabPhase.DISCONNECTED || status.phase == TabPhase.FAILED) {
+            Text(
+                "reconectar",
+                style = MaterialTheme.typography.labelSmall,
+                color = TitanColors.Accent,
+                modifier = Modifier.clickable(onClick = onReconnect).padding(horizontal = TitanDimens.SpaceXs),
+            )
+        }
         if (tunnels.isNotEmpty()) {
             val active = tunnels.count { it.state == TunnelState.ACTIVE }
             val trouble = tunnels.any { it.state == TunnelState.FAILED || it.detail != null }
