@@ -57,6 +57,45 @@ interface SshExecChannel {
 }
 
 /**
+ * A minimal SFTP client over one session: what the level-3 agent installer needs
+ * (ADR-0009 §7) to place a binary on any destination, Windows included, without
+ * relying on the remote shell's tools. Paths use SFTP syntax: `/`-separated,
+ * and on Windows a drive letter behind a leading slash (`/C:/Users/u`). SFTP does
+ * not expand `~`; resolve the home with [canonicalize] (`"."`).
+ */
+interface SshSftp {
+    /** Resolves [path] to an absolute path on the server (`"."` is the login directory). */
+    suspend fun canonicalize(path: String): String
+
+    /** Size in bytes of the file at [path], or null if nothing exists there. */
+    suspend fun size(path: String): Long?
+
+    /** Names (not paths) of the entries in [directory], without `.` and `..`. */
+    suspend fun list(directory: String): List<String>
+
+    /** Creates [directory] and any missing parents. */
+    suspend fun mkdirs(directory: String)
+
+    /** Creates or truncates the file at [path] and writes [bytes] to it. */
+    suspend fun write(path: String, bytes: ByteArray)
+
+    /** Reads the whole file at [path]. */
+    suspend fun read(path: String): ByteArray
+
+    /** Sets the Unix permission bits of [path] (e.g. `0x1C0` for `0700`). */
+    suspend fun chmod(path: String, mode: Int)
+
+    /** Renames [from] to [to]; [to] must not exist (SFTP v3 semantics). */
+    suspend fun rename(from: String, to: String)
+
+    /** Deletes the file at [path]. */
+    suspend fun remove(path: String)
+
+    /** Closes the SFTP channel. The session stays open. */
+    suspend fun close()
+}
+
+/**
  * A live SSH session to one endpoint. Owns the transport; can open a shell and
  * exposes [state] so resiliency (level 1) and the UI can react to drops.
  */
@@ -74,6 +113,13 @@ interface SshSession {
      */
     suspend fun exec(command: String): SshExecChannel =
         throw NotImplementedError("exec channel not supported by this session")
+
+    /**
+     * Opens an SFTP channel, or returns null when the server offers no `sftp`
+     * subsystem (the level-3 installer then falls back to `exec` on Unix). The
+     * caller closes it. Test fakes may leave the default.
+     */
+    suspend fun openSftp(): SshSftp? = null
 
     /** Closes the session and its transport. */
     suspend fun close()

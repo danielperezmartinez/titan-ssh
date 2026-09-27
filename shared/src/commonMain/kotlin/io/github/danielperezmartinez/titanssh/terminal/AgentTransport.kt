@@ -22,7 +22,7 @@ import kotlinx.coroutines.sync.withLock
 class AgentTransport(
     private val session: SshSession,
     agentSessionId: String,
-    private val agentPath: String,
+    private val agent: AgentLaunch,
     private val onOutput: suspend (ByteArray) -> Unit,
     initialColumns: Int,
     initialRows: Int,
@@ -52,7 +52,7 @@ class AgentTransport(
      * when the output flow completes.
      */
     suspend fun run() {
-        val ch = session.exec("$agentPath --session $safeId")
+        val ch = session.exec(agent.command("--session", safeId))
         stateMutex.withLock { channel = ch }
         sendFrame(ch, AgentFrame.Hello(safeId, appliedOffset, columns, rows))
         val decoder = AgentProtocol.FrameDecoder()
@@ -69,7 +69,10 @@ class AgentTransport(
         when (frame) {
             is AgentFrame.Data -> {
                 applyData(frame.offset, frame.bytes)
-                sendFrame(ch, AgentFrame.Ack(appliedOffset))
+                // The channel may close under a late DATA ([close], or a drop,
+                // which ends the output anyway). A lost ACK only means the agent
+                // keeps a little more history for the replay.
+                runCatching { sendFrame(ch, AgentFrame.Ack(appliedOffset)) }
             }
             is AgentFrame.HelloOk -> {
                 val fresh = frame.created ?: isFreshLegacy(frame)
@@ -126,7 +129,7 @@ class AgentTransport(
     private fun isFreshLegacy(frame: AgentFrame.HelloOk): Boolean = frame.headOffset == 0L
 
     private companion object {
-        /** Keeps the id shell-safe for the `--session` flag (it also travels in HELLO). */
+        /** Keeps the id shell-safe (every shell) for the `--session` flag (it also travels in HELLO). */
         fun sanitizeId(id: String): String {
             val safe = id.map { if (it.isLetterOrDigit() || it == '-' || it == '_') it else '_' }
                 .joinToString("")

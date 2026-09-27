@@ -246,8 +246,8 @@ class SessionTab(
             // persistence. If it can't be provisioned, fall through to the shell
             // path below (degrade to level 2/1).
             if (agentDeployer != null && resolved.session.resilienceLevel == ResilienceLevel.AGENT) {
-                val agentPath = agentDeployer.ensureInstalled(opened)
-                if (agentPath != null) {
+                val agentLaunch = agentDeployer.ensureInstalled(opened)
+                if (agentLaunch != null) {
                     _status.value = TabStatus(TabPhase.CONNECTED)
                     // Same tee as the shell path, fed from the agent's DATA; the
                     // automation's input goes out as INPUT frames.
@@ -257,7 +257,7 @@ class SessionTab(
                     val transport = AgentTransport(
                         session = opened,
                         agentSessionId = resolved.session.id,
-                        agentPath = agentPath,
+                        agent = agentLaunch,
                         onOutput = { bytes ->
                             feedBytes(bytes)
                             tee.tryEmit(bytes.decodeToString())

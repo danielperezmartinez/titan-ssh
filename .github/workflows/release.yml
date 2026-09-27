@@ -9,6 +9,11 @@
 # version from it (root build.gradle.kts). A release version makes the level-3
 # agent mandatory, so a missing Go toolchain fails the build.
 #
+# The agent job builds every titan-agent binary once. They are published with
+# the Release, where the app downloads the targets it does not bundle
+# (ADR-0010), and every other job takes these same files through
+# -PtitanAgentPrebuilt, so the digests pinned in each app match the assets.
+#
 # Once the Release exists, the aur and winget jobs hand the new version to
 # those package managers.
 #
@@ -77,9 +82,38 @@ jobs:
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
           echo "Version $version (pre-release: $prerelease)"
 
+  agent:
+    name: Agent binaries
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: agent/go.sum
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+      - name: Build
+        run: ./gradlew :shared:agentReleaseAssets "-PtitanVersion=$VERSION" --console=plain
+      - name: List
+        working-directory: shared/build/agentBinaries/release
+        run: ls -l && sha256sum -- *
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: agent
+          path: shared/build/agentBinaries/release/
+          if-no-files-found: error
+
   test:
     name: Tests
-    needs: version
+    needs: [version, agent]
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     env:
@@ -94,16 +128,20 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: agent/go.sum
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: agent
+          path: ${{ runner.temp }}/agent
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
       - name: Agent tests
         working-directory: agent
         run: go test -race -count=1 ./...
       - name: Desktop tests
-        run: ./gradlew :shared:desktopTest "-PtitanVersion=$VERSION" --console=plain
+        run: ./gradlew :shared:desktopTest "-PtitanVersion=$VERSION" "-PtitanAgentPrebuilt=$RUNNER_TEMP/agent" --console=plain
 
   android:
     name: Android APK and AAB
-    needs: version
+    needs: [version, agent]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -114,10 +152,10 @@ jobs:
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: agent/go.sum
+          name: agent
+          path: ${{ runner.temp }}/agent
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
       - name: Restore the signing keystore
         env:
@@ -135,7 +173,7 @@ jobs:
           TITAN_KEYSTORE_PASSWORD: ${{ secrets.TITAN_KEYSTORE_PASSWORD }}
           # PKCS12: the key shares the store password.
           TITAN_KEY_PASSWORD: ${{ secrets.TITAN_KEYSTORE_PASSWORD }}
-        run: ./gradlew :androidApp:assembleRelease :androidApp:bundleRelease "-PtitanVersion=$VERSION" --console=plain
+        run: ./gradlew :androidApp:assembleRelease :androidApp:bundleRelease "-PtitanVersion=$VERSION" "-PtitanAgentPrebuilt=$RUNNER_TEMP/agent" --console=plain
       - name: Remove the keystore
         if: always()
         run: rm -f "$RUNNER_TEMP/release.jks"
@@ -161,7 +199,7 @@ jobs:
 
   linux:
     name: Linux deb, rpm and tar.gz
-    needs: version
+    needs: [version, agent]
     # jpackage takes the .deb dependencies from the build machine: one built on
     # 24.04 needs libpng16-16t64, missing from 22.04 and Debian 12. The .rpm
     # only ever declares xdg-utils (jpackage 21 looks up the library packages,
@@ -176,10 +214,10 @@ jobs:
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: agent/go.sum
+          name: agent
+          path: ${{ runner.temp }}/agent
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
       # jpackage only declares the libraries it finds installed, so they are
       # installed explicitly instead of relying on the runner image.
@@ -189,7 +227,7 @@ jobs:
           fakeroot rpm libx11-6 libxext6 libxi6 libxrender1 libxtst6 libasound2
           libfreetype6 libfontconfig1
       - name: Build
-        run: ./gradlew :desktopApp:packageDeb :desktopApp:packageRpm :desktopApp:packageTarGz "-PtitanVersion=$VERSION" --console=plain
+        run: ./gradlew :desktopApp:packageDeb :desktopApp:packageRpm :desktopApp:packageTarGz "-PtitanVersion=$VERSION" "-PtitanAgentPrebuilt=$RUNNER_TEMP/agent" --console=plain
       - name: Collect
         run: |
           mkdir dist
@@ -212,7 +250,7 @@ jobs:
 
   windows:
     name: Windows MSI
-    needs: version
+    needs: [version, agent]
     runs-on: windows-latest
     timeout-minutes: 30
     env:
@@ -226,13 +264,13 @@ jobs:
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: agent/go.sum
+          name: agent
+          path: ${{ runner.temp }}/agent
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
       - name: Build
-        run: ./gradlew :desktopApp:packageMsi "-PtitanVersion=$VERSION" --console=plain
+        run: ./gradlew :desktopApp:packageMsi "-PtitanVersion=$VERSION" "-PtitanAgentPrebuilt=$RUNNER_TEMP/agent" --console=plain
       - name: Collect
         run: |
           # jpackage names the MSI after its internal X.Y.(Z*100+S) version;
@@ -248,7 +286,7 @@ jobs:
   publish:
     name: Publish the GitHub Release
     if: github.event_name == 'push'
-    needs: [version, test, android, linux, windows]
+    needs: [version, agent, test, android, linux, windows]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

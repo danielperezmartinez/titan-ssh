@@ -1,3 +1,4 @@
+import java.security.MessageDigest
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -10,20 +11,57 @@ plugins {
 
 // --- Level-3 agent (titan-agent) multi-arch build → bundled resources ----------
 //
-// Cross-compiles the Go agent in `agent/` for each destination target into JVM
-// resources (packaged under /agent/). In development it is best-effort: if the
-// Go toolchain is not found the build still succeeds with no binaries bundled,
-// and a `ResilienceLevel.AGENT` session simply degrades to level 2/1
-// (AgentInstaller returns Unsupported). See ADR-0008. A release build (any
-// version other than the dev one) must bundle every target, so a missing Go or a
-// failed cross-compile fails it instead of shipping a package without level 3.
+// Cross-compiles the Go agent in `agent/` for every destination target of
+// ADR-0009 §6. ADR-0010 splits them: the main ones are bundled as JVM resources
+// (under /agent/), the rest are published with the GitHub Release and
+// downloaded on demand. Either way the app carries /agent/SHA256SUMS, the
+// digest of every target, and never runs a download that does not match it.
+//
+// In development it is best-effort: if the Go toolchain is not found the build
+// still succeeds with no binaries bundled, and a `ResilienceLevel.AGENT` session
+// simply degrades to level 2/1 (AgentInstaller returns Unsupported). A release
+// build (any version other than the dev one) must build every target, so a
+// missing Go or a failed cross-compile fails it instead of shipping a package
+// without level 3.
+//
+// -PtitanAgentPrebuilt=<dir> takes the binaries from a directory of Release
+// assets (`titan-agent-<version>-<os>-<arch>[.exe]`) instead of compiling them.
+// CI builds them once and hands the same files to every package, so the
+// digests pinned in each app are exactly those of the published assets.
 //
 // The agent carries the single app version (root build file): it is stamped
 // into the binary with -ldflags and drives the versioned install path.
 val titanVersion = rootProject.extra["titanVersion"] as String
 val agentModuleDir = rootProject.file("agent")
 val agentBinariesDir = layout.buildDirectory.dir("generated/agentBinaries")
-val agentTargets = listOf("linux" to "amd64", "linux" to "arm64", "darwin" to "arm64")
+val agentAllDir = layout.buildDirectory.dir("agentBinaries/all")
+val agentReleaseDir = layout.buildDirectory.dir("agentBinaries/release")
+val agentPrebuiltDir = (findProperty("titanAgentPrebuilt") as String?)?.let { rootProject.file(it) }
+
+/** A destination the agent is compiled for; [bundled] ones ship inside the app. */
+data class AgentBuildTarget(val os: String, val arch: String, val bundled: Boolean) {
+    val suffix: String get() = if (os == "windows") ".exe" else ""
+    /** Build output and resource name; AgentTarget.fileName in the app. */
+    val fileName: String get() = "titan-agent-$os-$arch$suffix"
+    /** Release asset name; AgentDownloader.assetName in the app. */
+    fun assetName(version: String): String = "titan-agent-$version-$os-$arch$suffix"
+}
+
+val agentTargets = listOf(
+    AgentBuildTarget("linux", "amd64", bundled = true),
+    AgentBuildTarget("linux", "arm64", bundled = true),
+    AgentBuildTarget("darwin", "amd64", bundled = true),
+    AgentBuildTarget("darwin", "arm64", bundled = true),
+    AgentBuildTarget("windows", "amd64", bundled = true),
+    AgentBuildTarget("windows", "arm64", bundled = true),
+    AgentBuildTarget("linux", "arm", bundled = false),
+    AgentBuildTarget("linux", "386", bundled = false),
+    AgentBuildTarget("linux", "riscv64", bundled = false),
+    AgentBuildTarget("linux", "ppc64le", bundled = false),
+    AgentBuildTarget("linux", "s390x", bundled = false),
+    AgentBuildTarget("freebsd", "amd64", bundled = false),
+    AgentBuildTarget("freebsd", "arm64", bundled = false),
+)
 
 fun resolveGo(): String? {
     val candidates = listOfNotNull(
@@ -167,44 +205,81 @@ kotlin {
 val agentRequired = rootProject.extra["titanIsRelease"] as Boolean
 
 val buildAgentBinaries by tasks.registering {
-    description = "Cross-compiles titan-agent (level-3) for each destination target into bundled resources."
-    inputs.dir(agentModuleDir)
+    description = "Builds titan-agent (level-3) for every target, bundles the main ones and pins every digest."
+    if (agentPrebuiltDir != null) inputs.dir(agentPrebuiltDir) else inputs.dir(agentModuleDir)
     inputs.property("titanVersion", titanVersion)
+    inputs.property("agentTargets", agentTargets.map { "${it.fileName}:${it.bundled}" })
     outputs.dir(agentBinariesDir)
+    outputs.dir(agentAllDir)
     doLast {
         // Development: warn and bundle what could be built. Release: fail.
         fun problem(message: String) {
-            if (agentRequired) throw GradleException("$message (a release build must bundle the level-3 agent)")
+            if (agentRequired) throw GradleException("$message (a release build must include the level-3 agent)")
             logger.warn(message)
         }
-        val outDir = agentBinariesDir.get().dir("agent").asFile
-        outDir.mkdirs()
-        val go = resolveGo()
-        if (go == null) {
-            problem("titan-agent: Go toolchain not found; level-3 agent binaries NOT bundled (AGENT sessions will degrade to level 2/1).")
-            return@doLast
-        }
-        agentTargets.forEach { (os, arch) ->
-            val out = File(outDir, "titan-agent-$os-$arch")
-            val failure = try {
-                val pb = ProcessBuilder(
-                    go, "build", "-trimpath", "-ldflags", "-s -w -X main.version=$titanVersion",
-                    "-o", out.absolutePath, "./cmd/titan-agent",
-                )
-                pb.directory(agentModuleDir)
-                pb.environment()["GOOS"] = os
-                pb.environment()["GOARCH"] = arch
-                pb.redirectErrorStream(true)
-                val process = pb.start()
-                val log = process.inputStream.bufferedReader().readText()
-                val code = process.waitFor()
-                if (code != 0) "titan-agent: cross-compile failed for $os/$arch (exit $code): ${log.take(500)}" else null
-            } catch (e: Exception) {
-                "titan-agent: cross-compile error for $os/$arch: ${e.message}"
+        val allDir = agentAllDir.get().asFile
+        val resDir = agentBinariesDir.get().dir("agent").asFile
+        listOf(allDir, resDir).forEach { it.deleteRecursively(); it.mkdirs() }
+
+        if (agentPrebuiltDir != null) {
+            agentTargets.forEach { t ->
+                val src = File(agentPrebuiltDir, t.assetName(titanVersion))
+                if (src.isFile) src.copyTo(File(allDir, t.fileName))
+                else problem("titan-agent: prebuilt ${src.name} not found in $agentPrebuiltDir")
             }
-            failure?.let(::problem)
+        } else {
+            val go = resolveGo()
+            if (go == null) {
+                problem("titan-agent: Go toolchain not found; level-3 agent binaries NOT bundled (AGENT sessions will degrade to level 2/1).")
+                return@doLast
+            }
+            agentTargets.forEach { t ->
+                val failure = try {
+                    val pb = ProcessBuilder(
+                        go, "build", "-trimpath", "-ldflags", "-s -w -X main.version=$titanVersion",
+                        "-o", File(allDir, t.fileName).absolutePath, "./cmd/titan-agent",
+                    )
+                    pb.directory(agentModuleDir)
+                    // Static, self-contained binaries: nothing to install on the destination.
+                    pb.environment()["CGO_ENABLED"] = "0"
+                    pb.environment()["GOOS"] = t.os
+                    pb.environment()["GOARCH"] = t.arch
+                    // 32-bit ARM: ARMv7 (Raspberry Pi 2 and later, most boards).
+                    if (t.arch == "arm") pb.environment()["GOARM"] = "7"
+                    pb.redirectErrorStream(true)
+                    val process = pb.start()
+                    val log = process.inputStream.bufferedReader().readText()
+                    val code = process.waitFor()
+                    if (code != 0) "titan-agent: cross-compile failed for ${t.os}/${t.arch} (exit $code): ${log.take(500)}" else null
+                } catch (e: Exception) {
+                    "titan-agent: cross-compile error for ${t.os}/${t.arch}: ${e.message}"
+                }
+                failure?.let(::problem)
+            }
         }
+
+        // Bundle the main targets and pin the digest of every one (ADR-0010).
+        val sums = StringBuilder()
+        agentTargets.forEach { t ->
+            val file = File(allDir, t.fileName)
+            if (!file.isFile) return@forEach
+            val digest = MessageDigest.getInstance("SHA-256").digest(file.readBytes())
+            sums.append(digest.joinToString("") { "%02x".format(it) }).append("  ").append(t.fileName).append('\n')
+            if (t.bundled) file.copyTo(File(resDir, t.fileName))
+        }
+        if (sums.isNotEmpty()) File(resDir, "SHA256SUMS").writeText(sums.toString())
     }
+}
+
+// Every agent binary under its Release asset name, for the release pipeline:
+// published with the Release (the on-demand targets are downloaded from there)
+// and handed back to the packaging jobs through -PtitanAgentPrebuilt.
+val agentReleaseAssets by tasks.registering(Copy::class) {
+    description = "Copies every titan-agent binary under its GitHub Release asset name."
+    dependsOn(buildAgentBinaries)
+    from(agentAllDir)
+    into(agentReleaseDir)
+    rename { name -> agentTargets.first { it.fileName == name }.assetName(titanVersion) }
 }
 
 // Make every resource-processing/packaging task depend on the agent build, so the

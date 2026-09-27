@@ -3,6 +3,7 @@ package io.github.danielperezmartinez.titanssh.ssh
 import java.security.MessageDigest
 import java.security.PublicKey
 import java.util.Base64
+import java.util.EnumSet
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -23,6 +24,8 @@ import net.schmizz.sshj.common.Buffer
 import net.schmizz.sshj.common.KeyType
 import net.schmizz.keepalive.KeepAliveProvider
 import net.schmizz.sshj.connection.channel.direct.Session
+import net.schmizz.sshj.sftp.OpenMode
+import net.schmizz.sshj.sftp.SFTPClient
 import net.schmizz.sshj.userauth.UserAuthException
 import net.schmizz.sshj.userauth.keyprovider.KeyProvider
 import net.schmizz.sshj.userauth.password.PasswordUtils
@@ -187,6 +190,12 @@ internal class SshjSession(private val ssh: SSHClient) : SshSession {
         SshjExecChannel(session, cmd, scope)
     }
 
+    override suspend fun openSftp(): SshSftp? = withContext(Dispatchers.IO) {
+        // A server without the sftp subsystem refuses the channel request; the
+        // level-3 installer then falls back to exec (ADR-0009 §7).
+        runCatching { SshjSftp(ssh.newSFTPClient()) }.getOrNull()
+    }
+
     override suspend fun close() = withContext(Dispatchers.IO) {
         _state.value = SshConnectionState.DISCONNECTED
         scope.cancel()
@@ -301,5 +310,57 @@ internal class SshjExecChannel(
 
     private companion object {
         const val READ_BUFFER = 8192
+    }
+}
+
+/** SFTP over sshj's [SFTPClient]; the level-3 agent installer's upload path (ADR-0009 §7). */
+internal class SshjSftp(private val sftp: SFTPClient) : SshSftp {
+
+    override suspend fun canonicalize(path: String): String = io { sftp.canonicalize(path) }
+
+    override suspend fun size(path: String): Long? = io { sftp.statExistence(path)?.size }
+
+    override suspend fun list(directory: String): List<String> = io {
+        sftp.ls(directory).map { it.name }.filter { it != "." && it != ".." }
+    }
+
+    override suspend fun mkdirs(directory: String) = io { sftp.mkdirs(directory) }
+
+    override suspend fun write(path: String, bytes: ByteArray) = io {
+        sftp.open(path, EnumSet.of(OpenMode.WRITE, OpenMode.CREAT, OpenMode.TRUNC)).use { file ->
+            // One SSH_FXP_WRITE per packet (a single write of the whole buffer
+            // overflows the channel window), several in flight: one round trip
+            // per packet would make a multi-megabyte upload crawl on a
+            // high-latency link. Same sizing as sshj's own SFTPFileTransfer.
+            val chunk = sftp.sftpEngine.subsystem.remoteMaxPacketSize - file.outgoingPacketOverhead
+            file.RemoteFileOutputStream(0, MAX_IN_FLIGHT).use { out ->
+                var offset = 0
+                while (offset < bytes.size) {
+                    val n = minOf(chunk, bytes.size - offset)
+                    out.write(bytes, offset, n)
+                    offset += n
+                }
+            }
+        }
+    }
+
+    override suspend fun read(path: String): ByteArray = io {
+        sftp.open(path, EnumSet.of(OpenMode.READ)).use { file ->
+            file.ReadAheadRemoteFileInputStream(MAX_IN_FLIGHT).use { it.readBytes() }
+        }
+    }
+
+    override suspend fun chmod(path: String, mode: Int) = io { sftp.chmod(path, mode) }
+
+    override suspend fun rename(from: String, to: String) = io { sftp.rename(from, to) }
+
+    override suspend fun remove(path: String) = io { sftp.rm(path) }
+
+    override suspend fun close() = io { runCatching { sftp.close() }; Unit }
+
+    private suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) { block() }
+
+    private companion object {
+        const val MAX_IN_FLIGHT = 16
     }
 }

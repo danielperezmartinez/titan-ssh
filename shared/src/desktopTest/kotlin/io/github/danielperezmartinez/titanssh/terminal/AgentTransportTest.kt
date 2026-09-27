@@ -70,7 +70,7 @@ class AgentTransportTest {
         val transport = AgentTransport(
             session = FakeSession(ch),
             agentSessionId = "sess_42",
-            agentPath = "~/.local/share/titan-ssh/agent-0.0.1-linux-amd64",
+            agent = AgentLaunch("/home/u/.local/share/titan-ssh/agent-0.0.1-linux-amd64", RemoteShell.POSIX),
             onOutput = { bytes -> outputs.trySend(bytes.decodeToString()) },
             initialColumns = 80,
             initialRows = 24,
@@ -117,7 +117,7 @@ class AgentTransportTest {
         val transport = AgentTransport(
             session = FakeSession(ch),
             agentSessionId = "s",
-            agentPath = "agent",
+            agent = AgentLaunch("agent", RemoteShell.POSIX),
             onOutput = {},
             initialColumns = 80,
             initialRows = 24,
@@ -145,7 +145,7 @@ class AgentTransportTest {
         val transport = AgentTransport(
             session = FakeSession(ch),
             agentSessionId = "s",
-            agentPath = "agent",
+            agent = AgentLaunch("agent", RemoteShell.POSIX),
             onOutput = { bytes -> outputs.trySend(bytes.decodeToString()) },
             initialColumns = 80,
             initialRows = 24,

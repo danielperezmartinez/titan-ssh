@@ -77,14 +77,14 @@ class AgentTransportIntegrationTest {
 
         runBlocking {
             val install = connect(endpoint, creds)
-            val path = agentDeployer(version = version) { bytes }.ensureInstalled(install)
-            assertNotNull(path, "agent should install")
+            val agentLaunch = agentDeployer(version = version, isStale = { false }) { bytes }.ensureInstalled(install)
+            assertNotNull(agentLaunch, "agent should install")
 
             // 1) First attach: send input, see the shell run it.
             val out1 = Acc()
             val s1 = connect(endpoint, creds)
             var fresh1: Boolean? = null
-            val t1 = AgentTransport(s1, agentId, path!!, { b -> out1.append(b.decodeToString()) }, 80, 24, 0,
+            val t1 = AgentTransport(s1, agentId, agentLaunch!!, { b -> out1.append(b.decodeToString()) }, 80, 24, 0,
                 onAttached = { fresh1 = it })
             val j1 = launch { t1.run() }
             waitUntil { out1.text().isNotEmpty() }               // the prompt teed through
@@ -98,7 +98,7 @@ class AgentTransportIntegrationTest {
             val out2 = Acc()
             val s2 = connect(endpoint, creds)
             var fresh2: Boolean? = null
-            val t2 = AgentTransport(s2, agentId, path, { b -> out2.append(b.decodeToString()) }, 80, 24, 0,
+            val t2 = AgentTransport(s2, agentId, agentLaunch, { b -> out2.append(b.decodeToString()) }, 80, 24, 0,
                 onAttached = { fresh2 = it })
             val j2 = launch { t2.run() }
             waitUntil { out2.text().contains(marker) }
@@ -110,8 +110,14 @@ class AgentTransportIntegrationTest {
             // against its state file, so it never kills a recycled PID) and remove
             // the throwaway binary. This also ends any other daemon of this user
             // on the test host.
-            s2.exec("$path --stop; rm -f $path")
-                .output.fold(0) { a, _ -> a }
+            // Works on Unix and Windows destinations alike.
+            s2.exec(agentLaunch.command("--stop")).output.fold(0) { a, _ -> a }
+            s2.openSftp()?.let { sftp ->
+                val file = if (agentLaunch.shell == RemoteShell.POSIX) agentLaunch.path
+                else AgentInstall.windowsToSftpPath(agentLaunch.path)
+                runCatching { sftp.remove(file) }
+                sftp.close()
+            }
             s2.close()
             println("[integration] agent transport verified end-to-end (marker replayed on reconnect)")
         }
@@ -163,7 +169,7 @@ class AgentTransportIntegrationTest {
                 knownHostsStore = InMemoryKnownHostsStore(),
                 scope = scope,
                 automation = StartScriptAutomation(EmptySecretStore()),
-                agentDeployer = agentDeployer(version = version) { bytes },
+                agentDeployer = agentDeployer(version = version, isStale = { false }) { bytes },
             ).also { tab -> scope.launch { tab.pendingHostKey.collect { it?.accept() } } }
 
             suspend fun runCount(): Int {
