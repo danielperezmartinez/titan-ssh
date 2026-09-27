@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-27T11:15:00+02:00
+Última modificación: 2026-09-27T11:55:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -123,7 +123,8 @@ mismo commit).
     cuenta estándar de pruebas se conserva para futuras pruebas)
   - [ ] 9.5 [[Instalación del agente en destinos Windows y multi-SO]] (hecha
     y probada el 2026-09-27; el origen de descarga es GitHub Releases. Queda
-    `En curso` hasta ver el job `agent` en la siguiente pre-release)
+    `En curso` solo hasta ver los binarios publicados en la siguiente
+    pre-release; el pipeline ya pasa en CI)
   - [ ] 9.6 [[Diagnóstico cuando el nivel 3 no está disponible]] (tras 9.3–9.5)
   - Cada subtarea que cambie el agente sale en la siguiente pre-release, y así se
     prueba desde Obtainium o la app instalada.
@@ -406,3 +407,11 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   el job `agent` en CI. De paso, `docs/.obsidian/workspace.json` (la
   disposición de ventanas de Obsidian de cada equipo) sale de git y pasa al
   `.gitignore`.
+- 2026-09-27 — **CI del paso 9.5**: un `workflow_dispatch` (run
+  `36310475296`) pasa entero con el job `agent` nuevo. Solo falta ver los 13
+  binarios publicados en la siguiente pre-release, sin prisa: no bloquea nada.
+  Además, en el PC de desarrollo, el `sshd` que sirve de destino Windows se
+  mudó a `C:\Program Files\OpenSSH`. Antes corría como SYSTEM desde una
+  carpeta en la que cualquier usuario podía escribir. Sigue arrancando solo con
+  el PC. **Siguiente sesión: paso 9.6**
+  ([[Diagnóstico cuando el nivel 3 no está disponible]]).

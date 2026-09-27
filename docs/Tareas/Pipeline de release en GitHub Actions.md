@@ -5,7 +5,7 @@ Resumen: 'Workflow de GitHub Actions (gratis en repositorios públicos) disparad
 Decisiones: 'Sigue [[ADR-0011 Distribución y canales de publicación]] §3. Fuente única de artefactos para todos los canales.'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-27T10:40:00+02:00
+Última modificación: 2026-09-27T11:55:00+02:00
 ---
 
 # Pipeline de release en GitHub Actions
@@ -203,4 +203,6 @@ completo: tag, CI, Release, descarga y actualización firmada.
   - `publish` los adjunta al Release con el resto de artefactos, y
     `SHA256SUMS` los cubre. Detalle en
     [[Instalación del agente en destinos Windows y multi-SO]].
-  - **Sin probar todavía en CI**: se comprueba en la siguiente pre-release.
+  - Probado con un `workflow_dispatch` el 2026-09-27 (run `36310475296`):
+    todos los jobs acaban bien, `agent` en unos 3 min, y el resto empieza
+    después de él. Falta verlo publicado con el siguiente tag.
