@@ -5,7 +5,7 @@ Resumen: 'Tarea paraguas para implementar ADR-0009: que el agente titan-agent (n
 Decisiones: 'Implementa [[ADR-0009 Agente de nivel 3 portable a todos los destinos]], que sustituye en parte a [[ADR-0008 Diseño del agente de resiliencia nivel 3]], y el empaquetado de [[ADR-0010 Empaquetado del agente y descarga bajo demanda]]. El desacople en Windows se decidió con [[Experimento supervivencia de procesos en Win32-OpenSSH]]. Continúa [[Resiliencia nivel 3 agente propio en el destino]].'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:05:00+02:00
-Última modificación: 2026-09-27T10:40:00+02:00
+Última modificación: 2026-09-27T11:15:00+02:00
 ---
 
 # Nivel 3 portable a todos los destinos
@@ -26,8 +26,8 @@ investigar.
 | 1 | [[titan-agent PTY propio multiplataforma]] (hecha el 2026-09-27) | — |
 | 2 | [[titan-agent instancia única y directorio de estado]] (hecha el 2026-09-27) | — |
 | 3 | [[titan-agent punto de encuentro TCP loopback con token]] (hecha el 2026-09-27) | 2 |
-| 4 | [[titan-agent daemon en Windows]] | 1, 3 |
-| 5 | [[Instalación del agente en destinos Windows y multi-SO]] (hecha y probada el 2026-09-27; falta verla en CI y la limpieza de la cuenta de pruebas) | 4 (solo la prueba de punta a punta en Windows) |
+| 4 | [[titan-agent daemon en Windows]] (hecha el 2026-09-27) | 1, 3 |
+| 5 | [[Instalación del agente en destinos Windows y multi-SO]] (hecha y probada el 2026-09-27; falta verla en CI) | 4 (solo la prueba de punta a punta en Windows) |
 | 6 | [[Diagnóstico cuando el nivel 3 no está disponible]] | 3, 4, 5 |
 
 1 y 2 son independientes y pueden hacerse en cualquier orden. 5 puede avanzar
@@ -122,7 +122,8 @@ necesita 4.
   (`PasswordAuthentication no`), claves en `C:\Users\<u>\.ssh\authorized_keys`
   (también para administradores: no hay bloque `Match Group administrators`),
   shell por defecto `cmd.exe`. Para probar **sin administrador** hace falta un
-  usuario estándar temporal; los pasos (crear usuario, `runas` para crear el
+  usuario estándar; desde el 2026-09-27 se **conserva** una cuenta de pruebas
+  (ver [[titan-agent daemon en Windows]]). Los pasos para crear otra (crear usuario, `runas` para crear el
   perfil y autorizar la clave, limpieza) están en
   [[Experimento supervivencia de procesos en Win32-OpenSSH]]. **Al terminar,
   reiniciar `sshd` o el PC antes de borrar el perfil**: sshd lo deja cargado y

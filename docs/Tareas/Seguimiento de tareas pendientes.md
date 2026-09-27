@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-27T10:40:00+02:00
+Última modificación: 2026-09-27T11:15:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -119,12 +119,11 @@ mismo commit).
     2026-09-27)
   - [x] 9.3 [[titan-agent punto de encuentro TCP loopback con token]] (`Hecha`
     el 2026-09-27, en la misma sesión que 9.2)
-  - [ ] 9.4 [[titan-agent daemon en Windows]] 👤 (prueba manual en Windows:
-    el usuario crea el usuario estándar temporal) (tras 9.1 y 9.3)
+  - [x] 9.4 [[titan-agent daemon en Windows]] (`Hecha` el 2026-09-27; la
+    cuenta estándar de pruebas se conserva para futuras pruebas)
   - [ ] 9.5 [[Instalación del agente en destinos Windows y multi-SO]] (hecha
     y probada el 2026-09-27; el origen de descarga es GitHub Releases. Queda
-    `En curso` hasta ver el job `agent` en la siguiente pre-release y la misma
-    limpieza 👤 de la cuenta de pruebas que 9.4)
+    `En curso` hasta ver el job `agent` en la siguiente pre-release)
   - [ ] 9.6 [[Diagnóstico cuando el nivel 3 no está disponible]] (tras 9.3–9.5)
   - Cada subtarea que cambie el agente sale en la siguiente pre-release, y así se
     prueba desde Obtainium o la app instalada.
@@ -400,3 +399,10 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   - Pendiente: ver el job `agent` y los assets en la siguiente pre-release, y
     👤 reiniciar `sshd` y borrar la cuenta de pruebas, que cierra también 9.4.
     Siguiente: 9.6 ([[Diagnóstico cuando el nivel 3 no está disponible]]).
+- 2026-09-27 — **Paso 9.4 completado.** El usuario decide **conservar** la
+  cuenta estándar de pruebas de Windows para repetir este tipo de pruebas, en
+  vez de borrarla. Su perfil ya no tiene binarios ni estado del agente, así que
+  [[titan-agent daemon en Windows]] pasa a `Hecha`, y 9.5 ya solo espera a ver
+  el job `agent` en CI. De paso, `docs/.obsidian/workspace.json` (la
+  disposición de ventanas de Obsidian de cada equipo) sale de git y pasa al
+  `.gitignore`.

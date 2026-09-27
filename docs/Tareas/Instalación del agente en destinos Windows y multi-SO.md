@@ -1,11 +1,11 @@
 ---
 Nombre: 'Instalación del agente en destinos Windows y multi-SO'
 Estado: 'En curso'
-Resumen: 'Subtarea 5 de ADR-0009 (§6 y §7), lado cliente: que AgentInstaller instale y lance el agente en cualquier destino soportado. Hecho el 2026-09-27: SFTP en SshSession; detección por la ruta canónica de SFTP (/C:/... = Windows), con una sonda de cmd para arquitectura, %LOCALAPPDATA% y shell (cmd o PowerShell), y uname ampliado a los 13 destinos en Unix; subida a un temporal, chmod 0700 y renombrado; SHA-256 con la herramienta del destino (sha256sum, shasum, sha256, certutil) o releyendo por SFTP; exec+head como alternativa en Unix sin SFTP; borrado de los binarios de otras versiones; comando con las comillas de sh, cmd o PowerShell. Empaquetado según ADR-0010: seis destinos en la app, los otros siete publicados en el GitHub Release y descargados bajo demanda contra el SHA-256 fijado en la app. Probado de punta a punta en Windows (usuario estándar) y Linux (amd64, y arm y riscv64 emulados). Queda En curso hasta ver el pipeline nuevo en la siguiente pre-release y la limpieza de la cuenta de pruebas.'
+Resumen: 'Subtarea 5 de ADR-0009 (§6 y §7), lado cliente: que AgentInstaller instale y lance el agente en cualquier destino soportado. Hecho el 2026-09-27: SFTP en SshSession; detección por la ruta canónica de SFTP (/C:/... = Windows), con una sonda de cmd para arquitectura, %LOCALAPPDATA% y shell (cmd o PowerShell), y uname ampliado a los 13 destinos en Unix; subida a un temporal, chmod 0700 y renombrado; SHA-256 con la herramienta del destino (sha256sum, shasum, sha256, certutil) o releyendo por SFTP; exec+head como alternativa en Unix sin SFTP; borrado de los binarios de otras versiones; comando con las comillas de sh, cmd o PowerShell. Empaquetado según ADR-0010: seis destinos en la app, los otros siete publicados en el GitHub Release y descargados bajo demanda contra el SHA-256 fijado en la app. Probado de punta a punta en Windows (usuario estándar) y Linux (amd64, y arm y riscv64 emulados). Queda En curso hasta ver el pipeline nuevo en la siguiente pre-release.'
 Decisiones: 'Implementa §6 y §7 de [[ADR-0009 Agente de nivel 3 portable a todos los destinos]] y el empaquetado de [[ADR-0010 Empaquetado del agente y descarga bajo demanda]]. Vuelve a la subida por SFTP que preveía §5 de [[ADR-0008 Diseño del agente de resiliencia nivel 3]] (la implementación de [[titan-agent distribución multi-arch e instalación]] la sustituyó por exec+head). Contexto común en [[Nivel 3 portable a todos los destinos]]. La limpieza de binarios antiguos llega aquí desde [[titan-agent instancia única y directorio de estado]] (2026-09-27). Decisiones del usuario del 2026-09-27: el origen de descarga es GitHub Releases, con los 13 binarios publicados en cada Release, y la prueba en Windows reutiliza la cuenta estándar temporal del paso 9.4.'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:05:00+02:00
-Última modificación: 2026-09-27T10:40:00+02:00
+Última modificación: 2026-09-27T11:15:00+02:00
 ---
 
 # Instalación del agente en destinos Windows y multi-SO
@@ -275,7 +275,6 @@ Decisiones del usuario al empezar:
    con un `workflow_dispatch`), comprobar que el job `agent` termina, que el
    Release lleva los 13 `titan-agent-<versión>-*`, que `sha256sum -c
    SHA256SUMS` los da por buenos y que coinciden con el manifiesto de la APK.
-2. 👤 La limpieza de la cuenta estándar temporal, la misma que en
-   [[titan-agent daemon en Windows]]: reiniciar `sshd` o el PC, y borrar el
-   perfil y la cuenta. Del perfil ya se han borrado los binarios y el estado
-   del agente.
+La cuenta de pruebas de Windows **se conserva** por decisión del usuario
+(2026-09-27); de su perfil ya se han borrado los binarios y el estado del
+agente, así que no queda limpieza pendiente.

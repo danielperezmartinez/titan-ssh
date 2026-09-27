@@ -34,3 +34,6 @@ docs/**/Screenshot_*.png
 # Android release signing keys: never versioned (ADR-0011 §5)
 *.jks
 *.keystore
+
+# Obsidian's per-machine window layout (open tabs, panes); rewritten on every use
+docs/.obsidian/workspace.json

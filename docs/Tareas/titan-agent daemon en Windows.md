@@ -1,11 +1,11 @@
 ---
 Nombre: 'titan-agent daemon en Windows'
-Estado: 'En curso'
+Estado: 'Hecha'
 Resumen: 'Subtarea 4 de ADR-0009 (§5): que el daemon sobreviva en Windows al cierre de la sesión SSH, sin administrador. El front comprueba su Job Object (IsProcessInJob por kernel32 + QueryInformationJobObject) y, si el job lo permite, lanza el daemon con CREATE_BREAKAWAY_FROM_JOB | DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP; si el job tiene KILL_ON_JOB_CLOSE sin BREAKAWAY_OK, sale con E_JOB_NO_BREAKAWAY. Une las subtareas 1 (ConPTY) y 3 (TCP loopback) y se verifica de punta a punta con un usuario estándar, en cierre limpio y en corte brusco. El mecanismo ya se validó en el experimento del 2026-09-23; la prueba en Windows es manual con ayuda del usuario (ADR-0012).'
 Decisiones: 'Implementa §5 (Windows) de [[ADR-0009 Agente de nivel 3 portable a todos los destinos]], con el mecanismo validado en [[Experimento supervivencia de procesos en Win32-OpenSSH]]. Contexto común en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:05:00+02:00
-Última modificación: 2026-09-27T17:00:00+02:00
+Última modificación: 2026-09-27T11:15:00+02:00
 ---
 
 # titan-agent: daemon en Windows
@@ -116,12 +116,14 @@ opcional): repetir el paso 4 y anotar los flags del job.
   Verificación.
 - `E_JOB_NO_BREAKAWAY` probado con un test unitario de la función de decisión
   (flags simulados).
-- Limpieza completa del entorno de prueba.
+- Limpieza completa del entorno de prueba. (El 2026-09-27 el usuario decidió
+  conservar la cuenta estándar de pruebas para futuras pruebas: basta con
+  dejar su perfil sin binarios ni estado del agente.)
 
 ## Resultado (2026-09-27)
 
-Implementado y verificado. Queda `En curso` hasta la limpieza completa: falta
-que el usuario borre la cuenta temporal y su perfil.
+Implementado y verificado. Pasa a `Hecha` el 2026-09-27, cuando el usuario
+decide conservar la cuenta de pruebas en lugar de borrarla.
 
 ### Código (`agent/cmd/titan-agent/`)
 
@@ -177,5 +179,7 @@ que el usuario borre la cuenta temporal y su perfil.
 
 Hecho: binario y `%LOCALAPPDATA%\titan-ssh` borrados del perfil de prueba, y
 borrados también la clave dedicada y el cliente de prueba desechable (no se
-versionó). Pendiente (👤): reiniciar `sshd` o el PC, borrar el perfil y la
-cuenta `titantest`.
+versionó). La cuenta `titantest` **se conserva** por decisión del usuario
+(2026-09-27), para repetir este tipo de pruebas en Windows. Para volver a
+usarla basta con autorizar una clave nueva en su `authorized_keys` (hace falta
+administrador).
