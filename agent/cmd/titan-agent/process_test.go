@@ -53,7 +53,11 @@ type front struct {
 
 func startFront(t *testing.T, dir string) *front {
 	t.Helper()
-	cmd := agentCmd(t, "--state-dir", dir, "--session", "p1")
+	return startFrontCmd(t, agentCmd(t, "--state-dir", dir, "--session", "p1"))
+}
+
+func startFrontCmd(t *testing.T, cmd *exec.Cmd) *front {
+	t.Helper()
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		t.Fatal(err)

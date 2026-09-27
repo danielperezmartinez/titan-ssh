@@ -71,6 +71,10 @@ func dialOrSpawn(stateDir string, spawn func() error) (net.Conn, error) {
 			}
 			if !held {
 				if serr := spawn(); serr != nil {
+					var ae *agentError
+					if errors.As(serr, &ae) {
+						return nil, serr // already coded, e.g. E_JOB_NO_BREAKAWAY
+					}
 					return nil, withCode(codeDaemonStart, serr)
 				}
 				lastSpawn = time.Now()
@@ -103,12 +107,16 @@ func spawnDaemon(stateDir string) error {
 	if err != nil {
 		return err
 	}
+	attr, err := detachAttr()
+	if err != nil {
+		return err
+	}
 	cmd := exec.Command(exe, "--daemon", "--state-dir", stateDir)
-	cmd.SysProcAttr = detachAttr()
+	cmd.SysProcAttr = attr
 	// Detach stdio so the daemon does not hold the exec channel open.
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = nil, nil, nil
 	if err := cmd.Start(); err != nil {
-		return err
+		return spawnFailure(attr, err)
 	}
 	// Reap it if it exits while the front lives (e.g. it lost the lock race).
 	go func() { _ = cmd.Wait() }()

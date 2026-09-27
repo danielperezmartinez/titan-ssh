@@ -39,7 +39,7 @@ agent/
 │   ├── lock*.go           # candado de instancia única (flock / fcntl / LockFileEx)
 │   ├── statedir_*.go      # directorio de estado por sistema y su comprobación
 │   ├── errors.go          # códigos TITAN_AGENT_ERROR del front
-│   └── detach_{unix,other}.go   # SysProcAttr setsid (unix) / no-op
+│   └── detach_*.go        # desacople del daemon: setsid (unix), breakaway del job (windows)
 └── internal/
     ├── protocol/          # códec de tramas (espejo de AgentProtocol.kt) + tests
     ├── buffer/            # ring buffer de salida con offsets + tests
@@ -65,7 +65,11 @@ ambos en sincronía**.
 ## Modelo de ejecución
 
 `exec titan-agent` corre en modo **front**: empalma su stdio (el canal SSH) al
-**daemon**, lanzándolo detached (`setsid` en Unix) en el primer uso. El daemon
+**daemon**, lanzándolo desacoplado en el primer uso: `setsid` en Unix y, en
+Windows, `CREATE_BREAKAWAY_FROM_JOB` para salir del Job Object con el que
+Win32-OpenSSH mata los procesos de la sesión al cerrarla. Antes de lanzarlo en
+Windows, el front mira los flags de su job: si el job mata al cerrarse y no
+deja salir, termina con `E_JOB_NO_BREAKAWAY`. El daemon
 sostiene los PTY y el ring buffer por sesión y habla el protocolo por tramas;
 sobrevive a la desconexión del front, así que reconectar reengancha por id (el
 id viaja en el `HELLO`) y reproduce desde el offset del cliente (ADR-0009 §2-3):
@@ -105,7 +109,8 @@ seguro el del daemon, y después borra el fichero.
 
 Si el front no puede dar servicio, termina con código distinto de 0 y una línea
 en stderr: `TITAN_AGENT_ERROR <código> <mensaje>`. Códigos de este binario:
-`E_STATE_DIR`, `E_LOCK`, `E_DAEMON_START` y `E_AUTH` (tabla completa en la
+`E_STATE_DIR`, `E_LOCK`, `E_DAEMON_START`, `E_AUTH` y, en Windows,
+`E_JOB_NO_BREAKAWAY` (tabla completa en la
 tarea `Nivel 3 portable a todos los destinos`).
 
 ## Build / test
@@ -121,9 +126,9 @@ GOOS=linux  GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o dist/titan-agent
 ## Pendiente
 
 Lo que falta del nivel 3 portable (ADR-0009) está en la tarea
-`docs/Tareas/Nivel 3 portable a todos los destinos.md`: el desacople del daemon
-en Windows, la instalación en destinos Windows y multi-SO, y el diagnóstico
-cuando el nivel 3 no está disponible.
+`docs/Tareas/Nivel 3 portable a todos los destinos.md`: la instalación en
+destinos Windows y multi-SO, y el diagnóstico cuando el nivel 3 no está
+disponible.
 
 - Mejora menor: capar el buffer por el mínimo de los `ACK` (hoy capa por bytes).
 

@@ -9,6 +9,10 @@ const (
 	codeLock        = "E_LOCK"         // the OS refuses the single-instance lock (e.g. NFS)
 	codeDaemonStart = "E_DAEMON_START" // no daemon answered within spawnWait
 	codeAuth        = "E_AUTH"         // the state file is unreadable or the token is refused
+
+	// Windows: the SSH session's job kills its processes on close and does not
+	// let the daemon leave it.
+	codeJobNoBreakaway = "E_JOB_NO_BREAKAWAY"
 )
 
 // agentError is a failure tagged with its error-contract code. main prints it
