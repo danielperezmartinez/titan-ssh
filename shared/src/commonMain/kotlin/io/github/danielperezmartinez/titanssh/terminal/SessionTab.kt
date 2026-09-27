@@ -84,6 +84,11 @@ class PendingHostKey internal constructor(
  * so the scrollback is preserved for the user — and replays automation through
  * [ShellAutomation.onReconnected] (honoring the session's `ReconnectBehavior`). A
  * clean remote exit (the transport stays up) ends the tab instead of reconnecting.
+ *
+ * ## Tunnels ([[Ejecutar los túneles de las sesiones]])
+ * The session's enabled tunnels open on every connection, right after it is
+ * established, and close when it ends, so a reconnect reopens them on the new
+ * one. Their state is in [tunnels]; a failed tunnel never ends the session.
  */
 class SessionTab(
     val id: String,
@@ -131,6 +136,11 @@ class SessionTab(
     private val _pendingHostKey = MutableStateFlow<PendingHostKey?>(null)
     val pendingHostKey: StateFlow<PendingHostKey?> = _pendingHostKey.asStateFlow()
 
+    private val sessionTunnels = SessionTunnels(resolved.session.tunnels)
+
+    /** The session's enabled tunnels and whether each is open ([[Ejecutar los túneles de las sesiones]]). */
+    val tunnels: StateFlow<List<TunnelStatus>> = sessionTunnels.status
+
     /**
      * Broadcast, decoded tee of the shell output for [automation] to observe
      * (expect / completion sentinels). The emulator still gets every byte via
@@ -158,6 +168,7 @@ class SessionTab(
     private var shell: SshShell? = null
     private var connectJob: Job? = null
     private var automationJob: Job? = null
+    private var tunnelRetryJob: Job? = null
 
     /** I/O of the live shell or agent PTY, for [runScript]; null while not connected. */
     private var liveIo: ShellIo? = null
@@ -274,6 +285,9 @@ class SessionTab(
                 keepAliveSeconds = resolved.host.keepAliveSeconds,
             )
             session = opened
+            // Tunnels ride the SSH connection itself, whatever carries the PTY.
+            sessionTunnels.open(opened)
+            tunnelRetryJob = scope.launch { sessionTunnels.retryFailed(opened) }
 
             // Level-3 agent path (ADR-0008): install + drive titan-agent for full
             // persistence. If level 3 is unavailable here, it says why and falls
@@ -324,6 +338,8 @@ class SessionTab(
         } finally {
             wipe(creds)
             automationJob?.cancel()
+            tunnelRetryJob?.cancel()
+            sessionTunnels.close()
             liveIo = null
             runCatching { agent?.close() }
             runCatching { shell?.close() }
@@ -515,6 +531,8 @@ class SessionTab(
         closed = true
         automationJob?.cancel()
         connectJob?.cancel()
+        tunnelRetryJob?.cancel()
+        sessionTunnels.close()
         runCatching { agent?.close() }
         runCatching { shell?.close() }
         runCatching { session?.close() }

@@ -34,5 +34,17 @@ integración), copia una clave pública de pruebas:
 docker cp <clave-de-pruebas>.pub titan-test-sshd:/home/demo/.ssh/authorized_keys
 ```
 
+El reenvío de puertos (túneles) está activado, al contrario que en el Alpine
+de serie. En un contenedor creado antes de este cambio se activa sin
+reconstruirlo, y así se conserva la clave de host:
+
+```sh
+docker exec titan-test-sshd sh -c "sed -i 's/^AllowTcpForwarding no/AllowTcpForwarding yes/' /etc/ssh/sshd_config && kill -HUP 1"
+```
+
+Los tests de túneles (`SshjForwardingIntegrationTest`) también comprueban los
+rechazos si se desactiva (`AllowTcpForwarding no`) y se pasa
+`-PtitanSshTestNoForwarding=true`.
+
 No sustituye a las pruebas contra destinos reales (otros sistemas, Windows,
 redes reales): sirve para probar la app y su interfaz.

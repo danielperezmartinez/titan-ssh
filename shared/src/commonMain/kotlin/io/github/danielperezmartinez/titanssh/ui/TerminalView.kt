@@ -81,6 +81,8 @@ import io.github.danielperezmartinez.titanssh.terminal.TerminalCell
 import io.github.danielperezmartinez.titanssh.terminal.TerminalKeys
 import io.github.danielperezmartinez.titanssh.terminal.TerminalLine
 import io.github.danielperezmartinez.titanssh.terminal.TerminalMultiplexer
+import io.github.danielperezmartinez.titanssh.terminal.TunnelState
+import io.github.danielperezmartinez.titanssh.terminal.TunnelStatus
 import io.github.danielperezmartinez.titanssh.terminal.isAndroidRuntime
 import io.github.danielperezmartinez.titanssh.theme.TitanColors
 import io.github.danielperezmartinez.titanssh.theme.TitanDimens
@@ -107,6 +109,7 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier, scripts: List<S
     val snapshot by tab.snapshot.collectAsState()
     val status by tab.status.collectAsState()
     val resilience by tab.resilience.collectAsState()
+    val tunnels by tab.tunnels.collectAsState()
     val pendingHostKey by tab.pendingHostKey.collectAsState()
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
@@ -196,19 +199,27 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier, scripts: List<S
         }
 
         var scriptsOpen by remember(tab.id) { mutableStateOf(false) }
+        var tunnelsOpen by remember(tab.id) { mutableStateOf(false) }
         val canRunScripts = scripts.isNotEmpty() && status.phase == TabPhase.CONNECTED
         StatusStrip(
             status,
             resilience,
             onEnableLinger = { scope.launch { tab.enableLinger() } },
             scriptsOpen = scriptsOpen && canRunScripts,
-            onToggleScripts = if (canRunScripts) ({ scriptsOpen = !scriptsOpen }) else null,
+            onToggleScripts = if (canRunScripts) ({ scriptsOpen = !scriptsOpen; tunnelsOpen = false }) else null,
+            tunnels = tunnels,
+            tunnelsOpen = tunnelsOpen,
+            onToggleTunnels = { tunnelsOpen = !tunnelsOpen; scriptsOpen = false },
         )
         if (scriptsOpen && canRunScripts) {
             ScriptsMenu(scripts) { script ->
                 tab.runScript(script)
                 scriptsOpen = false
             }
+            Hairline()
+        }
+        if (tunnelsOpen && tunnels.isNotEmpty()) {
+            TunnelsPanel(tunnels)
             Hairline()
         }
 
@@ -437,6 +448,9 @@ private fun StatusStrip(
     onEnableLinger: () -> Unit,
     scriptsOpen: Boolean,
     onToggleScripts: (() -> Unit)?,
+    tunnels: List<TunnelStatus>,
+    tunnelsOpen: Boolean,
+    onToggleTunnels: () -> Unit,
 ) {
     val (marker, color, label) = when (status.phase) {
         TabPhase.CONNECTING -> Triple("[-]", TitanColors.Warning, "Conectando…")
@@ -461,6 +475,20 @@ private fun StatusStrip(
             color = TitanColors.Mute,
             modifier = Modifier.weight(1f),
         )
+        if (tunnels.isNotEmpty()) {
+            val active = tunnels.count { it.state == TunnelState.ACTIVE }
+            val trouble = tunnels.any { it.state == TunnelState.FAILED || it.detail != null }
+            Text(
+                "[=] túneles $active/${tunnels.size}",
+                style = MaterialTheme.typography.labelSmall,
+                color = when {
+                    tunnelsOpen -> TitanColors.Accent
+                    trouble -> TitanColors.Warning
+                    else -> TitanColors.Body
+                },
+                modifier = Modifier.clickable(onClick = onToggleTunnels).padding(horizontal = TitanDimens.SpaceXs),
+            )
+        }
         if (onToggleScripts != null) {
             Text(
                 "[>] scripts",
@@ -533,6 +561,40 @@ private fun ScriptsMenu(scripts: List<SessionScript>, onRun: (SessionScript) -> 
                 subtitle = (if (fromLibrary) "biblioteca · " else "") + script.body.lineSequence().firstOrNull().orEmpty().take(60),
                 onClick = { onRun(script) },
                 markerColor = TitanColors.Accent,
+            )
+        }
+    }
+}
+
+/**
+ * The tab's tunnels ([[Ejecutar los túneles de las sesiones]]): each one's
+ * state and, for a failed one or a failed connection through it, the reason.
+ */
+@Composable
+private fun TunnelsPanel(tunnels: List<TunnelStatus>) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(max = 240.dp)
+            .background(TitanColors.Canvas)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = TitanDimens.SpaceMd),
+    ) {
+        tunnels.forEach { status ->
+            val t = status.tunnel
+            val (marker, color, state) = when (status.state) {
+                TunnelState.ACTIVE ->
+                    if (status.detail == null) Triple("[+]", TitanColors.Success, "activo")
+                    else Triple("[-]", TitanColors.Warning, "activo")
+                TunnelState.WAITING -> Triple("[-]", TitanColors.Mute, "esperando la conexión")
+                TunnelState.FAILED -> Triple("[x]", TitanColors.Danger, "no se abrió")
+            }
+            ListRow(
+                marker = marker,
+                title = t.label.ifBlank { tunnelSummary(t) },
+                subtitle = listOfNotNull(tunnelSummary(t), state, status.detail).joinToString("  ·  "),
+                onClick = {},
+                markerColor = color,
             )
         }
     }

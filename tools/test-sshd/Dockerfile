@@ -14,7 +14,8 @@ RUN apk add --no-cache openssh bash \
  && echo 'hola desde el servidor de pruebas' > /home/demo/proyecto/LEEME \
  && chmod 700 /home/demo/.ssh \
  && chown -R demo:demo /home/demo \
- && sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+ && sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config \
+ && sed -i 's/^#\?AllowTcpForwarding.*/AllowTcpForwarding yes/' /etc/ssh/sshd_config
 
 EXPOSE 22
 CMD ["/usr/sbin/sshd", "-D", "-e"]

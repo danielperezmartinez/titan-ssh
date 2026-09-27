@@ -121,8 +121,90 @@ interface SshSession {
      */
     suspend fun openSftp(): SshSftp? = null
 
+    /**
+     * Opens [forward] over this session ([[Ejecutar los túneles de las
+     * sesiones]]) and returns it once it is listening. A connection through it
+     * that cannot be completed does not close it: it is reported to [onProblem].
+     * Test fakes may leave the default, which throws.
+     *
+     * @throws SshForwardFailed if the forward cannot be opened.
+     */
+    suspend fun openForward(forward: PortForward, onProblem: (ForwardProblem) -> Unit = {}): SshForward =
+        throw NotImplementedError("port forwarding not supported by this session")
+
     /** Closes the session and its transport. */
     suspend fun close()
+}
+
+/**
+ * A port forward over one SSH session. The listen side of a [Local] or
+ * [DynamicSocks] forward is on this device; that of a [Remote] one is on the
+ * server, which forwards each connection back to a destination this device
+ * reaches.
+ */
+sealed interface PortForward {
+    val listenHost: String
+    val listenPort: Int
+
+    /** Listens here and connects, through the server, to the destination. */
+    data class Local(
+        override val listenHost: String,
+        override val listenPort: Int,
+        val destinationHost: String,
+        val destinationPort: Int,
+    ) : PortForward
+
+    /** The server listens and each connection is forwarded to the destination from here. */
+    data class Remote(
+        override val listenHost: String,
+        override val listenPort: Int,
+        val destinationHost: String,
+        val destinationPort: Int,
+    ) : PortForward
+
+    /** A SOCKS 4/4a/5 proxy here; each client picks its destination, reached through the server. */
+    data class DynamicSocks(
+        override val listenHost: String,
+        override val listenPort: Int,
+    ) : PortForward
+}
+
+/** An open [PortForward]. Closing it stops listening; the session stays open. */
+interface SshForward {
+    suspend fun close()
+}
+
+/** Why a [PortForward] could not be opened. */
+enum class ForwardFailure {
+    /** Another program already listens on that port. */
+    PORT_IN_USE,
+
+    /** The OS does not let this user listen there (e.g. a port below 1024). */
+    PERMISSION_DENIED,
+
+    /** The listen address is not valid or not local. */
+    BAD_ADDRESS,
+
+    /** The server refused a remote forward (forwarding disabled, port taken or privileged). */
+    REFUSED_BY_SERVER,
+
+    OTHER,
+}
+
+/** One connection through an open forward that could not be completed. */
+data class ForwardProblem(val kind: Kind, val target: String) {
+    enum class Kind {
+        /** The server does not allow forwarding (`AllowTcpForwarding no`). */
+        PROHIBITED,
+
+        /** The destination did not accept the connection. */
+        UNREACHABLE,
+
+        /** A SOCKS client asked for something the proxy does not support. */
+        UNSUPPORTED_REQUEST,
+
+        OTHER,
+    }
 }
 
 /**
@@ -164,6 +246,10 @@ class SshHostKeyRejected(message: String, cause: Throwable? = null) :
 
 /** Authentication was rejected by the server. */
 class SshAuthFailed(message: String, cause: Throwable? = null) :
+    SshException(message, cause)
+
+/** A [PortForward] could not be opened, for [reason]. */
+class SshForwardFailed(val reason: ForwardFailure, message: String, cause: Throwable? = null) :
     SshException(message, cause)
 
 /**

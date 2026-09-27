@@ -196,6 +196,9 @@ internal class SshjSession(private val ssh: SSHClient) : SshSession {
         runCatching { SshjSftp(ssh.newSFTPClient()) }.getOrNull()
     }
 
+    override suspend fun openForward(forward: PortForward, onProblem: (ForwardProblem) -> Unit): SshForward =
+        withContext(Dispatchers.IO) { openSshjForward(ssh, forward, onProblem) }
+
     override suspend fun close() = withContext(Dispatchers.IO) {
         _state.value = SshConnectionState.DISCONNECTED
         scope.cancel()

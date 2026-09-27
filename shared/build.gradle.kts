@@ -308,6 +308,9 @@ tasks.withType<Test>().configureEach {
         "titanSshTestUser" to "TITAN_SSH_TEST_USER",
         "titanSshTestKey" to "TITAN_SSH_TEST_KEY",
         "titanSshTestPassphrase" to "TITAN_SSH_TEST_PASSPHRASE",
+        // "true" when the test host has AllowTcpForwarding off, for the
+        // refusal checks of SshjForwardingIntegrationTest.
+        "titanSshTestNoForwarding" to "TITAN_SSH_TEST_NO_FORWARDING",
         // Path to a built titan-agent binary matching the test host's arch, for
         // AgentInstallerIntegrationTest (level-3 agent install, ADR-0008).
         "titanAgentBin" to "TITAN_AGENT_BIN",
