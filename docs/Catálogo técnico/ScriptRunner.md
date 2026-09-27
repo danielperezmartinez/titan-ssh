@@ -7,8 +7,8 @@ Estado: "Vigente"
 Ámbito: "Feature"
 Fuente: "shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/ScriptRunner.kt"
 Entrada pública: "io.github.danielperezmartinez.titanssh.terminal"
-Resumen: "Motor de ejecución de los scripts de inicio de sesión al conectar y al reconectar, más el envoltorio en multiplexor (nivel 2). ScriptRunner (puro, testeable) recibe un ShellIo (send + tee de salida) y, sobre la shell viva, envía el cd inicial y los scripts en orden honrando ${ref} (solo secretos; el resto de ${...} lo expande la shell remota), export de envVars, delay, expect, waitForCompletion con centinela printf que arrastra $? y timeout, y onFailure CONTINUE/ABORT; devuelve un ScriptOutcome por unidad. StartScriptAutomation implementa el seam ShellAutomation: onShellReady selecciona las fases de conexión (ON_SHELL_START → POST_INIT); onReconnected replica según el ReconnectBehavior (NONE/RESTORE_CD_ONLY/RERUN_ALL); onAgentSessionCreated (nivel 3) corre la cadena de conexión cuando titan-agent crea un PTY nuevo, o el replay del ReconnectBehavior si ese PTY sustituye a uno perdido en un corte, sin multiplexor y nunca al reengancharse a un PTY vivo. ShellIo envía por el shell o, en nivel 3, por tramas INPUT. Nivel 2: si resilienceLevel>=AUTO_MULTIPLEXER y hay tmux/screen, TerminalMultiplexer detecta y hace attach-or-create de una sesión titan-<id> (re-engancha sin reejecutar si ya existía; degrada al nivel 1 si no hay multiplexor). Resuelve secretos del SecretStore solo en runtime. silent no se suprime aún; PRE_CONNECT_LOCAL fuera de alcance."
-Última modificación: 2026-09-26T21:30:00+02:00
+Resumen: "Motor de ejecución de los scripts de inicio de sesión al conectar y al reconectar, más el envoltorio en multiplexor (nivel 2). ScriptRunner (puro, testeable) recibe un ShellIo (send + tee de salida) y, sobre la shell viva, envía el cd inicial y los scripts en orden honrando ${ref} (solo secretos; el resto de ${...} lo expande la shell remota), export de envVars, delay, expect, waitForCompletion con centinela printf que arrastra $? y timeout, y onFailure CONTINUE/ABORT; devuelve un ScriptOutcome por unidad. StartScriptAutomation implementa el seam ShellAutomation: onShellReady selecciona las fases de conexión (ON_SHELL_START → POST_INIT); onReconnected replica según el ReconnectBehavior (NONE/RESTORE_CD_ONLY/RERUN_ALL); onAgentSessionCreated (nivel 3) corre la cadena de conexión cuando titan-agent crea un PTY nuevo, o el replay del ReconnectBehavior si ese PTY sustituye a uno perdido en un corte, sin multiplexor y nunca al reengancharse a un PTY vivo; runOnDemand envía un script elegido en el menú de la pestaña sin esperar a que termine (sin centinela), respetando delay, expect, envVars y secretos. ShellIo envía por el shell o, en nivel 3, por tramas INPUT. Nivel 2: si resilienceLevel>=AUTO_MULTIPLEXER y hay tmux/screen, TerminalMultiplexer detecta y hace attach-or-create de una sesión titan-<id> (re-engancha sin reejecutar si ya existía; degrada al nivel 1 si no hay multiplexor). Resuelve secretos del SecretStore solo en runtime. silent no se suprime aún; PRE_CONNECT_LOCAL fuera de alcance."
+Última modificación: 2026-09-27T17:30:00+02:00
 ---
 
 # ScriptRunner
@@ -42,7 +42,9 @@ Contrato y colaboradores:
   perdería. Ver [[ptty-drops-early-input]].
 - **Fases al conectar**: `onShellReady` selecciona `ON_SHELL_START` → `POST_INIT`
   con `Session.scriptsFor`. `PRE_CONNECT_LOCAL` no tiene ejecutor local aún;
-  `ON_DEMAND` son los snippets manuales.
+  `ON_DEMAND` no corren al conectar: se lanzan desde el menú de scripts de la
+  pestaña (`SessionTab.runScript` → `runOnDemand`), junto con la biblioteca
+  ([[ADR-0013 Biblioteca de scripts unificada con los snippets]]).
 - **Al reconectar**: `onReconnected` mira `Session.effectiveReconnectBehavior()`
   (el `reconnectBehavior` del primer script `ON_RECONNECT` habilitado; sin ninguno,
   por defecto `RESTORE_CD_ONLY`) y replica: `NONE` nada, `RESTORE_CD_ONLY` solo el

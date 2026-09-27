@@ -78,7 +78,7 @@ fun SessionEditor(controller: ConfigController, sessionId: String?, onDone: () -
             }
             ScriptEditor(
                 script = draft,
-                snippets = config.snippets,
+                library = config.scripts,
                 isNew = sub.id == null,
                 onSave = { updated ->
                     scripts = if (sub.id == null) {
@@ -88,6 +88,7 @@ fun SessionEditor(controller: ConfigController, sessionId: String?, onDone: () -
                     }
                     subEditor = null
                 },
+                onSaveToLibrary = { controller.upsertLibraryScript(it) },
                 onDelete = {
                     sub.id?.let { id -> scripts = scripts.filterNot { it.id == id } }
                     subEditor = null
@@ -223,16 +224,22 @@ private fun SessionForm(
             })
 
             SectionHeader("Scripts de inicio")
-            Caption("Se ejecutan en orden al conectar, según su fase. Reordénalos con [^]/[v].")
+            Caption("Se ejecutan en orden al conectar, según su fase. Reordénalos con [^]/[v]. Los de fase bajo demanda se lanzan desde la pestaña.")
             Spacer(Modifier.height(TitanDimens.SpaceSm))
             if (scripts.isEmpty()) {
                 EmptyState("Sin scripts. Añade el primero con [+].")
             }
             scripts.forEachIndexed { index, script ->
+                val library = script.libraryScriptId?.let { id -> config.scripts.firstOrNull { it.id == id } }
+                val origin = when {
+                    library != null -> "  ·  biblioteca"
+                    script.libraryScriptId != null -> "  ·  falta en la biblioteca"
+                    else -> ""
+                }
                 ListRow(
                     marker = if (script.enabled) "[>]" else "[ ]",
-                    title = script.label.ifBlank { "(sin nombre)" },
-                    subtitle = phaseLabel(script.phase) + if (script.enabled) "" else "  ·  deshabilitado",
+                    title = (library?.name ?: script.label).ifBlank { "(sin nombre)" },
+                    subtitle = phaseLabel(script.phase) + origin + if (script.enabled) "" else "  ·  deshabilitado",
                     onClick = { onOpenScript(script.id) },
                     markerColor = if (script.enabled) TitanColors.Body else TitanColors.Stone,
                     trailing = {

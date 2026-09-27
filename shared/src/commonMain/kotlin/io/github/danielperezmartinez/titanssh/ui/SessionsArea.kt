@@ -43,6 +43,9 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.zIndex
 import io.github.danielperezmartinez.titanssh.config.ConfigController
 import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
+import io.github.danielperezmartinez.titanssh.config.SessionScript
+import io.github.danielperezmartinez.titanssh.config.TitanConfig
+import io.github.danielperezmartinez.titanssh.config.onDemandScripts
 import io.github.danielperezmartinez.titanssh.config.resolve
 import io.github.danielperezmartinez.titanssh.terminal.SessionManager
 import io.github.danielperezmartinez.titanssh.terminal.SessionTab
@@ -84,7 +87,7 @@ fun SessionsArea(controller: ConfigController, manager: SessionManager) {
 
     if (fullscreen && isAndroidRuntime()) {
         Box(Modifier.fillMaxSize()) {
-            TerminalView(active, Modifier.fillMaxSize())
+            TerminalView(active, Modifier.fillMaxSize(), scripts = config.menuScripts(active))
             GlyphButton(
                 "[v]",
                 onClick = { fullscreen = false },
@@ -112,14 +115,23 @@ fun SessionsArea(controller: ConfigController, manager: SessionManager) {
         val secondary = if (splitEnabled && !isAndroidRuntime()) secondaryTab(tabs, active) else null
         if (secondary != null) {
             Row(Modifier.fillMaxSize()) {
-                TerminalView(active, Modifier.weight(1f).fillMaxHeight())
+                TerminalView(active, Modifier.weight(1f).fillMaxHeight(), scripts = config.menuScripts(active))
                 Box(Modifier.width(TitanDimens.Hairline).fillMaxHeight().background(TitanColors.HairlineStrong))
-                TerminalView(secondary, Modifier.weight(1f).fillMaxHeight())
+                TerminalView(secondary, Modifier.weight(1f).fillMaxHeight(), scripts = config.menuScripts(secondary))
             }
         } else {
-            TerminalView(active, Modifier.fillMaxSize())
+            TerminalView(active, Modifier.fillMaxSize(), scripts = config.menuScripts(active))
         }
     }
+}
+
+/**
+ * The scripts [tab]'s menu offers, from the current config so library edits show
+ * up in open tabs; falls back to the session as opened if it was since deleted.
+ */
+private fun TitanConfig.menuScripts(tab: SessionTab): List<SessionScript> {
+    val opened = tab.resolved.session
+    return onDemandScripts(sessions.firstOrNull { it.id == opened.id } ?: opened)
 }
 
 /** Picks the pane to show beside the active one in split view (its neighbour). */

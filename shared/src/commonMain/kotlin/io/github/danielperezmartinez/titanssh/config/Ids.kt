@@ -19,7 +19,7 @@ object Ids {
     fun host(): String = newId("host")
     fun session(): String = newId("session")
     fun group(): String = newId("group")
-    fun snippet(): String = newId("snippet")
+    fun libraryScript(): String = newId("library")
     fun script(): String = newId("script")
     fun tunnel(): String = newId("tunnel")
 }

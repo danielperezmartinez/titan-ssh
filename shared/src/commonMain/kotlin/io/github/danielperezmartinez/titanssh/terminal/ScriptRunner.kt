@@ -69,7 +69,9 @@ class ScriptRunner(
     private val resolveSecret: suspend (ref: String) -> String?,
     private val defaultTimeoutSeconds: Int = 30,
 ) {
-    private val placeholder = Regex("""\$\{([^}]+)}""")
+    // Both braces escaped: Android's ICU regex engine rejects a bare `}`, which
+    // the JVM accepts, and would fail every script run on Android.
+    private val placeholder = Regex("""\$\{([^}]+)\}""")
 
     /**
      * Runs [initialDirectory]'s `cd` (if any) then [scripts] in order, returning

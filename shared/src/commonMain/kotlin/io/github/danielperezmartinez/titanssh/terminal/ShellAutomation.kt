@@ -1,6 +1,7 @@
 package io.github.danielperezmartinez.titanssh.terminal
 
 import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
+import io.github.danielperezmartinez.titanssh.config.SessionScript
 import io.github.danielperezmartinez.titanssh.ssh.SshShell
 import kotlinx.coroutines.flow.Flow
 
@@ -59,6 +60,13 @@ interface ShellAutomation {
      * the session's `ReconnectBehavior` as on level 1. Default: no-op.
      */
     suspend fun onAgentSessionCreated(io: ShellIo, resolved: ResolvedConnection, afterDrop: Boolean) {}
+
+    /**
+     * Runs one script the user picked from the tab's scripts menu (an
+     * `ON_DEMAND` script of the session or a library script, ADR-0013) over
+     * the live shell. Default: no-op.
+     */
+    suspend fun runOnDemand(io: ShellIo, script: SessionScript) {}
 
     companion object {
         /** Does nothing: the tab opens a plain shell with no start scripts. */

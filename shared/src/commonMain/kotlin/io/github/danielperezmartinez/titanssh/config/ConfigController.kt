@@ -115,14 +115,33 @@ class ConfigController(
         )
     }
 
-    // --- Snippets ------------------------------------------------------------
+    // --- Script library (ADR-0013) -------------------------------------------
 
-    fun upsertSnippet(snippet: Snippet) = mutate { cfg ->
-        cfg.copy(snippets = cfg.snippets.upsert(snippet) { it.id == snippet.id })
+    fun upsertLibraryScript(script: LibraryScript) = mutate { cfg ->
+        cfg.copy(scripts = cfg.scripts.upsert(script) { it.id == script.id })
     }
 
-    fun deleteSnippet(snippetId: String) = mutate { cfg ->
-        cfg.copy(snippets = cfg.snippets.filterNot { it.id == snippetId })
+    /**
+     * Removes a library script. Each session that referenced it keeps a copy of
+     * it as its own script, so deleting from the library never stops a session
+     * from running what it ran before.
+     */
+    fun deleteLibraryScript(libraryScriptId: String) = mutate { cfg ->
+        val library = cfg.scripts.firstOrNull { it.id == libraryScriptId }
+        cfg.copy(
+            scripts = cfg.scripts.filterNot { it.id == libraryScriptId },
+            sessions = if (library == null) cfg.sessions else cfg.sessions.map { session ->
+                session.copy(
+                    scripts = session.scripts.map { script ->
+                        if (script.libraryScriptId == libraryScriptId) {
+                            script.filledFrom(library).copy(libraryScriptId = null)
+                        } else {
+                            script
+                        }
+                    },
+                )
+            },
+        )
     }
 
     // --- Global appearance ---------------------------------------------------

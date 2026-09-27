@@ -25,8 +25,10 @@ class ConfigResolutionException(message: String) : Exception(message)
 
 /**
  * Resolves [session] against the hosts in this config, applying session
- * overrides over host defaults. Throws [ConfigResolutionException] if the
- * referenced host is missing, and propagates [SshEndpoint]'s own validation.
+ * overrides over host defaults. The resolved session carries its
+ * [effectiveScripts], so what runs is the library's current content. Throws
+ * [ConfigResolutionException] if the referenced host is missing, and
+ * propagates [SshEndpoint]'s own validation.
  */
 fun TitanConfig.resolve(session: Session): ResolvedConnection {
     val host = hosts.firstOrNull { it.id == session.hostId }
@@ -42,7 +44,52 @@ fun TitanConfig.resolve(session: Session): ResolvedConnection {
         .mergedWith(host.appearance)
         .mergedWith(session.appearance)
     val proxyJump = host.proxyJumpHostId?.let { id -> hosts.firstOrNull { it.id == id } }
-    return ResolvedConnection(session, host, endpoint, host.auth, appearance, proxyJump)
+    val effective = session.copy(scripts = effectiveScripts(session))
+    return ResolvedConnection(effective, host, endpoint, host.auth, appearance, proxyJump)
+}
+
+/**
+ * The scripts of [session] as they run (ADR-0013): each library reference is
+ * filled with the current content of its [LibraryScript], keeping the
+ * reference's own id, enabled flag, phase and reconnect behavior. A reference
+ * whose library entry is gone is dropped, so it never runs an empty command.
+ */
+fun TitanConfig.effectiveScripts(session: Session): List<SessionScript> =
+    session.scripts.mapNotNull { script ->
+        val libraryId = script.libraryScriptId ?: return@mapNotNull script
+        scripts.firstOrNull { it.id == libraryId }?.let { script.filledFrom(it) }
+    }
+
+/** This reference with the content of [library]; still linked to it. */
+fun SessionScript.filledFrom(library: LibraryScript): SessionScript = copy(
+    label = library.name,
+    body = library.body,
+    behavior = library.behavior,
+    envVars = library.envVars,
+    secretRefs = library.secretRefs,
+)
+
+/** A new reference to this library script, used by a session in [phase]. */
+fun LibraryScript.reference(id: String, phase: ScriptPhase): SessionScript =
+    SessionScript(id = id, label = name, phase = phase, libraryScriptId = this.id)
+
+/** The sessions whose scripts reference the library script [libraryScriptId]. */
+fun TitanConfig.sessionsUsing(libraryScriptId: String): List<Session> =
+    sessions.filter { s -> s.scripts.any { it.libraryScriptId == libraryScriptId } }
+
+/**
+ * What the scripts menu of an open [session] offers: its own enabled
+ * [ScriptPhase.ON_DEMAND] scripts first, then every library script it does not
+ * already list there. Library scripts are offered as on-demand references, so
+ * they run with the library's content.
+ */
+fun TitanConfig.onDemandScripts(session: Session): List<SessionScript> {
+    val own = effectiveScripts(session).filter { it.enabled && it.phase == ScriptPhase.ON_DEMAND }
+    val listed = own.mapNotNull { it.libraryScriptId }.toSet()
+    val library = scripts
+        .filterNot { it.id in listed }
+        .map { it.reference(id = "library:${it.id}", phase = ScriptPhase.ON_DEMAND).filledFrom(it) }
+    return own + library
 }
 
 /** Overlays non-null fields of [override] on top of this appearance. */

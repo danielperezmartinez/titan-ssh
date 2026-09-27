@@ -2,6 +2,7 @@ package io.github.danielperezmartinez.titanssh.terminal
 
 import io.github.danielperezmartinez.titanssh.config.Host
 import io.github.danielperezmartinez.titanssh.config.HostAuth
+import io.github.danielperezmartinez.titanssh.config.LibraryScript
 import io.github.danielperezmartinez.titanssh.config.ReconnectBehavior
 import io.github.danielperezmartinez.titanssh.config.ResilienceLevel
 import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
@@ -11,6 +12,8 @@ import io.github.danielperezmartinez.titanssh.config.ScriptPhase
 import io.github.danielperezmartinez.titanssh.config.Session
 import io.github.danielperezmartinez.titanssh.config.SessionScript
 import io.github.danielperezmartinez.titanssh.config.TerminalAppearance
+import io.github.danielperezmartinez.titanssh.config.TitanConfig
+import io.github.danielperezmartinez.titanssh.config.resolve
 import io.github.danielperezmartinez.titanssh.secret.SecretRef
 import io.github.danielperezmartinez.titanssh.secret.SecretStore
 import io.github.danielperezmartinez.titanssh.ssh.SshEndpoint
@@ -374,5 +377,44 @@ class ScriptRunnerTest {
 
         val commands = fake.sent.filterNot { it.startsWith("printf ") }.map { it.trim() }
         assertEquals(listOf("cd -- '/work'"), commands)
+    }
+
+    @Test
+    fun a_library_reference_runs_the_library_content_in_the_session_phase() = runTest {
+        val out = newOut()
+        val fake = FakeShell(out)
+        val library = LibraryScript(id = "lib", name = "arrancar", body = "./run.sh", envVars = mapOf("MODE" to "prod"))
+        val session = Session(
+            id = "s", name = "n", hostId = "h",
+            scripts = listOf(
+                SessionScript(id = "ref", label = "stale", phase = ScriptPhase.POST_INIT, body = "stale", libraryScriptId = "lib"),
+                SessionScript(id = "gone", label = "gone", body = "never", libraryScriptId = "missing"),
+            ),
+        )
+        val config = TitanConfig(
+            hosts = listOf(Host(id = "h", alias = "h", hostname = "x", username = "u", auth = HostAuth.Password("r"))),
+            sessions = listOf(session),
+            scripts = listOf(library),
+        )
+
+        out.tryEmit("[user@host ~]$ ")
+        StartScriptAutomation(FakeSecretStore(emptyMap())).onShellReady(ShellIo(fake, out), config.resolve(session))
+
+        val log = fake.log()
+        assertTrue(log.contains("export MODE='prod'\n./run.sh"), "library content runs: $log")
+        assertFalse(log.contains("stale"), "the reference's own body is ignored: $log")
+        assertFalse(log.contains("never"), "a dangling reference does not run: $log")
+    }
+
+    @Test
+    fun on_demand_sends_the_script_without_a_completion_sentinel() = runTest {
+        val out = newOut()
+        val fake = FakeShell(out)
+        val script = script("demand", "deploy \${token}", phase = ScriptPhase.ON_DEMAND, secretRefs = listOf("token"))
+
+        StartScriptAutomation(FakeSecretStore(mapOf("token" to "s3cret".encodeToByteArray())))
+            .runOnDemand(ShellIo(fake, out), script)
+
+        assertEquals(listOf("deploy s3cret\n"), fake.sent, "one fire-and-forget send, no printf sentinel")
     }
 }

@@ -4,6 +4,7 @@ import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 
 /**
  * File-backed [ConfigStore] shared by Android and desktop (both JVM). The config
@@ -16,10 +17,21 @@ class JsonFileConfigStore(private val directory: File) : ConfigStore {
 
     private val file: File = File(directory, CONFIG_FILE)
 
+    /**
+     * Loads the config, migrating an older document ([ConfigMigration]). Before
+     * the first save overwrites it, the original older file is kept as
+     * `config.json.v<version>.bak`.
+     */
     override suspend fun load(): TitanConfig = withContext(Dispatchers.IO) {
         if (!file.exists()) return@withContext TitanConfig()
         try {
-            JSON.decodeFromString(TitanConfig.serializer(), file.readText(Charsets.UTF_8))
+            val document = JSON.parseToJsonElement(file.readText(Charsets.UTF_8)).jsonObject
+            val version = ConfigMigration.versionOf(document)
+            if (version < TitanConfig.CURRENT_VERSION) {
+                val backup = File(directory, "$CONFIG_FILE.v$version.bak")
+                if (!backup.exists()) file.copyTo(backup)
+            }
+            JSON.decodeFromJsonElement(TitanConfig.serializer(), ConfigMigration.migrate(document))
         } catch (e: Exception) {
             throw ConfigStoreException("Failed to read config at ${file.path}", e)
         }

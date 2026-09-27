@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -275,7 +276,11 @@ fun <T> TitanSegmented(
             Caption(label)
             Spacer(Modifier.height(TitanDimens.SpaceXs))
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(TitanDimens.SpaceSm)) {
+        // Wraps onto new lines instead of squeezing the options on a narrow screen.
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(TitanDimens.SpaceSm),
+            verticalArrangement = Arrangement.spacedBy(TitanDimens.SpaceSm),
+        ) {
             options.forEach { option ->
                 val isSel = option == selected
                 Box(

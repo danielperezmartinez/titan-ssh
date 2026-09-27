@@ -28,7 +28,9 @@ import io.github.danielperezmartinez.titanssh.config.Group
 import io.github.danielperezmartinez.titanssh.config.Host
 import io.github.danielperezmartinez.titanssh.config.Ids
 import io.github.danielperezmartinez.titanssh.config.Session
-import io.github.danielperezmartinez.titanssh.config.Snippet
+import io.github.danielperezmartinez.titanssh.config.LibraryScript
+import io.github.danielperezmartinez.titanssh.config.TitanConfig
+import io.github.danielperezmartinez.titanssh.config.sessionsUsing
 import io.github.danielperezmartinez.titanssh.secret.SecretProvisioner
 import io.github.danielperezmartinez.titanssh.theme.TitanColors
 import io.github.danielperezmartinez.titanssh.theme.TitanDimens
@@ -36,18 +38,18 @@ import io.github.danielperezmartinez.titanssh.theme.TitanDimens
 private enum class ConfigTab(val label: String) {
     HOSTS("Hosts"),
     SESSIONS("Sesiones"),
-    SNIPPETS("Snippets"),
+    SCRIPTS("Scripts"),
     GROUPS("Grupos"),
 }
 
 private sealed interface Editor {
     data class HostEdit(val id: String?) : Editor
     data class SessionEdit(val id: String?) : Editor
-    data class SnippetEdit(val id: String?) : Editor
+    data class LibraryScriptEdit(val id: String?) : Editor
 }
 
 /**
- * The "Configuración" area: manage and persist hosts, sessions, the snippet
+ * The "Configuración" area: manage and persist hosts, sessions, the script
  * library and groups. Lists route to full-screen editors; there is no Termius-
  * style layout (visual decision), just flat mono lists with ASCII markers.
  */
@@ -60,7 +62,7 @@ fun ConfigArea(controller: ConfigController, provisioner: SecretProvisioner) {
     when (val current = editor) {
         is Editor.HostEdit -> HostEditor(controller, current.id, provisioner) { editor = null }
         is Editor.SessionEdit -> SessionEditor(controller, current.id) { editor = null }
-        is Editor.SnippetEdit -> SnippetEditor(controller, current.id) { editor = null }
+        is Editor.LibraryScriptEdit -> LibraryScriptEditor(controller, current.id) { editor = null }
         null -> Column(Modifier.fillMaxSize()) {
             SubTabBar(tab) { tab = it }
             Hairline()
@@ -72,8 +74,8 @@ fun ConfigArea(controller: ConfigController, provisioner: SecretProvisioner) {
                     ConfigTab.SESSIONS -> SessionList(config.sessions, config.hosts, onNew = { editor = Editor.SessionEdit(null) }) {
                         editor = Editor.SessionEdit(it.id)
                     }
-                    ConfigTab.SNIPPETS -> SnippetList(config.snippets, onNew = { editor = Editor.SnippetEdit(null) }) {
-                        editor = Editor.SnippetEdit(it.id)
+                    ConfigTab.SCRIPTS -> LibraryScriptList(config, onNew = { editor = Editor.LibraryScriptEdit(null) }) {
+                        editor = Editor.LibraryScriptEdit(it.id)
                     }
                     ConfigTab.GROUPS -> GroupList(controller, config.groups)
                 }
@@ -163,15 +165,18 @@ private fun SessionList(sessions: List<Session>, hosts: List<Host>, onNew: () ->
 }
 
 @Composable
-private fun SnippetList(snippets: List<Snippet>, onNew: () -> Unit, onOpen: (Snippet) -> Unit) {
+private fun LibraryScriptList(config: TitanConfig, onNew: () -> Unit, onOpen: (LibraryScript) -> Unit) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = bodyPadding()) {
-        item { NewRow("Nuevo snippet", onNew) }
+        item { NewRow("Nuevo script", onNew) }
         item { Hairline() }
-        if (snippets.isEmpty()) {
-            item { EmptyState("Biblioteca de snippets vacía.") }
+        if (config.scripts.isEmpty()) {
+            item { EmptyState("Biblioteca de scripts vacía. Úsalos desde cualquier sesión.") }
         }
-        items(snippets) { snippet ->
-            ListRow(marker = "[>]", title = snippet.name, subtitle = snippet.body.take(60), onClick = { onOpen(snippet) }, markerColor = TitanColors.Mute)
+        items(config.scripts) { script ->
+            val uses = config.sessionsUsing(script.id).size
+            val subtitle = script.body.lineSequence().firstOrNull().orEmpty().take(60) +
+                if (uses > 0) "  ·  en $uses sesión(es)" else ""
+            ListRow(marker = "[>]", title = script.name, subtitle = subtitle, onClick = { onOpen(script) }, markerColor = TitanColors.Mute)
             Hairline()
         }
     }

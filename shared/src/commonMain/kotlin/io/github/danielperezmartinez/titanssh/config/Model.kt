@@ -9,8 +9,9 @@ import kotlinx.serialization.Serializable
  *
  * A [Host] describes *where and how to connect* and is reusable; a [Session]
  * describes *what to do on connect* and references a host, optionally overriding
- * some of its defaults. Start scripts and the global snippet library implement
- * the automation task ([[Scripts de inicio por sesión]]).
+ * some of its defaults. Start scripts implement the automation task
+ * ([[Scripts de inicio por sesión]]); the global [LibraryScript] library lets a
+ * session reuse a script by reference (ADR-0013).
  *
  * These types are serialized to JSON on an app-private file by the config store.
  * They never hold secret material: passwords, passphrases and software keys are
@@ -130,7 +131,7 @@ enum class ScriptPhase {
     /** Runs when the session reconnects after a micro-cut. */
     ON_RECONNECT,
 
-    /** Not run automatically; a manual snippet with a button in the session. */
+    /** Not run automatically; launched by hand from the session's scripts menu. */
     ON_DEMAND,
 }
 
@@ -170,6 +171,13 @@ data class ScriptBehavior(
 /**
  * One start script of a session ([[Scripts de inicio por sesión]]). Order is the
  * index within [Session.scripts]; scripts are reordered by moving list items.
+ *
+ * It is either the session's own script or, when [libraryScriptId] is set, a
+ * reference to a [LibraryScript] (ADR-0013). A reference only owns how the
+ * session uses the script: [id], [enabled], [phase] and [reconnectBehavior].
+ * Its [label], [body], [behavior], [envVars] and [secretRefs] are ignored and
+ * taken from the library when the session is resolved
+ * ([TitanConfig.effectiveScripts]).
  */
 @Serializable
 data class SessionScript(
@@ -179,8 +187,8 @@ data class SessionScript(
     val phase: ScriptPhase = ScriptPhase.ON_SHELL_START,
     /** The command(s) to run; may contain `${'$'}{VAR}` placeholders. */
     val body: String = "",
-    /** If set, this script inserts a library [Snippet]; [body] is its cached text. */
-    val snippetId: String? = null,
+    /** If set, this is a reference to the [LibraryScript] with this id. */
+    val libraryScriptId: String? = null,
     val behavior: ScriptBehavior = ScriptBehavior(),
     /** Only meaningful when [phase] is [ScriptPhase.ON_RECONNECT]. */
     val reconnectBehavior: ReconnectBehavior = ReconnectBehavior.RERUN_ALL,
@@ -191,15 +199,24 @@ data class SessionScript(
 )
 
 /**
- * A reusable command in the global library, insertable into any session and the
- * source of the "on demand" scripts (see [[Panel de gestión de hosts y sesiones]]).
+ * A reusable script in the global library (the "Scripts" tab), which replaced
+ * the former snippets (ADR-0013). It holds what is reused: the command and how
+ * it runs. A session uses it through a [SessionScript] reference, which adds the
+ * phase, position, enabled flag and reconnect behavior; any library script can
+ * also be run on demand from an open session.
  */
 @Serializable
-data class Snippet(
+data class LibraryScript(
     val id: String,
     val name: String,
+    /** The command(s) to run; may contain `${'$'}{VAR}` placeholders. */
     val body: String = "",
     val tags: List<String> = emptyList(),
+    val behavior: ScriptBehavior = ScriptBehavior(),
+    /** Environment variables to export before running. */
+    val envVars: Map<String, String> = emptyMap(),
+    /** Secrets injected from the SecretStore (never inlined as plaintext). */
+    val secretRefs: List<String> = emptyList(),
 )
 
 /** A folder for organizing hosts and sessions by project. */
@@ -268,10 +285,12 @@ data class TitanConfig(
     val hosts: List<Host> = emptyList(),
     val sessions: List<Session> = emptyList(),
     val groups: List<Group> = emptyList(),
-    val snippets: List<Snippet> = emptyList(),
+    /** The script library (ADR-0013). */
+    val scripts: List<LibraryScript> = emptyList(),
     val defaultAppearance: TerminalAppearance = TerminalAppearance(),
 ) {
     companion object {
-        const val CURRENT_VERSION: Int = 1
+        /** 2: the snippets became the script library (see [ConfigMigration]). */
+        const val CURRENT_VERSION: Int = 2
     }
 }

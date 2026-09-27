@@ -2,6 +2,7 @@ package io.github.danielperezmartinez.titanssh.terminal
 
 import io.github.danielperezmartinez.titanssh.config.ResilienceLevel
 import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
+import io.github.danielperezmartinez.titanssh.config.SessionScript
 import io.github.danielperezmartinez.titanssh.ssh.HostKeyInfo
 import io.github.danielperezmartinez.titanssh.ssh.KnownHostsStore
 import io.github.danielperezmartinez.titanssh.ssh.KnownHostsVerifier
@@ -158,6 +159,9 @@ class SessionTab(
     private var connectJob: Job? = null
     private var automationJob: Job? = null
 
+    /** I/O of the live shell or agent PTY, for [runScript]; null while not connected. */
+    private var liveIo: ShellIo? = null
+
     /** Active level-3 agent transport (null on the shell path). */
     private var agent: AgentTransport? = null
 
@@ -295,6 +299,7 @@ class SessionTab(
             val tee = newTee()
             outputTee = tee
             val io = ShellIo(newShell, tee.asSharedFlow(), ::onMultiplexer)
+            liveIo = io
             launchAutomation {
                 if (reconnecting) automation.onReconnected(io, resolved)
                 else automation.onShellReady(io, resolved)
@@ -319,6 +324,7 @@ class SessionTab(
         } finally {
             wipe(creds)
             automationJob?.cancel()
+            liveIo = null
             runCatching { agent?.close() }
             runCatching { shell?.close() }
             runCatching { opened?.close() }
@@ -347,6 +353,7 @@ class SessionTab(
         val tee = newTee()
         outputTee = tee
         val io = ShellIo({ bytes -> agent?.sendInput(bytes) }, tee.asSharedFlow())
+        liveIo = io
         val transport = AgentTransport(
             session = opened,
             agentSessionId = resolved.session.id,
@@ -476,6 +483,18 @@ class SessionTab(
     suspend fun sendBytes(bytes: ByteArray) {
         val a = agent
         if (a != null) a.sendInput(bytes) else shell?.send(bytes)
+    }
+
+    /**
+     * Runs [script], picked from the tab's scripts menu, over the live shell or
+     * agent PTY, alongside any start scripts still running. Returns false when
+     * the tab is not connected.
+     */
+    fun runScript(script: SessionScript): Boolean {
+        val io = liveIo ?: return false
+        if (_status.value.phase != TabPhase.CONNECTED) return false
+        scope.launch { runCatching { automation.runOnDemand(io, script) } }
+        return true
     }
 
     /** Records a new grid size and forwards it to the emulator and the PTY. */

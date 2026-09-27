@@ -156,6 +156,13 @@ nota-índice en `Catálogo técnico.md`.
   cuando el usuario lo pide en esa sesión**: el tag y el Release son públicos
   y no se pueden retirar. Si al agente le parece buen momento, lo propone y
   espera la respuesta.
+  0. **Prueba en Android sin publicar.** Los cambios que afectan a Android se
+     prueban antes en el emulador (`Pixel_9_Pro_XL`) con una build de debug,
+     no con un Release ni lanzando el workflow a mano. El agente enseña al
+     usuario capturas del emulador (ficheros o carpeta) y deja el emulador
+     abierto con la app instalada y un destino de pruebas preparado, para que
+     el usuario la pruebe él mismo. Con eso el usuario decide si se publica, y
+     la verificación "en dispositivo" de una tarea queda cubierta.
   1. `main` con todo subido y el árbol limpio. Se revisa el diff según la
      regla 5.
   2. Versión: el siguiente `-beta.N` para el canal interno, o sin sufijo para
@@ -175,6 +182,7 @@ nota-índice en `Catálogo técnico.md`.
      la comprueba).
   6. El usuario instala la APK en el Pixel descargándola del Release (no usa
      Obtainium) y confirma que funciona. Se anota en la tarea correspondiente.
+     Es una comprobación del Release; la de la funcionalidad es el paso 0.
   - Para probar el pipeline sin publicar nada, se lanza el workflow a mano
     (`workflow_dispatch`): genera los paquetes como artefactos del run.
   - Los secretos del keystore (`TITAN_KEYSTORE_BASE64`, `TITAN_KEY_ALIAS`,

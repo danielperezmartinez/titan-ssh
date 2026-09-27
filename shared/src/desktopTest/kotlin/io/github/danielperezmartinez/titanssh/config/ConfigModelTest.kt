@@ -159,6 +159,99 @@ class ConfigModelTest {
         assertNull(controller.state.value.hosts.single().groupId)
         assertNull(controller.state.value.sessions.single().groupId)
     }
+
+    private val restart = LibraryScript(
+        id = "lib1", name = "restart", body = "systemctl restart app",
+        behavior = ScriptBehavior(timeoutSeconds = 5), envVars = mapOf("A" to "1"), secretRefs = listOf("tok"),
+    )
+
+    private fun reference(id: String, phase: ScriptPhase = ScriptPhase.POST_INIT, enabled: Boolean = true) =
+        SessionScript(id = id, label = "", phase = phase, enabled = enabled, libraryScriptId = restart.id)
+
+    @Test
+    fun resolve_fills_library_references_and_drops_dangling_ones() {
+        val own = SessionScript(id = "own", label = "own", body = "echo own")
+        val s = Session(
+            id = "s1", name = "s", hostId = "h1",
+            scripts = listOf(reference("r1", enabled = false), own, SessionScript(id = "r2", label = "x", libraryScriptId = "gone")),
+        )
+        val cfg = TitanConfig(hosts = listOf(host("h1")), sessions = listOf(s), scripts = listOf(restart))
+
+        val scripts = cfg.resolve(s).session.scripts
+
+        assertEquals(listOf("r1", "own"), scripts.map { it.id })
+        val filled = scripts.first()
+        // Content from the library; phase, enabled flag and link from the reference.
+        assertEquals("restart", filled.label)
+        assertEquals("systemctl restart app", filled.body)
+        assertEquals(restart.behavior, filled.behavior)
+        assertEquals(restart.envVars, filled.envVars)
+        assertEquals(restart.secretRefs, filled.secretRefs)
+        assertEquals(ScriptPhase.POST_INIT, filled.phase)
+        assertEquals(false, filled.enabled)
+        assertEquals("lib1", filled.libraryScriptId)
+        assertEquals(own, scripts[1])
+    }
+
+    @Test
+    fun editing_the_library_changes_every_session_that_uses_it() {
+        val a = Session(id = "a", name = "a", hostId = "h1", scripts = listOf(reference("ra")))
+        val b = Session(id = "b", name = "b", hostId = "h1", scripts = listOf(reference("rb", ScriptPhase.ON_DEMAND)))
+        val controller = ConfigController(
+            FakeConfigStore(TitanConfig(hosts = listOf(host("h1")), sessions = listOf(a, b), scripts = listOf(restart))),
+            CoroutineScope(Dispatchers.Unconfined),
+        )
+
+        controller.upsertLibraryScript(restart.copy(body = "systemctl reload app"))
+
+        val cfg = controller.state.value
+        assertEquals(listOf("a", "b"), cfg.sessionsUsing("lib1").map { it.id })
+        assertEquals("systemctl reload app", cfg.resolve(a).session.scripts.single().body)
+        assertEquals("systemctl reload app", cfg.resolve(b).session.scripts.single().body)
+    }
+
+    @Test
+    fun deleting_a_used_library_script_leaves_an_own_copy_in_each_session() {
+        val other = SessionScript(id = "o", label = "o", body = "echo o")
+        val s = Session(id = "s1", name = "s", hostId = "h1", scripts = listOf(reference("r1"), other))
+        val controller = ConfigController(
+            FakeConfigStore(TitanConfig(hosts = listOf(host("h1")), sessions = listOf(s), scripts = listOf(restart))),
+            CoroutineScope(Dispatchers.Unconfined),
+        )
+        val before = controller.state.value.resolve(s).session.scripts
+
+        controller.deleteLibraryScript("lib1")
+
+        val cfg = controller.state.value
+        assertTrue(cfg.scripts.isEmpty())
+        val scripts = cfg.sessions.single().scripts
+        assertNull(scripts.first().libraryScriptId)
+        // What runs is unchanged, apart from the link itself.
+        assertEquals(before.map { it.copy(libraryScriptId = null) }, cfg.resolve(cfg.sessions.single()).session.scripts)
+        assertEquals(other, scripts[1])
+    }
+
+    @Test
+    fun on_demand_menu_lists_the_session_scripts_then_the_rest_of_the_library() {
+        val deploy = LibraryScript(id = "lib2", name = "deploy", body = "./deploy.sh")
+        val s = Session(
+            id = "s1", name = "s", hostId = "h1",
+            scripts = listOf(
+                SessionScript(id = "own", label = "logs", body = "tail -f log", phase = ScriptPhase.ON_DEMAND),
+                reference("r1", ScriptPhase.ON_DEMAND),
+                SessionScript(id = "off", label = "off", phase = ScriptPhase.ON_DEMAND, enabled = false),
+                SessionScript(id = "start", label = "start", phase = ScriptPhase.ON_SHELL_START),
+            ),
+        )
+        val cfg = TitanConfig(hosts = listOf(host("h1")), sessions = listOf(s), scripts = listOf(restart, deploy))
+
+        val menu = cfg.onDemandScripts(s)
+
+        // restart is already listed by the session, so only deploy is added.
+        assertEquals(listOf("logs", "restart", "deploy"), menu.map { it.label })
+        assertEquals("./deploy.sh", menu.last().body)
+        assertTrue(menu.all { it.phase == ScriptPhase.ON_DEMAND })
+    }
 }
 
 /** In-memory [ConfigStore] for controller tests. */

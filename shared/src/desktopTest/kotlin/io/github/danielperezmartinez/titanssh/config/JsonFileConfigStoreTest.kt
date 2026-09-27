@@ -9,7 +9,7 @@ import kotlin.test.assertTrue
 
 /**
  * Real file I/O round-trip for [JsonFileConfigStore] against a temp directory,
- * covering every auth variant, scripts, tunnels, groups and snippets. Confirms
+ * covering every auth variant, scripts, tunnels, groups and the script library. Confirms
  * the persisted document reloads to an equal config and holds no plaintext
  * secret (only references).
  */
@@ -48,6 +48,7 @@ class JsonFileConfigStoreTest {
                         secretRefs = listOf("casa.token"),
                     ),
                     SessionScript(id = "sc2", label = "reconecta", phase = ScriptPhase.ON_RECONNECT, reconnectBehavior = ReconnectBehavior.RESTORE_CD_ONLY),
+                    SessionScript(id = "sc3", label = "", phase = ScriptPhase.ON_DEMAND, libraryScriptId = "lib1"),
                 ),
                 tunnels = listOf(
                     Tunnel(id = "t1", type = TunnelType.LOCAL, listenPort = 8080, destinationHost = "127.0.0.1", destinationPort = 80),
@@ -58,7 +59,12 @@ class JsonFileConfigStoreTest {
             ),
         ),
         groups = listOf(Group(id = "g1", name = "casa")),
-        snippets = listOf(Snippet(id = "sn1", name = "restart", body = "sudo systemctl restart app", tags = listOf("ops"))),
+        scripts = listOf(
+            LibraryScript(
+                id = "lib1", name = "restart", body = "sudo systemctl restart app", tags = listOf("ops"),
+                behavior = ScriptBehavior(timeoutSeconds = 10), envVars = mapOf("MODE" to "prod"), secretRefs = listOf("casa.token"),
+            ),
+        ),
         defaultAppearance = TerminalAppearance(fontFamily = "JetBrains Mono", fontSize = 13, colorTheme = "ansi"),
     )
 

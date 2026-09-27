@@ -7,8 +7,8 @@ Estado: "Vigente"
 Ámbito: "Aplicación"
 Fuente: "shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/config/ConfigStore.kt"
 Entrada pública: "io.github.danielperezmartinez.titanssh.config"
-Resumen: "Contrato de persistencia (no secreta) de la configuración del área. load()/save(config) sobre un documento JSON en fichero app-privado, con escritura atómica. Se obtiene con createConfigStore() (expect/actual: solo el directorio base es específico de plataforma —Android filesDir, escritorio dir de config del SO—); la impl es compartida en jvmShared (JsonFileConfigStore). No persiste secretos: solo referencias (SecretRef) o alias de clave hardware, coherente con ADR-0001. Round-trip verificado contra fichero temporal."
-Última modificación: 2026-09-24T12:00:00+02:00
+Resumen: "Contrato de persistencia (no secreta) de la configuración del área. load()/save(config) sobre un documento JSON en fichero app-privado, con escritura atómica. Se obtiene con createConfigStore() (expect/actual: solo el directorio base es específico de plataforma —Android filesDir, escritorio dir de config del SO—); la impl es compartida en jvmShared (JsonFileConfigStore). No persiste secretos: solo referencias (SecretRef) o alias de clave hardware, coherente con ADR-0001. Al cargar migra un documento de versión anterior con ConfigMigration (sobre el JSON crudo) y guarda antes una copia config.json.v<versión>.bak. Round-trip y migración verificados contra fichero temporal."
+Última modificación: 2026-09-27T17:30:00+02:00
 ---
 
 # ConfigStore

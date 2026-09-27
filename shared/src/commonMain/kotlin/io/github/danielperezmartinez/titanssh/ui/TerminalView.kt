@@ -6,6 +6,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
@@ -64,6 +66,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.danielperezmartinez.titanssh.config.SessionScript
 import io.github.danielperezmartinez.titanssh.terminal.AccessoryKey
 import io.github.danielperezmartinez.titanssh.terminal.AgentDiagnostics
 import io.github.danielperezmartinez.titanssh.terminal.AnsiPalette
@@ -95,9 +98,12 @@ private val TerminalBgColor = packedToColor(AnsiPalette.DEFAULT_BG)
  * keyboards and desktop); on Android an accessory key bar supplies the keys the
  * soft keyboard lacks (Esc, Tab, Ctrl, Alt, arrows, `| / - ~`) plus paste, and a
  * hidden capture field brings up the soft keyboard for text.
+ *
+ * [scripts] are the ones the user can launch by hand (ADR-0013): the status
+ * strip opens a menu with them while the tab is connected.
  */
 @Composable
-fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier) {
+fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier, scripts: List<SessionScript> = emptyList()) {
     val snapshot by tab.snapshot.collectAsState()
     val status by tab.status.collectAsState()
     val resilience by tab.resilience.collectAsState()
@@ -189,7 +195,22 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier) {
             Hairline()
         }
 
-        StatusStrip(status, resilience, onEnableLinger = { scope.launch { tab.enableLinger() } })
+        var scriptsOpen by remember(tab.id) { mutableStateOf(false) }
+        val canRunScripts = scripts.isNotEmpty() && status.phase == TabPhase.CONNECTED
+        StatusStrip(
+            status,
+            resilience,
+            onEnableLinger = { scope.launch { tab.enableLinger() } },
+            scriptsOpen = scriptsOpen && canRunScripts,
+            onToggleScripts = if (canRunScripts) ({ scriptsOpen = !scriptsOpen }) else null,
+        )
+        if (scriptsOpen && canRunScripts) {
+            ScriptsMenu(scripts) { script ->
+                tab.runScript(script)
+                scriptsOpen = false
+            }
+            Hairline()
+        }
 
         Box(
             Modifier
@@ -414,6 +435,8 @@ private fun StatusStrip(
     status: io.github.danielperezmartinez.titanssh.terminal.TabStatus,
     resilience: ResilienceStatus,
     onEnableLinger: () -> Unit,
+    scriptsOpen: Boolean,
+    onToggleScripts: (() -> Unit)?,
 ) {
     val (marker, color, label) = when (status.phase) {
         TabPhase.CONNECTING -> Triple("[-]", TitanColors.Warning, "Conectando…")
@@ -436,7 +459,16 @@ private fun StatusStrip(
             (status.detail ?: label) + (level?.let { " · $it" } ?: ""),
             style = MaterialTheme.typography.labelSmall,
             color = TitanColors.Mute,
+            modifier = Modifier.weight(1f),
         )
+        if (onToggleScripts != null) {
+            Text(
+                "[>] scripts",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (scriptsOpen) TitanColors.Accent else TitanColors.Body,
+                modifier = Modifier.clickable(onClick = onToggleScripts).padding(horizontal = TitanDimens.SpaceXs),
+            )
+        }
     }
     val issue = resilience.issue ?: return
     var dismissed by remember(issue) { mutableStateOf(false) }
@@ -476,6 +508,33 @@ private fun StatusStrip(
             color = TitanColors.Mute,
             modifier = Modifier.clickable { dismissed = true }.padding(horizontal = TitanDimens.SpaceXs),
         )
+    }
+}
+
+/**
+ * The tab's scripts menu: the session's on-demand scripts, then the library's.
+ * Picking one sends it to the terminal.
+ */
+@Composable
+private fun ScriptsMenu(scripts: List<SessionScript>, onRun: (SessionScript) -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(max = 240.dp)
+            .background(TitanColors.Canvas)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = TitanDimens.SpaceMd),
+    ) {
+        scripts.forEach { script ->
+            val fromLibrary = script.libraryScriptId != null
+            ListRow(
+                marker = "[>]",
+                title = script.label.ifBlank { "(sin nombre)" },
+                subtitle = (if (fromLibrary) "biblioteca · " else "") + script.body.lineSequence().firstOrNull().orEmpty().take(60),
+                onClick = { onRun(script) },
+                markerColor = TitanColors.Accent,
+            )
+        }
     }
 }
 

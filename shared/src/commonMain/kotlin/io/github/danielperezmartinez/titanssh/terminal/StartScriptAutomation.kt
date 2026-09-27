@@ -35,9 +35,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  *   chain runs only when `titan-agent` creates a fresh PTY
  *   ([onAgentSessionCreated]); re-attaching to a live one replays nothing.
  *
- * Out of scope here (by design): [ScriptPhase.PRE_CONNECT_LOCAL] (no local
- * executor yet); [ScriptPhase.ON_DEMAND] scripts are the manual snippets,
- * triggered from the session, not on connect.
+ * [ScriptPhase.ON_DEMAND] scripts never run on connect: the user launches them
+ * from the tab's scripts menu ([runOnDemand]). Out of scope here (by design):
+ * [ScriptPhase.PRE_CONNECT_LOCAL] (no local executor yet).
  *
  * Secrets are read from the [SecretStore] only at run time and passed straight
  * into the command; they are never written back to the config (ADR-0001).
@@ -112,6 +112,16 @@ class StartScriptAutomation(
         awaitReady(io)
         if (afterDrop) replayForReconnect(io, session)
         else runScripts(io, connectScripts(session), session.initialDirectory)
+    }
+
+    /**
+     * Sends [script] without waiting for it to finish: the user watches it run,
+     * and awaiting would print the completion sentinel into their terminal. The
+     * delay, `expect`, env vars and secrets still apply.
+     */
+    override suspend fun runOnDemand(io: ShellIo, script: SessionScript) {
+        val fireAndForget = script.copy(behavior = script.behavior.copy(waitForCompletion = false))
+        runScripts(io, listOf(fireAndForget), initialDirectory = null)
     }
 
     private suspend fun replayForReconnect(io: ShellIo, session: Session) {

@@ -1,11 +1,11 @@
 ---
 Nombre: 'Seguimiento de tareas pendientes'
 Estado: 'En curso'
-Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenadas por prioridad, para irlas completando una a una en sesiones sucesivas nombrando esta nota. Indica qué tareas conviene hacer juntas en la misma sesión y qué pasos necesitan una acción del usuario. Orden: primero lo que hay que hacer con el árbol de trabajo limpio y antes de publicar (cambio de identificador y licencia); después la base de release hasta la primera pre-release con Obtainium, que sustituye a pasar la APK a mano; los canales propios del usuario (AUR, winget); el hueco funcional de scripts sobre el agente; el nivel 3 portable; los scripts reutilizables; y al final los canales públicos (Flathub, IzzyOnDroid), la firma de SignPath y el aviso de versión. Google Play queda aparcado.'
+Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenadas por prioridad, para irlas completando una a una en sesiones sucesivas nombrando esta nota. Indica qué tareas conviene hacer juntas en la misma sesión y qué pasos necesitan una acción del usuario. Orden: primero lo que hay que hacer con el árbol de trabajo limpio y antes de publicar (cambio de identificador y licencia); después la base de release hasta la primera pre-release con Obtainium, que sustituye a pasar la APK a mano; los canales propios del usuario (AUR, winget); el hueco funcional de scripts sobre el agente; el nivel 3 portable; los scripts reutilizables y los túneles; y al final los canales públicos (Flathub, IzzyOnDroid), la firma de SignPath y el aviso de versión. Google Play queda aparcado.'
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-27T15:45:00+02:00
+Última modificación: 2026-09-27T18:45:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -127,13 +127,19 @@ mismo commit).
     2026-09-27)
   - Cada subtarea que cambie el agente sale en la siguiente pre-release, y así se
     prueba desde Obtainium o la app instalada.
-- [ ] **10. Scripts y túneles reutilizables** 👤 (antes de tocar el modelo hay
-  que decidir con el usuario si se unifican con los Snippets; posible ADR)
-  - [[Scripts y túneles reutilizables de primera clase]]
+- [x] **10. Scripts reutilizables**
+  - [[Scripts y túneles reutilizables de primera clase]] (`Hecha` el 2026-09-27)
+  - Decidido el 2026-09-27 en
+    [[ADR-0013 Biblioteca de scripts unificada con los snippets]]: los snippets
+    se unifican en una biblioteca de scripts, y los túneles salen de este paso.
   - *Por qué después del nivel 3*: es una mejora de organización de algo que ya
     funciona (scripts embebidos en cada sesión), mientras que el nivel 3
-    portable completa la resiliencia, el pilar principal. Si el usuario lo
-    prefiere antes, se puede adelantar: no depende de nada.
+    portable completa la resiliencia, el pilar principal.
+- [ ] **10b. Túneles que funcionan**
+  - [[Ejecutar los túneles de las sesiones]] (`Pendiente`)
+  - Sale del paso 10: los túneles se configuran pero nunca se abren. Es un
+    hueco funcional anunciado en el editor de sesiones. No depende de nada. La
+    biblioteca de túneles como plantillas se valora al terminarla.
 
 ### Fase 5 · Distribución pública
 
@@ -448,3 +454,36 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   usuario instale la APK en el Pixel desde el Release y confirme que funciona.
   Con ella se ve también el aviso del nivel 3 de 9.6. Siguiente: paso 10 (👤,
   decidir si los scripts se unifican con los Snippets).
+- 2026-09-27 — **Paso 10** hecho, a falta de probarlo en la app real. Al revisar
+  el modelo se vieron tres cosas. Los snippets solo se copiaban en el script.
+  Los scripts bajo demanda no se podían lanzar desde ningún sitio. Y los
+  túneles se guardaban pero nunca se abrían. Decisiones del usuario
+  ([[ADR-0013 Biblioteca de scripts unificada con los snippets]]):
+  - Los snippets se unifican en una biblioteca de scripts (pestaña Scripts).
+  - Las sesiones los usan por referencia viva y pueden tener también scripts
+    propios.
+  - La pestaña de la sesión tiene un menú `[>] scripts`.
+  - Los túneles salen a una tarea nueva,
+    [[Ejecutar los túneles de las sesiones]] (paso 10b).
+
+  La config sube a la versión 2 con una migración que no cambia lo que se
+  ejecuta y guarda una copia del fichero anterior. De paso, el selector de fase
+  ya no se aplasta en el móvil. Verificado con 172 tests y con un render
+  offscreen de las pantallas y del menú sobre una shell falsa.
+  [[Scripts y túneles reutilizables de primera clase]] sigue `En curso`: 👤
+  falta probar el flujo en la app real (los pasos están en la tarea). Sale en
+  la siguiente pre-release.
+- 2026-09-27 — **Paso 10, prueba en Android.** El usuario pide que Android se
+  pruebe antes de publicar sin Release ni workflow: capturas del emulador y el
+  emulador abierto para que él lo pruebe. Queda como paso 0 de la regla 4 del
+  [[README]]. En el emulador, la migración de una config de versión 1 funcionó.
+  Apareció un fallo que ya estaba antes: **en Android no se ejecutaba ningún
+  script**, por una `}` sin escapar en una expresión regular que el motor de
+  Android rechaza. Corregido. El selector de fase pasa a scroll lateral, a la
+  espera de que el usuario elija tras verlo. 👤 Falta su prueba en el emulador.
+- 2026-09-27 — **Paso 10 completado**:
+  [[Scripts y túneles reutilizables de primera clase]] pasa a `Hecha` tras la
+  prueba del usuario en el emulador. El scroll lateral lo había pedido pensando
+  en las pestañas (Hosts, Sesiones…), así que el selector de fase vuelve a
+  saltar de línea. Sale en la siguiente pre-release. Siguiente: paso 10b
+  ([[Ejecutar los túneles de las sesiones]]).
