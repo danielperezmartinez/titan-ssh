@@ -2,7 +2,9 @@ package io.github.danielperezmartinez.titanssh.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,7 +14,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -113,14 +117,20 @@ private fun AreaHeader(current: Area?, onSelect: (Area) -> Unit, onAbout: () -> 
             GlyphButton("[i]", onClick = onAbout, color = if (current == null) TitanColors.Accent else TitanColors.Mute)
         }
         Spacer(Modifier.height(TitanDimens.SpaceMd))
-        Row {
-            Area.entries.forEach { entry ->
-                AreaTab(
-                    label = entry.label,
-                    selected = entry == current,
-                    onClick = { onSelect(entry) },
-                    modifier = Modifier.weight(1f),
-                )
+        // Each tab takes an equal share of the width; when a label does not fit
+        // (narrow screen, large system font) the tab grows and the row scrolls
+        // sideways instead of squeezing the label onto two lines.
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val share = maxWidth / Area.entries.size
+            Row(Modifier.horizontalScroll(rememberScrollState())) {
+                Area.entries.forEach { entry ->
+                    AreaTab(
+                        label = entry.label,
+                        selected = entry == current,
+                        onClick = { onSelect(entry) },
+                        modifier = Modifier.widthIn(min = share),
+                    )
+                }
             }
         }
     }
@@ -141,6 +151,8 @@ private fun AreaTab(label: String, selected: Boolean, onClick: () -> Unit, modif
             style = MaterialTheme.typography.bodyLarge,
             color = if (selected) TitanColors.Ink else TitanColors.Mute,
             textAlign = TextAlign.Center,
+            maxLines = 1,
+            softWrap = false,
         )
     }
 }

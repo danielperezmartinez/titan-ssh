@@ -2,6 +2,7 @@ package io.github.danielperezmartinez.titanssh.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -86,7 +88,14 @@ fun ConfigArea(controller: ConfigController, provisioner: SecretProvisioner) {
 
 @Composable
 private fun SubTabBar(current: ConfigTab, onSelect: (ConfigTab) -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = TitanDimens.SpaceSm)) {
+    // Scrolls sideways when the tabs do not fit (narrow screen, large system
+    // font) instead of squeezing a label onto two lines.
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = TitanDimens.SpaceSm),
+    ) {
         ConfigTab.entries.forEach { entry ->
             val selected = entry == current
             Box(
@@ -101,6 +110,8 @@ private fun SubTabBar(current: ConfigTab, onSelect: (ConfigTab) -> Unit) {
                     entry.label,
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (selected) TitanColors.Ink else TitanColors.Mute,
+                    maxLines = 1,
+                    softWrap = false,
                 )
             }
         }

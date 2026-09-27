@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-27T18:45:00+02:00
+Última modificación: 2026-09-27T19:20:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -135,6 +135,9 @@ mismo commit).
   - *Por qué después del nivel 3*: es una mejora de organización de algo que ya
     funciona (scripts embebidos en cada sesión), mientras que el nivel 3
     portable completa la resiliencia, el pilar principal.
+  - Tarea pequeña que salió al cerrarlo:
+    [[Scroll lateral en las pestañas de Configuración]] (`Hecha` el
+    2026-09-27).
 - [ ] **10b. Túneles que funcionan**
   - [[Ejecutar los túneles de las sesiones]] (`Pendiente`)
   - Sale del paso 10: los túneles se configuran pero nunca se abren. Es un
@@ -487,3 +490,8 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   en las pestañas (Hosts, Sesiones…), así que el selector de fase vuelve a
   saltar de línea. Sale en la siguiente pre-release. Siguiente: paso 10b
   ([[Ejecutar los túneles de las sesiones]]).
+- 2026-09-27 — Nueva tarea, pedida por el usuario y hecha en la misma sesión:
+  [[Scroll lateral en las pestañas de Configuración]]. Las barras de pestañas
+  (las de Configuración y la de arriba, Configuración / Sesiones) se desplazan
+  en horizontal si no caben, en vez de partir las etiquetas. Verificado en el
+  emulador con pantalla y letra grandes. Siguiente: paso 10b.
