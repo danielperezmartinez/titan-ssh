@@ -1,11 +1,11 @@
 ---
 Nombre: 'Instalación del agente en destinos Windows y multi-SO'
 Estado: 'Pendiente'
-Resumen: 'Subtarea 5 de ADR-0009 (§6 y §7), lado cliente: que AgentInstaller instale y lance el agente en cualquier destino soportado. Hoy es solo Unix (uname, sha256sum, head -c, chmod, mv y ~ por el canal exec; destinos linux amd64/arm64 y darwin arm64). Cambios: añadir SFTP a SshSession (sshj SFTPClient) y subir por SFTP en todos los SO (exec+head queda como alternativa en Unix sin SFTP); detectar el SO por la ruta canónica de SFTP (/C:/... = Windows) y la arquitectura con una sonda por SO; checksum calculado en el cliente releyendo por SFTP; rutas por SO y sufijo .exe; comando exec con las comillas de la shell del destino (cmd o PowerShell); ampliar agentTargets y la detección a todos los destinos de la ADR; y empaquetar según ADR-0010 (seis destinos principales en la app, el resto bajo demanda con SHA-256 fijado; origen de descarga pendiente). El método de prueba en Windows está por decidir con el usuario.'
-Decisiones: 'Implementa §6 y §7 de [[ADR-0009 Agente de nivel 3 portable a todos los destinos]] y el empaquetado de [[ADR-0010 Empaquetado del agente y descarga bajo demanda]]. Vuelve a la subida por SFTP que preveía §5 de [[ADR-0008 Diseño del agente de resiliencia nivel 3]] (la implementación de [[titan-agent distribución multi-arch e instalación]] la sustituyó por exec+head). Contexto común en [[Nivel 3 portable a todos los destinos]].'
+Resumen: 'Subtarea 5 de ADR-0009 (§6 y §7), lado cliente: que AgentInstaller instale y lance el agente en cualquier destino soportado. Hoy es solo Unix (uname, sha256sum, head -c, chmod, mv y ~ por el canal exec; destinos linux amd64/arm64 y darwin arm64). Cambios: añadir SFTP a SshSession (sshj SFTPClient) y subir por SFTP en todos los SO (exec+head queda como alternativa en Unix sin SFTP); detectar el SO por la ruta canónica de SFTP (/C:/... = Windows) y la arquitectura con una sonda por SO; checksum calculado en el cliente releyendo por SFTP; rutas por SO y sufijo .exe; comando exec con las comillas de la shell del destino (cmd o PowerShell); ampliar agentTargets y la detección a todos los destinos de la ADR; y empaquetar según ADR-0010 (seis destinos principales en la app, el resto bajo demanda con SHA-256 fijado; origen de descarga pendiente). El método de prueba en Windows está por decidir con el usuario. También borra los binarios de versiones anteriores tras instalar el actual.'
+Decisiones: 'Implementa §6 y §7 de [[ADR-0009 Agente de nivel 3 portable a todos los destinos]] y el empaquetado de [[ADR-0010 Empaquetado del agente y descarga bajo demanda]]. Vuelve a la subida por SFTP que preveía §5 de [[ADR-0008 Diseño del agente de resiliencia nivel 3]] (la implementación de [[titan-agent distribución multi-arch e instalación]] la sustituyó por exec+head). Contexto común en [[Nivel 3 portable a todos los destinos]]. La limpieza de binarios antiguos llega aquí desde [[titan-agent instancia única y directorio de estado]] (2026-09-27).'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:05:00+02:00
-Última modificación: 2026-09-24T14:00:00+02:00
+Última modificación: 2026-09-27T15:00:00+02:00
 ---
 
 # Instalación del agente en destinos Windows y multi-SO
@@ -79,6 +79,19 @@ del motor SSH **en el mismo cambio** (regla del catálogo; ver
   es obligatorio para ejecutarlo). Obtener `%LOCALAPPDATA%` con
   `cmd /c echo %LOCALAPPDATA%` (puede estar redirigido; no suponer
   `AppData\Local`). En SFTP la ruta se escribe `/C:/Users/<u>/AppData/Local/...`.
+  Es el mismo directorio que el de estado del agente (`agent.lock` y
+  `agent.json`), así que el instalador no debe borrar nada que no sea
+  `agent-*`.
+- **Binarios de versiones anteriores** (decidido el 2026-09-27 en
+  [[titan-agent instancia única y directorio de estado]]): tras instalar y
+  verificar el de la versión actual, borrar los `agent-*` de otras versiones.
+  - En Unix es seguro aunque un daemon viejo siga ejecutándose desde uno de
+    ellos: el inodo vive hasta que el proceso termina.
+  - En Windows no se puede borrar un `.exe` en ejecución: si el borrado falla,
+    se ignora y se reintenta en la siguiente instalación.
+  - El daemon viejo sigue sirviendo sus sesiones, porque el front nuevo lo
+    encuentra por `agent.json` y el protocolo es compatible. Así las sesiones
+    sobreviven a una actualización de la app.
 
 ### 4. Subida e integridad
 

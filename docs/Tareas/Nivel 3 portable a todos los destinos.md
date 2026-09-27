@@ -5,7 +5,7 @@ Resumen: 'Tarea paraguas para implementar ADR-0009: que el agente titan-agent (n
 Decisiones: 'Implementa [[ADR-0009 Agente de nivel 3 portable a todos los destinos]], que sustituye en parte a [[ADR-0008 Diseño del agente de resiliencia nivel 3]], y el empaquetado de [[ADR-0010 Empaquetado del agente y descarga bajo demanda]]. El desacople en Windows se decidió con [[Experimento supervivencia de procesos en Win32-OpenSSH]]. Continúa [[Resiliencia nivel 3 agente propio en el destino]].'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:05:00+02:00
-Última modificación: 2026-09-27T12:00:00+02:00
+Última modificación: 2026-09-27T15:00:00+02:00
 ---
 
 # Nivel 3 portable a todos los destinos
@@ -24,8 +24,8 @@ investigar.
 | # | Subtarea | Depende de |
 |---|---|---|
 | 1 | [[titan-agent PTY propio multiplataforma]] (hecha el 2026-09-27) | — |
-| 2 | [[titan-agent instancia única y directorio de estado]] | — |
-| 3 | [[titan-agent punto de encuentro TCP loopback con token]] | 2 |
+| 2 | [[titan-agent instancia única y directorio de estado]] (hecha el 2026-09-27) | — |
+| 3 | [[titan-agent punto de encuentro TCP loopback con token]] (hecha el 2026-09-27) | 2 |
 | 4 | [[titan-agent daemon en Windows]] | 1, 3 |
 | 5 | [[Instalación del agente en destinos Windows y multi-SO]] | 4 (solo la prueba de punta a punta en Windows) |
 | 6 | [[Diagnóstico cuando el nivel 3 no está disponible]] | 3, 4, 5 |
@@ -61,6 +61,13 @@ necesita 4.
     `ensureSocketDir` pasa a proteger el directorio de estado (subtarea 2);
     `listenPrivate` desaparece (subtarea 3).
   - `cmd/titan-agent/detach_{unix,other}.go`: `setsid` / no-op.
+  - **Desde las subtareas 2 y 3** (hechas el 2026-09-27) ya no hay socket
+    Unix: `sock_unix.go` pasó a `statedir_*.go` (`ensureStateDir`); hay
+    candado (`lock*.go`), fichero de estado (`state.go`) y preámbulo con token
+    (`rendezvous.go`); `front.go` tiene `dialOrSpawn` (10 s), `spawnDaemon` y
+    `stopDaemon` (`--stop`); `main.go` cambia `--socket` por `--state-dir`, y
+    los códigos de error están en `errors.go`. Detalle en el **Resultado** de
+    cada subtarea.
   - `internal/protocol`, `internal/buffer`: **no cambian**.
   - `internal/session`: `Pty` (seam `Read/Write/Resize/Close`), `PtyFactory`,
     `Session`, `Registry`. `pty_unix.go` usa `creack/pty` (sustituir en la
@@ -93,6 +100,20 @@ necesita 4.
 - **Linux real**: host de pruebas `<host-de-pruebas>` (Tailscale, usuario
   `<usuario>`, clave `~/.ssh/<clave-de-pruebas>`). El 2026-09-23 rechazaba el puerto
   22; comprobar antes de contar con él.
+- **Linux de punta a punta sin el host de pruebas** (usado el 2026-09-27 en las
+  subtareas 2 y 3): un sshd temporal en un contenedor `golang:1.27`
+  (`apt-get install openssh-server`, usuario de prueba, clave desechable
+  generada fuera del repositorio, puerto publicado solo en `127.0.0.1:2222`).
+  Se compila el agente con `GOOS=linux GOARCH=amd64 CGO_ENABLED=0` y se lanzan
+  los tests Kotlin `AgentTransportIntegrationTest` y
+  `AgentInstallerIntegrationTest` con `-PtitanSshTestHost=127.0.0.1
+  -PtitanSshTestPort=2222 -PtitanSshTestUser=... -PtitanSshTestKey=...
+  -PtitanAgentBin=... --rerun-tasks`. Al terminar se borran el contenedor y la
+  clave.
+- **`go vet ./...` en Windows** marca `internal/session/pty_windows.go`
+  ("possible misuse of unsafe.Pointer"). Es esperado y está comentado en el
+  código: el atributo de ConPTY recibe el valor de `HPCON`, no un puntero.
+  Para comprobar el resto, `go vet ./cmd/...`.
 - **Windows como destino SSH — método de prueba por decidir.** El usuario
   quiere explorar otras opciones y lo decidirá al llegar a las subtareas 4 y 5:
   **preguntarle antes de montar nada**. Opción ya probada, por si se elige: el

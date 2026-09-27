@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-27T12:00:00+02:00
+Última modificación: 2026-09-27T15:00:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -115,11 +115,10 @@ mismo commit).
 - [ ] **9. Nivel 3 portable a todos los destinos** (seguir el orden interno de
   [[Nivel 3 portable a todos los destinos]])
   - [x] 9.1 [[titan-agent PTY propio multiplataforma]] (`Hecha` el 2026-09-27)
-  - [ ] 9.2 [[titan-agent instancia única y directorio de estado]] (independiente
-    de 9.1)
-  - [ ] 9.3 [[titan-agent punto de encuentro TCP loopback con token]] (tras 9.2;
-    *juntas*: 9.2 y 9.3 tocan el mismo directorio de estado y el arranque
-    del daemon, así que pueden ir en una misma sesión)
+  - [x] 9.2 [[titan-agent instancia única y directorio de estado]] (`Hecha` el
+    2026-09-27)
+  - [x] 9.3 [[titan-agent punto de encuentro TCP loopback con token]] (`Hecha`
+    el 2026-09-27, en la misma sesión que 9.2)
   - [ ] 9.4 [[titan-agent daemon en Windows]] 👤 (prueba manual en Windows:
     el usuario crea el usuario estándar temporal) (tras 9.1 y 9.3)
   - [ ] 9.5 [[Instalación del agente en destinos Windows y multi-SO]] 👤 (cerrar
@@ -355,3 +354,20 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   pre-release. Siguiente: 9.2 y 9.3, juntas
   ([[titan-agent instancia única y directorio de estado]] y
   [[titan-agent punto de encuentro TCP loopback con token]]).
+- 2026-09-27 — **Pasos 9.2 y 9.3 completados**, juntos:
+  [[titan-agent instancia única y directorio de estado]] y
+  [[titan-agent punto de encuentro TCP loopback con token]] pasan a `Hecha`.
+  El agente ya no usa sockets Unix. Hay un solo daemon por usuario, gracias a
+  un candado en `~/.local/state/titan-ssh` o `%LOCALAPPDATA%\titan-ssh`, y el
+  front conecta con él por TCP en `127.0.0.1` con un token de `agent.json`.
+  Novedades: `--stop` y los errores `E_STATE_DIR`, `E_LOCK`,
+  `E_DAEMON_START` y `E_AUTH`. Sobre el diseño, se añadió un ack del daemon al
+  preámbulo. Tests verdes en Windows y en Linux (Docker, `-race`). El host de
+  pruebas no respondía, así que la prueba de punta a punta se hizo con un
+  sshd en Docker: pasan los tests de integración Kotlin del agente con el
+  binario real, y ocho fronts a la vez dejan un solo daemon. Al actualizar la
+  app, las sesiones de un daemon anterior se pierden una vez (ver la
+  migración en la nota de 9.3). La limpieza de binarios antiguos pasa a 9.5.
+  El cambio sale en la siguiente pre-release. Siguiente: 9.4
+  ([[titan-agent daemon en Windows]], 👤), o avanzar la parte de 9.5 que no
+  necesita Windows.

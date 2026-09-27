@@ -3,9 +3,9 @@ Nombre: 'titan-agent daemon en Windows'
 Estado: 'Pendiente'
 Resumen: 'Subtarea 4 de ADR-0009 (§5): que el daemon sobreviva en Windows al cierre de la sesión SSH, sin administrador. El front comprueba su Job Object (IsProcessInJob por kernel32 + QueryInformationJobObject) y, si el job lo permite, lanza el daemon con CREATE_BREAKAWAY_FROM_JOB | DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP; si el job tiene KILL_ON_JOB_CLOSE sin BREAKAWAY_OK, sale con E_JOB_NO_BREAKAWAY. Une las subtareas 1 (ConPTY) y 3 (TCP loopback) y se verifica de punta a punta con un usuario estándar, en cierre limpio y en corte brusco. El mecanismo ya se validó en el experimento del 2026-09-23; la prueba en Windows es manual con ayuda del usuario (ADR-0012).'
 Decisiones: 'Implementa §5 (Windows) de [[ADR-0009 Agente de nivel 3 portable a todos los destinos]], con el mecanismo validado en [[Experimento supervivencia de procesos en Win32-OpenSSH]]. Contexto común en [[Nivel 3 portable a todos los destinos]].'
-Bloqueada: ['[[titan-agent PTY propio multiplataforma]]', '[[titan-agent punto de encuentro TCP loopback con token]]']
+Bloqueada: []
 Fecha de creación: 2026-09-23T22:05:00+02:00
-Última modificación: 2026-09-24T15:00:00+02:00
+Última modificación: 2026-09-27T15:00:00+02:00
 ---
 
 # titan-agent: daemon en Windows
@@ -63,6 +63,12 @@ implementar:
     disponible en ese host. No intentar alternativas que exijan administrador.
 - Colocarlo en el fichero de desacople de Windows (hoy `detach_other.go` es un
   no-op; crear `detach_windows.go` y dejar `detach_other.go` para el resto).
+- Punto de enganche desde el 2026-09-27: `spawnDaemon` (`front.go`) lanza
+  `--daemon --state-dir <dir>` con `detachAttr()`, stdio a `nil`, y lo recoge
+  con `Wait` en una goroutine (no `Release`). Solo lo llama `dialOrSpawn`
+  cuando el candado está libre. La comprobación del job debe ir antes, en el
+  front, para que `E_JOB_NO_BREAKAWAY` salga por su stderr: el daemon arranca
+  sin stdio. Los códigos van en `errors.go` (`withCode`).
 
 ### Rutas y detalles de Windows en el agente
 
