@@ -17,12 +17,17 @@ class ShellIo internal constructor(
     private val sendBytes: suspend (ByteArray) -> Unit,
     /** Broadcast, UTF-8 decoded view of the shell output (see [SessionTab]). */
     val output: Flow<String>,
+    /** Told which multiplexer the automation found, so the tab can show its effective level. */
+    private val onMultiplexer: (TerminalMultiplexer.Kind) -> Unit = {},
 ) {
-    internal constructor(shell: SshShell, output: Flow<String>) :
-        this({ bytes -> shell.send(bytes) }, output)
+    internal constructor(shell: SshShell, output: Flow<String>, onMultiplexer: (TerminalMultiplexer.Kind) -> Unit = {}) :
+        this({ bytes -> shell.send(bytes) }, output, onMultiplexer)
 
     /** Sends [text] to the shell verbatim (the caller adds any newline it needs). */
     suspend fun send(text: String) = sendBytes(text.encodeToByteArray())
+
+    /** Reports the multiplexer the session runs in ([TerminalMultiplexer.Kind.NONE]: level 1). */
+    internal fun reportMultiplexer(kind: TerminalMultiplexer.Kind) = onMultiplexer(kind)
 }
 
 /**

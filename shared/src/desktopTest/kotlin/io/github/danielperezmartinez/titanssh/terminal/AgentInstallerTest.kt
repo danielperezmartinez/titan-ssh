@@ -11,7 +11,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -221,13 +220,15 @@ class AgentInstallerTest {
     @Test
     fun reports_unsupported_targets_and_missing_binaries() = runBlocking<Unit> {
         val sun = FakeHost(sftp = FakeSftp("/export/home/u")) { if (it.startsWith("uname")) "SunOS\ni86pc\n" else "" }
-        assertIs<AgentInstaller.Result.Unsupported>(AgentInstaller(sun).ensureInstalled { binary })
+        val sunResult = assertIs<AgentInstaller.Result.Unsupported>(AgentInstaller(sun).ensureInstalled { binary })
+        assertEquals(AgentDiagnostics.E_UNSUPPORTED_TARGET, sunResult.code)
 
         val x86 = FakeHost(FakeSftp("/C:/Users/u")) { "x86 %PROCESSOR_ARCHITEW6432% C:\\Users\\u\\AppData\\Local\r\n" }
-        assertIs<AgentInstaller.Result.Unsupported>(AgentInstaller(x86).ensureInstalled { binary })
+        val x86Result = assertIs<AgentInstaller.Result.Unsupported>(AgentInstaller(x86).ensureInstalled { binary })
+        assertEquals(AgentDiagnostics.E_UNSUPPORTED_TARGET, x86Result.code)
 
         val noBinary = AgentInstaller(linuxHost(FakeSftp("/home/u"))).ensureInstalled { null }
-        assertIs<AgentInstaller.Result.Unsupported>(noBinary)
+        assertEquals(AgentDiagnostics.E_NO_BINARY, assertIs<AgentInstaller.Result.Unsupported>(noBinary).code)
     }
 
     @Test
@@ -235,6 +236,43 @@ class AgentInstallerTest {
         val sftp = FakeSftp("/C:/Users/u").apply { corruptWrites = true }
         val result = AgentInstaller(windowsHost(sftp), version = "1.0.0").ensureInstalled { binary }
         assertIs<AgentInstaller.Result.Failed>(result)
-        assertNull(agentDeployer(version = "1.0.0") { binary }.ensureInstalled(windowsHost(sftp)))
+        val unavailable = assertIs<AgentDeployment.Unavailable>(
+            agentDeployer(version = "1.0.0") { binary }.ensureInstalled(windowsHost(sftp)),
+        )
+        assertEquals(AgentDiagnostics.E_CHECKSUM, unavailable.issue.code)
+    }
+
+    @Test
+    fun a_failed_sftp_write_is_an_upload_error() = runBlocking<Unit> {
+        val sftp = object : SshSftp by FakeSftp("/home/u") {
+            override suspend fun write(path: String, bytes: ByteArray) = throw IOException("disk full")
+        }
+        val host = FakeHost(null) { if (it == "uname -s; uname -m") "Linux\nx86_64\n" else "" }
+        val failing = object : SshSession by host {
+            override suspend fun openSftp(): SshSftp = sftp
+        }
+        val result = assertIs<AgentInstaller.Result.Failed>(AgentInstaller(failing).ensureInstalled { binary })
+        assertEquals(AgentDiagnostics.E_UPLOAD, result.code)
+    }
+
+    @Test
+    fun warns_about_systemd_killing_the_agent_on_linux_only() = runBlocking<Unit> {
+        fun linuxWith(probe: String): FakeHost {
+            val sftp = FakeSftp("/home/u")
+            val base = linuxHost(sftp)
+            return FakeHost(sftp) { cmd -> if (cmd == AgentDiagnostics.SYSTEMD_PROBE) probe else base.answer(base, cmd) }
+        }
+        val deployer = agentDeployer(version = "1.0.0") { binary }
+
+        val killing = assertIs<AgentDeployment.Ready>(deployer.ensureInstalled(linuxWith("kill=b true\nLinger=no\n")))
+        assertEquals(AgentDiagnostics.E_SYSTEMD_KILL, killing.warning?.code)
+
+        val lingering = assertIs<AgentDeployment.Ready>(deployer.ensureInstalled(linuxWith("kill=b true\nLinger=yes\n")))
+        assertEquals(null, lingering.warning)
+
+        // Windows is never probed.
+        val windows = windowsHost(FakeSftp("/C:/Users/u"))
+        assertIs<AgentDeployment.Ready>(deployer.ensureInstalled(windows))
+        assertFalse(windows.commands.contains(AgentDiagnostics.SYSTEMD_PROBE))
     }
 }

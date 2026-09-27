@@ -112,7 +112,8 @@ object AgentProtocol {
         Type.RESIZE -> AgentFrame.Resize(readU16(payload, 0), readU16(payload, 2))
         Type.REPLAY_FROM -> AgentFrame.ReplayFrom(readU64(payload, 0))
         Type.ACK -> AgentFrame.Ack(readU64(payload, 0))
-        Type.BYE -> AgentFrame.Bye
+        // The reason is optional: agents before it sent an empty BYE.
+        Type.BYE -> AgentFrame.Bye(payload.takeIf { it.isNotEmpty() }?.decodeToString())
     }
 
     private const val HEADER_SIZE = 5
@@ -143,7 +144,7 @@ object AgentProtocol {
         is AgentFrame.Resize -> ByteArray(4).also { writeU16(it, 0, columns); writeU16(it, 2, rows) }
         is AgentFrame.ReplayFrom -> ByteArray(8).also { writeU64(it, 0, offset) }
         is AgentFrame.Ack -> ByteArray(8).also { writeU64(it, 0, offset) }
-        is AgentFrame.Bye -> ByteArray(0)
+        is AgentFrame.Bye -> reason?.encodeToByteArray() ?: ByteArray(0)
     }
 
     // --- big-endian fixed-width helpers -------------------------------------
@@ -248,8 +249,13 @@ sealed interface AgentFrame {
         override val type get() = AgentProtocol.Type.ACK
     }
 
-    /** Either direction. Graceful goodbye. */
-    data object Bye : AgentFrame {
+    /**
+     * Either direction. Graceful goodbye. From the agent, instead of `HELLO_OK`,
+     * it refuses the session: [reason] is then `<code> <message>` of the
+     * `TITAN_AGENT_ERROR` contract (ADR-0009), e.g. `E_NO_CONPTY …`. Optional
+     * payload: null for a plain goodbye and from agents that predate it.
+     */
+    data class Bye(val reason: String? = null) : AgentFrame {
         override val type get() = AgentProtocol.Type.BYE
     }
 }

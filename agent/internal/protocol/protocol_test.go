@@ -29,6 +29,7 @@ func TestEveryFrameTypeRoundTrips(t *testing.T) {
 		{Type: TypeReplayFrom, OffsetArg: 512},
 		{Type: TypeAck, OffsetArg: 65_536},
 		{Type: TypeBye},
+		{Type: TypeBye, Reason: "E_NO_CONPTY ConPTY needs Windows 10 1809 / Server 2019 or later"},
 	}
 	for _, in := range cases {
 		got := roundTrip(t, in)
@@ -38,6 +39,17 @@ func TestEveryFrameTypeRoundTrips(t *testing.T) {
 		if in.Type == TypeData && (got.Offset != in.Offset || !bytes.Equal(got.Bytes, in.Bytes)) {
 			t.Errorf("data frame mismatch: %+v vs %+v", got, in)
 		}
+		if got.Reason != in.Reason {
+			t.Errorf("bye reason: got %q want %q", got.Reason, in.Reason)
+		}
+	}
+}
+
+func TestPlainByeHasNoPayload(t *testing.T) {
+	// What every agent sent before Reason existed: keep it byte-identical.
+	want := []byte{byte(TypeBye), 0, 0, 0, 0}
+	if got := Encode(Frame{Type: TypeBye}); !bytes.Equal(got, want) {
+		t.Fatalf("plain BYE = %x, want %x", got, want)
 	}
 }
 

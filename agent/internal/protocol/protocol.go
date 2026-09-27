@@ -70,6 +70,10 @@ type Frame struct {
 	Bytes []byte
 	// ReplayFrom / Ack
 	OffsetArg uint64
+	// Bye: why the agent refuses the session, as `<code> <message>` of the
+	// TITAN_AGENT_ERROR contract (ADR-0009); empty for a plain goodbye. It is
+	// an optional payload, so a peer that predates it reads an ordinary BYE.
+	Reason string
 }
 
 // Encode serializes f (header + payload) into a new byte slice.
@@ -124,7 +128,10 @@ func encodePayload(f Frame) []byte {
 		binary.BigEndian.PutUint64(buf, f.OffsetArg)
 		return buf
 	case TypeBye:
-		return nil
+		if f.Reason == "" {
+			return nil
+		}
+		return []byte(f.Reason)
 	default:
 		return nil
 	}
@@ -182,7 +189,7 @@ func decodePayload(t Type, payload []byte) (Frame, error) {
 		}
 		f.OffsetArg = binary.BigEndian.Uint64(payload)
 	case TypeBye:
-		// no payload
+		f.Reason = string(payload) // empty for a plain goodbye
 	default:
 		return f, fmt.Errorf("%w: %d", ErrUnknownType, t)
 	}

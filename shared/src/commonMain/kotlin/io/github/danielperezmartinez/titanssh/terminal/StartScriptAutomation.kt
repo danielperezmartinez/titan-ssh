@@ -136,6 +136,7 @@ class StartScriptAutomation(
     private suspend fun enterMultiplexer(io: ShellIo, session: Session): TerminalMultiplexer.Attach? {
         val mux = TerminalMultiplexer(io)
         val kind = mux.detect()
+        io.reportMultiplexer(kind)
         if (kind == TerminalMultiplexer.Kind.NONE) return null
         val name = mux.sessionName(session.id)
         val existed = mux.sessionExists(kind, name)

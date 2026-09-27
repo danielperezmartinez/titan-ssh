@@ -65,15 +65,19 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.danielperezmartinez.titanssh.terminal.AccessoryKey
+import io.github.danielperezmartinez.titanssh.terminal.AgentDiagnostics
 import io.github.danielperezmartinez.titanssh.terminal.AnsiPalette
 import io.github.danielperezmartinez.titanssh.terminal.DefaultAccessoryKeys
+import io.github.danielperezmartinez.titanssh.terminal.EffectiveLevel
 import io.github.danielperezmartinez.titanssh.terminal.ModifierKind
+import io.github.danielperezmartinez.titanssh.terminal.ResilienceStatus
 import io.github.danielperezmartinez.titanssh.terminal.SessionTab
 import io.github.danielperezmartinez.titanssh.terminal.TabPhase
 import io.github.danielperezmartinez.titanssh.terminal.TermColor
 import io.github.danielperezmartinez.titanssh.terminal.TerminalCell
 import io.github.danielperezmartinez.titanssh.terminal.TerminalKeys
 import io.github.danielperezmartinez.titanssh.terminal.TerminalLine
+import io.github.danielperezmartinez.titanssh.terminal.TerminalMultiplexer
 import io.github.danielperezmartinez.titanssh.terminal.isAndroidRuntime
 import io.github.danielperezmartinez.titanssh.theme.TitanColors
 import io.github.danielperezmartinez.titanssh.theme.TitanDimens
@@ -96,6 +100,7 @@ private val TerminalBgColor = packedToColor(AnsiPalette.DEFAULT_BG)
 fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier) {
     val snapshot by tab.snapshot.collectAsState()
     val status by tab.status.collectAsState()
+    val resilience by tab.resilience.collectAsState()
     val pendingHostKey by tab.pendingHostKey.collectAsState()
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
@@ -184,7 +189,7 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier) {
             Hairline()
         }
 
-        StatusStrip(status)
+        StatusStrip(status, resilience, onEnableLinger = { scope.launch { tab.enableLinger() } })
 
         Box(
             Modifier
@@ -397,9 +402,19 @@ private fun cellColors(cell: TerminalCell, isCursor: Boolean): Pair<Color, Color
     return packedToColor(fgPacked) to bg
 }
 
-/** A thin strip showing the tab's connection phase with a semantic marker/color. */
+/**
+ * A thin strip showing the tab's connection phase with a semantic marker/color,
+ * the resilience level it really runs at, and below it any level-3 issue
+ * ([[Diagnóstico cuando el nivel 3 no está disponible]]): why the tab degraded,
+ * or the systemd warning with its fix. The notice can be dismissed; a new issue
+ * shows again.
+ */
 @Composable
-private fun StatusStrip(status: io.github.danielperezmartinez.titanssh.terminal.TabStatus) {
+private fun StatusStrip(
+    status: io.github.danielperezmartinez.titanssh.terminal.TabStatus,
+    resilience: ResilienceStatus,
+    onEnableLinger: () -> Unit,
+) {
     val (marker, color, label) = when (status.phase) {
         TabPhase.CONNECTING -> Triple("[-]", TitanColors.Warning, "Conectando…")
         TabPhase.CONNECTED -> Triple("[+]", TitanColors.Success, "Conectado")
@@ -407,6 +422,7 @@ private fun StatusStrip(status: io.github.danielperezmartinez.titanssh.terminal.
         TabPhase.DISCONNECTED -> Triple("[x]", TitanColors.Danger, "Caída")
         TabPhase.FAILED -> Triple("[x]", TitanColors.Danger, "Fallo")
     }
+    val level = resilience.level?.takeIf { status.phase == TabPhase.CONNECTED }?.let { levelLabel(it, resilience) }
     Row(
         Modifier
             .fillMaxWidth()
@@ -417,11 +433,58 @@ private fun StatusStrip(status: io.github.danielperezmartinez.titanssh.terminal.
         Text(marker, fontFamily = MaterialTheme.typography.bodyLarge.fontFamily, color = color, fontSize = 13.sp)
         Spacer(Modifier.width(TitanDimens.SpaceSm))
         Text(
-            status.detail ?: label,
+            (status.detail ?: label) + (level?.let { " · $it" } ?: ""),
             style = MaterialTheme.typography.labelSmall,
             color = TitanColors.Mute,
         )
     }
+    val issue = resilience.issue ?: return
+    var dismissed by remember(issue) { mutableStateOf(false) }
+    if (dismissed) return
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(TitanColors.Canvas)
+            .padding(start = TitanDimens.SpaceMd, end = TitanDimens.SpaceSm, bottom = TitanDimens.SpaceXs),
+        verticalAlignment = Alignment.Top,
+    ) {
+        // A degraded or threatened session is a real session state: warning.
+        Text("[-]", fontFamily = MaterialTheme.typography.bodyLarge.fontFamily, color = TitanColors.Warning, fontSize = 13.sp)
+        Spacer(Modifier.width(TitanDimens.SpaceSm))
+        Column(Modifier.weight(1f)) {
+            Text(AgentDiagnostics.describe(issue), style = MaterialTheme.typography.labelSmall, color = TitanColors.Mute)
+            if (issue.code == AgentDiagnostics.E_SYSTEMD_KILL) {
+                Text(
+                    "activar linger",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TitanColors.Accent,
+                    modifier = Modifier.clickable(onClick = onEnableLinger).padding(vertical = TitanDimens.SpaceXs),
+                )
+                resilience.lingerError?.let { error ->
+                    Text(
+                        "No se pudo activar: $error. Quien administre el destino puede hacerlo con " +
+                            "sudo loginctl enable-linger <usuario>.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TitanColors.Mute,
+                    )
+                }
+            }
+        }
+        Text(
+            "[x]",
+            style = MaterialTheme.typography.labelSmall,
+            color = TitanColors.Mute,
+            modifier = Modifier.clickable { dismissed = true }.padding(horizontal = TitanDimens.SpaceXs),
+        )
+    }
+}
+
+/** How the strip names the level a tab really runs at. */
+private fun levelLabel(level: EffectiveLevel, resilience: ResilienceStatus): String = when (level) {
+    EffectiveLevel.AGENT -> "nivel 3 · agente"
+    EffectiveLevel.MULTIPLEXER ->
+        "nivel 2 · " + if (resilience.multiplexer == TerminalMultiplexer.Kind.SCREEN) "screen" else "tmux"
+    EffectiveLevel.BASE -> "nivel 1"
 }
 
 /** Inline first-contact host-key confirmation bar (TOFU, ADR-0005). */

@@ -32,7 +32,8 @@ class AgentProtocolTest {
             AgentFrame.Resize(columns = 80, rows = 24),
             AgentFrame.ReplayFrom(offset = 512),
             AgentFrame.Ack(offset = 65_536),
-            AgentFrame.Bye,
+            AgentFrame.Bye(),
+            AgentFrame.Bye(reason = "E_NO_CONPTY ConPTY needs Windows 10 1809 / Server 2019 or later"),
         )
         for (frame in frames) {
             assertEquals(frame, roundTrip(frame), "frame did not round-trip: $frame")
@@ -65,13 +66,13 @@ class AgentProtocolTest {
     fun decoder_emits_multiple_frames_from_one_chunk_and_keeps_remainder() {
         val two = AgentProtocol.encode(AgentFrame.Resize(100, 30)) +
             AgentProtocol.encode(AgentFrame.ReplayFrom(1))
-        val partial = AgentProtocol.encode(AgentFrame.Bye).copyOfRange(0, 3) // header only, truncated
+        val partial = AgentProtocol.encode(AgentFrame.Bye()).copyOfRange(0, 3) // header only, truncated
         val decoder = AgentProtocol.FrameDecoder()
         val first = decoder.feed(two + partial)
         assertEquals(listOf<AgentFrame>(AgentFrame.Resize(100, 30), AgentFrame.ReplayFrom(1)), first)
         // The truncated trailing frame stays buffered until the rest arrives.
-        val rest = AgentProtocol.encode(AgentFrame.Bye).copyOfRange(3, 5)
-        assertEquals(listOf(AgentFrame.Bye), decoder.feed(rest))
+        val rest = AgentProtocol.encode(AgentFrame.Bye()).copyOfRange(3, 5)
+        assertEquals(listOf(AgentFrame.Bye()), decoder.feed(rest))
     }
 
     @Test

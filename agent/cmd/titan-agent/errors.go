@@ -28,8 +28,13 @@ func (e *agentError) Unwrap() error { return e.Err }
 
 // contractLine renders e as its one-line stderr form.
 func (e *agentError) contractLine() string {
-	msg := strings.Join(strings.Fields(e.Err.Error()), " ") // one line, whatever the cause
-	return "TITAN_AGENT_ERROR " + e.Code + " " + msg
+	return "TITAN_AGENT_ERROR " + e.contractReason()
+}
+
+// contractReason is `<code> <message>` on one line, whatever the cause: the
+// tail of contractLine, and the reason of a BYE that refuses a session.
+func (e *agentError) contractReason() string {
+	return e.Code + " " + strings.Join(strings.Fields(e.Err.Error()), " ")
 }
 
 func withCode(code string, err error) error { return &agentError{Code: code, Err: err} }

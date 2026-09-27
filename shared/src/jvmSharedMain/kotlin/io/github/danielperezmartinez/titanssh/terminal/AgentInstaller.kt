@@ -45,10 +45,14 @@ class AgentInstaller(
         data class Installed(val launch: AgentLaunch, val target: AgentTarget, val uploaded: Boolean) : Result {
             val path: String get() = launch.path
         }
-        /** The destination's OS/arch has no agent binary, or it could not be detected. */
-        data class Unsupported(val reason: String) : Result
-        /** The upload or its verification failed. */
-        data class Failed(val reason: String) : Result
+        /**
+         * The destination's OS/arch has no agent build or could not be detected
+         * ([AgentDiagnostics.E_UNSUPPORTED_TARGET]), or its binary could not be
+         * obtained ([AgentDiagnostics.E_NO_BINARY]).
+         */
+        data class Unsupported(val code: String, val reason: String) : Result
+        /** The upload ([AgentDiagnostics.E_UPLOAD]) or its verification ([AgentDiagnostics.E_CHECKSUM]) failed. */
+        data class Failed(val code: String, val reason: String) : Result
     }
 
     /**
@@ -73,14 +77,27 @@ class AgentInstaller(
     suspend fun ensureInstalled(binaryFor: suspend (AgentTarget) -> ByteArray?): Result {
         val sftp = runCatching { session.openSftp() }.getOrNull()
         try {
-            val host = detect(sftp) ?: return Result.Unsupported("could not detect a supported OS/arch")
-            val bytes = binaryFor(host.target)
-                ?: return Result.Unsupported("no agent binary available for ${host.target.slug}")
+            val host = detect(sftp) ?: return Result.Unsupported(
+                AgentDiagnostics.E_UNSUPPORTED_TARGET,
+                "could not detect a supported OS/arch",
+            )
+            val bytes = binaryFor(host.target) ?: return Result.Unsupported(
+                AgentDiagnostics.E_NO_BINARY,
+                "no agent binary available for ${host.target.slug}",
+            )
             return install(host, sftp, bytes)
         } finally {
             runCatching { sftp?.close() }
         }
     }
+
+    /**
+     * Linux with systemd: the [AgentDiagnostics.E_SYSTEMD_KILL] warning when
+     * logind kills the user's processes at logout and the user has no linger
+     * (ADR-0009 §5). Null otherwise, and whenever the probe cannot tell.
+     */
+    suspend fun systemdWarning(): AgentIssue? =
+        runCatching { AgentDiagnostics.parseSystemdProbe(runCommand(AgentDiagnostics.SYSTEMD_PROBE)) }.getOrNull()
 
     /** Detects the destination's OS/arch (see the class doc); null if unsupported. */
     suspend fun detectTarget(): AgentTarget? {
@@ -148,7 +165,7 @@ class AgentInstaller(
                 sftp.rename(tmp, sftpPath)
             } catch (e: Exception) {
                 runCatching { sftp.remove(tmp) }
-                return Result.Failed("upload failed: ${e.message ?: e::class.simpleName}")
+                return Result.Failed(AgentDiagnostics.E_UPLOAD, "upload failed: ${e.message ?: e::class.simpleName}")
             }
         } else {
             // Unix without SFTP: stream the bytes through the exec channel.
@@ -162,8 +179,15 @@ class AgentInstaller(
         }
 
         val got = remoteSha256(host, sftp, path, sftpPath, bytes.size.toLong())
+        if (got == null) {
+            // Only the exec fallback gets here without an error: nothing landed.
+            return Result.Failed(AgentDiagnostics.E_UPLOAD, "the agent is not in place after the upload")
+        }
         if (got != expected) {
-            return Result.Failed("checksum mismatch after upload (expected $expected, got ${got ?: "none"})")
+            return Result.Failed(
+                AgentDiagnostics.E_CHECKSUM,
+                "checksum mismatch after upload (expected $expected, got $got)",
+            )
         }
         removeStale(host, sftp)
         return Result.Installed(launch, host.target, uploaded = true)
@@ -240,17 +264,23 @@ class AgentInstaller(
 
 /**
  * Builds an [AgentDeployer] backed by [AgentInstaller]: it installs the agent
- * for the destination and yields how to launch it, or null on
- * unsupported/failed (so the tab degrades to level 2/1). [binaryFor] supplies the
- * bytes for a detected [AgentTarget] (e.g. [AgentBinaries.load]).
+ * for the destination and yields how to launch it, with the systemd warning
+ * on Linux, or why level 3 is unavailable there (so the tab degrades to level
+ * 2/1 and says why). [binaryFor] supplies the bytes for a detected
+ * [AgentTarget] (e.g. [AgentBinaries.load]).
  */
 fun agentDeployer(
     version: String = BuildInfo.VERSION,
     isStale: (fileName: String) -> Boolean = { AgentInstall.isStaleBinary(it, version) },
     binaryFor: suspend (AgentTarget) -> ByteArray?,
 ): AgentDeployer = AgentDeployer { session ->
-    when (val result = AgentInstaller(session, version, isStale).ensureInstalled(binaryFor)) {
-        is AgentInstaller.Result.Installed -> result.launch
-        else -> null
+    val installer = AgentInstaller(session, version, isStale)
+    when (val result = installer.ensureInstalled(binaryFor)) {
+        is AgentInstaller.Result.Installed -> AgentDeployment.Ready(
+            result.launch,
+            warning = if (result.target.os == "linux") installer.systemdWarning() else null,
+        )
+        is AgentInstaller.Result.Unsupported -> AgentDeployment.Unavailable(AgentIssue(result.code, result.reason))
+        is AgentInstaller.Result.Failed -> AgentDeployment.Unavailable(AgentIssue(result.code, result.reason))
     }
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"io"
 	"net"
 	"testing"
@@ -47,6 +48,44 @@ func waitReturned(t *testing.T, done <-chan struct{}) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("serveConn did not return")
+	}
+}
+
+func TestServeConnRefusesWithReasonWhenThePtyFails(t *testing.T) {
+	cases := []struct {
+		name    string
+		factory session.PtyFactory
+		want    string
+	}{
+		{"coded", func(c, r uint16) (session.Pty, error) {
+			return nil, &session.PtyError{Code: session.CodeNoConPty, Err: errors.New("ConPTY needs\nWindows 10 1809")}
+		}, "E_NO_CONPTY ConPTY needs Windows 10 1809"},
+		{"uncoded", func(c, r uint16) (session.Pty, error) {
+			return nil, errors.New("no shell")
+		}, "E_PTY no shell"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			server, client := net.Pipe()
+			defer client.Close()
+			done := make(chan struct{})
+			go func() { serveConn(server, session.NewRegistry(tc.factory, 1<<16)); close(done) }()
+
+			hello := protocol.Frame{Type: protocol.TypeHello, SessionID: "s", Cols: 80, Rows: 24}
+			if _, err := client.Write(protocol.Encode(hello)); err != nil {
+				t.Fatal(err)
+			}
+			_ = client.SetReadDeadline(time.Now().Add(2 * time.Second))
+			wire, _ := io.ReadAll(client) // serveConn closes after the BYE
+			frames, err := (&protocol.Decoder{}).Feed(wire)
+			if err != nil || len(frames) != 1 || frames[0].Type != protocol.TypeBye {
+				t.Fatalf("got %+v (%v), want one BYE", frames, err)
+			}
+			if frames[0].Reason != tc.want {
+				t.Errorf("reason = %q, want %q", frames[0].Reason, tc.want)
+			}
+			waitReturned(t, done)
+		})
 	}
 }
 

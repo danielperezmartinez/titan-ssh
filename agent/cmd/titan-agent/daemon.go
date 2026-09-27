@@ -210,10 +210,24 @@ func serveConn(conn net.Conn, reg *session.Registry) {
 	_ = conn.SetReadDeadline(time.Time{})
 	s, created, err := reg.AttachOrCreate(first.SessionID, clampSize(first.Cols, 80), clampSize(first.Rows, 24))
 	if err != nil {
-		_ = out(protocol.Frame{Type: protocol.TypeBye})
+		// The front is only splicing bytes by now and has nothing to report,
+		// so the reason travels in the BYE instead of on the front's stderr.
+		_ = out(protocol.Frame{Type: protocol.TypeBye, Reason: attachFailure(err)})
 		return
 	}
 	_ = s.Handle(first, created, out, in)
+}
+
+// attachFailure renders why a session could not be opened as the BYE reason:
+// `<code> <message>` of the error contract, E_PTY unless the PTY said better.
+func attachFailure(err error) string {
+	code := session.CodePty
+	var pe *session.PtyError
+	if errors.As(err, &pe) {
+		code = pe.Code
+		err = pe.Err
+	}
+	return (&agentError{Code: code, Err: err}).contractReason()
 }
 
 // clampSize substitutes a sane default for a zero terminal dimension.

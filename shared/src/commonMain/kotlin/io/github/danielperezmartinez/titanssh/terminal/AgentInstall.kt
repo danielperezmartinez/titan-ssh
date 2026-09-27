@@ -12,14 +12,14 @@ import io.github.danielperezmartinez.titanssh.ssh.SshSession
 
 /**
  * Ensures the level-3 agent is installed on [SshSession]'s destination and
- * returns how to launch it, or null to **degrade** (no binary for the OS/arch,
- * or the install/verify failed). Implemented in `jvmShared` on top of
- * `AgentInstaller`; injected into [SessionManager]/[SessionTab] so `commonMain`
- * stays free of platform code. Absent (null deployer) ⇒ `AGENT` sessions behave
- * exactly as level 2/1 today.
+ * returns how to launch it, or why the tab must **degrade** (no binary for the
+ * OS/arch, or the install/verify failed), as an [AgentDeployment]. Implemented
+ * in `jvmShared` on top of `AgentInstaller`; injected into
+ * [SessionManager]/[SessionTab] so `commonMain` stays free of platform code.
+ * Absent (null deployer) ⇒ `AGENT` sessions behave exactly as level 2/1.
  */
 fun interface AgentDeployer {
-    suspend fun ensureInstalled(session: SshSession): AgentLaunch?
+    suspend fun ensureInstalled(session: SshSession): AgentDeployment
 }
 
 /** The destination's OS/arch, normalized to Go's `GOOS`/`GOARCH` names. */

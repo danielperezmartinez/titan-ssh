@@ -35,6 +35,23 @@ enum class TabPhase { CONNECTING, CONNECTED, RECONNECTING, DISCONNECTED, FAILED 
 /** A tab's status: its [phase] and an optional human [detail] (e.g. a failure reason). */
 data class TabStatus(val phase: TabPhase, val detail: String? = null)
 
+/** The resilience level a tab really runs at, which can be below the session's setting. */
+enum class EffectiveLevel { BASE, MULTIPLEXER, AGENT }
+
+/**
+ * The resilience a tab really has ([[Diagnóstico cuando el nivel 3 no está
+ * disponible]]): its [level] (null until known), the [multiplexer] behind level
+ * 2, and an [issue] with level 3, either why it is unavailable (the tab degraded)
+ * or a warning while it runs ([AgentIssue.isWarning]).
+ */
+data class ResilienceStatus(
+    val level: EffectiveLevel? = null,
+    val multiplexer: TerminalMultiplexer.Kind? = null,
+    val issue: AgentIssue? = null,
+    /** Why the last [SessionTab.enableLinger] did not work. */
+    val lingerError: String? = null,
+)
+
 /**
  * A host key awaiting the user's trust decision on first contact (TOFU,
  * ADR-0005). The UI shows [info] and calls [accept]/[reject]; the connection is
@@ -89,7 +106,8 @@ class SessionTab(
      * Level-3 agent deployer ([[Resiliencia nivel 3 agente propio en el destino]],
      * ADR-0008). When non-null and the session's [ResilienceLevel] is `AGENT`, the
      * tab installs and drives `titan-agent` for full persistence; when null (or the
-     * install degrades), an `AGENT` session falls back to the level-2/1 shell path.
+     * install finds level 3 unavailable, which [resilience] explains), an `AGENT`
+     * session falls back to the level-2/1 shell path.
      */
     private val agentDeployer: AgentDeployer? = null,
 ) {
@@ -103,6 +121,11 @@ class SessionTab(
 
     private val _snapshot = MutableStateFlow(emulator.snapshot())
     val snapshot: StateFlow<TerminalSnapshot> = _snapshot.asStateFlow()
+
+    private val _resilience = MutableStateFlow(ResilienceStatus())
+
+    /** The level the tab really runs at and any level-3 issue, for the status strip. */
+    val resilience: StateFlow<ResilienceStatus> = _resilience.asStateFlow()
 
     private val _pendingHostKey = MutableStateFlow<PendingHostKey?>(null)
     val pendingHostKey: StateFlow<PendingHostKey?> = _pendingHostKey.asStateFlow()
@@ -140,6 +163,12 @@ class SessionTab(
 
     /** Bytes the emulator has applied from the agent; carried across reconnects for replay. */
     private var agentOffset: Long = 0
+
+    /**
+     * Why level 3 is unavailable on this host. Kept for the tab's life, so its
+     * reconnects go straight to the shell instead of retrying the agent.
+     */
+    private var agentUnavailable: AgentIssue? = null
 
     /** Set once by [close] so the reconnect loop stops instead of retrying. */
     private var closed = false
@@ -243,52 +272,29 @@ class SessionTab(
             session = opened
 
             // Level-3 agent path (ADR-0008): install + drive titan-agent for full
-            // persistence. If it can't be provisioned, fall through to the shell
-            // path below (degrade to level 2/1).
-            if (agentDeployer != null && resolved.session.resilienceLevel == ResilienceLevel.AGENT) {
-                val agentLaunch = agentDeployer.ensureInstalled(opened)
-                if (agentLaunch != null) {
-                    _status.value = TabStatus(TabPhase.CONNECTED)
-                    // Same tee as the shell path, fed from the agent's DATA; the
-                    // automation's input goes out as INPUT frames.
-                    val tee = newTee()
-                    outputTee = tee
-                    val io = ShellIo({ bytes -> agent?.sendInput(bytes) }, tee.asSharedFlow())
-                    val transport = AgentTransport(
-                        session = opened,
-                        agentSessionId = resolved.session.id,
-                        agent = agentLaunch,
-                        onOutput = { bytes ->
-                            feedBytes(bytes)
-                            tee.tryEmit(bytes.decodeToString())
-                        },
-                        initialColumns = desiredColumns,
-                        initialRows = desiredRows,
-                        startOffset = agentOffset,
-                        // Start scripts run only on a fresh PTY: a re-attach
-                        // replays the live session as it was.
-                        onAttached = { fresh ->
-                            if (fresh) launchAutomation {
-                                automation.onAgentSessionCreated(io, resolved, afterDrop = reconnecting)
-                            }
-                        },
-                    )
-                    agent = transport
-                    transport.run()
-                    agentOffset = transport.appliedOffset
-                    return if (droppedWithin(opened)) AttemptResult.DROPPED else AttemptResult.CLEAN_EXIT
-                }
+            // persistence. If level 3 is unavailable here, it says why and falls
+            // through to the shell path below on this same connection (level 2/1).
+            if (agentDeployer != null &&
+                resolved.session.resilienceLevel == ResilienceLevel.AGENT &&
+                agentUnavailable == null
+            ) {
+                runAgent(agentDeployer, opened, reconnecting)?.let { return it }
             }
 
             val newShell = opened.openShell(desiredColumns, desiredRows)
             shell = newShell
             _status.value = TabStatus(TabPhase.CONNECTED)
+            // Level 1 unless the automation finds a multiplexer, which it reports.
+            _resilience.value = _resilience.value.copy(
+                level = if (resolved.session.resilienceLevel == ResilienceLevel.BASE) EffectiveLevel.BASE else null,
+                multiplexer = null,
+            )
 
             // Fresh tee (empty replay) fed by pumpOutput below; the automation
             // runs concurrently with painting so it can wait on prompts/sentinels.
             val tee = newTee()
             outputTee = tee
-            val io = ShellIo(newShell, tee.asSharedFlow())
+            val io = ShellIo(newShell, tee.asSharedFlow(), ::onMultiplexer)
             launchAutomation {
                 if (reconnecting) automation.onReconnected(io, resolved)
                 else automation.onShellReady(io, resolved)
@@ -319,6 +325,99 @@ class SessionTab(
             agent = null
             shell = null
             session = null
+        }
+    }
+
+    /**
+     * The level-3 attempt on [opened]: install the agent and drive it until its
+     * channel closes. Returns null when level 3 turns out to be unavailable on
+     * this host (the reason goes to [resilience]), so the caller opens a shell.
+     */
+    private suspend fun runAgent(deployer: AgentDeployer, opened: SshSession, reconnecting: Boolean): AttemptResult? {
+        val agentLaunch = when (val deployment = deployer.ensureInstalled(opened)) {
+            is AgentDeployment.Unavailable -> return degrade(deployment.issue)
+            is AgentDeployment.Ready -> {
+                _resilience.value = ResilienceStatus(issue = deployment.warning)
+                deployment.launch
+            }
+        }
+        _status.value = TabStatus(TabPhase.CONNECTED)
+        // Same tee as the shell path, fed from the agent's DATA; the
+        // automation's input goes out as INPUT frames.
+        val tee = newTee()
+        outputTee = tee
+        val io = ShellIo({ bytes -> agent?.sendInput(bytes) }, tee.asSharedFlow())
+        val transport = AgentTransport(
+            session = opened,
+            agentSessionId = resolved.session.id,
+            agent = agentLaunch,
+            onOutput = { bytes ->
+                feedBytes(bytes)
+                tee.tryEmit(bytes.decodeToString())
+            },
+            initialColumns = desiredColumns,
+            initialRows = desiredRows,
+            startOffset = agentOffset,
+            // Start scripts run only on a fresh PTY: a re-attach replays the
+            // live session as it was.
+            onAttached = { fresh ->
+                _resilience.value = _resilience.value.copy(level = EffectiveLevel.AGENT)
+                if (fresh) launchAutomation {
+                    automation.onAgentSessionCreated(io, resolved, afterDrop = reconnecting)
+                }
+            },
+        )
+        agent = transport
+        transport.run()
+        agentOffset = transport.appliedOffset
+        transport.unavailable?.let { issue ->
+            agent = null
+            return degrade(issue)
+        }
+        return if (droppedWithin(opened)) AttemptResult.DROPPED else AttemptResult.CLEAN_EXIT
+    }
+
+    /** Records why level 3 is unavailable for the rest of the tab's life; null: open a shell. */
+    private fun degrade(issue: AgentIssue): AttemptResult? {
+        agentUnavailable = issue
+        _resilience.value = ResilienceStatus(issue = issue)
+        return null
+    }
+
+    /** The automation found [kind] on the shell path: level 2 in it, or level 1 without one. */
+    private fun onMultiplexer(kind: TerminalMultiplexer.Kind) {
+        val none = kind == TerminalMultiplexer.Kind.NONE
+        _resilience.value = _resilience.value.copy(
+            level = if (none) EffectiveLevel.BASE else EffectiveLevel.MULTIPLEXER,
+            multiplexer = kind.takeUnless { none },
+        )
+    }
+
+    /**
+     * The fix the [AgentDiagnostics.E_SYSTEMD_KILL] warning offers: runs
+     * `loginctl enable-linger` for the user on the destination, then probes
+     * again. Clears the warning when linger is on; otherwise keeps it and says
+     * why in [ResilienceStatus.lingerError].
+     */
+    suspend fun enableLinger() {
+        val s = session
+        val error = if (s == null) {
+            "no hay conexión con el destino"
+        } else {
+            runCatching {
+                val result = s.execCollect(AgentDiagnostics.ENABLE_LINGER)
+                val stillOff = AgentDiagnostics.parseSystemdProbe(s.execCollect(AgentDiagnostics.SYSTEMD_PROBE).stdout)
+                if (stillOff == null) {
+                    null
+                } else {
+                    result.stderr.trim().ifEmpty { "linger sigue desactivado (código ${result.exitStatus ?: "?"})" }
+                }
+            }.getOrElse { it.message ?: "no se pudo ejecutar loginctl" }
+        }
+        _resilience.value = if (error == null) {
+            _resilience.value.copy(issue = null, lingerError = null)
+        } else {
+            _resilience.value.copy(lingerError = error)
         }
     }
 

@@ -77,14 +77,15 @@ class AgentTransportIntegrationTest {
 
         runBlocking {
             val install = connect(endpoint, creds)
-            val agentLaunch = agentDeployer(version = version, isStale = { false }) { bytes }.ensureInstalled(install)
+            val deployment = agentDeployer(version = version, isStale = { false }) { bytes }.ensureInstalled(install)
+            val agentLaunch = (deployment as? AgentDeployment.Ready)?.launch
             assertNotNull(agentLaunch, "agent should install")
 
             // 1) First attach: send input, see the shell run it.
             val out1 = Acc()
             val s1 = connect(endpoint, creds)
             var fresh1: Boolean? = null
-            val t1 = AgentTransport(s1, agentId, agentLaunch!!, { b -> out1.append(b.decodeToString()) }, 80, 24, 0,
+            val t1 = AgentTransport(s1, agentId, agentLaunch, { b -> out1.append(b.decodeToString()) }, 80, 24, 0,
                 onAttached = { fresh1 = it })
             val j1 = launch { t1.run() }
             waitUntil { out1.text().isNotEmpty() }               // the prompt teed through

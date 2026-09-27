@@ -120,7 +120,7 @@ class SessionTabAgentAutomationTest {
         scope = scope,
         automation = automation,
         reconnect = ReconnectPolicy(maxAttempts = 3, initialBackoffMillis = 10, maxBackoffMillis = 20, dropGraceMillis = 100),
-        agentDeployer = { AgentLaunch("agent", RemoteShell.POSIX) },
+        agentDeployer = { AgentDeployment.Ready(AgentLaunch("agent", RemoteShell.POSIX)) },
     )
 
     @Test
