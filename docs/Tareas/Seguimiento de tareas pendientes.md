@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-27T15:00:00+02:00
+Última modificación: 2026-09-27T17:00:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -371,3 +371,12 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   El cambio sale en la siguiente pre-release. Siguiente: 9.4
   ([[titan-agent daemon en Windows]], 👤), o avanzar la parte de 9.5 que no
   necesita Windows.
+- 2026-09-27 — **Paso 9.4** hecho, a falta de la limpieza del usuario:
+  [[titan-agent daemon en Windows]]. El front mira los flags de su Job Object
+  y lanza el daemon con `CREATE_BREAKAWAY_FROM_JOB`. Si el job mata al
+  cerrarse y no deja salir, sale con `E_JOB_NO_BREAKAWAY`. Probado con un Job
+  Object real en los tests y a mano por SSH con un usuario estándar temporal
+  contra el sshd local: la sesión sobrevive al cierre limpio y al corte brusco,
+  dos fronts dejan un solo daemon y `--stop` lo termina. 👤 Falta que el
+  usuario borre la cuenta `titantest` (reiniciando antes `sshd`) para pasar la
+  tarea a `Hecha`.

@@ -1,11 +1,11 @@
 ---
 Nombre: 'titan-agent daemon en Windows'
-Estado: 'Pendiente'
+Estado: 'En curso'
 Resumen: 'Subtarea 4 de ADR-0009 (§5): que el daemon sobreviva en Windows al cierre de la sesión SSH, sin administrador. El front comprueba su Job Object (IsProcessInJob por kernel32 + QueryInformationJobObject) y, si el job lo permite, lanza el daemon con CREATE_BREAKAWAY_FROM_JOB | DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP; si el job tiene KILL_ON_JOB_CLOSE sin BREAKAWAY_OK, sale con E_JOB_NO_BREAKAWAY. Une las subtareas 1 (ConPTY) y 3 (TCP loopback) y se verifica de punta a punta con un usuario estándar, en cierre limpio y en corte brusco. El mecanismo ya se validó en el experimento del 2026-09-23; la prueba en Windows es manual con ayuda del usuario (ADR-0012).'
 Decisiones: 'Implementa §5 (Windows) de [[ADR-0009 Agente de nivel 3 portable a todos los destinos]], con el mecanismo validado en [[Experimento supervivencia de procesos en Win32-OpenSSH]]. Contexto común en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:05:00+02:00
-Última modificación: 2026-09-27T15:00:00+02:00
+Última modificación: 2026-09-27T17:00:00+02:00
 ---
 
 # titan-agent: daemon en Windows
@@ -117,3 +117,65 @@ opcional): repetir el paso 4 y anotar los flags del job.
 - `E_JOB_NO_BREAKAWAY` probado con un test unitario de la función de decisión
   (flags simulados).
 - Limpieza completa del entorno de prueba.
+
+## Resultado (2026-09-27)
+
+Implementado y verificado. Queda `En curso` hasta la limpieza completa: falta
+que el usuario borre la cuenta temporal y su perfil.
+
+### Código (`agent/cmd/titan-agent/`)
+
+- `detach_windows.go` (antes `detach_other.go`, que queda para los sistemas
+  que no son Unix ni Windows):
+  - `detachAttr()` llama a `currentJob()` (`IsProcessInJob` por `kernel32` y
+    `QueryInformationJobObject` sobre el job propio) y a `launchFlags`, la
+    función de decisión.
+  - Lanza con `DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP`, más
+    `CREATE_BREAKAWAY_FROM_JOB` cuando el job tiene `BREAKAWAY_OK`, y
+    `HideWindow`.
+  - `detachAttr` devuelve ahora `(*SysProcAttr, error)` en todos los sistemas.
+- Orden de la decisión, algo distinto del diseño: `BREAKAWAY_OK` va primero y
+  se sale del job aunque no tenga `KILL_ON_JOB_CLOSE`, porque su dueño podría
+  terminarlo igualmente.
+- `spawnFailure`: con jobs anidados, el job inmediato puede permitir salir y
+  uno exterior no. Entonces `CreateProcess` responde "acceso denegado", y eso
+  también se informa como `E_JOB_NO_BREAKAWAY`.
+- `dialOrSpawn` deja pasar tal cual los errores que ya llevan código.
+
+### Verificación
+
+- `TestLaunchFlags`: la tabla de la decisión, incluido el job de
+  Win32-OpenSSH (`0x2800`) y el caso `E_JOB_NO_BREAKAWAY`.
+- Con un **Job Object real**: el proceso auxiliar del test entra en un job
+  nuevo antes de hacer de front. Ese job se cierra al terminar el front, como
+  hace sshd al cerrar la sesión.
+  - Con `KILL_ON_JOB_CLOSE | BREAKAWAY_OK`, el daemon y su sesión sobreviven
+    (`TestDaemonSurvivesTheFrontsJob`). Quitando el breakaway, el test falla,
+    así que prueba lo que debe.
+  - Con solo `KILL_ON_JOB_CLOSE`, el front sale con `E_JOB_NO_BREAKAWAY` y no
+    lanza nada.
+  - Son pruebas automáticas y repetibles del mecanismo del experimento.
+- **Manual por SSH** contra el sshd local (`OpenSSH_for_Windows_10.0p2`), con
+  un usuario **estándar** temporal (solo en el grupo Usuarios) y una clave
+  dedicada, y el binario `windows/amd64` en su perfil:
+  1. Dos fronts a la vez sobre un estado vacío, con el mismo id de sesión: solo
+     uno recibe `created=true`, así que hay un único daemon.
+  2. **Cierre limpio**: marcador, cierre de la sesión SSH y reconexión 20 s
+     después: `created=false`, replay con el marcador, y la shell (`cmd.exe`
+     sobre ConPTY) responde a un comando nuevo.
+  3. **Corte brusco**: se mata el cliente SSH con la sesión abierta; 20 s
+     después, igual que en el punto 2. Fue el mismo daemon (mismo PID) en
+     toda la prueba.
+  4. `--stop` por SSH sale con 0, el proceso desaparece, `agent.json` se
+     borra, y el siguiente front crea un daemon nuevo (`created=true`).
+- Linux sin cambios de comportamiento: tests con `-race` en Docker y `go vet`
+  cruzado limpios.
+- No probado: el OpenSSH que trae Windows (8.x/9.x). Si su job no deja salir,
+  se informa con `E_JOB_NO_BREAKAWAY`.
+
+### Limpieza
+
+Hecho: binario y `%LOCALAPPDATA%\titan-ssh` borrados del perfil de prueba, y
+borrados también la clave dedicada y el cliente de prueba desechable (no se
+versionó). Pendiente (👤): reiniciar `sshd` o el PC, borrar el perfil y la
+cuenta `titantest`.
