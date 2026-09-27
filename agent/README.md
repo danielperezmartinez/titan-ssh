@@ -9,8 +9,9 @@ tarea `docs/Tareas/Resiliencia nivel 3 agente propio en el destino.md`).
 > tee vivo + reenganche (`internal/session`) y el binario daemon/front
 > (`cmd/titan-agent`) están implementados y **verificados en host real**
 > (crea PTY, teea el prompt, aplica input y, al reconectar, el daemon sobrevive y
-> reproduce el historial). Falta para el nivel 3 completo: instalación versionada
-> + checksum, y el transporte del lado cliente (subtareas del nivel 3).
+> reproduce el historial). La instalación versionada con checksum y el
+> transporte del lado cliente también están hechos. Se está haciendo portable
+> a todos los destinos (ADR-0009): ver **Pendiente**.
 
 ## Qué es (ADR-0008, opción B)
 
@@ -30,9 +31,14 @@ SSHD que ADR-0004 había hecho para el agente (el cliente sigue en sshj).
 agent/
 ├── go.mod / go.sum
 ├── cmd/titan-agent/
-│   ├── main.go            # modos: front (default) / daemon
-│   ├── daemon.go          # listen UDS + serve del protocolo por conexión
-│   ├── front.go           # dial-or-spawn del daemon + empalme de stdio
+│   ├── main.go            # modos: front (default) / --daemon / --stop
+│   ├── daemon.go          # candado + listen TCP loopback + serve del protocolo por conexión
+│   ├── front.go           # dial-or-spawn del daemon + empalme de stdio; --stop
+│   ├── rendezvous.go      # preámbulo con token entre front y daemon
+│   ├── state.go           # agent.json: escritura atómica y validación
+│   ├── lock*.go           # candado de instancia única (flock / fcntl / LockFileEx)
+│   ├── statedir_*.go      # directorio de estado por sistema y su comprobación
+│   ├── errors.go          # códigos TITAN_AGENT_ERROR del front
 │   └── detach_{unix,other}.go   # SysProcAttr setsid (unix) / no-op
 └── internal/
     ├── protocol/          # códec de tramas (espejo de AgentProtocol.kt) + tests
@@ -59,31 +65,66 @@ ambos en sincronía**.
 ## Modelo de ejecución
 
 `exec titan-agent` corre en modo **front**: empalma su stdio (el canal SSH) al
-**daemon** por un socket Unix (`$XDG_RUNTIME_DIR/titan-agent.sock`), lanzándolo
-detached (`setsid`) en el primer uso. El daemon sostiene los PTY y el ring buffer
-por sesión y habla el protocolo por tramas; sobrevive a la desconexión del front,
-así que reconectar reengancha por id (el id viaja en el `HELLO`) y reproduce
-desde el offset del cliente.
+**daemon**, lanzándolo detached (`setsid` en Unix) en el primer uso. El daemon
+sostiene los PTY y el ring buffer por sesión y habla el protocolo por tramas;
+sobrevive a la desconexión del front, así que reconectar reengancha por id (el
+id viaja en el `HELLO`) y reproduce desde el offset del cliente (ADR-0009 §2-3):
+
+- **Un solo daemon por usuario.** Al arrancar, el daemon toma un candado
+  exclusivo no bloqueante sobre `agent.lock` y lo mantiene mientras vive. Si ya
+  lo tiene otro, sale con 0 sin tocar nada. El kernel lo suelta al morir el
+  proceso, también con `kill -9`.
+- **Front y daemon se encuentran por TCP en `127.0.0.1`.** El daemon escucha en
+  un puerto aleatorio, genera un token de 32 bytes y, ya escuchando, publica
+  `{schema, agent, port, token, pid}` en `agent.json` (fichero temporal +
+  `rename`). El front lee el fichero, conecta y envía un preámbulo: la marca
+  `TTNAGNT1` y el token. El daemon lo compara en tiempo constante y responde
+  `TTNAGOK1`.
+  Sin preámbulo válido en 10 s cierra la conexión sin responder. El protocolo
+  cliente-agente no cambia: el token nunca sale del destino.
+- Si no hay fichero, o nadie responde en su puerto, el front lanza un daemon
+  (solo si el candado está libre) y vuelve a leer el fichero hasta 10 s.
+
+### Ficheros de estado
+
+En el directorio de estado del usuario, que se crea `0700` y se rechaza si no
+es un directorio real del usuario sin acceso de grupo ni otros:
+
+| Sistema | Directorio |
+|---|---|
+| Unix | `$XDG_STATE_HOME/titan-ssh` o `~/.local/state/titan-ssh` |
+| Windows | `%LOCALAPPDATA%\titan-ssh` |
+
+Contiene `agent.lock` (el candado) y `agent.json` (`0600`, con el token). No
+se usa `/run/user` (systemd lo borra al cerrar la última sesión) ni `/tmp`.
+`--state-dir` cambia el directorio (tests). `titan-agent --stop` termina el
+daemon: primero se autentica contra `agent.json`, así que el PID que mata es
+seguro el del daemon, y después borra el fichero.
+
+### Errores
+
+Si el front no puede dar servicio, termina con código distinto de 0 y una línea
+en stderr: `TITAN_AGENT_ERROR <código> <mensaje>`. Códigos de este binario:
+`E_STATE_DIR`, `E_LOCK`, `E_DAEMON_START` y `E_AUTH` (tabla completa en la
+tarea `Nivel 3 portable a todos los destinos`).
 
 ## Build / test
 
 ```sh
 cd agent
-go test ./...               # protocolo, buffer y session (proxy con PTY fake)
+go test ./...               # protocolo, buffer, session (PTY real y fake) y front/daemon
 # binarios multi-arch (estáticos, ~2.5 MB):
 GOOS=linux  GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/titan-agent-linux-amd64 ./cmd/titan-agent
 GOOS=linux  GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o dist/titan-agent-linux-arm64 ./cmd/titan-agent
 ```
 
-## Pendiente (subtareas del nivel 3)
+## Pendiente
 
-- **Distribución**: build multi-arch empaquetado, subida por SFTP a ruta
-  versionada y verificación de checksum (`titan-agent distribución multi-arch e
-  instalación`).
-- **Lado cliente**: `AgentTransport` sobre `AgentProtocol` + el canal `exec` (ya
-  hecho en el motor SSH), y la integración en el flujo de resiliencia — hoy
-  `ResilienceLevel.AGENT` degrada al nivel 2 (`Nivel 3 transporte cliente e
-  integración de resiliencia`).
+Lo que falta del nivel 3 portable (ADR-0009) está en la tarea
+`docs/Tareas/Nivel 3 portable a todos los destinos.md`: el desacople del daemon
+en Windows, la instalación en destinos Windows y multi-SO, y el diagnóstico
+cuando el nivel 3 no está disponible.
+
 - Mejora menor: capar el buffer por el mínimo de los `ACK` (hoy capa por bytes).
 
 ## Licencia

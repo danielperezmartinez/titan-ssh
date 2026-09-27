@@ -106,9 +106,11 @@ class AgentTransportIntegrationTest {
             assertEquals(false, fresh2, "a reconnect re-attaches to the live agent session")
             t2.close(); j2.join()
 
-            // Cleanup: stop the daemon (exact name, so we don't kill our own shell)
-            // and remove the socket + the throwaway binary.
-            s2.exec("pkill -x titan-agent; rm -f /run/user/1000/titan-agent.sock $path")
+            // Cleanup: stop the daemon through the agent itself (it authenticates
+            // against its state file, so it never kills a recycled PID) and remove
+            // the throwaway binary. This also ends any other daemon of this user
+            // on the test host.
+            s2.exec("$path --stop; rm -f $path")
                 .output.fold(0) { a, _ -> a }
             s2.close()
             println("[integration] agent transport verified end-to-end (marker replayed on reconnect)")
@@ -191,7 +193,7 @@ class AgentTransportIntegrationTest {
                 println("[integration] level-3 start scripts ran once, not on re-attach")
             } finally {
                 val s = connect(endpoint, creds)
-                s.exec("pkill -x titan-agent; rm -f /run/user/1000/titan-agent.sock $runs ~/.local/share/titan-ssh/agent-$version-*")
+                s.exec("for b in ~/.local/share/titan-ssh/agent-$version-*; do \"\$b\" --stop; done; rm -f $runs ~/.local/share/titan-ssh/agent-$version-*")
                     .output.fold(0) { a, _ -> a }
                 s.close()
                 scope.coroutineContext[Job]?.cancel()
