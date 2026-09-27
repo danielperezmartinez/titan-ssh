@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-27T14:00:00+02:00
+Última modificación: 2026-09-27T15:45:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -112,7 +112,7 @@ mismo commit).
   - La tarea pequeña que iba junto a este paso,
     [[Indicar cuando la conexión deja de responder]], queda **aplazada** por
     decisión del usuario (ver **Aparcada**).
-- [ ] **9. Nivel 3 portable a todos los destinos** (seguir el orden interno de
+- [x] **9. Nivel 3 portable a todos los destinos** (seguir el orden interno de
   [[Nivel 3 portable a todos los destinos]])
   - [x] 9.1 [[titan-agent PTY propio multiplataforma]] (`Hecha` el 2026-09-27)
   - [x] 9.2 [[titan-agent instancia única y directorio de estado]] (`Hecha` el
@@ -121,10 +121,8 @@ mismo commit).
     el 2026-09-27, en la misma sesión que 9.2)
   - [x] 9.4 [[titan-agent daemon en Windows]] (`Hecha` el 2026-09-27; la
     cuenta estándar de pruebas se conserva para futuras pruebas)
-  - [ ] 9.5 [[Instalación del agente en destinos Windows y multi-SO]] (hecha
-    y probada el 2026-09-27; el origen de descarga es GitHub Releases. Queda
-    `En curso` solo hasta ver los binarios publicados en la siguiente
-    pre-release; el pipeline ya pasa en CI)
+  - [x] 9.5 [[Instalación del agente en destinos Windows y multi-SO]] (`Hecha` el
+    2026-09-27, al publicarse `v0.1.0-beta.3` con los 13 binarios)
   - [x] 9.6 [[Diagnóstico cuando el nivel 3 no está disponible]] (`Hecha` el
     2026-09-27)
   - Cada subtarea que cambie el agente sale en la siguiente pre-release, y así se
@@ -436,3 +434,17 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   cuando el usuario lo pida, conviene publicar `v0.1.0-beta.3`: cierra 9.5 (los
   13 binarios en el Release) y trae 9.6 a la app instalada para verlo en el
   Pixel.
+- 2026-09-27 — **Paso 9 completado. Publicada
+  [`v0.1.0-beta.3`](https://github.com/danielperezmartinez/titan-ssh/releases/tag/v0.1.0-beta.3)**,
+  a petición del usuario. Todos los jobs del run `36322431700` acaban bien
+  (`winget` y `aur` se saltan, porque sus variables siguen desactivadas). El
+  Release está marcado como pre-release, `sha256sum -c SHA256SUMS` da `OK` en los
+  19 ficheros y la APK está firmada con la clave de release (huella del
+  `README`). Lleva los 13 binarios del agente, que coinciden con los SHA-256
+  fijados en la app. La descarga bajo demanda funciona: la app bajó del Release
+  el binario riscv64 y condujo una sesión con él en un sshd emulado en Docker.
+  [[Instalación del agente en destinos Windows y multi-SO]] y
+  [[Nivel 3 portable a todos los destinos]] pasan a `Hecha`. 👤 Falta que el
+  usuario instale la APK en el Pixel desde el Release y confirme que funciona.
+  Con ella se ve también el aviso del nivel 3 de 9.6. Siguiente: paso 10 (👤,
+  decidir si los scripts se unifican con los Snippets).

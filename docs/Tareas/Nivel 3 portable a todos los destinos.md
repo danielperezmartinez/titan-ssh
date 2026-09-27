@@ -1,11 +1,11 @@
 ---
 Nombre: 'Nivel 3 portable a todos los destinos'
-Estado: 'En curso'
-Resumen: 'Tarea paraguas para implementar ADR-0009: que el agente titan-agent (nivel 3) funcione en Windows, macOS, BSD y cualquier Linux, y degrade con diagnóstico donde no pueda. Reúne el orden de las subtareas, el contexto común (estado del código actual, entornos de verificación, contrato de errores, hallazgos de la investigación y del experimento de Windows) para poder empezar en una sesión limpia sin repetir la investigación. Subtareas: PTY propio multiplataforma; instancia única y directorio de estado; punto de encuentro TCP loopback con token; daemon en Windows; instalación del agente en destinos Windows y multi-SO; diagnóstico cuando el nivel 3 no está disponible.'
+Estado: 'Hecha'
+Resumen: 'Tarea paraguas para implementar ADR-0009, completada el 2026-09-27 (las seis subtareas, publicadas en v0.1.0-beta.3): que el agente titan-agent (nivel 3) funcione en Windows, macOS, BSD y cualquier Linux, y degrade con diagnóstico donde no pueda. Reúne el orden de las subtareas, el contexto común (estado del código actual, entornos de verificación, contrato de errores, hallazgos de la investigación y del experimento de Windows) para poder empezar en una sesión limpia sin repetir la investigación. Subtareas: PTY propio multiplataforma; instancia única y directorio de estado; punto de encuentro TCP loopback con token; daemon en Windows; instalación del agente en destinos Windows y multi-SO; diagnóstico cuando el nivel 3 no está disponible.'
 Decisiones: 'Implementa [[ADR-0009 Agente de nivel 3 portable a todos los destinos]], que sustituye en parte a [[ADR-0008 Diseño del agente de resiliencia nivel 3]], y el empaquetado de [[ADR-0010 Empaquetado del agente y descarga bajo demanda]]. El desacople en Windows se decidió con [[Experimento supervivencia de procesos en Win32-OpenSSH]]. Continúa [[Resiliencia nivel 3 agente propio en el destino]].'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:05:00+02:00
-Última modificación: 2026-09-27T14:00:00+02:00
+Última modificación: 2026-09-27T15:45:00+02:00
 ---
 
 # Nivel 3 portable a todos los destinos
@@ -27,7 +27,7 @@ investigar.
 | 2 | [[titan-agent instancia única y directorio de estado]] (hecha el 2026-09-27) | — |
 | 3 | [[titan-agent punto de encuentro TCP loopback con token]] (hecha el 2026-09-27) | 2 |
 | 4 | [[titan-agent daemon en Windows]] (hecha el 2026-09-27) | 1, 3 |
-| 5 | [[Instalación del agente en destinos Windows y multi-SO]] (hecha y probada el 2026-09-27, también en CI; falta ver los binarios publicados en la siguiente pre-release) | 4 (solo la prueba de punta a punta en Windows) |
+| 5 | [[Instalación del agente en destinos Windows y multi-SO]] (hecha el 2026-09-27; publicada en `v0.1.0-beta.3`) | 4 (solo la prueba de punta a punta en Windows) |
 | 6 | [[Diagnóstico cuando el nivel 3 no está disponible]] (hecha el 2026-09-27) | 3, 4, 5 |
 
 1 y 2 son independientes y pueden hacerse en cualquier orden. 5 puede avanzar
