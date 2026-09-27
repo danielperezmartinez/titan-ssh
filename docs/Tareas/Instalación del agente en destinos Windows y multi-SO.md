@@ -1,11 +1,11 @@
 ---
 Nombre: 'Instalación del agente en destinos Windows y multi-SO'
-Estado: 'Pendiente'
-Resumen: 'Subtarea 5 de ADR-0009 (§6 y §7), lado cliente: que AgentInstaller instale y lance el agente en cualquier destino soportado. Hoy es solo Unix (uname, sha256sum, head -c, chmod, mv y ~ por el canal exec; destinos linux amd64/arm64 y darwin arm64). Cambios: añadir SFTP a SshSession (sshj SFTPClient) y subir por SFTP en todos los SO (exec+head queda como alternativa en Unix sin SFTP); detectar el SO por la ruta canónica de SFTP (/C:/... = Windows) y la arquitectura con una sonda por SO; checksum calculado en el cliente releyendo por SFTP; rutas por SO y sufijo .exe; comando exec con las comillas de la shell del destino (cmd o PowerShell); ampliar agentTargets y la detección a todos los destinos de la ADR; y empaquetar según ADR-0010 (seis destinos principales en la app, el resto bajo demanda con SHA-256 fijado; origen de descarga pendiente). El método de prueba en Windows está por decidir con el usuario. También borra los binarios de versiones anteriores tras instalar el actual.'
-Decisiones: 'Implementa §6 y §7 de [[ADR-0009 Agente de nivel 3 portable a todos los destinos]] y el empaquetado de [[ADR-0010 Empaquetado del agente y descarga bajo demanda]]. Vuelve a la subida por SFTP que preveía §5 de [[ADR-0008 Diseño del agente de resiliencia nivel 3]] (la implementación de [[titan-agent distribución multi-arch e instalación]] la sustituyó por exec+head). Contexto común en [[Nivel 3 portable a todos los destinos]]. La limpieza de binarios antiguos llega aquí desde [[titan-agent instancia única y directorio de estado]] (2026-09-27).'
+Estado: 'En curso'
+Resumen: 'Subtarea 5 de ADR-0009 (§6 y §7), lado cliente: que AgentInstaller instale y lance el agente en cualquier destino soportado. Hecho el 2026-09-27: SFTP en SshSession; detección por la ruta canónica de SFTP (/C:/... = Windows), con una sonda de cmd para arquitectura, %LOCALAPPDATA% y shell (cmd o PowerShell), y uname ampliado a los 13 destinos en Unix; subida a un temporal, chmod 0700 y renombrado; SHA-256 con la herramienta del destino (sha256sum, shasum, sha256, certutil) o releyendo por SFTP; exec+head como alternativa en Unix sin SFTP; borrado de los binarios de otras versiones; comando con las comillas de sh, cmd o PowerShell. Empaquetado según ADR-0010: seis destinos en la app, los otros siete publicados en el GitHub Release y descargados bajo demanda contra el SHA-256 fijado en la app. Probado de punta a punta en Windows (usuario estándar) y Linux (amd64, y arm y riscv64 emulados). Queda En curso hasta ver el pipeline nuevo en la siguiente pre-release y la limpieza de la cuenta de pruebas.'
+Decisiones: 'Implementa §6 y §7 de [[ADR-0009 Agente de nivel 3 portable a todos los destinos]] y el empaquetado de [[ADR-0010 Empaquetado del agente y descarga bajo demanda]]. Vuelve a la subida por SFTP que preveía §5 de [[ADR-0008 Diseño del agente de resiliencia nivel 3]] (la implementación de [[titan-agent distribución multi-arch e instalación]] la sustituyó por exec+head). Contexto común en [[Nivel 3 portable a todos los destinos]]. La limpieza de binarios antiguos llega aquí desde [[titan-agent instancia única y directorio de estado]] (2026-09-27). Decisiones del usuario del 2026-09-27: el origen de descarga es GitHub Releases, con los 13 binarios publicados en cada Release, y la prueba en Windows reutiliza la cuenta estándar temporal del paso 9.4.'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:05:00+02:00
-Última modificación: 2026-09-27T15:00:00+02:00
+Última modificación: 2026-09-27T10:40:00+02:00
 ---
 
 # Instalación del agente en destinos Windows y multi-SO
@@ -162,3 +162,120 @@ recibe solo `agentPath`).
   seis destinos empaquetados; descarga bajo demanda implementada una vez decidido
   el origen.
 - Catálogo técnico actualizado con la superficie SFTP.
+
+## Resultado (2026-09-27)
+
+Decisiones del usuario al empezar:
+- **Origen de descarga**: GitHub Releases. Cada Release publica los **13**
+  binarios del agente (la lista de §6 de la ADR-0009 son 13, no unos 15), no
+  solo los siete que se descargan: así también sirven para instalarlo a mano.
+  [[ADR-0010 Empaquetado del agente y descarga bajo demanda]] pasa a `Aceptada`.
+- **Prueba en Windows**: la cuenta estándar temporal del paso 9.4, con una
+  clave nueva que autorizó el usuario (la de 9.4 ya se había borrado).
+
+### Código
+
+- `SshSession.openSftp()` (null si el servidor no tiene subsistema `sftp`) y
+  `SshSftp`, implementado en `SshjSftp` sobre `SFTPClient`. Ver
+  [[SshConnector]].
+- `AgentInstall.kt` (commonMain, funciones puras): `parseUname` para los 13
+  destinos, `parseWindowsProbe`, `isWindowsSftpPath`/`windowsToSftpPath`,
+  `binaryName` (`agent-<versión>-<os>-<arch>[.exe]`), `isStaleBinary`,
+  `command` y `hashCommand` por shell, y `parseSha256`, que entiende
+  `sha256sum`, `shasum`, `sha256 -q` y `certutil`. `RemoteShell` y
+  `AgentLaunch`: el `AgentDeployer` devuelve ahora un `AgentLaunch` (ruta y
+  shell), y `AgentTransport` lo usa para el comando.
+- `AgentInstaller` (jvmShared): el flujo de §2–§4 de esta nota. Ver
+  [[AgentInstaller]].
+  - Windows: una sola sonda sin comillas,
+    `echo %PROCESSOR_ARCHITECTURE% %PROCESSOR_ARCHITEW6432% %LOCALAPPDATA%`.
+    Si cmd no la expande, la shell es PowerShell y se repite con `cmd /c`.
+    Se instala en `%LOCALAPPDATA%\titan-ssh`, que también es el directorio de
+    estado del agente.
+  - Unix: `<home>/.local/share/titan-ssh`, con el home que da
+    `canonicalize(".")`. Sin SFTP, `~/.local/share/titan-ssh` y `head -c`.
+  - Idempotencia: primero la herramienta de hash del destino, que es barata y
+    mantiene rápidas las reconexiones. Si no responde y el tamaño coincide, se
+    relee el fichero por SFTP.
+  - La limpieza borra los `agent-*` de otras versiones, también las subidas a
+    medias, y nunca `agent.lock` ni `agent.json`. En Windows un `.exe` en uso
+    no se puede borrar: se ignora.
+- `AgentDeployerFactory`: `AgentBinaries` carga el binario empaquetado y el
+  manifiesto `/agent/SHA256SUMS`. `AgentDownloader` descarga de
+  `releases/download/v<versión>/titan-agent-<versión>-<os>-<arch>[.exe]`,
+  exige el SHA-256 fijado y guarda en caché por versión. Una build de
+  desarrollo no descarga, porque no tiene Release.
+  - La caché está en `cacheDir/agent` en Android y en
+    `%LOCALAPPDATA%\titan-ssh\cache\agent` o `~/.cache/titan-ssh/agent` en
+    escritorio (actuals en `androidMain`/`desktopMain`).
+- `shared/build.gradle.kts`:
+  - `buildAgentBinaries` compila los 13 destinos con `CGO_ENABLED=0` (y
+    `GOARM=7` en `arm`), empaqueta los seis principales y escribe el
+    manifiesto con los 13.
+  - `-PtitanAgentPrebuilt=<dir>` toma los binarios de un directorio de assets
+    del Release en vez de compilarlos.
+  - `agentReleaseAssets` los copia con el nombre del Release.
+- `release.yml`: un job `agent` nuevo compila los binarios una vez y los sube
+  como artefacto. `test`, `android`, `linux` y `windows` los usan con
+  `-PtitanAgentPrebuilt`, así que el SHA-256 fijado en cada paquete es el de
+  los assets publicados. `publish` los adjunta al Release, y `SHA256SUMS` los
+  cubre. Ver [[Pipeline de release en GitHub Actions]].
+
+### Hallazgos
+
+- **Win32-OpenSSH envuelve el comando**: ejecuta `cmd.exe /c "<comando>"`,
+  como muestra `%CMDCMDLINE%`. Basta con `"<ruta>" args`, y funciona con
+  espacios, paréntesis y `&` en la ruta. El doble entrecomillado que parecía
+  necesario por las reglas de `cmd /c` rompe el comando.
+- **sshj y SFTP**: pasar todo el binario en una sola escritura a
+  `RemoteFileOutputStream` genera un `SSH_FXP_WRITE` que no cabe en la
+  ventana del canal ("Timeout when trying to expand the window size"). Se
+  trocea por el tamaño máximo de paquete, como hace el `SFTPFileTransfer` de
+  sshj.
+- **ACK tras cerrar**: con la salida más lenta (emulación), una trama `DATA`
+  podía llegar mientras `AgentTransport.close()` cerraba el canal, y el `ACK`
+  lanzaba "Stream closed". Ahora el `ACK` perdido se ignora: solo hace que el
+  agente guarde algo más de historial para el replay.
+- La APK de release pasa de 8,5 MB a 14 MB con los seis binarios, como
+  preveía ADR-0010.
+
+### Verificación
+
+- Tests unitarios: `AgentInstallTest` (mapeos, rutas, comillas, hashes,
+  limpieza), `AgentInstallerTest` (host falso con SFTP en memoria: Windows con
+  cmd y con PowerShell, Unix con y sin SFTP, idempotencia, instalación
+  corrupta, `.exe` en uso, destinos no soportados), `AgentDownloaderTest`
+  (checksum fijado, caché, fallos) y `AgentBinariesResourceTest` (seis
+  empaquetados con cabecera ELF, Mach-O o PE, y los 13 fijados). 146 tests en
+  verde.
+- **Windows**, por SSH contra el sshd local con el usuario estándar temporal:
+  `AgentInstallerIntegrationTest` (detección `windows-amd64` con cmd, subida,
+  sin resubir gracias a `certutil`, `--version`, y borrado de la versión
+  anterior) y `AgentTransportIntegrationTest` (el marcador vuelve en el replay
+  al reconectar). Además, a mano, el lanzamiento y `certutil` con una ruta con
+  espacios, paréntesis y `&`.
+- **Linux**, con sshd en Docker: amd64 (los dos tests de integración y el de
+  scripts de inicio), amd64 sin subsistema SFTP (alternativa `head -c`, el
+  binario queda en `0700`), y **arm** (armv7) y **riscv64** emulados con
+  QEMU, dos de los destinos que se descargan.
+- **Descarga real**: `httpGet` contra un asset que ya existe (`SHA256SUMS` de
+  `v0.1.0-beta.2`) sigue la redirección de GitHub, y un 404 se trata como
+  fallo.
+- `:androidApp:assembleDebug` y `assembleRelease` (R8): las dos APK llevan
+  los seis binarios y el manifiesto.
+- `-PtitanAgentPrebuilt` da los mismos checksums que compilar, y la falta de
+  un binario se detecta.
+- No verificado en ejecución: macOS y FreeBSD (solo tests unitarios y
+  compilación), PowerShell como `DefaultShell` (solo el test con host falso) y
+  Windows arm64.
+
+### Pendiente para pasar a `Hecha`
+
+1. El pipeline nuevo aún no se ha ejecutado. En la siguiente pre-release (o
+   con un `workflow_dispatch`), comprobar que el job `agent` termina, que el
+   Release lleva los 13 `titan-agent-<versión>-*`, que `sha256sum -c
+   SHA256SUMS` los da por buenos y que coinciden con el manifiesto de la APK.
+2. 👤 La limpieza de la cuenta estándar temporal, la misma que en
+   [[titan-agent daemon en Windows]]: reiniciar `sshd` o el PC, y borrar el
+   perfil y la cuenta. Del perfil ya se han borrado los binarios y el estado
+   del agente.

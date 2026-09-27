@@ -5,7 +5,7 @@ Resumen: 'EJECUTADO, resultado positivo. Decide el punto 5 de ADR-0009: un proce
 Decisiones: 'Completa [[ADR-0009 Agente de nivel 3 portable a todos los destinos]] (punto 5). Los informes públicos se contradicen según la versión (Win32-OpenSSH #1032, #1642, #1751, #1464), de ahí el experimento en vez de decidir por documentación.'
 Bloqueada: []
 Fecha de creación: 2026-09-23T21:00:00+02:00
-Última modificación: 2026-09-23T22:00:00+02:00
+Última modificación: 2026-09-27T10:40:00+02:00
 ---
 
 # Experimento: supervivencia de procesos en Win32-OpenSSH
@@ -20,7 +20,7 @@ el punto pendiente de
 ## Entorno
 
 - `sshd` local del PC de desarrollo: `OpenSSH_for_Windows_10.0p2`
-  (`D:\Descargas\OpenSSH-Win64\OpenSSH-Win64`), servicio `sshd` automático.
+  (`<ruta-de-OpenSSH-Win64>`), servicio `sshd` automático.
 - `C:\ProgramData\ssh\sshd_config`: solo clave pública
   (`PasswordAuthentication no`), `AuthorizedKeysFile .ssh/authorized_keys`, sin
   bloque `Match Group administrators`.

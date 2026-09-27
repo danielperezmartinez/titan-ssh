@@ -5,7 +5,7 @@ Resumen: 'Tarea paraguas para implementar ADR-0009: que el agente titan-agent (n
 Decisiones: 'Implementa [[ADR-0009 Agente de nivel 3 portable a todos los destinos]], que sustituye en parte a [[ADR-0008 Diseño del agente de resiliencia nivel 3]], y el empaquetado de [[ADR-0010 Empaquetado del agente y descarga bajo demanda]]. El desacople en Windows se decidió con [[Experimento supervivencia de procesos en Win32-OpenSSH]]. Continúa [[Resiliencia nivel 3 agente propio en el destino]].'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:05:00+02:00
-Última modificación: 2026-09-27T15:00:00+02:00
+Última modificación: 2026-09-27T10:40:00+02:00
 ---
 
 # Nivel 3 portable a todos los destinos
@@ -14,7 +14,7 @@ Fecha de creación: 2026-09-23T22:05:00+02:00
 
 Implementar [[ADR-0009 Agente de nivel 3 portable a todos los destinos]] y el
 empaquetado de [[ADR-0010 Empaquetado del agente y descarga bajo demanda]]
-(`Propuesta`: falta decidir el origen de la descarga). **Leer
+(`Aceptada` el 2026-09-27: el resto de destinos se descarga del GitHub Release). **Leer
 la ADR-0009 antes de empezar cualquier subtarea**: es la fuente de verdad del diseño.
 Esta nota solo añade orden, contexto de implementación y lo aprendido al
 investigar.
@@ -27,7 +27,7 @@ investigar.
 | 2 | [[titan-agent instancia única y directorio de estado]] (hecha el 2026-09-27) | — |
 | 3 | [[titan-agent punto de encuentro TCP loopback con token]] (hecha el 2026-09-27) | 2 |
 | 4 | [[titan-agent daemon en Windows]] | 1, 3 |
-| 5 | [[Instalación del agente en destinos Windows y multi-SO]] | 4 (solo la prueba de punta a punta en Windows) |
+| 5 | [[Instalación del agente en destinos Windows y multi-SO]] (hecha y probada el 2026-09-27; falta verla en CI y la limpieza de la cuenta de pruebas) | 4 (solo la prueba de punta a punta en Windows) |
 | 6 | [[Diagnóstico cuando el nivel 3 no está disponible]] | 3, 4, 5 |
 
 1 y 2 son independientes y pueden hacerse en cualquier orden. 5 puede avanzar
@@ -114,11 +114,11 @@ necesita 4.
   ("possible misuse of unsafe.Pointer"). Es esperado y está comentado en el
   código: el atributo de ConPTY recibe el valor de `HPCON`, no un puntero.
   Para comprobar el resto, `go vet ./cmd/...`.
-- **Windows como destino SSH — método de prueba por decidir.** El usuario
-  quiere explorar otras opciones y lo decidirá al llegar a las subtareas 4 y 5:
-  **preguntarle antes de montar nada**. Opción ya probada, por si se elige: el
+- **Windows como destino SSH**: en las subtareas 4 y 5 (2026-09-27) se usó la
+  opción ya probada, con ayuda del usuario (ver [[ADR-0012 Entorno de pruebas automático multiplataforma]]).
+  Win32-OpenSSH ejecuta los `exec` como `cmd.exe /c "<comando>"`. Datos de esa opción: el
   `sshd` local (`OpenSSH_for_Windows_10.0p2`, servicio automático,
-  `D:\Descargas\OpenSSH-Win64\OpenSSH-Win64`). Solo clave
+  `<ruta-de-OpenSSH-Win64>`). Solo clave
   (`PasswordAuthentication no`), claves en `C:\Users\<u>\.ssh\authorized_keys`
   (también para administradores: no hay bloque `Match Group administrators`),
   shell por defecto `cmd.exe`. Para probar **sin administrador** hace falta un
@@ -127,6 +127,10 @@ necesita 4.
   [[Experimento supervivencia de procesos en Win32-OpenSSH]]. **Al terminar,
   reiniciar `sshd` o el PC antes de borrar el perfil**: sshd lo deja cargado y
   el borrado falla con "archivo en uso".
+- **Otras arquitecturas de Linux**: Docker Desktop emula con QEMU
+  (`--platform linux/arm/v7`, `linux/riscv64`, …). Con un sshd de Alpine en
+  esa plataforma se prueban de punta a punta los binarios que se descargan
+  (hecho el 2026-09-27 en la subtarea 5 con arm y riscv64).
 - **macOS y FreeBSD**: no hay máquina disponible. Solo compilar y vet cruzados
   (`GOOS=darwin`/`GOOS=freebsd go vet ./...`); anotar como no verificado en
   ejecución.

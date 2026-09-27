@@ -1,11 +1,11 @@
 ---
 Nombre: 'Pipeline de release en GitHub Actions'
 Estado: 'Hecha'
-Resumen: 'Workflow de GitHub Actions (gratis en repositorios públicos) disparado por un tag vX.Y.Z que genera todos los artefactos y los publica en un GitHub Release: MSI (runner Windows, porque jpackage no compila para otra plataforma), .deb, .rpm y tar.gz (runner Ubuntu), APK firmada y AAB, más SHA256SUMS. Instala Go y hace obligatorio el agente, ejecuta los tests, marca como pre-release los tags con sufijo (canal interno del usuario) y, si ADR-0010 elige GitHub Releases, publica también los binarios del agente descargables. Es la base de todos los canales.'
+Resumen: 'Workflow de GitHub Actions (gratis en repositorios públicos) disparado por un tag vX.Y.Z que genera todos los artefactos y los publica en un GitHub Release: MSI (runner Windows, porque jpackage no compila para otra plataforma), .deb, .rpm y tar.gz (runner Ubuntu), APK firmada y AAB, más SHA256SUMS. Instala Go y hace obligatorio el agente, ejecuta los tests, marca como pre-release los tags con sufijo (canal interno del usuario) y publica también los 13 binarios del agente (desde el 2026-09-27, ADR-0010), compilados una sola vez en el job agent y reutilizados por todos los paquetes. Es la base de todos los canales.'
 Decisiones: 'Sigue [[ADR-0011 Distribución y canales de publicación]] §3. Fuente única de artefactos para todos los canales.'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-26T19:20:00+02:00
+Última modificación: 2026-09-27T10:40:00+02:00
 ---
 
 # Pipeline de release en GitHub Actions
@@ -188,8 +188,19 @@ completo: tag, CI, Release, descarga y actualización firmada.
 - **Caché**: `setup-gradle` y `setup-go` guardan caché, pero GitHub solo
   comparte entre refs la caché de la rama por defecto. Mientras no haya un
   `ci.yml` en `main`, cada tag compila en frío (unos minutos más; no bloquea).
-- **Binarios del agente sueltos**: no se publican todavía, porque
-  [[ADR-0010 Empaquetado del agente y descarga bajo demanda]] sigue sin elegir
-  el origen de descarga. Se decide en
-  [[Instalación del agente en destinos Windows y multi-SO]] (paso 9.5 de
-  [[Seguimiento de tareas pendientes]]).
+- **Binarios del agente** (desde el 2026-09-27, paso 9.5 de
+  [[Seguimiento de tareas pendientes]]): el Release publica los 13 como
+  `titan-agent-<versión>-<os>-<arch>[.exe]`, y la app descarga de ahí los que
+  no empaqueta ([[ADR-0010 Empaquetado del agente y descarga bajo demanda]]).
+  - Un job `agent` nuevo los compila una vez con
+    `:shared:agentReleaseAssets` y los sube como artefacto `agent`.
+  - `test`, `android`, `linux` y `windows` dependen de él y pasan
+    `-PtitanAgentPrebuilt=$RUNNER_TEMP/agent`, así que no compilan el agente.
+    Solo `agent` y `test` (por `go test`) instalan Go.
+  - Así, el SHA-256 que cada paquete fija en `/agent/SHA256SUMS` es el del
+    asset publicado, aunque cada job corra en otro sistema. No hace falta fiarse
+    de que Go compile igual en todas partes.
+  - `publish` los adjunta al Release con el resto de artefactos, y
+    `SHA256SUMS` los cubre. Detalle en
+    [[Instalación del agente en destinos Windows y multi-SO]].
+  - **Sin probar todavía en CI**: se comprueba en la siguiente pre-release.

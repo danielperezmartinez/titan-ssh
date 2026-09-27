@@ -5,7 +5,7 @@ Resumen: 'Follow-up del nivel 3 (ADR-0008): verificar en un dispositivo Android 
 Decisiones: 'Sigue [[ADR-0008 Diseño del agente de resiliencia nivel 3]]. Verifica el empaquetado hecho en [[titan-agent distribución multi-arch e instalación]] sobre el target Android. Prueba on-device como en [[ssh-test-host]] (Pixel de pruebas).'
 Bloqueada: []
 Fecha de creación: 2026-09-23T08:05:00+02:00
-Última modificación: 2026-09-26T16:55:00+02:00
+Última modificación: 2026-09-27T10:40:00+02:00
 ---
 
 # Verificar empaquetado del agente en APK Android
@@ -48,6 +48,11 @@ el recurso debería quedar en el APK. `AgentBinaries.load(target)` lo lee por
   [[Instalación del agente en destinos Windows y multi-SO]]. Si se verifica
   después de ese cambio, comprobar la lista nueva y el tamaño de la APK. Para la
   prueba en el dispositivo está instalada la skill `android-cli`.
+  - **Comprobado el 2026-09-27** (paso 9.5): la APK de debug y la de
+    release (R8) llevan los seis binarios empaquetados (`linux`, `darwin` y
+    `windows`, en amd64 y arm64, los de Windows con `.exe`) y
+    `agent/SHA256SUMS` (`unzip -l`). La de release pasa de 8,5 MB a 14 MB. No
+    se volvió a probar en el dispositivo: el mecanismo de carga no cambia.
 - **Avance del 2026-09-24** (paso 1 de [[Seguimiento de tareas pendientes]]):
   tras un `clean`, `:shared:processAndroidMainJavaRes` leía
   `build/generated/agentBinaries` sin depender de `buildAgentBinaries` y

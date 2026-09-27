@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-27T17:00:00+02:00
+Última modificación: 2026-09-27T10:40:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -121,12 +121,10 @@ mismo commit).
     el 2026-09-27, en la misma sesión que 9.2)
   - [ ] 9.4 [[titan-agent daemon en Windows]] 👤 (prueba manual en Windows:
     el usuario crea el usuario estándar temporal) (tras 9.1 y 9.3)
-  - [ ] 9.5 [[Instalación del agente en destinos Windows y multi-SO]] 👤 (cerrar
-    el origen de descarga de
-    [[ADR-0010 Empaquetado del agente y descarga bajo demanda]]; con el
-    repositorio público y el pipeline del paso 6, GitHub Releases es el
-    candidato natural. Si se elige, ampliar el pipeline para publicar los
-    binarios)
+  - [ ] 9.5 [[Instalación del agente en destinos Windows y multi-SO]] (hecha
+    y probada el 2026-09-27; el origen de descarga es GitHub Releases. Queda
+    `En curso` hasta ver el job `agent` en la siguiente pre-release y la misma
+    limpieza 👤 de la cuenta de pruebas que 9.4)
   - [ ] 9.6 [[Diagnóstico cuando el nivel 3 no está disponible]] (tras 9.3–9.5)
   - Cada subtarea que cambie el agente sale en la siguiente pre-release, y así se
     prueba desde Obtainium o la app instalada.
@@ -380,3 +378,25 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   dos fronts dejan un solo daemon y `--stop` lo termina. 👤 Falta que el
   usuario borre la cuenta `titantest` (reiniciando antes `sshd`) para pasar la
   tarea a `Hecha`.
+- 2026-09-27 — **Paso 9.5** hecho, a falta de verlo en CI y de la limpieza:
+  [[Instalación del agente en destinos Windows y multi-SO]]. Decisiones del
+  usuario: los binarios que no van en la app se descargan del **GitHub
+  Release** (que publica los 13), y la prueba en Windows reutiliza la cuenta
+  estándar temporal de 9.4.
+  [[ADR-0010 Empaquetado del agente y descarga bajo demanda]] pasa a
+  `Aceptada`.
+  - El instalador sube el agente por SFTP en Windows y en Unix, detecta los
+    13 destinos y pone las comillas de sh, cmd o PowerShell. Verifica el
+    SHA-256, no resube lo que ya está y borra las versiones anteriores.
+  - La app lleva seis binarios y el SHA-256 de los 13, y descarga el resto
+    del Release de su versión.
+  - En `release.yml`, un job `agent` compila los binarios una vez para todos
+    los paquetes y para el Release.
+  - Probado de punta a punta en Windows con un usuario estándar, y en Linux
+    amd64 (con y sin SFTP) y en arm y riscv64 emulados con QEMU.
+  - Dos arreglos encontrados al probar: la escritura SFTP se trocea (sshj
+    desbordaba la ventana del canal) y un `ACK` con el canal ya cerrado se
+    descarta.
+  - Pendiente: ver el job `agent` y los assets en la siguiente pre-release, y
+    👤 reiniciar `sshd` y borrar la cuenta de pruebas, que cierra también 9.4.
+    Siguiente: 9.6 ([[Diagnóstico cuando el nivel 3 no está disponible]]).
