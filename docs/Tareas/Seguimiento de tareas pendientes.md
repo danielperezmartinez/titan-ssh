@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-27T19:20:00+02:00
+Última modificación: 2026-09-27T19:40:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -495,3 +495,10 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   (las de Configuración y la de arriba, Configuración / Sesiones) se desplazan
   en horizontal si no caben, en vez de partir las etiquetas. Verificado en el
   emulador con pantalla y letra grandes. Siguiente: paso 10b.
+- 2026-09-27 — Entorno de pruebas: el servidor SSH de pruebas se conserva, como
+  la cuenta de Windows de 9.4. Su imagen está en `tools/test-sshd/` (usuario y
+  contraseña `demo`, solo en `127.0.0.1:2222`, `10.0.2.2:2222` desde el
+  emulador) y el contenedor solo se enciende y se apaga. Los ficheros de
+  Obsidian propios de cada equipo (disposición de ventanas y plugins de la
+  comunidad) pasan al `.gitignore`; la configuración compartida de la bóveda
+  (Bases, plantillas) sigue en git.

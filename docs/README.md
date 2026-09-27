@@ -161,7 +161,9 @@ nota-índice en `Catálogo técnico.md`.
      no con un Release ni lanzando el workflow a mano. El agente enseña al
      usuario capturas del emulador (ficheros o carpeta) y deja el emulador
      abierto con la app instalada y un destino de pruebas preparado, para que
-     el usuario la pruebe él mismo. Con eso el usuario decide si se publica, y
+     el usuario la pruebe él mismo. El destino es el servidor SSH de pruebas
+     de `tools/test-sshd/` (un contenedor que se conserva y solo se enciende
+     y se apaga). Con eso el usuario decide si se publica, y
      la verificación "en dispositivo" de una tarea queda cubierta.
   1. `main` con todo subido y el árbol limpio. Se revisa el diff según la
      regla 5.

@@ -35,5 +35,9 @@ docs/**/Screenshot_*.png
 *.jks
 *.keystore
 
-# Obsidian's per-machine window layout (open tabs, panes); rewritten on every use
-docs/.obsidian/workspace.json
+# Obsidian's per-machine state: window layout (rewritten on every use) and the
+# community plugins each machine installs. The shared vault config (core
+# plugins such as Bases, templates, links, appearance) stays versioned.
+docs/.obsidian/workspace*.json
+docs/.obsidian/community-plugins.json
+docs/.obsidian/plugins/
