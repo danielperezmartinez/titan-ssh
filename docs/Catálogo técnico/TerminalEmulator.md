@@ -7,8 +7,8 @@ Estado: "Vigente"
 Ámbito: "Feature"
 Fuente: "shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/TerminalEmulator.kt"
 Entrada pública: "io.github.danielperezmartinez.titanssh.terminal"
-Resumen: "Emulador VT100/ANSI pragmático, libre de tipos Compose (testeable headless). feed(bytes) parsea texto UTF-8, controles C0, CSI de cursor/borrado (ED/EL/ECH), edición de líneas/caracteres (IL/DL/ICH/DCH), pantalla alterna (47/1047/1049, sin scrollback propio), regiones de scroll (DECSTBM) con LF/RI/SU/SD conscientes de la región, SGR (negrita, inverso, 16 colores, indexado 38/48;5 y true-color 38/48;2) y guardar/restaurar cursor; consume-e-ignora OSC y los modos privados DEC que no maneja. resize(cols,rows) (redimensiona también la pantalla guardada; resetea la región) y snapshot() → TerminalSnapshot inmutable (scrollback acotado + rejilla + cursor). Suficiente para apps de pantalla completa (tmux/screen, vim, less, htop). Aún fuera: origin mode (DECOM), tab-stops, charsets. La paleta a color Compose la aporta AnsiPalette."
-Última modificación: 2026-09-24T12:00:00+02:00
+Resumen: "Emulador VT100/xterm pragmático, libre de tipos Compose (testeable headless). feed(bytes) parsea UTF-8 completo (los glifos anchos CJK/emoji ocupan dos celdas; las marcas combinantes se descartan), controles C0, autowrap diferido (DECAWM), CSI de cursor (CUU/CUD/CUF/CUB/CNL/CPL/CUP/CHA/VPA), borrado (ED/EL/ECH), edición (IL/DL/ICH/DCH/REP), pantalla alterna (47/1047/1049, sin scrollback propio), regiones de scroll (DECSTBM), SGR (negrita, tenue, cursiva, subrayado, inverso, invisible, tachado, 16/256 colores y true-color), guardar/restaurar cursor, visibilidad del cursor (DECTCEM), teclas de cursor de aplicación (DECCKM) y pegado entre corchetes; responde a DSR y DA por takeResponses(). Marca las filas que continúan por ajuste (TerminalRow.wrapped), así que resize() reajusta la pantalla principal y el scrollback al nuevo ancho, empuja filas al scrollback o las recupera al cambiar el alto y mantiene la línea del cursor; la pantalla alterna solo se recorta. eraseLinesMatching(regex) quita líneas (salvo la del cursor) para ocultar las de la automatización. snapshot() es barato: comparte filas inmutables sin cambios y el scrollback si no creció. Fuera: DECOM, modo inserción, tab-stops, charsets. La paleta la aporta AnsiPalette."
+Última modificación: 2026-09-28T11:05:00+02:00
 ---
 
 # TerminalEmulator
@@ -39,3 +39,6 @@ Notas de contrato:
 Entregado en [[Terminal multipestaña con sesiones simultáneas]]; pantalla alterna,
 regiones de scroll y edición de líneas/caracteres añadidas en
 [[Resiliencia nivel 2 auto-tmux o screen]].
+
+Reajuste de líneas al redimensionar, glifos anchos, modos DECTCEM/DECCKM/pegado entre corchetes, respuestas DSR/DA y snapshots que comparten filas añadidos en
+[[Terminal fluida con ajuste de líneas y sin rastro de la automatización]].

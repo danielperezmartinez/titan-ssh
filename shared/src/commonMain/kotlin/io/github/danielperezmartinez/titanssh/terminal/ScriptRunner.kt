@@ -62,6 +62,10 @@ enum class RunStatus {
  *   Windows destination (`cmd.exe`, PowerShell) runs them too. Script bodies
  *   are sent as written: they must already be in that shell's language.
  *
+ * The sentinel lines never reach the user on a POSIX destination: the tab
+ * erases every terminal line carrying a sentinel token (see
+ * `SessionTab.concealAutomation`).
+ *
  * ## Known limitation
  * `silent` cannot be enforced over a shared PTY (the remote echoes input); it is
  * accepted but not yet suppressed. Awaited commands must return to a prompt —

@@ -237,4 +237,129 @@ class TerminalEmulatorTest {
         assertEquals('B', s.screen[0][0].char)
         assertEquals(' ', s.screen[2][0].char)
     }
+
+    private fun TerminalEmulator.text(): List<String> {
+        val s = snapshot()
+        return (s.scrollback + s.screen).map { row -> row.filter { it.width != 0 }.joinToString("") { it.text }.trimEnd() }
+    }
+
+    @Test
+    fun narrowing_reflows_a_long_line_instead_of_cutting_it() {
+        val e = TerminalEmulator(10, 4)
+        e.feed(bytes("0123456789abcdefghij\r\n$ "))
+        e.resize(5, 4)
+        assertEquals(listOf("01234", "56789", "abcde", "fghij", "$"), e.text().filter { it.isNotEmpty() })
+        val s = e.snapshot()
+        assertEquals(2, s.cursorColumn, "the cursor stays after the prompt")
+        assertEquals("$", s.screen[s.cursorRow].joinToString("") { it.text }.trimEnd())
+    }
+
+    @Test
+    fun widening_rejoins_soft_wrapped_lines() {
+        val e = TerminalEmulator(5, 4)
+        e.feed(bytes("0123456789\r\nok"))
+        e.resize(12, 4)
+        val s = e.snapshot()
+        assertEquals("0123456789", s.screen[0].joinToString("") { it.text }.trimEnd())
+        assertEquals("ok", s.screen[1].joinToString("") { it.text }.trimEnd())
+        assertEquals(1, s.cursorRow)
+        assertEquals(2, s.cursorColumn)
+    }
+
+    @Test
+    fun shorter_screen_pushes_rows_to_scrollback_and_keeps_the_cursor() {
+        val e = TerminalEmulator(10, 6)
+        e.feed(bytes("a\r\nb\r\nc\r\nd\r\ne\r\n$ "))
+        e.resize(10, 3)
+        val s = e.snapshot()
+        assertEquals(listOf("a", "b", "c"), s.scrollback.map { r -> r.joinToString("") { it.text }.trimEnd() })
+        assertEquals("$", s.screen[2].joinToString("") { it.text }.trimEnd())
+        assertEquals(2, s.cursorRow)
+
+        e.resize(10, 6) // taller again: the pushed rows come back
+        val back = e.snapshot()
+        assertEquals(0, back.scrollback.size)
+        assertEquals('a', back.screen[0][0].char)
+        assertEquals(5, back.cursorRow)
+    }
+
+    @Test
+    fun wide_glyph_takes_two_cells_and_wraps_whole() {
+        val e = TerminalEmulator(5, 2)
+        e.feed(bytes("abcd漢"))
+        val s = e.snapshot()
+        assertEquals(' ', s.screen[0][4].char, "no room for both halves: padded")
+        assertEquals('漢'.code, s.screen[1][0].codePoint)
+        assertEquals(2, s.screen[1][0].width)
+        assertEquals(0, s.screen[1][1].width)
+        assertEquals(2, s.cursorColumn)
+    }
+
+    @Test
+    fun decodes_code_points_beyond_the_bmp() {
+        val e = TerminalEmulator(10, 1)
+        e.feed(bytes("🚀x")) // 🚀
+        val s = e.snapshot()
+        assertEquals(0x1F680, s.screen[0][0].codePoint)
+        assertEquals("🚀", s.screen[0][0].text)
+        assertEquals('x', s.screen[0][2].char)
+    }
+
+    @Test
+    fun cursor_visibility_and_modes_are_reported() {
+        val e = TerminalEmulator(10, 2)
+        e.feed(esc("[?25l")); e.feed(esc("[?1h")); e.feed(esc("[?2004h"))
+        var s = e.snapshot()
+        assertEquals(false, s.cursorVisible)
+        assertEquals(true, s.applicationCursorKeys)
+        assertEquals(true, s.bracketedPaste)
+        e.feed(esc("[?25h"))
+        s = e.snapshot()
+        assertEquals(true, s.cursorVisible)
+    }
+
+    @Test
+    fun answers_cursor_position_and_device_attribute_queries() {
+        val e = TerminalEmulator(10, 5)
+        e.feed(esc("[3;4H")); e.feed(esc("[6n")); e.feed(esc("[c"))
+        assertEquals("\u001B[3;4R\u001B[?1;2c", e.takeResponses()?.decodeToString())
+        assertEquals(null, e.takeResponses())
+    }
+
+    @Test
+    fun last_column_write_defers_the_wrap() {
+        val e = TerminalEmulator(3, 2)
+        e.feed(bytes("abc"))
+        var s = e.snapshot()
+        assertEquals(0, s.cursorRow, "writing the last column does not wrap yet")
+        e.feed(bytes("\r\n"))
+        s = e.snapshot()
+        assertEquals(1, s.cursorRow, "so CR LF after a full line leaves no blank line")
+    }
+
+    @Test
+    fun erases_matching_lines_but_not_the_cursor_line() {
+        val e = TerminalEmulator(20, 5)
+        e.feed(bytes("keep\r\n$ echo __TOK__\r\n__TOK__:0\r\n$ "))
+        val pattern = Regex("__TOK__")
+        assertEquals(false, e.eraseLinesMatching(pattern))
+        assertEquals(listOf("keep", "$"), e.text().filter { it.isNotEmpty() })
+        assertEquals(1, e.snapshot().cursorRow)
+
+        e.feed(bytes("typing __TOK__"))
+        assertEquals(true, e.eraseLinesMatching(pattern), "the cursor line waits")
+        assertEquals("$ typing __TOK__", e.text().last { it.isNotEmpty() })
+    }
+
+    @Test
+    fun erasing_a_line_pulls_scrollback_down_on_a_full_screen() {
+        val e = TerminalEmulator(10, 3)
+        e.feed(bytes("old\r\nx __TOK__\r\nnew\r\n$ "))
+        assertEquals(1, e.snapshot().scrollback.size)
+        e.eraseLinesMatching(Regex("__TOK__"))
+        val s = e.snapshot()
+        assertEquals(0, s.scrollback.size)
+        assertEquals(listOf("old", "new", "$"), s.screen.map { r -> r.joinToString("") { it.text }.trimEnd() })
+        assertEquals(2, s.cursorRow)
+    }
 }

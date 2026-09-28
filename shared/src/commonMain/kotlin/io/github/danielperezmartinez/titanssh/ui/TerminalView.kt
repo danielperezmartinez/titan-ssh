@@ -22,9 +22,9 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.rememberScrollableState
+import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
@@ -32,11 +32,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -55,44 +57,41 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.danielperezmartinez.titanssh.config.SessionScript
 import io.github.danielperezmartinez.titanssh.terminal.AccessoryKey
 import io.github.danielperezmartinez.titanssh.terminal.AgentDiagnostics
-import io.github.danielperezmartinez.titanssh.terminal.AnsiPalette
 import io.github.danielperezmartinez.titanssh.terminal.DefaultAccessoryKeys
 import io.github.danielperezmartinez.titanssh.terminal.EffectiveLevel
 import io.github.danielperezmartinez.titanssh.terminal.ModifierKind
 import io.github.danielperezmartinez.titanssh.terminal.ResilienceStatus
 import io.github.danielperezmartinez.titanssh.terminal.SessionTab
 import io.github.danielperezmartinez.titanssh.terminal.TabPhase
-import io.github.danielperezmartinez.titanssh.terminal.TermColor
-import io.github.danielperezmartinez.titanssh.terminal.TerminalCell
 import io.github.danielperezmartinez.titanssh.terminal.TerminalKeys
-import io.github.danielperezmartinez.titanssh.terminal.TerminalLine
 import io.github.danielperezmartinez.titanssh.terminal.TerminalMultiplexer
 import io.github.danielperezmartinez.titanssh.terminal.TunnelState
 import io.github.danielperezmartinez.titanssh.terminal.TunnelStatus
 import io.github.danielperezmartinez.titanssh.terminal.isAndroidRuntime
 import io.github.danielperezmartinez.titanssh.theme.TitanColors
 import io.github.danielperezmartinez.titanssh.theme.TitanDimens
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
-private fun packedToColor(packed: Int): Color =
-    Color(0xFF000000L.toInt() or (packed and 0xFFFFFF))
-
-private val TerminalFg = packedToColor(AnsiPalette.DEFAULT_FG)
-private val TerminalBgColor = packedToColor(AnsiPalette.DEFAULT_BG)
+/**
+ * How long the pane size must hold still before the grid is resized. While the
+ * soft keyboard slides in the pane changes every frame; resizing the PTY on
+ * each of them made the remote redraw over and over.
+ */
+private const val RESIZE_SETTLE_MILLIS = 150L
 
 /**
  * Renders one [SessionTab]: the terminal grid, a status/host-key overlay, and
@@ -106,7 +105,6 @@ private val TerminalBgColor = packedToColor(AnsiPalette.DEFAULT_BG)
  */
 @Composable
 fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier, scripts: List<SessionScript> = emptyList()) {
-    val snapshot by tab.snapshot.collectAsState()
     val status by tab.status.collectAsState()
     val resilience by tab.resilience.collectAsState()
     val tunnels by tab.tunnels.collectAsState()
@@ -128,8 +126,13 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier, scripts: List<S
     val keyboardFocus = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
 
+    val viewport = remember(tab.id) { TerminalViewport() }
+
+    // Typing returns to the live screen; cursor keys follow the remote's DECCKM.
     fun send(bytes: ByteArray) {
-        scope.launch { tab.sendBytes(bytes) }
+        viewport.toBottom()
+        val out = TerminalKeys.inCursorMode(bytes, tab.snapshot.value.applicationCursorKeys)
+        scope.launch { tab.sendBytes(out) }
     }
 
     // Applies sticky Ctrl/Alt to a typed string, then clears them.
@@ -144,44 +147,30 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier, scripts: List<S
         send(bytes)
     }
 
-    // Cell metrics come from an invisible probe Text rendered inside the grid Box
-    // (see below) via onTextLayout, NOT from a pre-measuring TextMeasurer. The
-    // measurer has an internal layout cache that keeps returning the pre-load
-    // result: on the first frame the font resolver hands back the platform
-    // proportional fallback (where 'M' is far wider than the real monospace
-    // advance), and that stale, too-wide width sticks. Meanwhile the grid itself
-    // renders the bundled JetBrains Mono once it loads. The mismatch made the PTY
-    // too narrow (fewer columns than fit), so the remote wrapped early and wasted
-    // the right of the screen. Measuring through the same render path keeps the
-    // column count in sync with the glyphs actually drawn, and onTextLayout fires
-    // again when the font finishes loading.
+    // The grid is painted cell by cell (TerminalCanvas), so the column count only
+    // depends on the monospace advance, measured once the bundled font is in.
     val density = LocalDensity.current
-    var cellWidthPx by remember(fontSize, monoFamily) { mutableStateOf(0f) }
-    var cellHeightPx by remember(fontSize, monoFamily) { mutableStateOf(0f) }
-    // The grid draws inside a LazyColumn padded by SpaceXs on each side; discount
-    // it so the column count matches the real text width, not the pane width.
-    val gridHorizontalPaddingPx = with(density) { (TitanDimens.SpaceXs * 2).toPx() }
-
-    // Keep the raw pane size in state and derive columns/rows from it together
-    // with the cell metrics. Deriving (rather than computing inside onSizeChanged)
-    // means a later cell-size change — e.g. the bundled font finishing loading —
-    // recomputes the grid and re-issues resize, even though the pane size itself
-    // did not change.
-    var paneSize by remember { mutableStateOf(IntSize.Zero) }
-    val columns = if (paneSize.width > 0 && cellWidthPx > 0f) {
-        val usableWidth = (paneSize.width - gridHorizontalPaddingPx).coerceAtLeast(cellWidthPx)
-        (usableWidth / cellWidthPx).toInt().coerceAtLeast(1)
-    } else {
-        80
+    val textStyle = remember(monoFamily, fontSize) {
+        TextStyle(fontFamily = monoFamily, fontSize = fontSize, color = TerminalFg)
     }
-    val rows = if (paneSize.height > 0 && cellHeightPx > 0f) {
-        (paneSize.height / cellHeightPx).toInt().coerceAtLeast(1)
-    } else {
-        24
-    }
+    val cell = rememberCellMetrics(textStyle)
+    val paddingX = with(density) { TitanDimens.SpaceXs.toPx() }
 
-    LaunchedEffect(columns, rows, tab.id) {
-        tab.resize(columns, rows)
+    // Resize the grid (emulator + PTY) from the pane size, but only once it holds
+    // still: the first size goes at once, later ones after RESIZE_SETTLE_MILLIS.
+    // The pane size is read here and in the draw phase only, never in
+    // composition, so a sliding keyboard does not recompose the screen per frame.
+    LaunchedEffect(tab.id, cell, paddingX) {
+        var settled = false
+        snapshotFlow { viewport.paneSize }
+            .filter { it.width > 0 && it.height > 0 }
+            .map { gridFor(it, cell, paddingX) }
+            .distinctUntilChanged()
+            .collectLatest { (columns, rows) ->
+                if (settled) delay(RESIZE_SETTLE_MILLIS)
+                settled = true
+                tab.resize(columns, rows)
+            }
     }
 
     // imePadding shrinks the terminal above the soft keyboard (with adjustResize)
@@ -228,10 +217,15 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier, scripts: List<S
             Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .onSizeChanged { size -> paneSize = size }
+                .onSizeChanged { size -> viewport.paneSize = size }
                 .focusRequester(focusRequester)
                 .focusable()
                 .onPreviewKeyEvent { event -> handleKeyEvent(event, { send(it) }, { sendTyped(it) }) }
+                // Drag or wheel through the scrollback; new input returns to the bottom.
+                .scrollable(
+                    orientation = Orientation.Vertical,
+                    state = rememberScrollableState { delta -> viewport.scrollBy(delta) },
+                )
                 // No ripple: the touch only focuses/raises the keyboard; a Material
                 // indication would break the flat, chrome-free terminal aesthetic.
                 .clickable(
@@ -246,25 +240,14 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier, scripts: List<S
                     }
                 },
         ) {
-            TerminalGrid(
-                lines = remember(snapshot) { snapshot.scrollback + snapshot.screen },
-                cursorLineIndex = snapshot.scrollback.size + snapshot.cursorRow,
-                cursorColumn = snapshot.cursorColumn,
+            TerminalCanvas(
+                snapshots = tab.snapshot,
+                viewport = viewport,
+                style = textStyle,
+                cell = cell,
+                paddingX = paddingX,
                 showCursor = status.phase == TabPhase.CONNECTED,
-                monoFamily = monoFamily,
-                fontSize = fontSize,
-                // Derive the cell advance from the lines the grid actually renders
-                // (same font/size/pipeline), not a standalone probe: a static probe
-                // is measured once on the first frame with the proportional fallback
-                // and never re-fires, whereas the grid re-lays-out with the bundled
-                // font once it loads. We ignore clamped lines (width == usable) so a
-                // full-width line cannot underestimate the advance.
-                onCellMetrics = { width, chars, height ->
-                    if (chars > 0 && width > 0f && width < paneSize.width - gridHorizontalPaddingPx) {
-                        cellWidthPx = width / chars
-                        if (height > 0) cellHeightPx = height.toFloat()
-                    }
-                },
+                modifier = Modifier.fillMaxSize(),
             )
         }
 
@@ -272,7 +255,10 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier, scripts: List<S
 
         if (isAndroidRuntime()) {
             Hairline()
-            val keyboardVisible = WindowInsets.ime.getBottom(density) > 0
+            // Derived, so only a visible/hidden flip recomposes, not every frame
+            // of the keyboard animation.
+            val ime = WindowInsets.ime
+            val keyboardVisible by remember(ime, density) { derivedStateOf { ime.getBottom(density) > 0 } }
             AndroidInputBar(
                 keyboardFocus = keyboardFocus,
                 keyboardVisible = keyboardVisible,
@@ -296,7 +282,9 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier, scripts: List<S
                 onText = { text -> sendTyped(text) },
                 onEnter = { send(TerminalKeys.special(TerminalKeys.SpecialKey.ENTER)) },
                 onBackspace = { send(TerminalKeys.special(TerminalKeys.SpecialKey.BACKSPACE)) },
-                onPaste = { clipboard.getText()?.text?.let { send(TerminalKeys.text(it)) } },
+                onPaste = {
+                    clipboard.getText()?.text?.let { send(TerminalKeys.paste(it, tab.snapshot.value.bracketedPaste)) }
+                },
             )
         }
     }
@@ -359,81 +347,6 @@ private fun codePointToString(codePoint: Int): String =
         val v = codePoint - 0x10000
         charArrayOf((0xD800 + (v shr 10)).toChar(), (0xDC00 + (v and 0x3FF)).toChar()).concatToString()
     }
-
-@Composable
-private fun TerminalGrid(
-    lines: List<TerminalLine>,
-    cursorLineIndex: Int,
-    cursorColumn: Int,
-    showCursor: Boolean,
-    monoFamily: FontFamily,
-    fontSize: androidx.compose.ui.unit.TextUnit,
-    onCellMetrics: (width: Float, chars: Int, height: Int) -> Unit = { _, _, _ -> },
-) {
-    val listState = rememberLazyListState()
-    LaunchedEffect(lines) {
-        if (lines.isNotEmpty()) listState.scrollToItem(lines.size - 1)
-    }
-    LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(horizontal = TitanDimens.SpaceXs)) {
-        itemsIndexed(lines) { index, line ->
-            val cursor = if (showCursor && index == cursorLineIndex) cursorColumn else -1
-            Text(
-                text = renderLine(line, cursor),
-                fontFamily = monoFamily,
-                fontSize = fontSize,
-                color = TerminalFg,
-                softWrap = false,
-                maxLines = 1,
-                // Report this rendered row's width and glyph count so the caller can
-                // derive the true monospace advance from what is actually drawn.
-                onTextLayout = { result ->
-                    if (line.isNotEmpty()) onCellMetrics(result.size.width.toFloat(), line.size, result.size.height)
-                },
-            )
-        }
-    }
-}
-
-/** Builds a colored, single-line [AnnotatedString] from a row of cells. */
-private fun renderLine(line: TerminalLine, cursorColumn: Int): AnnotatedString = buildAnnotatedString {
-    if (line.isEmpty()) {
-        append(" ")
-        return@buildAnnotatedString
-    }
-    line.forEachIndexed { col, cell ->
-        val isCursor = col == cursorColumn
-        val (fg, bg) = cellColors(cell, isCursor)
-        withStyle(
-            SpanStyle(
-                color = fg,
-                background = bg ?: Color.Unspecified,
-                fontWeight = if (cell.bold) FontWeight.Bold else FontWeight.Normal,
-            ),
-        ) {
-            append(if (cell.char == ' ') ' ' else cell.char)
-        }
-    }
-}
-
-/** Resolves a cell's foreground and (optional) background, honoring inverse and the cursor. */
-private fun cellColors(cell: TerminalCell, isCursor: Boolean): Pair<Color, Color?> {
-    var fgPacked = AnsiPalette.resolve(cell.fg, AnsiPalette.DEFAULT_FG)
-    var bgIsDefault = cell.bg == TermColor.Default
-    var bgPacked = AnsiPalette.resolve(cell.bg, AnsiPalette.DEFAULT_BG)
-
-    if (cell.inverse) {
-        val tmp = fgPacked
-        fgPacked = bgPacked
-        bgPacked = tmp
-        bgIsDefault = false
-    }
-    if (isCursor) {
-        // Cursor block: paint the cell with the accent, dark glyph.
-        return TerminalBgColor to packedToColor(AnsiPalette.CURSOR)
-    }
-    val bg = if (bgIsDefault) null else packedToColor(bgPacked)
-    return packedToColor(fgPacked) to bg
-}
 
 /**
  * A thin strip showing the tab's connection phase with a semantic marker/color,

@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-28T09:30:09+02:00
+Última modificación: 2026-09-28T11:10:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -155,6 +155,10 @@ mismo commit).
     2026-09-28)
   - Encontrado por el usuario desde el Pixel: la ruta inicial y los scripts de
     inicio escribían sintaxis POSIX que `cmd.exe` no ejecutaba.
+- [ ] **10e. Terminal fluida** 👤 (el usuario confirma en el emulador)
+  - [[Terminal fluida con ajuste de líneas y sin rastro de la automatización]]
+  - Encontrado por el usuario en el emulador: el centinela `__TITAN_…__` a la
+    vista, líneas largas cortadas por la derecha y tirones con el teclado.
 
 ### Fase 5 · Distribución pública
 
@@ -573,3 +577,8 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   Verificado con tests y en el emulador contra el `sshd` de Windows del PC de
   desarrollo (niveles 1 y 3). El usuario lo probó en el emulador y confirma
   que funciona: tarea `Hecha`.
+- 2026-09-28 — **Paso 10e** abierto: centinela a la vista, líneas cortadas y
+  tirones en la terminal. La fuente mono no llegaba al APK de Android. Terminal
+  rehecha (reajuste de líneas, pintado en Canvas, resize con espera) y
+  centinela oculto. Verificado con tests y en el emulador; falta la
+  confirmación del usuario.

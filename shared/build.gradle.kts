@@ -128,6 +128,14 @@ kotlin {
         compileSdk = libs.versions.android.compileSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
 
+        // Compose resources (the bundled JetBrains Mono) reach an Android app
+        // only as assets, and this library plugin packages none unless Android
+        // resources are on. Without it every Font() silently fell back to the
+        // proportional system font on Android.
+        androidResources {
+            enable = true
+        }
+
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_17)
         }

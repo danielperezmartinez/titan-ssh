@@ -57,6 +57,26 @@ object TerminalKeys {
     /** Encodes Alt/Meta + [text]: ESC prefix followed by the characters. */
     fun alt(text: String): ByteArray = byteArrayOf(0x1B) + text.encodeToByteArray()
 
+    /**
+     * Rewrites a cursor key ([SpecialKey.UP]…[SpecialKey.LEFT], HOME, END) from
+     * `ESC [ x` to `ESC O x` when the remote asked for application cursor keys
+     * (`DECCKM`), as vim, less or tmux do. Anything else passes unchanged.
+     */
+    fun inCursorMode(bytes: ByteArray, application: Boolean): ByteArray {
+        if (!application || bytes.size != 3 || bytes[0] != 0x1B.toByte() || bytes[1] != '['.code.toByte()) return bytes
+        return if (bytes[2].toInt().toChar() in "ABCDHF") byteArrayOf(0x1B, 'O'.code.toByte(), bytes[2]) else bytes
+    }
+
+    /**
+     * Encodes pasted [text]: line breaks become the CR that Enter sends, and the
+     * whole text is framed as a bracketed paste when the remote enabled it, so a
+     * shell does not run each pasted line as it arrives.
+     */
+    fun paste(text: String, bracketed: Boolean): ByteArray {
+        val body = text.replace("\r\n", "\r").replace('\n', '\r')
+        return (if (bracketed) "\u001B[200~$body\u001B[201~" else body).encodeToByteArray()
+    }
+
     private fun csi(tail: String): ByteArray = ("[" + tail).encodeToByteArray()
 }
 

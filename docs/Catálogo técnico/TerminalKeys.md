@@ -7,8 +7,8 @@ Estado: "Vigente"
 Ámbito: "Feature"
 Fuente: "shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/TerminalKeys.kt"
 Entrada pública: "io.github.danielperezmartinez.titanssh.terminal"
-Resumen: "Traducción pura de pulsaciones a los bytes que espera el PTY: teclas especiales (Esc, Tab, Enter, Backspace, flechas…), combinaciones Ctrl-x y Alt-x, y texto normal. Define además el layout de la barra de teclas accesorias de Android (Esc, Tab, Ctrl/Alt pegajosos, flechas y símbolos | / - ~). Sin dependencias de Compose ni de plataforma, para poder probarlo headless (TerminalKeysTest)."
-Última modificación: 2026-09-24T12:00:00+02:00
+Resumen: "Traducción pura de pulsaciones a los bytes que espera el PTY: teclas especiales (Esc, Tab, Enter, Backspace, flechas…), combinaciones Ctrl-x y Alt-x, y texto normal; inCursorMode reescribe las flechas a ESC O x cuando el remoto pide teclas de cursor de aplicación (DECCKM) y paste enmarca el texto pegado como bracketed paste si está activo. Define además el layout de la barra de teclas accesorias de Android (Esc, Tab, Ctrl/Alt pegajosos, flechas y símbolos | / - ~). Sin dependencias de Compose ni de plataforma, para poder probarlo headless (TerminalKeysTest)."
+Última modificación: 2026-09-28T11:05:00+02:00
 ---
 
 # TerminalKeys

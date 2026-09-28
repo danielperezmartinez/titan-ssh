@@ -592,10 +592,37 @@ class SessionTab(
     /** Feeds raw output bytes into the emulator and refreshes the snapshot. Used by
      *  both the shell pump and the level-3 [AgentTransport]. */
     private suspend fun feedBytes(bytes: ByteArray) {
-        emulatorLock.withLock {
+        val replies = emulatorLock.withLock {
             emulator.feed(bytes)
+            concealAutomation(bytes)
             _snapshot.value = emulator.snapshot()
+            emulator.takeResponses()
         }
+        // Status queries (cursor position, device attributes) some shells wait on.
+        if (replies != null) sendBytes(replies)
+    }
+
+    /** Last bytes of the previous chunk, so a marker split across two chunks is still seen. */
+    private var markerCarry = ByteArray(0)
+
+    /** A marker line was still being written; look again on the next chunk. */
+    private var concealPending = false
+
+    /**
+     * Hides the automation's own lines from the terminal: the completion
+     * sentinels of [ScriptRunner] and the probes of [TerminalMultiplexer], both
+     * the echoed command and what it prints. They are typed into the user's
+     * shell because only the shell knows when a command ends, but they mean
+     * nothing to the user. Only on a POSIX destination: a Windows console
+     * (ConPTY) repaints by absolute position and would not match a screen with
+     * lines taken out. Inside tmux/screen (the alternate screen) the lines stay.
+     */
+    private fun concealAutomation(bytes: ByteArray) {
+        if (remoteShell != null && remoteShell != RemoteShell.POSIX) return
+        val window = markerCarry + bytes
+        markerCarry = window.copyOfRange(maxOf(0, window.size - MARKER_PREFIX.size + 1), window.size)
+        if (!concealPending && !window.containsAscii(MARKER_PREFIX)) return
+        concealPending = emulator.eraseLinesMatching(AUTOMATION_LINE)
     }
 
     /**
@@ -672,3 +699,18 @@ class SessionTab(
 
 /** How long the shell probe may take before the automation assumes a POSIX shell. */
 private const val SHELL_PROBE_TIMEOUT_MILLIS = 5_000L
+
+/** What every automation marker starts with: `__TITAN_…__` sentinels and `TITANMUX_…` probes. */
+private val MARKER_PREFIX = "TITAN".encodeToByteArray()
+
+/** A line the automation typed or printed: it carries one of its random tokens. */
+private val AUTOMATION_LINE = Regex("__TITAN_[0-9a-f]{16}__|TITANMUX_[0-9a-f]{16}")
+
+private fun ByteArray.containsAscii(needle: ByteArray): Boolean {
+    if (needle.isEmpty() || size < needle.size) return false
+    outer@ for (i in 0..size - needle.size) {
+        for (j in needle.indices) if (this[i + j] != needle[j]) continue@outer
+        return true
+    }
+    return false
+}

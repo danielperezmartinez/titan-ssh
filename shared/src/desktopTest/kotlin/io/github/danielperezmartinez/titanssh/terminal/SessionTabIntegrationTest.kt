@@ -288,6 +288,8 @@ class SessionTabIntegrationTest {
                 }
                 snapshotText(tab).contains("PWD=/tmp")
             }
+            // Let the sentinel's echo and output arrive: the tab must hide both.
+            kotlinx.coroutines.delay(1_500)
 
             val text = snapshotText(tab)
             tab.close()
@@ -296,6 +298,7 @@ class SessionTabIntegrationTest {
 
             println("[integration] scripts snapshot tail: ${text.trim().takeLast(160)}")
             assertTrue(ran == true, "the start script should cd to /tmp and print PWD=/tmp; status=${tab.status.value}")
+            assertTrue(!text.contains("__TITAN_"), "the completion sentinel must not show in the terminal:\n$text")
         }
     }
 
