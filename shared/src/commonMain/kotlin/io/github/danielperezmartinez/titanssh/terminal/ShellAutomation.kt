@@ -20,12 +20,23 @@ class ShellIo internal constructor(
     val output: Flow<String>,
     /** Told which multiplexer the automation found, so the tab can show its effective level. */
     private val onMultiplexer: (TerminalMultiplexer.Kind) -> Unit = {},
+    /** Finds out which shell reads [send]'s input; asked at most once. */
+    private val detectShell: suspend () -> RemoteShell = { RemoteShell.POSIX },
 ) {
-    internal constructor(shell: SshShell, output: Flow<String>, onMultiplexer: (TerminalMultiplexer.Kind) -> Unit = {}) :
-        this({ bytes -> shell.send(bytes) }, output, onMultiplexer)
+    internal constructor(
+        shell: SshShell,
+        output: Flow<String>,
+        onMultiplexer: (TerminalMultiplexer.Kind) -> Unit = {},
+        detectShell: suspend () -> RemoteShell = { RemoteShell.POSIX },
+    ) : this({ bytes -> shell.send(bytes) }, output, onMultiplexer, detectShell)
+
+    private var shell: RemoteShell? = null
 
     /** Sends [text] to the shell verbatim (the caller adds any newline it needs). */
     suspend fun send(text: String) = sendBytes(text.encodeToByteArray())
+
+    /** The destination's shell (POSIX, `cmd.exe` or PowerShell), whose syntax automation must type. */
+    suspend fun remoteShell(): RemoteShell = shell ?: detectShell().also { shell = it }
 
     /** Reports the multiplexer the session runs in ([TerminalMultiplexer.Kind.NONE]: level 1). */
     internal fun reportMultiplexer(kind: TerminalMultiplexer.Kind) = onMultiplexer(kind)

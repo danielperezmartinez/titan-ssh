@@ -57,6 +57,10 @@ enum class RunStatus {
  *   a pattern before sending), `waitForCompletion` + `timeoutSeconds` (await a
  *   completion sentinel that also carries `$?`), and `onFailure` (CONTINUE vs
  *   ABORT the rest of the chain).
+ * - **Destination shell:** the `cd`, the exported variables, the completion
+ *   sentinel and the line endings follow [shell]'s syntax ([ShellSyntax]), so a
+ *   Windows destination (`cmd.exe`, PowerShell) runs them too. Script bodies
+ *   are sent as written: they must already be in that shell's language.
  *
  * ## Known limitation
  * `silent` cannot be enforced over a shared PTY (the remote echoes input); it is
@@ -68,6 +72,8 @@ class ScriptRunner(
     /** Resolves a secret ref to its value, or `null` if absent. */
     private val resolveSecret: suspend (ref: String) -> String?,
     private val defaultTimeoutSeconds: Int = 30,
+    /** The shell reading the input, whose syntax the generated commands use. */
+    private val shell: RemoteShell = RemoteShell.POSIX,
 ) {
     // Both braces escaped: Android's ICU regex engine rejects a bare `}`, which
     // the JVM accepts, and would fail every script run on Android.
@@ -96,8 +102,15 @@ class ScriptRunner(
             var aborted = false
 
             if (initialDirectory != null && initialDirectory.isNotBlank()) {
-                val cd = "cd -- ${singleQuote(initialDirectory)}"
-                val outcome = awaitCommand("__cd__", cd, timeoutMs(null), seen)
+                val cd = ShellSyntax.cd(shell, initialDirectory)
+                // Awaited only to gate the scripts after it: alone, the sentinel
+                // would just print noise into the user's terminal.
+                val outcome = if (scripts.isEmpty()) {
+                    io.send(ShellSyntax.lines(shell, cd))
+                    ScriptOutcome("__cd__", RunStatus.SENT)
+                } else {
+                    awaitCommand("__cd__", cd, timeoutMs(null), seen)
+                }
                 outcomes += outcome
                 if (outcome.isFailure()) aborted = true
             }
@@ -152,15 +165,14 @@ class ScriptRunner(
 
         val block = buildString {
             for ((key, raw) in script.envVars) {
-                append("export ").append(key).append('=')
-                append(singleQuote(render(raw, secrets)))
+                append(ShellSyntax.export(shell, key, render(raw, secrets)))
                 append('\n')
             }
             append(render(script.body, secrets))
         }
 
         if (!behavior.waitForCompletion) {
-            io.send(block + "\n")
+            io.send(ShellSyntax.lines(shell, block))
             return ScriptOutcome(script.id, RunStatus.SENT)
         }
         return awaitCommand(script.id, block, timeoutMs(behavior.timeoutSeconds), seen)
@@ -177,13 +189,13 @@ class ScriptRunner(
         seen: StateFlow<String>,
     ): ScriptOutcome {
         val token = "__TITAN_${randomToken()}__"
-        io.send(command + "\n")
-        // A separate line so `$?` reflects `command`, not the printf itself. The
-        // echoed printf line can't match the pattern (its tokens aren't adjacent
-        // to a number), only its actual output can.
-        io.send("printf '%s:%s:%s\\n' '$token' \"\$?\" '$token'\n")
+        io.send(ShellSyntax.lines(shell, command))
+        // A separate line so the status reflects `command`, not the sentinel
+        // itself. The echoed sentinel line can't match the pattern (its tokens
+        // aren't adjacent to a number), only its actual output can.
+        io.send(ShellSyntax.lines(shell, ShellSyntax.sentinel(shell, token)))
 
-        val regex = Regex("${Regex.escape(token)}:(-?\\d+):${Regex.escape(token)}")
+        val regex = ShellSyntax.sentinelPattern(token)
         val match = withTimeoutOrNull(timeoutMs) {
             var found: MatchResult? = null
             seen.first { s -> regex.find(s)?.also { found = it } != null }
@@ -210,9 +222,6 @@ class ScriptRunner(
         const val MAX_SEEN = 32_768
 
         fun trim(s: String): String = if (s.length <= MAX_SEEN) s else s.takeLast(MAX_SEEN)
-
-        /** Single-quotes [s] for POSIX shells, escaping embedded single quotes. */
-        fun singleQuote(s: String): String = "'" + s.replace("'", "'\\''") + "'"
 
         fun randomToken(): String =
             kotlin.random.Random.nextLong().toULong().toString(16).padStart(16, '0')

@@ -66,6 +66,7 @@ class SessionTabAgentDegradeTest {
         val shells = mutableListOf<FakeShell>()
         override suspend fun openShell(columns: Int, rows: Int): SshShell = FakeShell().also { shells += it }
         override suspend fun exec(command: String): SshExecChannel {
+            if (command == ShellSyntax.PROBE) return FakeProbeChannel()
             execs += command
             return front ?: error("no exec expected")
         }

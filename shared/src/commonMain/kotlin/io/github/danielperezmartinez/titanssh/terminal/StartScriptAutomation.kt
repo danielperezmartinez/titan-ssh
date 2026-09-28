@@ -39,6 +39,10 @@ import kotlinx.coroutines.withTimeoutOrNull
  * from the tab's scripts menu ([runOnDemand]). Out of scope here (by design):
  * [ScriptPhase.PRE_CONNECT_LOCAL] (no local executor yet).
  *
+ * The commands it types follow the destination's shell ([ShellIo.remoteShell]):
+ * a Windows destination gets `cmd.exe` or PowerShell syntax and never the
+ * multiplexer (tmux/screen are Unix-only).
+ *
  * Secrets are read from the [SecretStore] only at run time and passed straight
  * into the command; they are never written back to the config (ADR-0001).
  *
@@ -144,6 +148,11 @@ class StartScriptAutomation(
      * fresh one, or `null` if the destination has no multiplexer.
      */
     private suspend fun enterMultiplexer(io: ShellIo, session: Session): TerminalMultiplexer.Attach? {
+        // tmux/screen are Unix tools, and the probe itself is POSIX syntax.
+        if (io.remoteShell() != RemoteShell.POSIX) {
+            io.reportMultiplexer(TerminalMultiplexer.Kind.NONE)
+            return null
+        }
         val mux = TerminalMultiplexer(io)
         val kind = mux.detect()
         io.reportMultiplexer(kind)
@@ -184,6 +193,7 @@ class StartScriptAutomation(
         val runner = ScriptRunner(
             io = io,
             resolveSecret = { ref -> secretStore.get(SecretRef(ref))?.decodeToString() },
+            shell = io.remoteShell(),
         )
         runner.run(scripts, initialDirectory)
     }

@@ -7,8 +7,8 @@ Estado: "Vigente"
 Ámbito: "Feature"
 Fuente: "shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/ScriptRunner.kt"
 Entrada pública: "io.github.danielperezmartinez.titanssh.terminal"
-Resumen: "Motor de ejecución de los scripts de inicio de sesión al conectar y al reconectar, más el envoltorio en multiplexor (nivel 2). ScriptRunner (puro, testeable) recibe un ShellIo (send + tee de salida) y, sobre la shell viva, envía el cd inicial y los scripts en orden honrando ${ref} (solo secretos; el resto de ${...} lo expande la shell remota), export de envVars, delay, expect, waitForCompletion con centinela printf que arrastra $? y timeout, y onFailure CONTINUE/ABORT; devuelve un ScriptOutcome por unidad. StartScriptAutomation implementa el seam ShellAutomation: onShellReady selecciona las fases de conexión (ON_SHELL_START → POST_INIT); onReconnected replica según el ReconnectBehavior (NONE/RESTORE_CD_ONLY/RERUN_ALL); onAgentSessionCreated (nivel 3) corre la cadena de conexión cuando titan-agent crea un PTY nuevo, o el replay del ReconnectBehavior si ese PTY sustituye a uno perdido en un corte, sin multiplexor y nunca al reengancharse a un PTY vivo; runOnDemand envía un script elegido en el menú de la pestaña sin esperar a que termine (sin centinela), respetando delay, expect, envVars y secretos. ShellIo envía por el shell o, en nivel 3, por tramas INPUT. Nivel 2: si resilienceLevel>=AUTO_MULTIPLEXER y hay tmux/screen, TerminalMultiplexer detecta y hace attach-or-create de una sesión titan-<id> (re-engancha sin reejecutar si ya existía; degrada al nivel 1 si no hay multiplexor). Resuelve secretos del SecretStore solo en runtime. silent no se suprime aún; PRE_CONNECT_LOCAL fuera de alcance."
-Última modificación: 2026-09-27T17:30:00+02:00
+Resumen: "Motor de ejecución de los scripts de inicio de sesión al conectar y al reconectar, más el envoltorio en multiplexor (nivel 2). ScriptRunner (puro, testeable) recibe un ShellIo (send + tee de salida) y, sobre la shell viva, envía el cd inicial y los scripts en orden honrando ${ref} (solo secretos; el resto de ${...} lo expande la shell remota), export de envVars, delay, expect, waitForCompletion con centinela que arrastra el código de salida y timeout, y onFailure CONTINUE/ABORT; devuelve un ScriptOutcome por unidad. Escribe en la sintaxis de la shell del destino (ShellSyntax: POSIX, cmd.exe o PowerShell, con retorno de carro (CR) como Enter en Windows), que ShellIo.remoteShell() obtiene de una sonda por exec; un cd inicial sin scripts detrás va sin centinela. StartScriptAutomation implementa el seam ShellAutomation: onShellReady selecciona las fases de conexión (ON_SHELL_START → POST_INIT); onReconnected replica según el ReconnectBehavior (NONE/RESTORE_CD_ONLY/RERUN_ALL); onAgentSessionCreated (nivel 3) corre la cadena de conexión cuando titan-agent crea un PTY nuevo, o el replay del ReconnectBehavior si ese PTY sustituye a uno perdido en un corte, sin multiplexor y nunca al reengancharse a un PTY vivo; runOnDemand envía un script elegido en el menú de la pestaña sin esperar a que termine (sin centinela), respetando delay, expect, envVars y secretos. ShellIo envía por el shell o, en nivel 3, por tramas INPUT. Nivel 2: si resilienceLevel>=AUTO_MULTIPLEXER y hay tmux/screen, TerminalMultiplexer detecta y hace attach-or-create de una sesión titan-<id> (re-engancha sin reejecutar si ya existía; degrada al nivel 1 si no hay multiplexor). Resuelve secretos del SecretStore solo en runtime. silent no se suprime aún; PRE_CONNECT_LOCAL fuera de alcance."
+Última modificación: 2026-09-28T07:50:00+02:00
 ---
 
 # ScriptRunner
@@ -74,6 +74,19 @@ Contrato y colaboradores:
   ruta envía por tramas `INPUT` y su `output` es el mismo tee, alimentado con
   los `DATA` del agente. Aportado por
   [[Scripts de inicio por sesión sobre el agente]].
+
+- **Shell del destino**: los comandos que genera el runner (el `cd`, los
+  `envVars`, el centinela y el fin de línea) salen de
+  [ShellSyntax.kt](../../shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/ShellSyntax.kt)
+  según el `RemoteShell` del destino: POSIX (`cd --`, `export`, `printf` con
+  `$?`, `\n`), `cmd.exe` (`cd /d`, `set`, `echo %errorlevel%`, `\r`) o
+  PowerShell (`Set-Location -LiteralPath`, `$env:`, `$?`, `\r`).
+  `ShellIo.remoteShell()` la da; `SessionTab` la sondea una vez por pestaña
+  con un `exec` de `ShellSyntax.PROBE` y, si falla, supone POSIX. En Windows
+  no se entra en tmux/screen. El cuerpo de los scripts se envía tal cual.
+  Aportado por [[Ruta inicial y scripts de inicio en destinos Windows]].
+- **`cd` inicial solo**: si no hay scripts detrás se envía sin centinela; el
+  centinela solo sirve para decidir si se siguen ejecutando los scripts.
 
 Limitación: `silent` no es aplicable sobre una PTY compartida (la remota hace eco);
 se acepta pero no se suprime. Los comandos `waitForCompletion` deben volver al

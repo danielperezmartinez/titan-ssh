@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -196,6 +197,9 @@ class SessionTab(
      * reconnects go straight to the shell instead of retrying the agent.
      */
     private var agentUnavailable: AgentIssue? = null
+
+    /** The destination's shell once probed; the host stays the same across reconnects. */
+    private var remoteShell: RemoteShell? = null
 
     /** Set once by [close] so the reconnect loop stops instead of retrying. */
     private var closed = false
@@ -401,7 +405,7 @@ class SessionTab(
             // runs concurrently with painting so it can wait on prompts/sentinels.
             val tee = newTee()
             outputTee = tee
-            val io = ShellIo(newShell, tee.asSharedFlow(), ::onMultiplexer)
+            val io = ShellIo(newShell, tee.asSharedFlow(), ::onMultiplexer) { detectShell(opened) }
             liveIo = io
             launchAutomation {
                 if (reconnecting) automation.onReconnected(io, resolved)
@@ -457,7 +461,7 @@ class SessionTab(
         // automation's input goes out as INPUT frames.
         val tee = newTee()
         outputTee = tee
-        val io = ShellIo({ bytes -> agent?.sendInput(bytes) }, tee.asSharedFlow())
+        val io = ShellIo({ bytes -> agent?.sendInput(bytes) }, tee.asSharedFlow()) { detectShell(opened) }
         liveIo = io
         val transport = AgentTransport(
             session = opened,
@@ -531,6 +535,27 @@ class SessionTab(
         } else {
             _resilience.value.copy(lingerError = error)
         }
+    }
+
+    /**
+     * Which shell reads the tab's input, probed over an `exec` channel of
+     * [session] ([ShellSyntax.PROBE]): the sshd runs `exec` commands with the
+     * same shell it gives the PTY, and so does `titan-agent` on Windows. POSIX
+     * when the probe fails (not cached, so the next connection asks again).
+     */
+    private suspend fun detectShell(session: SshSession): RemoteShell {
+        remoteShell?.let { return it }
+        val output = withTimeoutOrNull(SHELL_PROBE_TIMEOUT_MILLIS) {
+            runCatching {
+                val channel = session.exec(ShellSyntax.PROBE)
+                try {
+                    channel.output.fold(StringBuilder()) { acc, chunk -> acc.append(chunk.decodeToString()) }.toString()
+                } finally {
+                    runCatching { channel.close() }
+                }
+            }.getOrNull()
+        } ?: return RemoteShell.POSIX
+        return ShellSyntax.parseProbe(output).also { remoteShell = it }
     }
 
     /** Runs [hook] concurrently with painting, replacing any automation still running. */
@@ -644,3 +669,6 @@ class SessionTab(
         }
     }
 }
+
+/** How long the shell probe may take before the automation assumes a POSIX shell. */
+private const val SHELL_PROBE_TIMEOUT_MILLIS = 5_000L

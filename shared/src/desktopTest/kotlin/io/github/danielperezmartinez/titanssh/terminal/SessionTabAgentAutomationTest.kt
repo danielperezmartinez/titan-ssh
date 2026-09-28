@@ -71,7 +71,8 @@ class SessionTabAgentAutomationTest {
         override val state = _state.asStateFlow()
         val agent = FakeAgent(created)
         override suspend fun openShell(columns: Int, rows: Int): SshShell = error("agent path only")
-        override suspend fun exec(command: String): SshExecChannel = agent
+        override suspend fun exec(command: String): SshExecChannel =
+            if (command == ShellSyntax.PROBE) FakeProbeChannel() else agent
         override suspend fun close() { _state.value = SshConnectionState.DISCONNECTED; agent.end() }
         /** Network micro-cut: the agent channel ends and the transport reports itself down. */
         fun drop() { _state.value = SshConnectionState.DISCONNECTED; agent.end() }

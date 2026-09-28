@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-28T14:30:00+02:00
+Última modificación: 2026-09-28T09:30:09+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -150,6 +150,11 @@ mismo commit).
   - Salen de dos hallazgos de las pruebas de 10b. *Juntas*: las dos tocan el
     ciclo de conexión de `SessionTab` y se prueban con el mismo servidor y el
     mismo emulador.
+- [x] **10d. Ruta inicial en destinos Windows**
+  - [[Ruta inicial y scripts de inicio en destinos Windows]] (`Hecha` el
+    2026-09-28)
+  - Encontrado por el usuario desde el Pixel: la ruta inicial y los scripts de
+    inicio escribían sintaxis POSIX que `cmd.exe` no ejecutaba.
 
 ### Fase 5 · Distribución pública
 
@@ -563,3 +568,8 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   el Release y confirma que funciona. Queda cerrada la comprobación del
   Release (paso 6 de la regla 4 del [[README]]). Siguiente: la fase 5, cuando
   el usuario quiera abrir la distribución pública.
+- 2026-09-28 — **Paso 10d** abierto y arreglado: la ruta inicial y los scripts
+  de inicio no funcionaban contra Windows (sintaxis POSIX y `\n` como Enter).
+  Verificado con tests y en el emulador contra el `sshd` de Windows del PC de
+  desarrollo (niveles 1 y 3). El usuario lo probó en el emulador y confirma
+  que funciona: tarea `Hecha`.
