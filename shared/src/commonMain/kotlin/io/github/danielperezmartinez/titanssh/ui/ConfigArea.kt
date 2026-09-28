@@ -54,9 +54,10 @@ private sealed interface Editor {
  * The "Configuración" area: manage and persist hosts, sessions, the script
  * library and groups. Lists route to full-screen editors; there is no Termius-
  * style layout (visual decision), just flat mono lists with ASCII markers.
+ * Opened from the header's `[*]`; [onBack] returns to Sesiones.
  */
 @Composable
-fun ConfigArea(controller: ConfigController, provisioner: SecretProvisioner) {
+fun ConfigArea(controller: ConfigController, provisioner: SecretProvisioner, onBack: () -> Unit) {
     val config by controller.state.collectAsState()
     var tab by remember { mutableStateOf(ConfigTab.HOSTS) }
     var editor by remember { mutableStateOf<Editor?>(null) }
@@ -66,6 +67,8 @@ fun ConfigArea(controller: ConfigController, provisioner: SecretProvisioner) {
         is Editor.SessionEdit -> SessionEditor(controller, current.id) { editor = null }
         is Editor.LibraryScriptEdit -> LibraryScriptEditor(controller, current.id) { editor = null }
         null -> Column(Modifier.fillMaxSize()) {
+            TopBar("Configuración", onBack)
+            Hairline()
             SubTabBar(tab) { tab = it }
             Hairline()
             Box(Modifier.fillMaxSize()) {

@@ -371,6 +371,25 @@ fun GlyphButton(
     }
 }
 
+/** A `[<]` back action and a title, the read-only counterpart of [EditorScaffold]'s bar. */
+@Composable
+fun TopBar(title: String, onBack: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = TitanDimens.SpaceSm, vertical = TitanDimens.SpaceSm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        GlyphButton("[<]", onClick = onBack, color = TitanColors.Body)
+        Text(
+            title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = TitanColors.Ink,
+            modifier = Modifier.weight(1f).padding(start = TitanDimens.SpaceSm),
+        )
+    }
+}
+
 /** Standard content padding for a scrollable editor/list body. */
 fun bodyPadding(): PaddingValues = PaddingValues(
     horizontal = TitanDimens.SpaceLg,

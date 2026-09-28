@@ -8,7 +8,7 @@ Consecuencias: La UI deja de pintar filas/CTAs con colores de estado; el verde/�
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-09-18T14:36:16+02:00
-Última modificación: 2026-09-24T14:00:00+02:00
+Última modificación: 2026-09-28T11:40:00+02:00
 ---
 
 # Vocabulario ASCII ampliado y disciplina de color semántico
@@ -37,6 +37,10 @@ Ampliación (todos ASCII, sin glifos Unicode como `✓`):
   `accent` mientras la pantalla está abierta). Añadido el 2026-09-24.
 - `[=]` — documento de texto que se abre para leer (licencia, avisos).
   Añadido el 2026-09-24.
+- `[*]` — ajustes / Configuración (acción de la cabecera a la derecha de
+  `[i]`, solo glifo; en `accent` mientras la pantalla está abierta). El
+  asterisco es el "engranaje" ASCII. Añadido el 2026-09-28; ver
+  [[Sesiones como inicio y Configuración desde la cabecera]].
 
 Regla: los marcadores son **ASCII imprimible dentro de brackets**; si hace falta
 uno nuevo, se añade aquí antes de usarlo, no ad hoc.

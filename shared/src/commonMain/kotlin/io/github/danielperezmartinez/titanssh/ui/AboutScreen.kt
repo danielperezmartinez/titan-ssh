@@ -128,25 +128,6 @@ private fun LegalTextViewer(text: LegalText, onBack: () -> Unit) {
     }
 }
 
-/** A `[<]` back action and a title, the read-only counterpart of [EditorScaffold]'s bar. */
-@Composable
-private fun TopBar(title: String, onBack: () -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = TitanDimens.SpaceSm, vertical = TitanDimens.SpaceSm),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        GlyphButton("[<]", onClick = onBack, color = TitanColors.Body)
-        Text(
-            title,
-            style = MaterialTheme.typography.bodyLarge,
-            color = TitanColors.Ink,
-            modifier = Modifier.weight(1f).padding(start = TitanDimens.SpaceSm),
-        )
-    }
-}
-
 /** An external link: accent text (links are an interaction, visual decision) with a touch-sized target. */
 @Composable
 private fun Link(text: String, onClick: () -> Unit) {

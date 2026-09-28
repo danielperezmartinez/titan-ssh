@@ -1,22 +1,14 @@
 package io.github.danielperezmartinez.titanssh.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -28,7 +20,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
 import io.github.danielperezmartinez.titanssh.config.ConfigController
 import io.github.danielperezmartinez.titanssh.config.createConfigStore
 import io.github.danielperezmartinez.titanssh.secret.SecretProvisioner
@@ -44,16 +35,17 @@ import io.github.danielperezmartinez.titanssh.theme.TitanColors
 import io.github.danielperezmartinez.titanssh.theme.TitanDimens
 import io.github.danielperezmartinez.titanssh.theme.TitanTheme
 
-/** Top-level product areas (visual decision: Configuración vs Sesiones). */
-private enum class Area(val label: String) {
-    CONFIG("Configuración"),
-    SESSIONS("Sesiones"),
-}
+/**
+ * Top-level screens. Sesiones is the home screen; Configuración and About open
+ * from the header's `[*]` and `[i]` and go back to it.
+ */
+private enum class Screen { SESSIONS, CONFIG, ABOUT }
 
 /**
- * Root of the titan-ssh UI: applies the theme and splits the app into the two
- * agreed areas. The [ConfigController] is created once from the platform
- * [createConfigStore] and shared by both areas.
+ * Root of the titan-ssh UI: applies the theme and hosts the two agreed areas,
+ * Sesiones by default and Configuración behind the header's `[*]`. The
+ * [ConfigController] is created once from the platform [createConfigStore] and
+ * shared by both areas.
  */
 @Composable
 fun AppShell() {
@@ -77,8 +69,7 @@ fun AppShell() {
                 networkRestored = networkRestored(),
             )
         }
-        var area by remember { mutableStateOf(Area.CONFIG) }
-        var showAbout by remember { mutableStateOf(false) }
+        var screen by remember { mutableStateOf(Screen.SESSIONS) }
 
         Surface(Modifier.fillMaxSize(), color = TitanColors.Canvas) {
             // The canvas colour reaches the screen edges (edge-to-edge on Android);
@@ -87,17 +78,21 @@ fun AppShell() {
             // imePadding finds it already consumed and does not apply it twice. On
             // desktop every inset is zero.
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-                AreaHeader(
-                    current = area.takeUnless { showAbout },
-                    onSelect = { area = it; showAbout = false },
-                    onAbout = { showAbout = true },
+                // The header glyphs toggle: tapping the one whose screen is open
+                // goes back to Sesiones, like that screen's own [<].
+                val toggle = { target: Screen -> screen = if (screen == target) Screen.SESSIONS else target }
+                AppHeader(
+                    current = screen,
+                    onAbout = { toggle(Screen.ABOUT) },
+                    onConfig = { toggle(Screen.CONFIG) },
                 )
                 Hairline()
                 Box(Modifier.weight(1f).fillMaxWidth()) {
-                    when {
-                        showAbout -> AboutScreen(onBack = { showAbout = false })
-                        area == Area.CONFIG -> ConfigArea(controller, provisioner)
-                        else -> SessionsArea(controller, sessionManager)
+                    val home = { screen = Screen.SESSIONS }
+                    when (screen) {
+                        Screen.SESSIONS -> SessionsArea(controller, sessionManager)
+                        Screen.CONFIG -> ConfigArea(controller, provisioner, onBack = home)
+                        Screen.ABOUT -> AboutScreen(onBack = home)
                     }
                 }
             }
@@ -105,56 +100,25 @@ fun AppShell() {
     }
 }
 
-/** App title with the `[i]` About action, over the area tabs; [current] is null while About is open. */
+/**
+ * App title with the `[i]` About and `[*]` Configuración actions; the glyph of
+ * the open screen is in accent (an active selection, visual decision).
+ */
 @Composable
-private fun AreaHeader(current: Area?, onSelect: (Area) -> Unit, onAbout: () -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = TitanDimens.SpaceLg, vertical = TitanDimens.SpaceMd)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = "titan-ssh",
-                style = MaterialTheme.typography.headlineSmall,
-                color = TitanColors.Ink,
-                modifier = Modifier.weight(1f),
-            )
-            GlyphButton("[i]", onClick = onAbout, color = if (current == null) TitanColors.Accent else TitanColors.Mute)
-        }
-        Spacer(Modifier.height(TitanDimens.SpaceMd))
-        // Each tab takes an equal share of the width; when a label does not fit
-        // (narrow screen, large system font) the tab grows and the row scrolls
-        // sideways instead of squeezing the label onto two lines.
-        BoxWithConstraints(Modifier.fillMaxWidth()) {
-            val share = maxWidth / Area.entries.size
-            Row(Modifier.horizontalScroll(rememberScrollState())) {
-                Area.entries.forEach { entry ->
-                    AreaTab(
-                        label = entry.label,
-                        selected = entry == current,
-                        onClick = { onSelect(entry) },
-                        modifier = Modifier.widthIn(min = share),
-                    )
-                }
-            }
-        }
+private fun AppHeader(current: Screen, onAbout: () -> Unit, onConfig: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = TitanDimens.SpaceLg, vertical = TitanDimens.SpaceMd),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "titan-ssh",
+            style = MaterialTheme.typography.headlineSmall,
+            color = TitanColors.Ink,
+            modifier = Modifier.weight(1f),
+        )
+        GlyphButton("[i]", onClick = onAbout, color = headerGlyphColor(current == Screen.ABOUT))
+        GlyphButton("[*]", onClick = onConfig, color = headerGlyphColor(current == Screen.CONFIG))
     }
 }
 
-@Composable
-private fun AreaTab(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Box(
-        modifier
-            .clickable(onClick = onClick)
-            .background(if (selected) TitanColors.Surface else TitanColors.Canvas)
-            .height(TitanDimens.TouchTarget)
-            .padding(horizontal = TitanDimens.SpaceMd),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            color = if (selected) TitanColors.Ink else TitanColors.Mute,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            softWrap = false,
-        )
-    }
-}
+private fun headerGlyphColor(open: Boolean) = if (open) TitanColors.Accent else TitanColors.Mute
