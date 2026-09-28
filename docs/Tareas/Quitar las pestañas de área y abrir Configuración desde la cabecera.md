@@ -1,11 +1,11 @@
 ---
 Nombre: 'Quitar las pestañas de área y abrir Configuración desde la cabecera'
-Estado: 'En curso'
-Resumen: 'Quitadas las pestañas "Configuración" y "Sesiones" de la cabecera. La app arranca en Sesiones y Configuración se abre con el glifo [*] (solo icono) a la derecha de [i], con barra [<] Configuración para volver y toggle en el glifo. UI compartida: vale igual en Android y escritorio. Verificado en el emulador Android; falta la confirmación del usuario.'
+Estado: 'Hecha'
+Resumen: 'Quitadas las pestañas "Configuración" y "Sesiones" de la cabecera. La app arranca en Sesiones y Configuración se abre con el glifo [*] (solo icono) a la derecha de [i], con barra [<] Configuración para volver y toggle en el glifo. UI compartida: vale igual en Android y escritorio. Verificado en el emulador Android y confirmado por el usuario.'
 Decisiones: 'Aplica [[Sesiones como inicio y Configuración desde la cabecera]]; añade [*] a [[Vocabulario ASCII ampliado y disciplina de color]]. Matiza la navegación de [[Arquitectura de dos áreas Configuración y Sesiones]] sin reemplazarla.'
 Bloqueada: []
 Fecha de creación: 2026-09-28T11:40:00+02:00
-Última modificación: 2026-09-28T11:40:00+02:00
+Última modificación: 2026-09-28T11:45:00+02:00
 ---
 
 # Quitar las pestañas de área y abrir Configuración desde la cabecera
@@ -37,4 +37,4 @@ Petición del usuario (2026-09-28), vista en Android:
   `[*]` abre Configuración con `[*]` en accent; `[<]` vuelve a Sesiones; desde
   Configuración `[i]` salta a Acerca de; tocar `[i]` otra vez vuelve a
   Sesiones.
-- Pendiente: confirmación del usuario.
+- **Confirmado por el usuario (2026-09-28)** en el emulador. Cerrada.
