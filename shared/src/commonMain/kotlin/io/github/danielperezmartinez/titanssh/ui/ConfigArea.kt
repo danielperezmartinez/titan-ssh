@@ -34,6 +34,7 @@ import io.github.danielperezmartinez.titanssh.config.LibraryScript
 import io.github.danielperezmartinez.titanssh.config.TitanConfig
 import io.github.danielperezmartinez.titanssh.config.sessionsUsing
 import io.github.danielperezmartinez.titanssh.secret.SecretProvisioner
+import io.github.danielperezmartinez.titanssh.terminal.AgentHost
 import io.github.danielperezmartinez.titanssh.theme.TitanColors
 import io.github.danielperezmartinez.titanssh.theme.TitanDimens
 
@@ -66,6 +67,10 @@ fun ConfigArea(
     onBack: () -> Unit,
     editSessionId: String? = null,
     openOnSessions: Boolean = false,
+    /** Deletes a saved session; the app also terminates it on its destination. */
+    onDeleteSession: (Session) -> Unit = { controller.deleteSession(it.id) },
+    /** Opens the panel of a host's agent (its default user). */
+    onOpenAgent: ((AgentHost) -> Unit)? = null,
 ) {
     val config by controller.state.collectAsState()
     var tab by remember {
@@ -76,7 +81,7 @@ fun ConfigArea(
 
     when (val current = editor) {
         is Editor.HostEdit -> HostEditor(controller, current.id, provisioner) { editor = null }
-        is Editor.SessionEdit -> SessionEditor(controller, current.id, onDone = closeEditor)
+        is Editor.SessionEdit -> SessionEditor(controller, current.id, onDone = closeEditor, deleteSession = onDeleteSession)
         is Editor.LibraryScriptEdit -> LibraryScriptEditor(controller, current.id) { editor = null }
         null -> Column(Modifier.fillMaxSize()) {
             TopBar("Configuración", onBack)
@@ -85,7 +90,12 @@ fun ConfigArea(
             Hairline()
             Box(Modifier.fillMaxSize()) {
                 when (tab) {
-                    ConfigTab.HOSTS -> HostList(config.hosts, config.groups, onNew = { editor = Editor.HostEdit(null) }) {
+                    ConfigTab.HOSTS -> HostList(
+                        config.hosts,
+                        config.groups,
+                        onNew = { editor = Editor.HostEdit(null) },
+                        onOpenAgent = onOpenAgent,
+                    ) {
                         editor = Editor.HostEdit(it.id)
                     }
                     ConfigTab.SESSIONS -> SessionList(config.sessions, config.hosts, onNew = { editor = Editor.SessionEdit(null) }) {
@@ -148,21 +158,49 @@ private fun NewRow(label: String, onClick: () -> Unit) {
     }
 }
 
+/**
+ * The hosts. Tapping one edits it; its marker or a long press opens its
+ * actions: edit and, with [onOpenAgent], see the agent of its default user.
+ */
 @Composable
-private fun HostList(hosts: List<Host>, groups: List<Group>, onNew: () -> Unit, onOpen: (Host) -> Unit) {
+private fun HostList(
+    hosts: List<Host>,
+    groups: List<Group>,
+    onNew: () -> Unit,
+    onOpenAgent: ((AgentHost) -> Unit)?,
+    onOpen: (Host) -> Unit,
+) {
+    var expandedId by remember { mutableStateOf<String?>(null) }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = bodyPadding()) {
         item { NewRow("Nuevo host", onNew) }
         item { Hairline() }
         if (hosts.isEmpty()) {
             item { EmptyState("Sin hosts. Crea el primero con [+].") }
         }
-        items(hosts) { host ->
+        items(hosts, key = { it.id }) { host ->
             val group = groups.firstOrNull { it.id == host.groupId }?.name
             val subtitle = buildString {
                 append("${host.username}@${host.hostname}:${host.port}")
                 if (group != null) append("  ·  $group")
             }
-            ListRow(marker = host.marker, title = host.alias.ifBlank { host.hostname }, subtitle = subtitle, onClick = { onOpen(host) })
+            val expanded = expandedId == host.id
+            val toggle = { expandedId = if (expanded) null else host.id }
+            ListRow(
+                marker = host.marker,
+                markerColor = if (expanded) TitanColors.Accent else TitanColors.Body,
+                title = host.alias.ifBlank { host.hostname },
+                subtitle = subtitle,
+                onClick = { onOpen(host) },
+                onLongClick = onOpenAgent?.let { toggle },
+                onMarkerClick = onOpenAgent?.let { toggle },
+                expanded = expanded,
+                expandedContent = onOpenAgent?.let { open ->
+                    {
+                        ListRow(marker = "[~]", title = "Editar", onClick = { onOpen(host) })
+                        ListRow(marker = "[@]", title = "Ver el agente del destino", onClick = { open(AgentHost.of(host)) })
+                    }
+                },
+            )
             Hairline()
         }
     }

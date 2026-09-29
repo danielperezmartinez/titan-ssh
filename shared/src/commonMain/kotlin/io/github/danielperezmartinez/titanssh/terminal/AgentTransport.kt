@@ -166,14 +166,17 @@ class AgentTransport(
      */
     private fun isFreshLegacy(frame: AgentFrame.HelloOk): Boolean = frame.headOffset == 0L
 
-    private companion object {
+    companion object {
         /** Enough stderr for the contract line and a shell's complaint. */
-        const val MAX_STDERR = 4096
+        private const val MAX_STDERR = 4096
 
         /** How long to wait for the rest of stderr once the front's stdout closed. */
-        const val STDERR_GRACE_MILLIS = 1_000L
+        private const val STDERR_GRACE_MILLIS = 1_000L
 
-        /** Keeps the id shell-safe (every shell) for the `--session` flag (it also travels in HELLO). */
+        /**
+         * The agent-side id of saved session [id]: shell-safe (every shell) for
+         * the `--session` flag, and what travels in HELLO and `--status`.
+         */
         fun sanitizeId(id: String): String {
             val safe = id.map { if (it.isLetterOrDigit() || it == '-' || it == '_') it else '_' }
                 .joinToString("")

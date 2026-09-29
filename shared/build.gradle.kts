@@ -316,6 +316,9 @@ tasks.withType<Test>().configureEach {
         "titanSshTestUser" to "TITAN_SSH_TEST_USER",
         "titanSshTestKey" to "TITAN_SSH_TEST_KEY",
         "titanSshTestPassphrase" to "TITAN_SSH_TEST_PASSPHRASE",
+        // Password instead of a key, for tests that accept either (e.g. the
+        // tools/test-sshd container).
+        "titanSshTestPassword" to "TITAN_SSH_TEST_PASSWORD",
         // "true" when the test host has AllowTcpForwarding off, for the
         // refusal checks of SshjForwardingIntegrationTest.
         "titanSshTestNoForwarding" to "TITAN_SSH_TEST_NO_FORWARDING",

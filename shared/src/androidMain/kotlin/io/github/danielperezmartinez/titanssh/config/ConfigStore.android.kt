@@ -28,4 +28,4 @@ object AndroidConfigContext {
 actual fun createConfigStore(): ConfigStore =
     JsonFileConfigStore(File(AndroidConfigContext.require().filesDir, CONFIG_DIR))
 
-private const val CONFIG_DIR = "titan-config"
+internal const val CONFIG_DIR = "titan-config"

@@ -26,7 +26,12 @@ import io.github.danielperezmartinez.titanssh.secret.SecretProvisioner
 import io.github.danielperezmartinez.titanssh.secret.createSecretStore
 import io.github.danielperezmartinez.titanssh.ssh.createKnownHostsStore
 import io.github.danielperezmartinez.titanssh.ssh.createSshConnector
+import io.github.danielperezmartinez.titanssh.terminal.AgentHost
+import io.github.danielperezmartinez.titanssh.terminal.AgentHostAccess
+import io.github.danielperezmartinez.titanssh.terminal.AgentManager
+import io.github.danielperezmartinez.titanssh.terminal.AgentWatch
 import io.github.danielperezmartinez.titanssh.terminal.CredentialResolver
+import io.github.danielperezmartinez.titanssh.terminal.createAgentWatchStore
 import io.github.danielperezmartinez.titanssh.terminal.SessionManager
 import io.github.danielperezmartinez.titanssh.terminal.createAgentDeployer
 import io.github.danielperezmartinez.titanssh.terminal.networkRestored
@@ -37,9 +42,10 @@ import io.github.danielperezmartinez.titanssh.theme.TitanTheme
 
 /**
  * Top-level screens. Sesiones is the home screen; Configuración and About open
- * from the header's `[*]` and `[i]` and go back to it.
+ * from the header's `[*]` and `[i]` and go back to it. The agent panel opens
+ * from the launcher or from Configuración → Hosts and goes back there.
  */
-private enum class Screen { SESSIONS, CONFIG, ABOUT }
+private enum class Screen { SESSIONS, CONFIG, ABOUT, AGENT }
 
 /**
  * Root of the titan-ssh UI: applies the theme and hosts the two agreed areas,
@@ -56,19 +62,39 @@ fun AppShell() {
         // at connect time) and the write side (provisioning them from the editor).
         val secretStore = remember { createSecretStore() }
         val provisioner = remember { SecretProvisioner(secretStore) }
+        val connector = remember { createSshConnector() }
+        val credentialResolver = remember { CredentialResolver(secretStore) }
+        val knownHostsStore = remember { createKnownHostsStore() }
+        val agentDeployer = remember { createAgentDeployer() }
+        // What the app knows about each destination's agent, and the sessions
+        // still to close there ([[Transparencia y control del agente en el destino]]).
+        val agentWatch = remember { AgentWatch(scope, createAgentWatchStore()) }
         val sessionManager = remember {
             SessionManager(
                 scope = scope,
-                connector = createSshConnector(),
-                credentialResolver = CredentialResolver(secretStore),
-                knownHostsStore = createKnownHostsStore(),
+                connector = connector,
+                credentialResolver = credentialResolver,
+                knownHostsStore = knownHostsStore,
                 automation = StartScriptAutomation(secretStore),
                 // Level-3 agent (ADR-0008): installs & drives titan-agent for
                 // AGENT sessions; degrades to level 2/1 when unavailable.
-                agentDeployer = createAgentDeployer(),
+                agentDeployer = agentDeployer,
+                agentObserver = agentWatch,
                 networkRestored = networkRestored(),
             )
         }
+        val agents = remember {
+            AgentManager(
+                scope = scope,
+                watch = agentWatch,
+                access = AgentHostAccess(connector, credentialResolver, knownHostsStore, agentDeployer, agentWatch),
+                sessions = sessionManager,
+                config = controller,
+            )
+        }
+        // The agent panel's destination, and the screen it goes back to.
+        var agentHost by remember { mutableStateOf<AgentHost?>(null) }
+        var agentReturn by remember { mutableStateOf(Screen.SESSIONS) }
         var screen by remember { mutableStateOf(Screen.SESSIONS) }
         // Set while Configuración is open on a session picked from the
         // launcher's "Editar", so going back lands on the launcher again.
@@ -107,10 +133,19 @@ fun AppShell() {
                         editingSessionId = null
                         configOnSessions = false
                     }
+                    val openAgent = { host: AgentHost, from: Screen ->
+                        agentHost = host
+                        agentReturn = from
+                        // Back from the panel lands on the launcher it came from.
+                        if (from == Screen.SESSIONS) backToLauncher = true
+                        screen = Screen.AGENT
+                    }
                     when (screen) {
                         Screen.SESSIONS -> SessionsArea(
                             controller,
                             sessionManager,
+                            agents,
+                            onOpenAgent = { openAgent(it, Screen.SESSIONS) },
                             onEditSession = { id ->
                                 editingSessionId = id
                                 backToLauncher = true
@@ -129,8 +164,23 @@ fun AppShell() {
                             onBack = home,
                             editSessionId = editingSessionId,
                             openOnSessions = configOnSessions,
+                            onDeleteSession = { agents.delete(it) },
+                            onOpenAgent = { openAgent(it, Screen.CONFIG) },
                         )
                         Screen.ABOUT -> AboutScreen(onBack = home)
+                        Screen.AGENT -> agentHost?.let { host ->
+                            AgentPanel(
+                                agents = agents,
+                                controller = controller,
+                                host = host,
+                                onBack = { screen = agentReturn },
+                                onOpenSession = { resolved ->
+                                    sessionManager.open(resolved)
+                                    backToLauncher = false
+                                    screen = Screen.SESSIONS
+                                },
+                            )
+                        }
                     }
                 }
             }

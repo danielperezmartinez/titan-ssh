@@ -47,6 +47,8 @@ import io.github.danielperezmartinez.titanssh.config.SessionScript
 import io.github.danielperezmartinez.titanssh.config.TitanConfig
 import io.github.danielperezmartinez.titanssh.config.onDemandScripts
 import io.github.danielperezmartinez.titanssh.config.resolve
+import io.github.danielperezmartinez.titanssh.terminal.AgentHost
+import io.github.danielperezmartinez.titanssh.terminal.AgentManager
 import io.github.danielperezmartinez.titanssh.terminal.SessionManager
 import io.github.danielperezmartinez.titanssh.terminal.SessionTab
 import io.github.danielperezmartinez.titanssh.terminal.TabPhase
@@ -65,8 +67,10 @@ import io.github.danielperezmartinez.titanssh.theme.TitanDimens
 fun SessionsArea(
     controller: ConfigController,
     manager: SessionManager,
+    agents: AgentManager,
     onEditSession: (sessionId: String) -> Unit,
     onOpenConfig: () -> Unit,
+    onOpenAgent: (AgentHost) -> Unit,
     openLauncher: Boolean = false,
 ) {
     val config by controller.state.collectAsState()
@@ -82,6 +86,9 @@ fun SessionsArea(
     if (tabs.isEmpty() || showLauncher) {
         Launcher(
             controller = controller,
+            agents = agents,
+            openSessionIds = tabs.map { it.resolved.session.id }.toSet(),
+            onOpenAgent = onOpenAgent,
             onLaunch = { resolved ->
                 manager.open(resolved)
                 showLauncher = false
@@ -350,121 +357,4 @@ private fun statusMarker(phase: TabPhase): Pair<String, Color> = when (phase) {
     TabPhase.RECONNECTING -> "[-]" to TitanColors.Warning
     TabPhase.DISCONNECTED -> "[x]" to TitanColors.Danger
     TabPhase.FAILED -> "[x]" to TitanColors.Danger
-}
-
-/**
- * The launcher: saved sessions and the connection each resolves to. Tapping a
- * resolvable session (or its `[>] Lanzar`) opens a live tab; an unresolved one
- * is flagged and cannot be launched. The marker or a long press opens the
- * session's actions (edit, duplicate, delete), one session at a time. With no
- * sessions saved it offers a shortcut to Configuración's Sesiones tab.
- */
-@Composable
-private fun Launcher(
-    controller: ConfigController,
-    onLaunch: (ResolvedConnection) -> Unit,
-    onEdit: (sessionId: String) -> Unit,
-    onOpenConfig: () -> Unit,
-    onBack: (() -> Unit)?,
-) {
-    val config by controller.state.collectAsState()
-    var expandedId by remember { mutableStateOf<String?>(null) }
-    var confirmingDelete by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize()) {
-        if (onBack != null) {
-            Row(
-                Modifier.fillMaxWidth().padding(TitanDimens.SpaceSm),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                GlyphButton("[<]", onClick = onBack, color = TitanColors.Body)
-                Text(
-                    "Volver a las pestañas",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TitanColors.Mute,
-                    modifier = Modifier.padding(start = TitanDimens.SpaceSm),
-                )
-            }
-            Hairline()
-        }
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = bodyPadding()) {
-            item {
-                Caption("Lanza una sesión guardada para abrirla en una pestaña de terminal.")
-                Spacer(Modifier.height(TitanDimens.SpaceMd))
-                Hairline()
-            }
-            if (config.sessions.isEmpty()) {
-                item {
-                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                        EmptyState("No hay sesiones. Créalas en Configuración → Sesiones.")
-                        TitanButton("[*] Ir a Configuración", onClick = onOpenConfig, kind = ButtonKind.PRIMARY)
-                    }
-                }
-            }
-            items(config.sessions, key = { it.id }) { session ->
-                val resolved = runCatching { config.resolve(session) }.getOrNull()
-                val subtitle = if (resolved != null) {
-                    "${resolved.endpoint.username}@${resolved.endpoint.host}:${resolved.endpoint.port}"
-                } else {
-                    "host no encontrado — revisa la configuración"
-                }
-                val expanded = expandedId == session.id
-                val toggle = {
-                    expandedId = if (expanded) null else session.id
-                    confirmingDelete = false
-                }
-                ListRow(
-                    marker = if (resolved != null) "[>]" else "[x]",
-                    title = session.name,
-                    subtitle = subtitle,
-                    // An unresolved session cannot connect, but its actions stay
-                    // reachable so it can be fixed or removed from here.
-                    onClick = resolved?.let { { onLaunch(it) } },
-                    onLongClick = toggle,
-                    onMarkerClick = toggle,
-                    markerColor = when {
-                        resolved == null -> TitanColors.Danger
-                        expanded -> TitanColors.Accent
-                        else -> TitanColors.Body
-                    },
-                    trailing = resolved?.let {
-                        { TitanButton("[>] Lanzar", onClick = { onLaunch(it) }, kind = ButtonKind.SECONDARY) }
-                    },
-                    expanded = expanded,
-                    expandedContent = {
-                        ListRow(marker = "[~]", title = "Editar", onClick = { onEdit(session.id) })
-                        ListRow(
-                            marker = "[+]",
-                            title = "Duplicar",
-                            onClick = {
-                                controller.duplicateSession(session.id)
-                                expandedId = null
-                            },
-                        )
-                        if (confirmingDelete) {
-                            ConfirmRow(
-                                question = "¿Eliminar la sesión?",
-                                confirmLabel = "[x] Sí",
-                                marker = "[x]",
-                                markerColor = TitanColors.Danger,
-                                onConfirm = {
-                                    controller.deleteSession(session.id)
-                                    expandedId = null
-                                    confirmingDelete = false
-                                },
-                                onCancel = { confirmingDelete = false },
-                            )
-                        } else {
-                            ListRow(
-                                marker = "[x]",
-                                title = "Eliminar",
-                                markerColor = TitanColors.Danger,
-                                onClick = { confirmingDelete = true },
-                            )
-                        }
-                    },
-                )
-                Hairline()
-            }
-        }
-    }
 }

@@ -331,6 +331,8 @@ fun <T> TitanSegmented(
  * - [onLongClick]: holding the row; on desktop a right click does the same.
  * - [onMarkerClick]: tapping the marker on its own (a zone the full height of
  *   the row). `null` makes the marker part of the row, so it gets [onClick].
+ * - [note]: an optional third line under [subtitle], in [noteColor] (e.g. a
+ *   state such as "viva en el destino", in warning when it needs attention).
  * - [trailing]: any content at the end, e.g. a button with its own action.
  * - [expanded] / [expandedContent]: content shown under the row, typically
  *   more [ListRow]s acting as contextual actions. The caller owns [expanded]
@@ -342,6 +344,8 @@ fun ListRow(
     title: String,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
+    note: String? = null,
+    noteColor: Color = TitanColors.Mute,
     marker: String? = null,
     markerColor: Color = TitanColors.Body,
     onClick: (() -> Unit)? = null,
@@ -406,6 +410,9 @@ fun ListRow(
                 Text(title, style = MaterialTheme.typography.bodyLarge, color = TitanColors.Ink)
                 if (subtitle != null) {
                     Text(subtitle, style = MaterialTheme.typography.labelSmall, color = TitanColors.Mute)
+                }
+                if (note != null) {
+                    Text(note, style = MaterialTheme.typography.labelSmall, color = noteColor)
                 }
             }
             if (trailing != null) {

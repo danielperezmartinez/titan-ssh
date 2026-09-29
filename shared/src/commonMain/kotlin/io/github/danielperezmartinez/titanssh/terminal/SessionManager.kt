@@ -36,6 +36,8 @@ class SessionManager(
      * with bundled binaries) to enable the persistent agent.
      */
     private val agentDeployer: AgentDeployer? = null,
+    /** Told when the agent serves a tab (see [SessionTab]); the app passes its [AgentWatch]. */
+    private val agentObserver: AgentObserver? = null,
     /**
      * Emits when the network comes back ([networkRestored] on the platform);
      * each tab then retries at once if it was waiting or had given up.
@@ -74,6 +76,7 @@ class SessionManager(
             automation = automation,
             reconnect = reconnect,
             agentDeployer = agentDeployer,
+            agentObserver = agentObserver,
         )
         byId[tabId] = tab
         _list.value = _list.value.add(tabId)
@@ -94,6 +97,14 @@ class SessionManager(
         _list.value = _list.value.remove(id)
         sync()
         if (tab != null) scope.launch { tab.close() }
+    }
+
+    /**
+     * Closes every tab of saved session [sessionId], e.g. before its agent
+     * session is terminated, so no tab reconnects and starts it again.
+     */
+    fun closeTabsOf(sessionId: String) {
+        _tabs.value.filter { it.resolved.session.id == sessionId }.forEach { close(it.id) }
     }
 
     /** Moves tab [id] one position towards the front of the strip. */

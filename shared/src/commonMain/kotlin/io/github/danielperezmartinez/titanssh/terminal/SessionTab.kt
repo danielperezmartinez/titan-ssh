@@ -127,6 +127,12 @@ class SessionTab(
      * session falls back to the level-2/1 shell path.
      */
     private val agentDeployer: AgentDeployer? = null,
+    /**
+     * Told once the agent serves this tab, with a control handle on the same
+     * connection, so the app can close pending sessions and refresh what it
+     * knows about that agent ([[Transparencia y control del agente en el destino]]).
+     */
+    private val agentObserver: AgentObserver? = null,
     /** Clock for the reconnect time budget; tests pass their virtual one. */
     private val timeSource: TimeSource = TimeSource.Monotonic,
 ) {
@@ -429,7 +435,7 @@ class SessionTab(
             lastFailure = e.message ?: "Error inesperado"
             return AttemptResult.ESTABLISH_FAILED
         } finally {
-            wipe(creds)
+            creds.wipe()
             automationJob?.cancel()
             tunnelRetryJob?.cancel()
             sessionTunnels.close()
@@ -480,6 +486,9 @@ class SessionTab(
                 _resilience.value = _resilience.value.copy(level = EffectiveLevel.AGENT)
                 if (fresh) launchAutomation {
                     automation.onAgentSessionCreated(io, resolved, afterDrop = reconnecting)
+                }
+                agentObserver?.let { observer ->
+                    scope.launch { observer.onAgentReady(AgentKey.of(resolved.endpoint), AgentControl(opened, agentLaunch)) }
                 }
             },
         )
@@ -683,17 +692,6 @@ class SessionTab(
         agent = null
         shell = null
         session = null
-    }
-
-    private fun wipe(credentials: SshCredentials) {
-        when (credentials) {
-            is SshCredentials.Password -> credentials.password.fill(' ')
-            is SshCredentials.PrivateKey -> {
-                credentials.privateKeyPem.fill(' ')
-                credentials.passphrase?.fill(' ')
-            }
-            is SshCredentials.HardwareKey -> Unit
-        }
     }
 }
 

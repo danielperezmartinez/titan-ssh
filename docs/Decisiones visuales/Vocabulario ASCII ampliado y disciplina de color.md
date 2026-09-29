@@ -8,7 +8,7 @@ Consecuencias: La UI deja de pintar filas/CTAs con colores de estado; el verde/�
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-09-18T14:36:16+02:00
-Última modificación: 2026-09-29T10:00:00+02:00
+Última modificación: 2026-09-29T23:00:00+02:00
 ---
 
 # Vocabulario ASCII ampliado y disciplina de color semántico
@@ -45,6 +45,8 @@ Ampliación (todos ASCII, sin glifos Unicode como `✓`):
   `body`). Añadido el 2026-09-29; ver
   [[Filas de lista con acciones contextuales desplegables]]. Duplicar reutiliza
   `[+]` (añade una entrada) y eliminar, `[x]` en `danger`.
+- `[@]` — el agente del destino: abre su panel ("Ver el agente del destino").
+  Añadido el 2026-09-29; ver [[Estado y control del agente en la interfaz]].
 
 Regla: los marcadores son **ASCII imprimible dentro de brackets**; si hace falta
 uno nuevo, se añade aquí antes de usarlo, no ad hoc.

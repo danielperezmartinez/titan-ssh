@@ -51,7 +51,13 @@ private sealed interface SubEditor {
  * They are edited in memory and committed only when the session is saved.
  */
 @Composable
-fun SessionEditor(controller: ConfigController, sessionId: String?, onDone: () -> Unit) {
+fun SessionEditor(
+    controller: ConfigController,
+    sessionId: String?,
+    onDone: () -> Unit,
+    /** Deletes the session; the app also terminates it on its destination (level 3). */
+    deleteSession: (Session) -> Unit = { controller.deleteSession(it.id) },
+) {
     val config by controller.state.collectAsState()
     val existing = remember(sessionId) { config.sessions.firstOrNull { it.id == sessionId } }
 
@@ -124,6 +130,7 @@ fun SessionEditor(controller: ConfigController, sessionId: String?, onDone: () -
         null -> SessionForm(
             controller = controller,
             existing = existing,
+            deleteSession = deleteSession,
             name = name, onName = { name = it },
             hostId = hostId, onHostId = { hostId = it },
             usernameOverride = usernameOverride, onUsernameOverride = { usernameOverride = it },
@@ -147,6 +154,7 @@ fun SessionEditor(controller: ConfigController, sessionId: String?, onDone: () -
 private fun SessionForm(
     controller: ConfigController,
     existing: Session?,
+    deleteSession: (Session) -> Unit,
     name: String, onName: (String) -> Unit,
     hostId: String?, onHostId: (String) -> Unit,
     usernameOverride: String, onUsernameOverride: (String) -> Unit,
@@ -193,7 +201,7 @@ private fun SessionForm(
         onBack = onDone,
         onSave = { save() },
         canSave = canSave,
-        onDelete = existing?.let { { controller.deleteSession(it.id); onDone() } },
+        onDelete = existing?.let { { deleteSession(it); onDone() } },
     ) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bodyPadding())) {
             TitanTextField("Nombre", name, onName, placeholder = "deploy en prod")

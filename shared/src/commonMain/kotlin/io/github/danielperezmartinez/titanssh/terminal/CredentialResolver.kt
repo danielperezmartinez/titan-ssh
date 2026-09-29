@@ -40,3 +40,15 @@ class CredentialResolver(private val store: SecretStore) {
     private suspend fun require(ref: String): ByteArray =
         store.get(SecretRef(ref)) ?: throw MissingSecret(ref)
 }
+
+/** Overwrites the secret material in memory once the handshake no longer needs it. */
+internal fun SshCredentials.wipe() {
+    when (this) {
+        is SshCredentials.Password -> password.fill(' ')
+        is SshCredentials.PrivateKey -> {
+            privateKeyPem.fill(' ')
+            passphrase?.fill(' ')
+        }
+        is SshCredentials.HardwareKey -> Unit
+    }
+}

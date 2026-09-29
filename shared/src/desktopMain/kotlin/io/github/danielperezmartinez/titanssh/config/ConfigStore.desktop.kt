@@ -10,7 +10,7 @@ import java.io.File
 actual fun createConfigStore(): ConfigStore =
     JsonFileConfigStore(desktopConfigDirectory())
 
-private fun desktopConfigDirectory(): File {
+internal fun desktopConfigDirectory(): File {
     val os = System.getProperty("os.name").orEmpty().lowercase()
     val base: File = if (os.contains("win")) {
         System.getenv("APPDATA")?.takeIf { it.isNotBlank() }?.let(::File)

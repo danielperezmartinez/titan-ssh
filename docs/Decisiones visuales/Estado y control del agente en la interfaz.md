@@ -8,7 +8,7 @@ Consecuencias: 'La pestaña abierta no ofrece ninguna forma de terminar la sesi�
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-09-29T22:30:00+02:00
-Última modificación: 2026-09-29T22:30:00+02:00
+Última modificación: 2026-09-29T23:00:00+02:00
 ---
 
 # Estado y control del agente en la interfaz
@@ -72,3 +72,24 @@ color de [[Vocabulario ASCII ampliado y disciplina de color]].
 
 - La pestaña del terminal y su franja de estado: ni menú del agente ni opción
   de terminar. La `[x]` de la pestaña solo la cierra y la sesión sigue viva.
+
+## Ajustes al implementarla (2026-09-29)
+
+Detalles que concretan la decisión sin cambiarla:
+
+- "Ver el agente del destino" lleva el glifo nuevo `[@]`, añadido a
+  [[Vocabulario ASCII ampliado y disciplina de color]].
+- Consultar de nuevo es `[>] Consultar` (ejecuta una consulta; `[~]` es
+  editar). El aviso de versión dice `Agente de otra versión: X` con
+  `[>] Actualizar`, porque el agente puede ser más antiguo o más nuevo que la
+  app.
+- En Configuración → Hosts, la fila sigue editando al pulsarla; su marcador o
+  la pulsación larga despliegan `[~] Editar` y `[@] Ver el agente del destino`
+  (el agente del usuario por defecto del host).
+- En el panel, una sesión muestra un solo estado: `conectada ahora`,
+  `en segundo plano · último uso hace X` o, pasadas 24 horas sin cliente,
+  `sin conectar desde hace X` (marcador en warning); una huérfana antepone
+  `huérfana`, y se añade la memoria de su shell cuando el destino la da.
+- "Terminar en el destino" solo aparece en la lanzadera si la última consulta
+  muestra la sesión viva. Eliminar una sesión de nivel 3 la termina siempre en
+  el destino, aunque no se sepa si sigue viva.

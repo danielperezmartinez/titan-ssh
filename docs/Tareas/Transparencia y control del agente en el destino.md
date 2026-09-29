@@ -5,7 +5,7 @@ Resumen: 'Hoy el usuario no tiene una forma sencilla de saber si hay un agente d
 Decisiones: 'El usuario decide el 2026-09-29: el agente no se cierra solo; se quita el TTL de 30 minutos de las sesiones y en su lugar se avisa ([[ADR-0014 Sesiones del agente sin caducidad]], que sustituye el punto GC de [[ADR-0008 Diseño del agente de resiliencia nivel 3]]); el icono en la bandeja de Windows no se hace de momento; los avisos y las formas de cerrar quedan como se describen en la nota; la ubicación en la interfaz está en [[Estado y control del agente en la interfaz]]. Se apoya en el candado y el encuentro por loopback de [[titan-agent instancia única y directorio de estado]] y [[titan-agent punto de encuentro TCP loopback con token]], y en las acciones contextuales de [[Acciones contextuales en las filas de lista]].'
 Bloqueada: []
 Fecha de creación: 2026-09-29T21:00:00+02:00
-Última modificación: 2026-09-29T22:45:00+02:00
+Última modificación: 2026-09-29T23:00:00+02:00
 ---
 
 # Transparencia y control del agente en el destino
@@ -45,7 +45,7 @@ tiempo que pase.
 - `--stop` existe, pero mata el proceso sin cerrar los PTY y depende de que
   `agent.json` exista. En el PC de desarrollo había un daemon de una beta
   antigua con `agent.lock` tomado y sin `agent.json`: `--stop` no podía
-  pararlo (el usuario lo cerró a mano). Causa sin investigar.
+  pararlo (el usuario lo cerró a mano). Causa probable en el apartado Avance.
 - Cada versión se instala con otro nombre, así que un daemon antiguo sigue
   corriendo tras actualizar la app.
 - `Registry.GC(sessionTTL)` (`daemon.go`, `sessionTTL = 30 * time.Minute`)
@@ -120,3 +120,25 @@ Los avisos solo informan y llevan al panel; nunca cierran nada.
   memoria de lo que corre en sus sesiones en cada sistema y cómo sabe la app
   los avisos sin conectarse a cada destino (solo puede consultarlo al
   conectar o al abrir el panel).
+
+## Avance (2026-09-29)
+
+- **Agente (hecho y verificado):** sin TTL (el GC solo retira sesiones cuya
+  shell terminó), canal de control con `--status [--json]`,
+  `--close-session` y `--stop` ordenado (con el kill autenticado de antes para
+  daemons anteriores), memoria por árbol de procesos (paquete `procmem`) y
+  republicación de `agent.json` si desaparece. Verificado con `go test` en
+  Windows (ConPTY real, procesos reales) y `go test -race` en Linux (Docker).
+- **Causa probable de la anomalía del PC de desarrollo:** el consejo de
+  `E_AUTH` decía "borra agent.json"; hecho con el daemon vivo, lo dejaba con el
+  candado y sin forma de alcanzarlo. El consejo ya no lo pide y el daemon
+  republica el fichero.
+- **Cliente (hecho):** `AgentControl` y `AgentStatusReport` (catálogo
+  [[AgentControl]]), `AgentWatch`, `AgentHostAccess` y `AgentManager`
+  (catálogo [[AgentWatch]]), estado persistido en `agents.json`, sincronización
+  al atender el agente una pestaña, lanzadera con líneas de estado, franja de
+  memoria y acciones, panel del agente y acceso desde Configuración → Hosts
+  ([[Estado y control del agente en la interfaz]]). Verificado con tests
+  headless, render fuera de pantalla y `AgentControlIntegrationTest` contra
+  el sshd de pruebas (estado, cierre pendiente y parada).
+- **Falta:** prueba en el emulador Android y confirmación del usuario.

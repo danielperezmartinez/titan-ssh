@@ -224,8 +224,8 @@ object AgentDiagnostics {
                     "en segundo plano."
             E_AUTH ->
                 "no se pudo autenticar con el agente del destino" to
-                    "Borra ~/.local/state/titan-ssh/agent.json (%LOCALAPPDATA%\\titan-ssh\\agent.json " +
-                    "en Windows) y abre la sesión de nuevo."
+                    "Abre la sesión de nuevo en unos segundos. Si se repite, detén el agente desde su " +
+                    "panel (Ver el agente del destino). No borres agent.json: el agente lo necesita."
             E_JOB_NO_BREAKAWAY ->
                 "el servidor SSH de Windows cierra todos los procesos al acabar la sesión" to
                     "Actualiza el OpenSSH del destino (funciona con OpenSSH_for_Windows 10.0p2)."
