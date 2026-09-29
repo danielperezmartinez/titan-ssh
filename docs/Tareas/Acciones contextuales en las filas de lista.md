@@ -5,7 +5,7 @@ Resumen: 'ListRow pasa a ser una fila configurable por zonas: pulsar la fila, ma
 Decisiones: 'Aplica [[Filas de lista con acciones contextuales desplegables]]; añade [~] a [[Vocabulario ASCII ampliado y disciplina de color]].'
 Bloqueada: []
 Fecha de creación: 2026-09-29T10:00:00+02:00
-Última modificación: 2026-09-29T11:00:00+02:00
+Última modificación: 2026-09-29T11:40:00+02:00
 ---
 
 # Acciones contextuales en las filas de lista
@@ -67,3 +67,8 @@ solo existe en la lista de Sesiones).
 - **Sin verificar**: el clic derecho en la app de escritorio (el agente no
   puede hacer clic en la ventana).
 - **Confirmado por el usuario (2026-09-29)** en el emulador; decisión visual aceptada. Guía de uso del componente en [[Componentes UI compartidos]]. Cerrada.
+- Publicada en
+  [`v0.1.0-beta.6`](https://github.com/danielperezmartinez/titan-ssh/releases/tag/v0.1.0-beta.6)
+  (2026-09-29); detalle de la comprobación del Release en
+  [[Seguimiento de tareas pendientes]]. 👤 Falta que el usuario instale la APK
+  en el Pixel desde el Release y confirme que funciona.
