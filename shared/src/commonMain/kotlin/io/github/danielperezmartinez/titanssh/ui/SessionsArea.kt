@@ -66,6 +66,7 @@ fun SessionsArea(
     controller: ConfigController,
     manager: SessionManager,
     onEditSession: (sessionId: String) -> Unit,
+    onOpenConfig: () -> Unit,
     openLauncher: Boolean = false,
 ) {
     val config by controller.state.collectAsState()
@@ -86,6 +87,7 @@ fun SessionsArea(
                 showLauncher = false
             },
             onEdit = onEditSession,
+            onOpenConfig = onOpenConfig,
             onBack = if (tabs.isNotEmpty()) ({ showLauncher = false }) else null,
         )
         return
@@ -354,13 +356,15 @@ private fun statusMarker(phase: TabPhase): Pair<String, Color> = when (phase) {
  * The launcher: saved sessions and the connection each resolves to. Tapping a
  * resolvable session (or its `[>] Lanzar`) opens a live tab; an unresolved one
  * is flagged and cannot be launched. The marker or a long press opens the
- * session's actions (edit, duplicate, delete), one session at a time.
+ * session's actions (edit, duplicate, delete), one session at a time. With no
+ * sessions saved it offers a shortcut to Configuración's Sesiones tab.
  */
 @Composable
 private fun Launcher(
     controller: ConfigController,
     onLaunch: (ResolvedConnection) -> Unit,
     onEdit: (sessionId: String) -> Unit,
+    onOpenConfig: () -> Unit,
     onBack: (() -> Unit)?,
 ) {
     val config by controller.state.collectAsState()
@@ -389,7 +393,12 @@ private fun Launcher(
                 Hairline()
             }
             if (config.sessions.isEmpty()) {
-                item { EmptyState("No hay sesiones. Créalas en Configuración → Sesiones.") }
+                item {
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        EmptyState("No hay sesiones. Créalas en Configuración → Sesiones.")
+                        TitanButton("[*] Ir a Configuración", onClick = onOpenConfig, kind = ButtonKind.PRIMARY)
+                    }
+                }
             }
             items(config.sessions, key = { it.id }) { session ->
                 val resolved = runCatching { config.resolve(session) }.getOrNull()

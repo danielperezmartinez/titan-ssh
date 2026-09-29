@@ -74,6 +74,9 @@ fun AppShell() {
         // launcher's "Editar", so going back lands on the launcher again.
         var editingSessionId by remember { mutableStateOf<String?>(null) }
         var backToLauncher by remember { mutableStateOf(false) }
+        // Set while Configuración is open from the empty launcher's shortcut,
+        // so it starts on the Sesiones tab instead of Hosts.
+        var configOnSessions by remember { mutableStateOf(false) }
 
         Surface(Modifier.fillMaxSize(), color = TitanColors.Canvas) {
             // The canvas colour reaches the screen edges (edge-to-edge on Android);
@@ -90,6 +93,7 @@ fun AppShell() {
                     if (screen != target) backToLauncher = false
                     screen = if (screen == target) Screen.SESSIONS else target
                     editingSessionId = null
+                    configOnSessions = false
                 }
                 AppHeader(
                     current = screen,
@@ -101,6 +105,7 @@ fun AppShell() {
                     val home = {
                         screen = Screen.SESSIONS
                         editingSessionId = null
+                        configOnSessions = false
                     }
                     when (screen) {
                         Screen.SESSIONS -> SessionsArea(
@@ -111,9 +116,20 @@ fun AppShell() {
                                 backToLauncher = true
                                 screen = Screen.CONFIG
                             },
+                            onOpenConfig = {
+                                backToLauncher = false
+                                configOnSessions = true
+                                screen = Screen.CONFIG
+                            },
                             openLauncher = backToLauncher,
                         )
-                        Screen.CONFIG -> ConfigArea(controller, provisioner, onBack = home, editSessionId = editingSessionId)
+                        Screen.CONFIG -> ConfigArea(
+                            controller,
+                            provisioner,
+                            onBack = home,
+                            editSessionId = editingSessionId,
+                            openOnSessions = configOnSessions,
+                        )
                         Screen.ABOUT -> AboutScreen(onBack = home)
                     }
                 }

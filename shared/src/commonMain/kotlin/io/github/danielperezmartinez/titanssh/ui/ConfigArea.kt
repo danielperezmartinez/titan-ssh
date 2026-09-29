@@ -56,7 +56,8 @@ private sealed interface Editor {
  * style layout (visual decision), just flat mono lists with ASCII markers.
  * Opened from the header's `[*]`; [onBack] returns to Sesiones. With
  * [editSessionId] it opens straight on that session's editor (the launcher's
- * "Editar"), and closing that editor returns to Sesiones too.
+ * "Editar"), and closing that editor returns to Sesiones too. With
+ * [openOnSessions] it starts on the Sesiones tab (the empty launcher's shortcut).
  */
 @Composable
 fun ConfigArea(
@@ -64,9 +65,12 @@ fun ConfigArea(
     provisioner: SecretProvisioner,
     onBack: () -> Unit,
     editSessionId: String? = null,
+    openOnSessions: Boolean = false,
 ) {
     val config by controller.state.collectAsState()
-    var tab by remember { mutableStateOf(if (editSessionId != null) ConfigTab.SESSIONS else ConfigTab.HOSTS) }
+    var tab by remember {
+        mutableStateOf(if (editSessionId != null || openOnSessions) ConfigTab.SESSIONS else ConfigTab.HOSTS)
+    }
     var editor by remember { mutableStateOf<Editor?>(editSessionId?.let { Editor.SessionEdit(it) }) }
     val closeEditor = { if (editSessionId != null) onBack() else editor = null }
 
