@@ -70,6 +70,10 @@ fun AppShell() {
             )
         }
         var screen by remember { mutableStateOf(Screen.SESSIONS) }
+        // Set while Configuración is open on a session picked from the
+        // launcher's "Editar", so going back lands on the launcher again.
+        var editingSessionId by remember { mutableStateOf<String?>(null) }
+        var backToLauncher by remember { mutableStateOf(false) }
 
         Surface(Modifier.fillMaxSize(), color = TitanColors.Canvas) {
             // The canvas colour reaches the screen edges (edge-to-edge on Android);
@@ -80,7 +84,13 @@ fun AppShell() {
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                 // The header glyphs toggle: tapping the one whose screen is open
                 // goes back to Sesiones, like that screen's own [<].
-                val toggle = { target: Screen -> screen = if (screen == target) Screen.SESSIONS else target }
+                val toggle = { target: Screen ->
+                    // Closing the open screen is going back; opening another
+                    // one ends the trip from the launcher.
+                    if (screen != target) backToLauncher = false
+                    screen = if (screen == target) Screen.SESSIONS else target
+                    editingSessionId = null
+                }
                 AppHeader(
                     current = screen,
                     onAbout = { toggle(Screen.ABOUT) },
@@ -88,10 +98,22 @@ fun AppShell() {
                 )
                 Hairline()
                 Box(Modifier.weight(1f).fillMaxWidth()) {
-                    val home = { screen = Screen.SESSIONS }
+                    val home = {
+                        screen = Screen.SESSIONS
+                        editingSessionId = null
+                    }
                     when (screen) {
-                        Screen.SESSIONS -> SessionsArea(controller, sessionManager)
-                        Screen.CONFIG -> ConfigArea(controller, provisioner, onBack = home)
+                        Screen.SESSIONS -> SessionsArea(
+                            controller,
+                            sessionManager,
+                            onEditSession = { id ->
+                                editingSessionId = id
+                                backToLauncher = true
+                                screen = Screen.CONFIG
+                            },
+                            openLauncher = backToLauncher,
+                        )
+                        Screen.CONFIG -> ConfigArea(controller, provisioner, onBack = home, editSessionId = editingSessionId)
                         Screen.ABOUT -> AboutScreen(onBack = home)
                     }
                 }

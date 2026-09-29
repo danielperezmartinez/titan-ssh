@@ -1,16 +1,24 @@
 package io.github.danielperezmartinez.titanssh.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -24,11 +32,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -309,39 +322,145 @@ fun <T> TitanSegmented(
 }
 
 /**
- * A tappable list row: ASCII [marker] + title/subtitle + optional trailing slot.
+ * A list row: ASCII [marker] + [title]/[subtitle] + optional [trailing] slot,
+ * optionally followed by [expandedContent]. Every part is opt-in and the row
+ * decides nothing on its own: a zone only reacts if the caller gives it an
+ * action, so the same row serves a plain entry, a launcher or a menu.
+ *
+ * - [onClick]: tapping the row. `null` leaves the row inert.
+ * - [onLongClick]: holding the row; on desktop a right click does the same.
+ * - [onMarkerClick]: tapping the marker on its own (a zone the full height of
+ *   the row). `null` makes the marker part of the row, so it gets [onClick].
+ * - [trailing]: any content at the end, e.g. a button with its own action.
+ * - [expanded] / [expandedContent]: content shown under the row, typically
+ *   more [ListRow]s acting as contextual actions. The caller owns [expanded]
+ *   (and so decides e.g. that only one row is open at a time) and wires which
+ *   gesture toggles it.
  */
 @Composable
 fun ListRow(
-    marker: String,
     title: String,
-    subtitle: String?,
-    onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    marker: String? = null,
     markerColor: Color = TitanColors.Body,
-    trailing: @Composable (() -> Unit)? = null,
+    onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
+    onMarkerClick: (() -> Unit)? = null,
+    trailing: (@Composable RowScope.() -> Unit)? = null,
+    expanded: Boolean = false,
+    expandedContent: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
-    Row(
-        modifier
-            .fillMaxWidth()
-            .defaultMinSize(minHeight = TitanDimens.TouchTarget)
-            .clickable(onClick = onClick)
-            .padding(vertical = TitanDimens.SpaceSm, horizontal = TitanDimens.SpaceXs),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(marker, style = MaterialTheme.typography.bodyLarge, color = markerColor)
-        Spacer(Modifier.width(TitanDimens.SpaceMd))
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, color = TitanColors.Ink)
-            if (subtitle != null) {
-                Text(subtitle, style = MaterialTheme.typography.labelSmall, color = TitanColors.Mute)
+    val secondaryClick by rememberUpdatedState(onLongClick)
+    Column(modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .defaultMinSize(minHeight = TitanDimens.TouchTarget)
+                .height(IntrinsicSize.Min)
+                .then(
+                    if (onLongClick == null) {
+                        Modifier
+                    } else {
+                        // A right click is desktop's long press. Taken on the
+                        // initial pass so the row's click never sees it.
+                        Modifier.pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                    if (event.type == PointerEventType.Press && event.buttons.isSecondaryPressed) {
+                                        event.changes.forEach { it.consume() }
+                                        secondaryClick?.invoke()
+                                    }
+                                }
+                            }
+                        }
+                    },
+                )
+                .then(
+                    if (onClick == null && onLongClick == null) {
+                        Modifier
+                    } else {
+                        Modifier.combinedClickable(onClick = onClick ?: {}, onLongClick = onLongClick)
+                    },
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (marker != null) {
+                Box(
+                    Modifier
+                        .fillMaxHeight()
+                        .then(if (onMarkerClick != null) Modifier.clickable(onClick = onMarkerClick) else Modifier)
+                        .padding(start = TitanDimens.SpaceXs, end = TitanDimens.SpaceMd),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    Text(marker, style = MaterialTheme.typography.bodyLarge, color = markerColor)
+                }
+            }
+            Column(
+                Modifier
+                    .weight(1f)
+                    .padding(vertical = TitanDimens.SpaceSm)
+                    .padding(start = if (marker == null) TitanDimens.SpaceXs else 0.dp),
+            ) {
+                Text(title, style = MaterialTheme.typography.bodyLarge, color = TitanColors.Ink)
+                if (subtitle != null) {
+                    Text(subtitle, style = MaterialTheme.typography.labelSmall, color = TitanColors.Mute)
+                }
+            }
+            if (trailing != null) {
+                Row(
+                    Modifier.padding(start = TitanDimens.SpaceSm, end = TitanDimens.SpaceXs),
+                    verticalAlignment = Alignment.CenterVertically,
+                    content = trailing,
+                )
             }
         }
-        if (trailing != null) {
-            Spacer(Modifier.width(TitanDimens.SpaceSm))
-            trailing()
+        if (expandedContent != null) {
+            AnimatedVisibility(visible = expanded, enter = expandVertically(), exit = shrinkVertically()) {
+                // Flat surface, indented under the row it belongs to.
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(TitanColors.Surface)
+                        .padding(start = TitanDimens.SpaceXl),
+                    content = expandedContent,
+                )
+            }
         }
     }
+}
+
+/**
+ * An inline confirmation built on [ListRow]: the [question] with a confirm and
+ * a cancel button, for a step that must not happen on a single tap (e.g.
+ * deleting). Shown in place of the row that asked for it; no dialog.
+ */
+@Composable
+fun ConfirmRow(
+    question: String,
+    confirmLabel: String,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    marker: String? = null,
+    markerColor: Color = TitanColors.Body,
+    cancelLabel: String = "[<] No",
+    confirmKind: ButtonKind = ButtonKind.DANGER,
+) {
+    ListRow(
+        title = question,
+        modifier = modifier,
+        subtitle = subtitle,
+        marker = marker,
+        markerColor = markerColor,
+        trailing = {
+            TitanButton(cancelLabel, onClick = onCancel, kind = ButtonKind.SECONDARY)
+            Spacer(Modifier.width(TitanDimens.SpaceSm))
+            TitanButton(confirmLabel, onClick = onConfirm, kind = confirmKind)
+        },
+    )
 }
 
 /** Centered empty-state message for a list. */

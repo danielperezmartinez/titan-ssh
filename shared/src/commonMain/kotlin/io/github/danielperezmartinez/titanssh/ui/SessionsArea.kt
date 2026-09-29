@@ -62,12 +62,19 @@ import io.github.danielperezmartinez.titanssh.theme.TitanDimens
  * terminal, with a two-pane split on desktop and a full-screen tab on Android.
  */
 @Composable
-fun SessionsArea(controller: ConfigController, manager: SessionManager) {
+fun SessionsArea(
+    controller: ConfigController,
+    manager: SessionManager,
+    onEditSession: (sessionId: String) -> Unit,
+    openLauncher: Boolean = false,
+) {
     val config by controller.state.collectAsState()
     val tabs by manager.tabs.collectAsState()
     val activeId by manager.activeId.collectAsState()
 
-    var showLauncher by remember { mutableStateOf(false) }
+    // [openLauncher] brings the launcher back after editing a session from it,
+    // even with tabs open.
+    var showLauncher by remember { mutableStateOf(openLauncher) }
     var splitEnabled by remember { mutableStateOf(false) }
     var fullscreen by remember { mutableStateOf(false) }
 
@@ -78,6 +85,7 @@ fun SessionsArea(controller: ConfigController, manager: SessionManager) {
                 manager.open(resolved)
                 showLauncher = false
             },
+            onEdit = onEditSession,
             onBack = if (tabs.isNotEmpty()) ({ showLauncher = false }) else null,
         )
         return
@@ -343,17 +351,21 @@ private fun statusMarker(phase: TabPhase): Pair<String, Color> = when (phase) {
 }
 
 /**
- * The launcher: saved sessions and the connection each resolves to. Launching a
- * resolvable session opens a live tab (the wiring this task adds); an unresolved
- * one is flagged and cannot be launched.
+ * The launcher: saved sessions and the connection each resolves to. Tapping a
+ * resolvable session (or its `[>] Lanzar`) opens a live tab; an unresolved one
+ * is flagged and cannot be launched. The marker or a long press opens the
+ * session's actions (edit, duplicate, delete), one session at a time.
  */
 @Composable
 private fun Launcher(
     controller: ConfigController,
     onLaunch: (ResolvedConnection) -> Unit,
+    onEdit: (sessionId: String) -> Unit,
     onBack: (() -> Unit)?,
 ) {
     val config by controller.state.collectAsState()
+    var expandedId by remember { mutableStateOf<String?>(null) }
+    var confirmingDelete by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
         if (onBack != null) {
             Row(
@@ -379,22 +391,66 @@ private fun Launcher(
             if (config.sessions.isEmpty()) {
                 item { EmptyState("No hay sesiones. Créalas en Configuración → Sesiones.") }
             }
-            items(config.sessions) { session ->
+            items(config.sessions, key = { it.id }) { session ->
                 val resolved = runCatching { config.resolve(session) }.getOrNull()
                 val subtitle = if (resolved != null) {
                     "${resolved.endpoint.username}@${resolved.endpoint.host}:${resolved.endpoint.port}"
                 } else {
                     "host no encontrado — revisa la configuración"
                 }
+                val expanded = expandedId == session.id
+                val toggle = {
+                    expandedId = if (expanded) null else session.id
+                    confirmingDelete = false
+                }
                 ListRow(
                     marker = if (resolved != null) "[>]" else "[x]",
                     title = session.name,
                     subtitle = subtitle,
-                    onClick = { resolved?.let(onLaunch) },
-                    markerColor = if (resolved != null) TitanColors.Body else TitanColors.Danger,
-                    trailing = {
-                        if (resolved != null) {
-                            TitanButton("[>] Lanzar", onClick = { onLaunch(resolved) }, kind = ButtonKind.SECONDARY)
+                    // An unresolved session cannot connect, but its actions stay
+                    // reachable so it can be fixed or removed from here.
+                    onClick = resolved?.let { { onLaunch(it) } },
+                    onLongClick = toggle,
+                    onMarkerClick = toggle,
+                    markerColor = when {
+                        resolved == null -> TitanColors.Danger
+                        expanded -> TitanColors.Accent
+                        else -> TitanColors.Body
+                    },
+                    trailing = resolved?.let {
+                        { TitanButton("[>] Lanzar", onClick = { onLaunch(it) }, kind = ButtonKind.SECONDARY) }
+                    },
+                    expanded = expanded,
+                    expandedContent = {
+                        ListRow(marker = "[~]", title = "Editar", onClick = { onEdit(session.id) })
+                        ListRow(
+                            marker = "[+]",
+                            title = "Duplicar",
+                            onClick = {
+                                controller.duplicateSession(session.id)
+                                expandedId = null
+                            },
+                        )
+                        if (confirmingDelete) {
+                            ConfirmRow(
+                                question = "¿Eliminar la sesión?",
+                                confirmLabel = "[x] Sí",
+                                marker = "[x]",
+                                markerColor = TitanColors.Danger,
+                                onConfirm = {
+                                    controller.deleteSession(session.id)
+                                    expandedId = null
+                                    confirmingDelete = false
+                                },
+                                onCancel = { confirmingDelete = false },
+                            )
+                        } else {
+                            ListRow(
+                                marker = "[x]",
+                                title = "Eliminar",
+                                markerColor = TitanColors.Danger,
+                                onClick = { confirmingDelete = true },
+                            )
                         }
                     },
                 )

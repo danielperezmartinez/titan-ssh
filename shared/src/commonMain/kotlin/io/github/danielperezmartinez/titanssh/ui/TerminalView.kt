@@ -517,7 +517,6 @@ private fun TunnelsPanel(tunnels: List<TunnelStatus>) {
                 marker = marker,
                 title = t.label.ifBlank { tunnelSummary(t) },
                 subtitle = listOfNotNull(tunnelSummary(t), state, status.detail).joinToString("  ·  "),
-                onClick = {},
                 markerColor = color,
             )
         }

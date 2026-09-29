@@ -54,17 +54,25 @@ private sealed interface Editor {
  * The "Configuración" area: manage and persist hosts, sessions, the script
  * library and groups. Lists route to full-screen editors; there is no Termius-
  * style layout (visual decision), just flat mono lists with ASCII markers.
- * Opened from the header's `[*]`; [onBack] returns to Sesiones.
+ * Opened from the header's `[*]`; [onBack] returns to Sesiones. With
+ * [editSessionId] it opens straight on that session's editor (the launcher's
+ * "Editar"), and closing that editor returns to Sesiones too.
  */
 @Composable
-fun ConfigArea(controller: ConfigController, provisioner: SecretProvisioner, onBack: () -> Unit) {
+fun ConfigArea(
+    controller: ConfigController,
+    provisioner: SecretProvisioner,
+    onBack: () -> Unit,
+    editSessionId: String? = null,
+) {
     val config by controller.state.collectAsState()
-    var tab by remember { mutableStateOf(ConfigTab.HOSTS) }
-    var editor by remember { mutableStateOf<Editor?>(null) }
+    var tab by remember { mutableStateOf(if (editSessionId != null) ConfigTab.SESSIONS else ConfigTab.HOSTS) }
+    var editor by remember { mutableStateOf<Editor?>(editSessionId?.let { Editor.SessionEdit(it) }) }
+    val closeEditor = { if (editSessionId != null) onBack() else editor = null }
 
     when (val current = editor) {
         is Editor.HostEdit -> HostEditor(controller, current.id, provisioner) { editor = null }
-        is Editor.SessionEdit -> SessionEditor(controller, current.id) { editor = null }
+        is Editor.SessionEdit -> SessionEditor(controller, current.id, onDone = closeEditor)
         is Editor.LibraryScriptEdit -> LibraryScriptEditor(controller, current.id) { editor = null }
         null -> Column(Modifier.fillMaxSize()) {
             TopBar("Configuración", onBack)
@@ -223,7 +231,6 @@ private fun GroupList(controller: ConfigController, groups: List<Group>) {
                 marker = "[#]",
                 title = group.name,
                 subtitle = null,
-                onClick = {},
                 markerColor = TitanColors.Body,
                 trailing = { GlyphButton("[x]", onClick = { controller.deleteGroup(group.id) }, color = TitanColors.Danger) },
             )
