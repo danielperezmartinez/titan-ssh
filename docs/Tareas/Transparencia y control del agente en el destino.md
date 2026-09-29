@@ -5,7 +5,7 @@ Resumen: 'Hoy el usuario no tiene una forma sencilla de saber si hay un agente d
 Decisiones: 'El usuario decide el 2026-09-29: el agente no se cierra solo; se quita el TTL de 30 minutos de las sesiones y en su lugar se avisa ([[ADR-0014 Sesiones del agente sin caducidad]], que sustituye el punto GC de [[ADR-0008 Diseño del agente de resiliencia nivel 3]]); el icono en la bandeja de Windows no se hace de momento; los avisos y las formas de cerrar quedan como se describen en la nota; la ubicación en la interfaz está en [[Estado y control del agente en la interfaz]]. Se apoya en el candado y el encuentro por loopback de [[titan-agent instancia única y directorio de estado]] y [[titan-agent punto de encuentro TCP loopback con token]], y en las acciones contextuales de [[Acciones contextuales en las filas de lista]].'
 Bloqueada: []
 Fecha de creación: 2026-09-29T21:00:00+02:00
-Última modificación: 2026-09-29T23:00:00+02:00
+Última modificación: 2026-09-29T23:30:00+02:00
 ---
 
 # Transparencia y control del agente en el destino
@@ -141,4 +141,13 @@ Los avisos solo informan y llevan al panel; nunca cierran nada.
   ([[Estado y control del agente en la interfaz]]). Verificado con tests
   headless, render fuera de pantalla y `AgentControlIntegrationTest` contra
   el sshd de pruebas (estado, cierre pendiente y parada).
-- **Falta:** prueba en el emulador Android y confirmación del usuario.
+- **Emulador Android (hecho, 2026-09-29):** `Pixel_9_Pro_XL` con la build de
+  debug contra el sshd de pruebas, con una sesión nueva de nivel 3
+  ("demo (agente)", copia previa de la config en
+  `files/titan-config/config.pre-agent-panel.bak`): conecta en nivel 3, al
+  cerrar la pestaña la lanzadera muestra "viva en el destino", las acciones
+  incluyen `[@] Ver el agente del destino`, el panel lista el agente (8,2 MB)
+  y la sesión (2,1 MB), "Terminar" la cierra en el destino y lo recordado
+  sobrevive a reinstalar la app. Queda una sesión viva en segundo plano para
+  que el usuario lo pruebe.
+- **Falta:** confirmación del usuario.

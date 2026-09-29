@@ -215,7 +215,7 @@ fun AgentPanel(
             if (report != null && (report.isRunning || report.state == AgentStatusReport.STATE_LEGACY)) {
                 item {
                     Spacer(Modifier.height(TitanDimens.SpaceMd))
-                    val count = if (report.isRunning) " (cerrará ${sessionsLabel(listed.size)})" else ""
+                    val count = if (report.isRunning && listed.isNotEmpty()) " (cerrará ${sessionsLabel(listed.size)})" else ""
                     if (confirming == PanelConfirm.Stop) {
                         ConfirmRow(
                             question = "¿Detener el agente?",
