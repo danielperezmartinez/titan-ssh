@@ -8,7 +8,7 @@ Consecuencias: 'Reutiliza el transporte y la auth de SSH (mínima superficie de 
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-09-19T18:10:00+02:00
-Última modificación: 2026-09-27T14:00:00+02:00
+Última modificación: 2026-09-29T21:30:00+02:00
 ---
 
 # ADR-0008 · Diseño del agente de resiliencia nivel 3
@@ -171,6 +171,8 @@ Tipos de trama y payload:
 
 > Punto de encuentro, instancia única y desacople **sustituidos** por
 > [[ADR-0009 Agente de nivel 3 portable a todos los destinos]] (§2, §3 y §5).
+> La caducidad de sesiones por TTL del punto GC está **sustituida** por
+> [[ADR-0014 Sesiones del agente sin caducidad]] (2026-09-29).
 
 - **Daemonización**: tras el primer `exec`, el agente crea el PTY + shell (la
   sesión "real") y se **desacopla** del canal (double-fork / nuevo líder de
