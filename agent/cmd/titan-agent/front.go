@@ -124,14 +124,22 @@ func spawnDaemon(stateDir string) error {
 }
 
 // stopDaemon is --stop: it ends the user's daemon, if one runs, and removes its
-// state file. It first authenticates against the published state, which proves
+// state file. It asks the daemon for an orderly stop, which closes every
+// session before exiting. A daemon that predates control requests is killed
+// instead, after authenticating against the published state, which proves
 // that record is the live daemon's, so the PID it kills is the daemon and never
-// a recycled one. Used to uninstall and to clean up after tests.
+// a recycled one.
 func stopDaemon(stateDir string) error {
 	if err := ensureStateDir(stateDir); err != nil {
 		return withCode(codeStateDir, err)
 	}
 	stateFile := filepath.Join(stateDir, stateFileName)
+	if _, _, err := request(stateDir, controlRequest{Op: opStop}); err == nil {
+		if err := waitLockFree(stateDir, stopWait); err != nil {
+			return err
+		}
+		return removeIfExists(stateFile)
+	}
 	if st, err := readState(stateDir); err == nil {
 		if conn, err := dialDaemon(st); err == nil {
 			conn.Close()
@@ -157,6 +165,10 @@ func stopDaemon(stateDir string) error {
 	}
 	return removeIfExists(stateFile) // nothing running; drop a stale record
 }
+
+// stopWait bounds how long --stop waits for the daemon to let go of the lock:
+// an orderly stop closes every session first. A var so tests can shorten it.
+var stopWait = 10 * time.Second
 
 // waitLockFree polls until no process holds the daemon lock.
 func waitLockFree(stateDir string, timeout time.Duration) error {

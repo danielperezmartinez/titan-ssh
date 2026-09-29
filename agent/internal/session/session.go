@@ -10,6 +10,7 @@ package session
 
 import (
 	"errors"
+	"slices"
 	"sync"
 	"time"
 
@@ -34,16 +35,21 @@ type Session struct {
 	pty Pty
 	buf *buffer.Ring
 
+	created time.Time
+
 	mu       sync.Mutex
 	cond     *sync.Cond // signaled when buf grows or the PTY closes
 	closed   bool       // PTY reached EOF/error
 	clients  int        // currently attached client connections
 	lastUsed time.Time
+	// detached is when the last client left; zero while one is attached.
+	detached time.Time
 	minAcked uint64
 }
 
 func newSession(id string, pty Pty, capBytes int) *Session {
-	s := &Session{ID: id, pty: pty, buf: buffer.New(capBytes), lastUsed: time.Now()}
+	now := time.Now()
+	s := &Session{ID: id, pty: pty, buf: buffer.New(capBytes), created: now, lastUsed: now, detached: now}
 	s.cond = sync.NewCond(&s.mu)
 	go s.pump()
 	return s
@@ -87,11 +93,15 @@ func (s *Session) Handle(hello protocol.Frame, created bool, out func(protocol.F
 	s.mu.Lock()
 	s.clients++
 	s.lastUsed = time.Now()
+	s.detached = time.Time{}
 	s.mu.Unlock()
 	defer func() {
 		s.mu.Lock()
 		s.clients--
 		s.lastUsed = time.Now()
+		if s.clients == 0 {
+			s.detached = s.lastUsed
+		}
 		s.mu.Unlock()
 	}()
 
@@ -195,7 +205,7 @@ func closedChan(ch chan struct{}) bool {
 	}
 }
 
-// Registry indexes live sessions by id for attach-or-create + GC by idle TTL.
+// Registry indexes live sessions by id for attach-or-create, listing and closing.
 type Registry struct {
 	mu       sync.Mutex
 	sessions map[string]*Session
@@ -229,25 +239,106 @@ func (r *Registry) AttachOrCreate(id string, cols, rows uint16) (*Session, bool,
 	return s, true, nil
 }
 
-// GC closes and drops sessions that have no attached clients and have been idle
-// longer than ttl (or whose PTY has closed). Call it periodically from the
-// daemon. Returns the number of sessions reaped.
-func (r *Registry) GC(ttl time.Duration) int {
+// GC drops the sessions whose shell has exited and that no client is still
+// reading. Sessions never expire by time (ADR-0014): a live PTY stays until
+// its shell exits or the user closes it (Close, CloseAll). Call it
+// periodically from the daemon. Returns the number of sessions reaped.
+func (r *Registry) GC() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	reaped := 0
-	now := time.Now()
 	for id, s := range r.sessions {
 		s.mu.Lock()
-		idle := s.clients == 0 && (s.closed || now.Sub(s.lastUsed) > ttl)
+		done := s.clients == 0 && s.closed
 		s.mu.Unlock()
-		if idle {
+		if done {
 			_ = s.pty.Close()
 			delete(r.sessions, id)
 			reaped++
 		}
 	}
 	return reaped
+}
+
+// Close ends session id at the user's request: it drops it from the registry,
+// so the next HELLO for that id starts a fresh PTY, and closes its PTY, which
+// ends the shell and everything attached to its terminal. It reports whether
+// the session existed.
+func (r *Registry) Close(id string) bool {
+	r.mu.Lock()
+	s, ok := r.sessions[id]
+	delete(r.sessions, id)
+	r.mu.Unlock()
+	if ok {
+		_ = s.pty.Close()
+	}
+	return ok
+}
+
+// CloseAll ends every session (the daemon's orderly stop) and returns how many
+// there were.
+func (r *Registry) CloseAll() int {
+	r.mu.Lock()
+	all := make([]*Session, 0, len(r.sessions))
+	for id, s := range r.sessions {
+		all = append(all, s)
+		delete(r.sessions, id)
+	}
+	r.mu.Unlock()
+	var wg sync.WaitGroup
+	for _, s := range all {
+		wg.Add(1)
+		go func() { defer wg.Done(); _ = s.pty.Close() }()
+	}
+	wg.Wait()
+	return len(all)
+}
+
+// Info is what the agent reports about one session to the user.
+type Info struct {
+	ID       string
+	Created  time.Time
+	LastUsed time.Time
+	// Detached is when the last client left; zero while one is attached.
+	Detached    time.Time
+	Clients     int
+	Closed      bool   // the shell exited; GC drops it once no client reads it
+	BufferBytes uint64 // output history held for replay
+	ShellPID    int    // 0 if the PTY does not expose it
+}
+
+// List describes every session, oldest first.
+func (r *Registry) List() []Info {
+	r.mu.Lock()
+	all := make([]*Session, 0, len(r.sessions))
+	for _, s := range r.sessions {
+		all = append(all, s)
+	}
+	r.mu.Unlock()
+	infos := make([]Info, 0, len(all))
+	for _, s := range all {
+		infos = append(infos, s.info())
+	}
+	slices.SortFunc(infos, func(a, b Info) int { return a.Created.Compare(b.Created) })
+	return infos
+}
+
+func (s *Session) info() Info {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	in := Info{
+		ID:          s.ID,
+		Created:     s.created,
+		LastUsed:    s.lastUsed,
+		Detached:    s.detached,
+		Clients:     s.clients,
+		Closed:      s.closed,
+		BufferBytes: s.buf.Head() - s.buf.Tail(),
+	}
+	if p, ok := s.pty.(interface{ Pid() int }); ok {
+		in.ShellPID = p.Pid()
+	}
+	return in
 }
 
 // Count returns the number of live sessions (for tests/diagnostics).

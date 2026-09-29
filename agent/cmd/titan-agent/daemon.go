@@ -7,16 +7,17 @@ import (
 	"net"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/danielperezmartinez/titan-ssh/agent/internal/protocol"
 	"github.com/danielperezmartinez/titan-ssh/agent/internal/session"
 )
 
-const (
-	gcInterval = 60 * time.Second
-	sessionTTL = 30 * time.Minute
-)
+// maintainInterval is how often the daemon drops sessions whose shell exited
+// and checks that its state file is still in place. Sessions never expire by
+// time (ADR-0014). A var so tests can shorten it.
+var maintainInterval = 5 * time.Second
 
 // helloTimeout bounds how long a fresh connection may stay silent before its
 // preamble, and then before its opening HELLO. A var so tests can shorten it.
@@ -25,7 +26,9 @@ var helloTimeout = 10 * time.Second
 // runDaemon is the --daemon mode: it becomes the user's only daemon, publishes
 // where it listens and serves the framed protocol, holding every session's PTY
 // and ring buffer for their lifetime. It returns nil at once, touching
-// nothing, when another daemon already holds the lock.
+// nothing, when another daemon already holds the lock. It never exits on its
+// own while it holds sessions or not; only a stop request (--stop) ends it,
+// closing every session first.
 func runDaemon(stateDir string, bufCap int) error {
 	if err := ensureStateDir(stateDir); err != nil {
 		return withCode(codeStateDir, err)
@@ -39,25 +42,69 @@ func runDaemon(stateDir string, bufCap int) error {
 	}
 	defer d.close()
 
+	quit := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
-		t := time.NewTicker(gcInterval)
-		defer t.Stop()
-		for range t.C {
-			d.reg.GC(sessionTTL)
-		}
+		defer wg.Done()
+		d.maintain(quit)
 	}()
-	return d.serve()
+	err = d.serve()
+	close(quit)
+	wg.Wait()
+	if d.stopping.Load() {
+		d.reg.CloseAll()
+		return nil
+	}
+	return err
+}
+
+// maintain runs until quit: it reaps sessions whose shell exited and puts the
+// state file back if it went missing or was overwritten. The daemon holds the
+// lock, so its record is the only valid one; without it no front could reach
+// the daemon, and the daemon would hold the lock unreachable for good.
+func (d *daemon) maintain(quit <-chan struct{}) {
+	t := time.NewTicker(maintainInterval)
+	defer t.Stop()
+	for {
+		select {
+		case <-quit:
+			return
+		case <-t.C:
+			d.reg.GC()
+			d.republish()
+		}
+	}
+}
+
+// republish rewrites the state file unless it already holds this daemon's
+// record.
+func (d *daemon) republish() {
+	if st, err := readState(d.dir); err == nil && st == d.record {
+		return
+	}
+	_ = writeState(d.dir, d.record)
+}
+
+// stop is the orderly stop a control request asks for: serve returns, and
+// runDaemon closes every session and releases the lock.
+func (d *daemon) stop() {
+	d.stopping.Store(true)
+	d.ln.Close()
 }
 
 // daemon is a started daemon: it holds the lock, listens on loopback and has
 // published its state file.
 type daemon struct {
-	dir   string
-	lock  *os.File
-	ln    net.Listener
-	token []byte
-	reg   *session.Registry
-	conns sync.WaitGroup // connection goroutines started by serve
+	dir      string
+	lock     *os.File
+	ln       net.Listener
+	token    []byte
+	record   agentState // what it published in the state file
+	started  time.Time
+	stopping atomic.Bool
+	reg      *session.Registry
+	conns    sync.WaitGroup // connection goroutines started by serve
 }
 
 // startDaemon takes the single-instance lock, listens on a random loopback
@@ -97,7 +144,15 @@ func startDaemon(dir string, bufCap int, newPty session.PtyFactory) (*daemon, er
 		lock.Close()
 		return nil, err
 	}
-	return &daemon{dir: dir, lock: lock, ln: ln, token: token, reg: session.NewRegistry(newPty, bufCap)}, nil
+	return &daemon{
+		dir:     dir,
+		lock:    lock,
+		ln:      ln,
+		token:   token,
+		record:  st,
+		started: time.Now(),
+		reg:     session.NewRegistry(newPty, bufCap),
+	}, nil
 }
 
 // serve accepts connections until the listener closes. Each one must pass the
@@ -117,8 +172,13 @@ func (d *daemon) serve() error {
 		d.conns.Add(1)
 		go func() {
 			defer d.conns.Done()
-			if err := acceptPreamble(conn, d.token); err != nil {
+			control, err := acceptPreamble(conn, d.token)
+			if err != nil {
 				conn.Close()
+				return
+			}
+			if control {
+				d.serveControl(conn)
 				return
 			}
 			serveConn(conn, d.reg)

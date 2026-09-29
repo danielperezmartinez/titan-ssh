@@ -18,6 +18,11 @@ import (
 const (
 	preambleMagic = "TTNAGNT1"
 	preambleAck   = "TTNAGOK1"
+	// A control connection (control.go) has its own magic and ack: a daemon
+	// that predates it closes the connection, which tells the caller it is
+	// talking to an older agent.
+	controlMagic = "TTNACTL1"
+	controlAck   = "TTNACOK1"
 )
 
 // dialTimeout bounds the connect plus the preamble exchange. A var so tests
@@ -37,6 +42,15 @@ var errRejected = errors.New("the daemon did not accept the token")
 // but that token is dead: its daemon is gone (it would still hold the port
 // otherwise) and each new daemon draws a fresh one.
 func dialDaemon(st agentState) (net.Conn, error) {
+	return dialWith(st, preambleMagic, preambleAck)
+}
+
+// dialControl is dialDaemon for a control connection (control.go).
+func dialControl(st agentState) (net.Conn, error) {
+	return dialWith(st, controlMagic, controlAck)
+}
+
+func dialWith(st agentState, magic, wantAck string) (net.Conn, error) {
 	token, err := st.token()
 	if err != nil {
 		return nil, err
@@ -46,13 +60,13 @@ func dialDaemon(st agentState) (net.Conn, error) {
 		return nil, err
 	}
 	_ = conn.SetDeadline(time.Now().Add(dialTimeout))
-	pre := append([]byte(preambleMagic), token...)
-	ack := make([]byte, len(preambleAck))
+	pre := append([]byte(magic), token...)
+	ack := make([]byte, len(wantAck))
 	if _, err := conn.Write(pre); err != nil {
 		conn.Close()
 		return nil, errRejected
 	}
-	if _, err := io.ReadFull(conn, ack); err != nil || string(ack) != preambleAck {
+	if _, err := io.ReadFull(conn, ack); err != nil || string(ack) != wantAck {
 		conn.Close()
 		return nil, errRejected
 	}
@@ -60,24 +74,31 @@ func dialDaemon(st agentState) (net.Conn, error) {
 	return conn, nil
 }
 
-// acceptPreamble checks a new connection's preamble against token and acks it.
+// acceptPreamble checks a new connection's preamble against token and acks it,
+// and reports whether it opens a control connection rather than a session.
 // The token is compared in constant time, and the whole preamble must arrive
 // within helloTimeout, so a silent connection cannot pin a goroutine. On any
 // error the caller closes the connection without a word.
-func acceptPreamble(conn net.Conn, token []byte) error {
+func acceptPreamble(conn net.Conn, token []byte) (control bool, err error) {
 	_ = conn.SetDeadline(time.Now().Add(helloTimeout))
 	pre := make([]byte, len(preambleMagic)+tokenLen)
 	if _, err := io.ReadFull(conn, pre); err != nil {
-		return err
+		return false, err
 	}
-	magicOK := bytes.Equal(pre[:len(preambleMagic)], []byte(preambleMagic))
+	magic := pre[:len(preambleMagic)]
+	control = bytes.Equal(magic, []byte(controlMagic))
+	magicOK := control || bytes.Equal(magic, []byte(preambleMagic))
 	tokenOK := subtle.ConstantTimeCompare(pre[len(preambleMagic):], token) == 1
 	if !magicOK || !tokenOK {
-		return errRejected
+		return false, errRejected
 	}
-	if _, err := conn.Write([]byte(preambleAck)); err != nil {
-		return err
+	ack := preambleAck
+	if control {
+		ack = controlAck
+	}
+	if _, err := conn.Write([]byte(ack)); err != nil {
+		return false, err
 	}
 	_ = conn.SetDeadline(time.Time{})
-	return nil
+	return control, nil
 }

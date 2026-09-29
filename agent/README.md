@@ -31,10 +31,11 @@ SSHD que ADR-0004 había hecho para el agente (el cliente sigue en sshj).
 agent/
 ├── go.mod / go.sum
 ├── cmd/titan-agent/
-│   ├── main.go            # modos: front (default) / --daemon / --stop
+│   ├── main.go            # modos: front (default) / --daemon / --status / --close-session / --stop
 │   ├── daemon.go          # candado + listen TCP loopback + serve del protocolo por conexión
+│   ├── control.go         # canal de control: estado, cerrar una sesión y parada ordenada
 │   ├── front.go           # dial-or-spawn del daemon + empalme de stdio; --stop
-│   ├── rendezvous.go      # preámbulo con token entre front y daemon
+│   ├── rendezvous.go      # preámbulo con token entre front y daemon (sesión o control)
 │   ├── state.go           # agent.json: escritura atómica y validación
 │   ├── lock*.go           # candado de instancia única (flock / fcntl / LockFileEx)
 │   ├── statedir_*.go      # directorio de estado por sistema y su comprobación
@@ -43,7 +44,8 @@ agent/
 └── internal/
     ├── protocol/          # códec de tramas (espejo de AgentProtocol.kt) + tests
     ├── buffer/            # ring buffer de salida con offsets + tests
-    └── session/           # Registry + Session (PTY, tee vivo, reenganche) + tests
+    ├── procmem/           # memoria residente por árbol de procesos (/proc, Toolhelp, ps) + tests
+    └── session/           # Registry + Session (PTY, tee vivo, reenganche, cierre) + tests
         ├── pty.go         # PtyError con los códigos E_PTY / E_NO_CONPTY
         ├── pty_unix.go    # PTY Unix común: shell de login, TIOCSWINSZ, EIO → EOF
         ├── pty_{linux,darwin,freebsd}.go  # apertura del master y del esclavo por sistema
@@ -101,9 +103,36 @@ es un directorio real del usuario sin acceso de grupo ni otros:
 
 Contiene `agent.lock` (el candado) y `agent.json` (`0600`, con el token). No
 se usa `/run/user` (systemd lo borra al cerrar la última sesión) ni `/tmp`.
-`--state-dir` cambia el directorio (tests). `titan-agent --stop` termina el
-daemon: primero se autentica contra `agent.json`, así que el PID que mata es
-seguro el del daemon, y después borra el fichero.
+`--state-dir` cambia el directorio (tests). Si `agent.json` desaparece o se
+sobrescribe, el daemon, que tiene el candado, lo vuelve a escribir en unos
+segundos: nunca se queda con el candado y sin forma de alcanzarlo.
+
+### Sesiones sin caducidad y control del usuario
+
+Las sesiones **no caducan** (ADR-0014): una sesión solo termina cuando su shell
+sale o cuando el usuario la cierra, y el daemon no se cierra solo. Para verlo y
+cerrarlo, el mismo binario tiene órdenes que hablan con el daemon por un
+**canal de control**: el mismo encuentro loopback + token con otra marca de
+preámbulo (`TTNACTL1`, respuesta `TTNACOK1`), una línea JSON de petición y una
+de respuesta. El protocolo cliente-agente no cambia.
+
+- `--status` muestra el daemon y sus sesiones; con `--json`, el informe que lee
+  la app (`schema` 1): `state` (`running`, `stopped`, `legacy` si el daemon es
+  anterior al canal de control, `unreachable` si tiene el candado y no
+  responde), versión del daemon y de la CLI, PID, sistema, hora de arranque,
+  memoria del daemon con todo lo que corre debajo y, por sesión, id, creación,
+  último uso, desde cuándo no tiene cliente, clientes, historial en bytes y
+  memoria de su shell con sus descendientes. Las horas son milisegundos Unix
+  del reloj del destino, junto a `nowMs` para compararlas.
+- `--close-session <id>` cierra una sesión; sin daemon no hay nada que cerrar
+  y no es un error.
+- `--stop` pide una parada ordenada: el daemon cierra todas las sesiones, suelta
+  el candado y borra `agent.json`. Con un daemon anterior al canal de control,
+  se autentica contra `agent.json` (así el PID que mata es seguro el del
+  daemon) y lo mata.
+
+La memoria se mide por árbol de procesos: `/proc` en Linux, Toolhelp en
+Windows y `ps` en macOS y FreeBSD; en otros sistemas se omite.
 
 ### Errores
 
@@ -117,7 +146,7 @@ tarea `Nivel 3 portable a todos los destinos`).
 
 ```sh
 cd agent
-go test ./...               # protocolo, buffer, session (PTY real y fake) y front/daemon
+go test ./...               # protocolo, buffer, procmem, session (PTY real y fake), front/daemon y control
 # binarios multi-arch (estáticos, ~2.5 MB):
 GOOS=linux  GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/titan-agent-linux-amd64 ./cmd/titan-agent
 GOOS=linux  GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o dist/titan-agent-linux-arm64 ./cmd/titan-agent

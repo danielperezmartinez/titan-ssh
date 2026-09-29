@@ -36,7 +36,7 @@ func startServe(t *testing.T) (net.Conn, <-chan struct{}) {
 	t.Helper()
 	server, client := net.Pipe()
 	reg := session.NewRegistry(newIdlePty, 1<<16)
-	t.Cleanup(func() { reg.GC(0) })
+	t.Cleanup(func() { reg.CloseAll() })
 	done := make(chan struct{})
 	go func() { serveConn(server, reg); close(done) }()
 	return client, done

@@ -78,7 +78,7 @@ func startTestDaemon(t *testing.T, dir string) *daemon {
 		<-done         // serve returned: no more connection goroutines start
 		d.conns.Wait() // nor outlive the test (they read its shortened timeouts)
 		d.close()
-		d.reg.GC(0)
+		d.reg.CloseAll()
 	})
 	return d
 }

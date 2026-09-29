@@ -68,6 +68,9 @@ func (p *unixPty) Write(b []byte) (int, error) { return p.master.Write(b) }
 
 func (p *unixPty) Resize(cols, rows uint16) error { return setWinsize(p.master, cols, rows) }
 
+// Pid is the shell's process id, the root of what the session runs.
+func (p *unixPty) Pid() int { return p.cmd.Process.Pid }
+
 func (p *unixPty) Close() error {
 	err := p.master.Close()
 	if p.cmd.Process != nil {

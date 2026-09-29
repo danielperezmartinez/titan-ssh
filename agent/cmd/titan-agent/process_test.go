@@ -1,12 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -196,5 +198,51 @@ func TestStopWithoutDaemonRemovesStaleState(t *testing.T) {
 	stopAgent(t, dir)
 	if _, err := os.Stat(filepath.Join(dir, stateFileName)); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("stale state file should be gone, got %v", err)
+	}
+}
+
+// With real processes and a real PTY: --status --json lists the session with
+// its shell's memory, --close-session ends it, and --stop ends the daemon.
+func TestStatusCloseAndStopFromTheCommandLine(t *testing.T) {
+	dir := testStateDir(t)
+	t.Cleanup(func() { stopAgent(t, dir) })
+
+	f := startFront(t, dir)
+	hello(t, f.stdin, f.out, "cli-session")
+	f.close(t)
+
+	var rep statusReport
+	waitFor(t, "the session detached in --status", func() bool {
+		out, err := agentCmd(t, "--status", "--json", "--state-dir", dir).Output()
+		if err != nil || json.Unmarshal(out, &rep) != nil {
+			return false
+		}
+		return rep.State == stateRunning && len(rep.Sessions) == 1 && rep.Sessions[0].Clients == 0
+	})
+	s := rep.Sessions[0]
+	if s.ID != "cli-session" || s.MemoryBytes == nil || *s.MemoryBytes == 0 {
+		t.Fatalf("session report: %+v", s)
+	}
+	if rep.MemoryBytes == nil || *rep.MemoryBytes < *s.MemoryBytes {
+		t.Fatalf("the daemon's tree must include its session: daemon=%v session=%d", rep.MemoryBytes, *s.MemoryBytes)
+	}
+	if out, err := agentCmd(t, "--status", "--state-dir", dir).Output(); err != nil || !strings.Contains(string(out), "cli-session") {
+		t.Fatalf("human --status: %v: %s", err, out)
+	}
+
+	if out, err := agentCmd(t, "--close-session", "cli-session", "--state-dir", dir).CombinedOutput(); err != nil {
+		t.Fatalf("--close-session: %v: %s", err, out)
+	}
+	out, _ := agentCmd(t, "--status", "--json", "--state-dir", dir).Output()
+	if err := json.Unmarshal(out, &rep); err != nil || len(rep.Sessions) != 0 {
+		t.Fatalf("after --close-session: %s", out)
+	}
+
+	if out, err := agentCmd(t, "--stop", "--state-dir", dir).CombinedOutput(); err != nil {
+		t.Fatalf("--stop: %v: %s", err, out)
+	}
+	out, _ = agentCmd(t, "--status", "--json", "--state-dir", dir).Output()
+	if err := json.Unmarshal(out, &rep); err != nil || rep.State != stateStopped {
+		t.Fatalf("after --stop: %s", out)
 	}
 }

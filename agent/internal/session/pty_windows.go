@@ -56,7 +56,7 @@ func startConPty(cmdline string, cols, rows uint16) (Pty, error) {
 	// The console holds its own references to its ends of the pipes.
 	closeHandles(inR, outW)
 
-	process, err := createAttached(cmdline, hpc)
+	process, pid, err := createAttached(cmdline, hpc)
 	if err != nil {
 		// Pipes first: with nobody reading the output, ClosePseudoConsole
 		// could otherwise block on the console's last write.
@@ -67,6 +67,7 @@ func startConPty(cmdline string, cols, rows uint16) (Pty, error) {
 	p := &conPty{
 		hpc:     hpc,
 		process: process,
+		pid:     int(pid),
 		in:      os.NewFile(uintptr(inW), "conpty-in"),
 		out:     os.NewFile(uintptr(outR), "conpty-out"),
 		exited:  make(chan struct{}),
@@ -76,17 +77,17 @@ func startConPty(cmdline string, cols, rows uint16) (Pty, error) {
 }
 
 // createAttached creates the process with the pseudo console as its console
-// and returns its handle.
-func createAttached(cmdline string, hpc windows.Handle) (windows.Handle, error) {
+// and returns its handle and id.
+func createAttached(cmdline string, hpc windows.Handle) (windows.Handle, uint32, error) {
 	attrs, err := windows.NewProcThreadAttributeList(1)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	defer attrs.Delete()
 	// The attribute takes the HPCON value itself, not a pointer to it; go vet
 	// reports a possible misuse of unsafe.Pointer here, which is expected.
 	if err := attrs.Update(windows.PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, unsafe.Pointer(hpc), unsafe.Sizeof(hpc)); err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	var si windows.StartupInfoEx
 	si.Cb = uint32(unsafe.Sizeof(si))
@@ -96,15 +97,15 @@ func createAttached(cmdline string, hpc windows.Handle) (windows.Handle, error) 
 	si.Flags = windows.STARTF_USESTDHANDLES
 	cmd, err := windows.UTF16PtrFromString(cmdline)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	var pi windows.ProcessInformation
 	flags := uint32(windows.EXTENDED_STARTUPINFO_PRESENT | windows.CREATE_UNICODE_ENVIRONMENT)
 	if err := windows.CreateProcess(nil, cmd, nil, nil, false, flags, nil, nil, &si.StartupInfo, &pi); err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	_ = windows.CloseHandle(pi.Thread)
-	return pi.Process, nil
+	return pi.Process, pi.ProcessId, nil
 }
 
 type conPty struct {
@@ -115,12 +116,16 @@ type conPty struct {
 
 	mu         sync.Mutex // guards process against use after waitExit closes it
 	process    windows.Handle
+	pid        int // the shell's process id
 	procClosed bool
 	exited     chan struct{} // closed once the process has exited and been released
 }
 
 func (p *conPty) Read(b []byte) (int, error)  { return p.out.Read(b) }
 func (p *conPty) Write(b []byte) (int, error) { return p.in.Write(b) }
+
+// Pid is the shell's process id, the root of what the session runs.
+func (p *conPty) Pid() int { return p.pid }
 
 func (p *conPty) Resize(cols, rows uint16) error {
 	return windows.ResizePseudoConsole(p.hpc, coord(cols, rows))

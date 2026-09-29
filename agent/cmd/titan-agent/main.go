@@ -15,13 +15,17 @@
 //     replays from the client's last offset. A lock in the state dir keeps it to
 //     one per user.
 //
-// --stop ends the user's daemon (for uninstalling and test cleanup).
+// --status reports the daemon and its sessions (--json for the client),
+// --close-session ends one session and --stop ends the daemon in order,
+// closing every session first. Nothing else ever ends them: sessions do not
+// expire (ADR-0014).
 //
 // When the front cannot give the client a daemon connection it exits non-zero
 // with one stderr line, `TITAN_AGENT_ERROR <code> <message>` (see errors.go).
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -36,7 +40,10 @@ var version = "0.0.0-dev"
 
 func main() {
 	daemon := flag.Bool("daemon", false, "run the persistent session daemon")
-	stop := flag.Bool("stop", false, "stop the user's running daemon and exit")
+	stop := flag.Bool("stop", false, "stop the user's daemon, closing every session, and exit")
+	status := flag.Bool("status", false, "print the user's daemon and its sessions, and exit")
+	asJSON := flag.Bool("json", false, "with --status: print the report as JSON")
+	closeID := flag.String("close-session", "", "close the session with this id, and exit")
 	// Carried in the HELLO frame now; accepted for the documented exec command
 	// but not required by the front (the daemon reads the id from the protocol).
 	_ = flag.String("session", "", "stable session id (informational; id travels in HELLO)")
@@ -50,7 +57,7 @@ func main() {
 		return
 	}
 
-	err := run(*stateDir, *daemon, *stop, *bufCap)
+	err := run(*stateDir, mode{daemon: *daemon, stop: *stop, status: *status, json: *asJSON, closeID: *closeID}, *bufCap)
 	if err != nil {
 		var ae *agentError
 		if errors.As(err, &ae) {
@@ -62,7 +69,14 @@ func main() {
 	}
 }
 
-func run(stateDir string, daemon, stop bool, bufCap int) error {
+// mode is what the command line asks for; with none of them set, the binary
+// runs as the front.
+type mode struct {
+	daemon, stop, status, json bool
+	closeID                    string
+}
+
+func run(stateDir string, m mode, bufCap int) error {
 	if stateDir == "" {
 		dir, err := defaultStateDir()
 		if err != nil {
@@ -71,9 +85,28 @@ func run(stateDir string, daemon, stop bool, bufCap int) error {
 		stateDir = dir
 	}
 	switch {
-	case stop:
+	case m.stop:
 		return stopDaemon(stateDir)
-	case daemon:
+	case m.status:
+		st, err := queryStatus(stateDir)
+		if err != nil {
+			return err
+		}
+		if m.json {
+			return json.NewEncoder(os.Stdout).Encode(st)
+		}
+		printStatus(os.Stdout, st)
+		return nil
+	case m.closeID != "":
+		closed, err := closeSession(stateDir, m.closeID)
+		if err != nil {
+			return err
+		}
+		if !closed {
+			fmt.Println("titan-agent: no such session; nothing to close")
+		}
+		return nil
+	case m.daemon:
 		return runDaemon(stateDir, bufCap)
 	default:
 		return runFront(stateDir)
