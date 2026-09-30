@@ -1,11 +1,11 @@
 ---
 Nombre: 'Transparencia y control del agente en el destino'
-Estado: 'En curso'
-Resumen: 'Hoy el usuario no tiene una forma sencilla de saber si hay un agente de nivel 3 corriendo en un destino, qué sesiones guarda ni de cerrarlo sin reiniciar la máquina: el proceso se llama agent-<versión>-<so>-<arch> (no aparece buscando "titan"), en Windows vive en la sesión 0 (sin escritorio) y en Linux desacoplado con setsid. Objetivo: dar transparencia y control sin romper el principio de que el agente y sus sesiones siguen vivos pase el tiempo que pase. Alcance: quitar el TTL de 30 minutos de las sesiones (ADR-0014), órdenes de consulta y control en el propio agente (estado, cerrar una sesión, detener de forma ordenada), un panel en la app que las usa por SSH desde cualquier plataforma, tres avisos que nunca cierran nada (sesiones en segundo plano, más de 1 GB de memoria, sesión sin conectar 24 horas seguidas) y formas explícitas de cerrar (cerrar la pestaña nunca pierde trabajo; "Terminar en el destino" desde la lanzadera o el panel; eliminar una sesión viva solo permite eliminarla y terminarla, o no eliminarla; si el destino no responde, se termina en la siguiente conexión). Ubicación en la interfaz: lanzadera de Sesiones y panel propio del agente; la pestaña del terminal no cambia. Fuera de alcance: que el agente se cierre solo y el icono en la bandeja de Windows. Plan cerrado con el usuario el 2026-09-29.'
+Estado: 'Hecha'
+Resumen: 'Hoy el usuario no tiene una forma sencilla de saber si hay un agente de nivel 3 corriendo en un destino, qué sesiones guarda ni de cerrarlo sin reiniciar la máquina: el proceso se llama agent-<versión>-<so>-<arch> (no aparece buscando "titan"), en Windows vive en la sesión 0 (sin escritorio) y en Linux desacoplado con setsid. Objetivo: dar transparencia y control sin romper el principio de que el agente y sus sesiones siguen vivos pase el tiempo que pase. Alcance: quitar el TTL de 30 minutos de las sesiones (ADR-0014), órdenes de consulta y control en el propio agente (estado, cerrar una sesión, detener de forma ordenada), un panel en la app que las usa por SSH desde cualquier plataforma, tres avisos que nunca cierran nada (sesiones en segundo plano, más de 1 GB de memoria, sesión sin conectar 24 horas seguidas) y formas explícitas de cerrar (cerrar la pestaña nunca pierde trabajo; "Terminar en el destino" desde la lanzadera o el panel; eliminar una sesión viva solo permite eliminarla y terminarla, o no eliminarla; si el destino no responde, se termina en la siguiente conexión). Ubicación en la interfaz: lanzadera de Sesiones y panel propio del agente; la pestaña del terminal no cambia. Fuera de alcance: que el agente se cierre solo y el icono en la bandeja de Windows. Plan cerrado con el usuario el 2026-09-29. Publicada en v0.1.0-beta.7 y confirmada por el usuario el 2026-09-30.'
 Decisiones: 'El usuario decide el 2026-09-29: el agente no se cierra solo; se quita el TTL de 30 minutos de las sesiones y en su lugar se avisa ([[ADR-0014 Sesiones del agente sin caducidad]], que sustituye el punto GC de [[ADR-0008 Diseño del agente de resiliencia nivel 3]]); el icono en la bandeja de Windows no se hace de momento; los avisos y las formas de cerrar quedan como se describen en la nota; la ubicación en la interfaz está en [[Estado y control del agente en la interfaz]]. Se apoya en el candado y el encuentro por loopback de [[titan-agent instancia única y directorio de estado]] y [[titan-agent punto de encuentro TCP loopback con token]], y en las acciones contextuales de [[Acciones contextuales en las filas de lista]].'
 Bloqueada: []
 Fecha de creación: 2026-09-29T21:00:00+02:00
-Última modificación: 2026-09-30T19:35:00+02:00
+Última modificación: 2026-09-30T20:00:00+02:00
 ---
 
 # Transparencia y control del agente en el destino
@@ -153,5 +153,6 @@ Los avisos solo informan y llevan al panel; nunca cierran nada.
 - **Publicada en
   [`v0.1.0-beta.7`](https://github.com/danielperezmartinez/titan-ssh/releases/tag/v0.1.0-beta.7)**
   (2026-09-30); comprobación del Release en [[Seguimiento de tareas pendientes]].
-- **Falta:** que el usuario instale la APK del Release en el Pixel y confirme
-  que funciona.
+- **Confirmada por el usuario (2026-09-30)** con la APK de la beta.7:
+  funciona, incluida la actualización de un agente de otra versión (se detiene
+  el antiguo y el nuevo arranca con la siguiente sesión de nivel 3). Cerrada.
