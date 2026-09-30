@@ -142,7 +142,7 @@ fun SessionEditor(
             marker = marker, onMarker = { marker = it },
             fontSize = fontSize, onFontSize = { fontSize = it },
             scripts = scripts, onScripts = { scripts = it },
-            tunnels = tunnels,
+            tunnels = tunnels, onTunnels = { tunnels = it },
             onOpenScript = { subEditor = SubEditor.ScriptEdit(it) },
             onOpenTunnel = { subEditor = SubEditor.TunnelEdit(it) },
             onDone = onDone,
@@ -166,13 +166,15 @@ private fun SessionForm(
     marker: String, onMarker: (String) -> Unit,
     fontSize: String, onFontSize: (String) -> Unit,
     scripts: List<SessionScript>, onScripts: (List<SessionScript>) -> Unit,
-    tunnels: List<Tunnel>,
+    tunnels: List<Tunnel>, onTunnels: (List<Tunnel>) -> Unit,
     onOpenScript: (String?) -> Unit,
     onOpenTunnel: (String?) -> Unit,
     onDone: () -> Unit,
 ) {
     val config by controller.state.collectAsState()
     val canSave = name.isNotBlank() && hostId != null
+    // The script or tunnel whose row is asking to confirm its removal; one at a time.
+    var confirmingRemoval by remember { mutableStateOf<String?>(null) }
 
     fun save() {
         val hid = hostId ?: return
@@ -244,19 +246,37 @@ private fun SessionForm(
                     script.libraryScriptId != null -> "  ·  falta en la biblioteca"
                     else -> ""
                 }
-                ListRow(
-                    marker = if (script.enabled) "[>]" else "[ ]",
-                    title = (library?.name ?: script.label).ifBlank { "(sin nombre)" },
-                    subtitle = phaseLabel(script.phase) + origin + if (script.enabled) "" else "  ·  deshabilitado",
-                    onClick = { onOpenScript(script.id) },
-                    markerColor = if (script.enabled) TitanColors.Body else TitanColors.Stone,
-                    trailing = {
-                        Row(horizontalArrangement = Arrangement.spacedBy(TitanDimens.SpaceXs)) {
-                            GlyphButton("[^]", onClick = { if (index > 0) onScripts(scripts.swap(index, index - 1)) }, enabled = index > 0)
-                            GlyphButton("[v]", onClick = { if (index < scripts.lastIndex) onScripts(scripts.swap(index, index + 1)) }, enabled = index < scripts.lastIndex)
-                        }
-                    },
-                )
+                if (confirmingRemoval == script.id) {
+                    // A library reference only leaves this session; an own
+                    // script exists nowhere else, so removing it deletes it.
+                    ConfirmRow(
+                        question = if (script.libraryScriptId != null) "¿Quitar de la sesión?" else "¿Eliminar el script?",
+                        subtitle = if (library != null) "Sigue en la biblioteca" else null,
+                        confirmLabel = "[x] Sí",
+                        marker = "[x]",
+                        markerColor = TitanColors.Danger,
+                        onConfirm = {
+                            onScripts(scripts.filterNot { it.id == script.id })
+                            confirmingRemoval = null
+                        },
+                        onCancel = { confirmingRemoval = null },
+                    )
+                } else {
+                    ListRow(
+                        marker = if (script.enabled) "[>]" else "[ ]",
+                        title = (library?.name ?: script.label).ifBlank { "(sin nombre)" },
+                        subtitle = phaseLabel(script.phase) + origin + if (script.enabled) "" else "  ·  deshabilitado",
+                        onClick = { onOpenScript(script.id) },
+                        markerColor = if (script.enabled) TitanColors.Body else TitanColors.Stone,
+                        trailing = {
+                            Row(horizontalArrangement = Arrangement.spacedBy(TitanDimens.SpaceXs)) {
+                                GlyphButton("[^]", onClick = { if (index > 0) onScripts(scripts.swap(index, index - 1)) }, enabled = index > 0)
+                                GlyphButton("[v]", onClick = { if (index < scripts.lastIndex) onScripts(scripts.swap(index, index + 1)) }, enabled = index < scripts.lastIndex)
+                                GlyphButton("[x]", onClick = { confirmingRemoval = script.id }, color = TitanColors.Danger)
+                            }
+                        },
+                    )
+                }
                 Hairline()
             }
             Spacer(Modifier.height(TitanDimens.SpaceSm))
@@ -267,13 +287,30 @@ private fun SessionForm(
                 EmptyState("Sin túneles.")
             }
             tunnels.forEach { tunnel ->
-                ListRow(
-                    marker = if (tunnel.enabled) "[>]" else "[ ]",
-                    title = tunnel.label.ifBlank { tunnelSummary(tunnel) },
-                    subtitle = tunnelSummary(tunnel) + if (tunnel.enabled) "" else "  ·  deshabilitado",
-                    onClick = { onOpenTunnel(tunnel.id) },
-                    markerColor = if (tunnel.enabled) TitanColors.Body else TitanColors.Stone,
-                )
+                if (confirmingRemoval == tunnel.id) {
+                    ConfirmRow(
+                        question = "¿Eliminar el túnel?",
+                        confirmLabel = "[x] Sí",
+                        marker = "[x]",
+                        markerColor = TitanColors.Danger,
+                        onConfirm = {
+                            onTunnels(tunnels.filterNot { it.id == tunnel.id })
+                            confirmingRemoval = null
+                        },
+                        onCancel = { confirmingRemoval = null },
+                    )
+                } else {
+                    ListRow(
+                        marker = if (tunnel.enabled) "[>]" else "[ ]",
+                        title = tunnel.label.ifBlank { tunnelSummary(tunnel) },
+                        subtitle = tunnelSummary(tunnel) + if (tunnel.enabled) "" else "  ·  deshabilitado",
+                        onClick = { onOpenTunnel(tunnel.id) },
+                        markerColor = if (tunnel.enabled) TitanColors.Body else TitanColors.Stone,
+                        trailing = {
+                            GlyphButton("[x]", onClick = { confirmingRemoval = tunnel.id }, color = TitanColors.Danger)
+                        },
+                    )
+                }
                 Hairline()
             }
             Spacer(Modifier.height(TitanDimens.SpaceSm))

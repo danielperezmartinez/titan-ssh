@@ -524,8 +524,8 @@ fun bodyPadding(): PaddingValues = PaddingValues(
 
 /**
  * Editor chrome: a top bar with a `[<]` back action, a title, an optional
- * `[x] Eliminar` and a `[✓] Guardar`, over a scrollable body. [onSave] is only
- * enabled when [canSave] holds.
+ * delete action ([deleteLabel], `[x] Eliminar` by default) and a `[✓] Guardar`,
+ * over a scrollable body. [onSave] is only enabled when [canSave] holds.
  */
 @Composable
 fun EditorScaffold(
@@ -535,6 +535,7 @@ fun EditorScaffold(
     canSave: Boolean,
     modifier: Modifier = Modifier,
     onDelete: (() -> Unit)? = null,
+    deleteLabel: String = "[x] Eliminar",
     body: @Composable () -> Unit,
 ) {
     Column(modifier.fillMaxWidth()) {
@@ -552,7 +553,7 @@ fun EditorScaffold(
                 modifier = Modifier.weight(1f).padding(start = TitanDimens.SpaceSm),
             )
             if (onDelete != null) {
-                TitanButton("[x] Eliminar", onClick = onDelete, kind = ButtonKind.DANGER)
+                TitanButton(deleteLabel, onClick = onDelete, kind = ButtonKind.DANGER)
                 Spacer(Modifier.width(TitanDimens.SpaceSm))
             }
             TitanButton("[ok] Guardar", onClick = onSave, kind = ButtonKind.PRIMARY, enabled = canSave)

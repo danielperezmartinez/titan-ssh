@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-10-01T00:42:00+02:00
+Última modificación: 2026-10-01T00:50:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -179,6 +179,11 @@ mismo commit).
   - Encontrado en las pruebas de 10g: `~/proyecto` falla porque la ruta va
     entre comillas simples. Pequeña; se puede hacer junto a 10f, que también
     toca la automatización de inicio.
+- [ ] **10i. Quitar scripts y túneles desde la ficha**
+  - [[Quitar scripts y túneles desde la ficha de la sesión]]
+  - Petición del usuario (2026-10-01): un `[x]` en cada fila; en un script de
+    la biblioteca solo lo quita de la sesión. Hecho y probado en el emulador.
+    👤 Falta que el usuario lo pruebe.
 
 ### Fase 5 · Distribución pública
 

@@ -45,7 +45,8 @@ import io.github.danielperezmartinez.titanssh.theme.TitanDimens
  * editor, which commits everything when the session itself is saved. Only
  * [onSaveToLibrary] writes at once, since the library does not belong to the
  * session. [onDelete] removes it from the session's list (only meaningful when
- * editing an existing one); [onBack] discards the changes.
+ * editing an existing one; a library script stays in the library); [onBack]
+ * discards the changes.
  */
 @Composable
 fun ScriptEditor(
@@ -78,6 +79,8 @@ fun ScriptEditor(
         onSave = { onSave(finished()) },
         canSave = true,
         onDelete = if (isNew) null else onDelete,
+        // A library reference only leaves this session; an own script is gone.
+        deleteLabel = if (draft.libraryScriptId != null) "[x] Quitar" else "[x] Eliminar",
     ) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bodyPadding())) {
             TitanCheck("Habilitado", draft.enabled) { draft = draft.copy(enabled = it) }
