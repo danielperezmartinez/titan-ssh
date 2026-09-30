@@ -1,6 +1,6 @@
 ---
 Nombre: 'Detalle de las sesiones en el panel del agente'
-Estado: 'Propuesta'
+Estado: 'Aceptada'
 Ámbito: 'Layout'
 Resumen: 'Amplía el panel del agente sin reemplazar Estado y control del agente en la interfaz. La fila plegada de cada sesión antepone el programa en marcha (claude · en segundo plano · último uso hace 3 h · 80 MB). Al desplegarla, antes de Abrir y Terminar, se ve el detalle, un dato por línea: si es recuperable, cuándo se creó y cuánto lleva activa, clientes o desde cuándo no tiene ninguno, el programa en marcha o si está en el prompt, la shell con su PID y tamaño, directorio (solo Linux), título de ventana, última salida, CPU y memoria, e historial guardado. Debajo va una vista previa con las últimas líneas de la terminal, en una caja con el fondo del terminal. Una sesión cuya shell terminó se ve con [x] y sin acciones. Nada de esto va en la franja de encima del terminal.'
 Decisión: 'El detalle de cada sesión del agente y su vista previa se ven al desplegar su fila en el panel del agente; la fila plegada solo añade el programa en marcha.'
@@ -8,7 +8,7 @@ Consecuencias: 'La fila plegada sigue en dos líneas y el detalle solo se ve al 
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-09-30T22:00:00+02:00
-Última modificación: 2026-09-30T22:00:00+02:00
+Última modificación: 2026-09-30T22:30:00+02:00
 ---
 
 # Detalle de las sesiones en el panel del agente

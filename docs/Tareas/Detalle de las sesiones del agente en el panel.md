@@ -5,7 +5,7 @@ Resumen: 'Petición del usuario (2026-09-30): que el panel del agente deje claro
 Decisiones: 'Decisión del usuario (2026-09-30): se hacen todas las ideas de la lista, y solo en el panel del agente (la pantalla secundaria "[<] Agente · destino"). La franja de estado del terminal no recibe nada, según [[Franja de estado del terminal solo para el estado y los scripts]]. Cómo se reparte el detalle dentro del panel (fila plegada o desplegada) se propone al implementarlo. Amplía el panel de [[Estado y control del agente en la interfaz]], que se hizo en [[Transparencia y control del agente en el destino]]. Si cambia lo que se ve en el panel, se decide con el usuario y se recoge en esa decisión visual o en una nueva que la reemplace.'
 Bloqueada: []
 Fecha de creación: 2026-09-30T21:00:00+02:00
-Última modificación: 2026-09-30T22:00:00+02:00
+Última modificación: 2026-09-30T22:30:00+02:00
 ---
 
 # Detalle de las sesiones del agente en el panel
@@ -135,9 +135,11 @@ centinela que parecían venir de una sesión antigua (ver
     se vuelve a la terminal: aquí no hay sesión guardada para abrirla.
   - Capturas en la carpeta temporal de capturas del emulador
     (`detalle-sesiones`).
-- **Pendiente**: que el usuario apruebe el reparto entre fila plegada y
-  desplegada. Hasta entonces, la decisión visual sigue en `Propuesta` y la
-  tarea en `En curso`.
+- El usuario aprobó el reparto entre fila plegada y desplegada el
+  2026-09-30. [[Detalle de las sesiones en el panel del agente]] pasa a
+  `Aceptada`.
+- **Pendiente**: la prueba del usuario en el Pixel con `v0.1.0-beta.8`. Hasta
+  entonces la tarea sigue `En curso`.
 
 Hallazgo aparte, sin tocar: la ruta inicial `~/proyecto` de la sesión de
 pruebas falla (`cd -- '~/proyecto'`: *No such file or directory*).

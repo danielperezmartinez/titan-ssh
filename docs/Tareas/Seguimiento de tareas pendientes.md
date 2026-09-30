@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-30T22:00:00+02:00
+Última modificación: 2026-09-30T22:30:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -172,6 +172,11 @@ mismo commit).
   - Petición del usuario: ver en el panel del agente qué sesiones son
     recuperables, desde cuándo están activas y qué hay dentro. Aprobadas todas
     las ideas, solo en el panel. Independiente de 10f.
+- [ ] **10h. `~` en la ruta inicial**
+  - [[Expandir el ~ de la ruta inicial en destinos POSIX]]
+  - Encontrado en las pruebas de 10g: `~/proyecto` falla porque la ruta va
+    entre comillas simples. Pequeña; se puede hacer junto a 10f, que también
+    toca la automatización de inicio.
 
 ### Fase 5 · Distribución pública
 
