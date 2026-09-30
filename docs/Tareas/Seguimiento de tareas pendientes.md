@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-30T20:00:00+02:00
+Última modificación: 2026-09-30T21:00:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -155,10 +155,22 @@ mismo commit).
     2026-09-28)
   - Encontrado por el usuario desde el Pixel: la ruta inicial y los scripts de
     inicio escribían sintaxis POSIX que `cmd.exe` no ejecutaba.
-- [ ] **10e. Terminal fluida** 👤 (el usuario confirma en el emulador)
+- [x] **10e. Terminal fluida** 👤 (el usuario confirma en el emulador)
   - [[Terminal fluida con ajuste de líneas y sin rastro de la automatización]]
+    (`Hecha` el 2026-09-30)
   - Encontrado por el usuario en el emulador: el centinela `__TITAN_…__` a la
     vista, líneas largas cortadas por la derecha y tirones con el teclado.
+- [ ] **10f. Sin rastro de la automatización en Windows**
+  - [[Sin rastro de la automatización en destinos Windows]]
+  - Sale de la prueba del usuario de 10e: restos del centinela al
+    reengancharse a una sesión viva, el centinela del último script leído por
+    `pwsh`, y el centinela visible en Windows. El primero es un fallo que
+    descuadra la terminal; va primero.
+- [ ] **10g. Detalle de las sesiones del agente** 👤 (el usuario elige qué
+  datos se ven)
+  - [[Detalle de las sesiones del agente en el panel]] (`Planificando`)
+  - Petición del usuario: ver en el panel qué sesiones son recuperables, desde
+    cuándo están activas y qué hay dentro. Independiente de 10f.
 
 ### Fase 5 · Distribución pública
 
@@ -622,3 +634,12 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   funciona, incluido "Actualizar" un agente de otra versión. Queda cerrada la
   comprobación del Release y la tarea
   [[Transparencia y control del agente en el destino]].
+- 2026-09-30 — **Paso 10e completado**. El usuario probó la beta.7 en el Pixel
+  contra un destino Windows y confirma la fluidez y el ajuste de líneas;
+  [[Terminal fluida con ajuste de líneas y sin rastro de la automatización]]
+  pasa a `Hecha` por decisión suya. En esa prueba salieron tres problemas del
+  centinela en Windows, que pasan a la nueva
+  [[Sin rastro de la automatización en destinos Windows]] (paso 10f). También
+  pidió ver más datos de las sesiones en el panel del agente:
+  [[Detalle de las sesiones del agente en el panel]] (paso 10g), en
+  `Planificando` hasta que elija qué datos quiere.

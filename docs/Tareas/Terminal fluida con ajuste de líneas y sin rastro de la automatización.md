@@ -1,11 +1,11 @@
 ---
 Nombre: 'Terminal fluida con ajuste de líneas y sin rastro de la automatización'
-Estado: 'En curso'
-Resumen: 'Tres fallos que el usuario vio en el emulador: el centinela interno __TITAN_…__ de los scripts de inicio salía en la terminal, las líneas largas se perdían por la derecha y la terminal iba a tirones al abrir el teclado y al escribir. Causa principal del segundo: en Android la fuente JetBrains Mono nunca se cargaba (el módulo compartido no empaquetaba los recursos de Compose como assets) y toda la app pintaba en Roboto proporcional. Arreglado activando androidResources y rehaciendo la terminal: el emulador marca las líneas ajustadas y las reajusta al redimensionar, admite glifos anchos y más modos; la vista pinta celda a celda sobre un Canvas con caché por fila, redimensiona el PTY cuando el tamaño se estabiliza y permite scroll; SessionTab borra de la terminal las líneas del centinela y de las sondas de tmux. Verificado con tests (220, integración incluida) y en el emulador. El 2026-09-30 el usuario lo probó en el Pixel con la beta.7 contra un destino Windows por nivel 3: confirma la fluidez y el ajuste de líneas. El centinela sigue viéndose en Windows, que quedaba fuera del alcance, y salió un fallo nuevo al reengancharse (ver Prueba del usuario).'
+Estado: 'Hecha'
+Resumen: 'Tres fallos que el usuario vio en el emulador: el centinela interno __TITAN_…__ de los scripts de inicio salía en la terminal, las líneas largas se perdían por la derecha y la terminal iba a tirones al abrir el teclado y al escribir. Causa principal del segundo: en Android la fuente JetBrains Mono nunca se cargaba (el módulo compartido no empaquetaba los recursos de Compose como assets) y toda la app pintaba en Roboto proporcional. Arreglado activando androidResources y rehaciendo la terminal: el emulador marca las líneas ajustadas y las reajusta al redimensionar, admite glifos anchos y más modos; la vista pinta celda a celda sobre un Canvas con caché por fila, redimensiona el PTY cuando el tamaño se estabiliza y permite scroll; SessionTab borra de la terminal las líneas del centinela y de las sondas de tmux. Verificado con tests (220, integración incluida) y en el emulador. El 2026-09-30 el usuario lo probó en el Pixel con la beta.7 contra un destino Windows por nivel 3: confirma la fluidez y el ajuste de líneas. El centinela sigue viéndose en Windows, que quedaba fuera del alcance, y salió un fallo nuevo al reengancharse (ver Prueba del usuario). Cerrada así por decisión del usuario; lo de Windows sigue en Sin rastro de la automatización en destinos Windows.'
 Decisiones: 'Ajuste de [[Terminal multipestaña con sesiones simultáneas]] y de [[Scripts de inicio por sesión]]. El centinela sigue tecleándose en la shell (solo ella sabe cuándo acaba un comando), pero la pestaña borra sus líneas; en Windows no, porque ConPTY repinta por posición absoluta y se descuadraría, y dentro de tmux/screen tampoco. Superficies en [[TerminalEmulator]], [[TerminalView]], [[TerminalKeys]] y [[ScriptRunner]].'
 Bloqueada: []
 Fecha de creación: 2026-09-28T10:45:00+02:00
-Última modificación: 2026-09-30T20:45:00+02:00
+Última modificación: 2026-09-30T21:00:00+02:00
 ---
 
 # Terminal fluida con ajuste de líneas y sin rastro de la automatización
@@ -72,7 +72,11 @@ Encontrado por el usuario probando en el emulador:
   líneas de scrollback, 6 aperturas y cierres del teclado y 30 pulsaciones):
   percentil 95 de 150 ms a 36 ms, percentil 99 de 350 ms a 65 ms. La mediana
   (18 ms) es la del emulador, que renderiza por software.
-- **Pendiente**: que el usuario lo pruebe en el emulador y confirme.
+- El usuario lo probó el 2026-09-30 en el Pixel (ver **Prueba del usuario**)
+  y confirma la fluidez y el ajuste de líneas. Lo probó contra un destino
+  Windows, así que el borrado del centinela en un destino POSIX solo está
+  verificado por el test de integración y en el emulador. El usuario decide
+  cerrar la tarea así.
 
 ## Prueba del usuario (2026-09-30)
 
@@ -102,6 +106,9 @@ y `pwsh`), y se abrió en dos pestañas.
   PowerShell. Lo imprime tal cual, nunca casa con `sentinelPattern` y el
   script acaba en `TIMED_OUT` a los 30 s. Si hubiera scripts detrás, se
   abortarían.
+
+Estos tres puntos siguen en
+[[Sin rastro de la automatización en destinos Windows]].
 
 ## Resultado
 
