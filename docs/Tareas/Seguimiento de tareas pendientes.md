@@ -168,9 +168,8 @@ mismo commit).
     descuadra la terminal; va primero.
   - 2026-10-01: los tres hechos y probados en el emulador. 👤 Falta que el
     usuario lo pruebe y acepte el hueco en blanco que deja en Windows.
-- [ ] **10g. Detalle de las sesiones del agente** 👤 (el usuario aprueba cómo
-  se reparte en el panel)
-  - [[Detalle de las sesiones del agente en el panel]]
+- [x] **10g. Detalle de las sesiones del agente**
+  - [[Detalle de las sesiones del agente en el panel]] (`Hecha` el 2026-09-30)
   - Petición del usuario: ver en el panel del agente qué sesiones son
     recuperables, desde cuándo están activas y qué hay dentro. Aprobadas todas
     las ideas, solo en el panel. Independiente de 10f.
@@ -688,6 +687,9 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   `README`). 👤 Falta que el usuario instale la APK en el Pixel desde el
   Release y confirme que funciona. Para ver los datos nuevos en un destino,
   su agente tiene que ser de la beta.8, y actualizarlo cierra sus sesiones.
+- 2026-09-30 — El usuario probó la APK de `v0.1.0-beta.8` en el Pixel 9 y
+  confirma que funciona bien. [[Detalle de las sesiones del agente en el panel]]
+  (paso 10g) pasa a `Hecha`.
 - 2026-10-01 — **Paso 10f** hecho a falta de la prueba del usuario:
   [[Sin rastro de la automatización en destinos Windows]]. El reenganche a un
   destino Windows ya no descuadra la terminal, el último paso de la cadena va

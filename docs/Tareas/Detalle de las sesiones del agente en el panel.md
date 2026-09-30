@@ -1,11 +1,11 @@
 ---
 Nombre: 'Detalle de las sesiones del agente en el panel'
-Estado: 'En curso'
+Estado: 'Hecha'
 Resumen: 'Petición del usuario (2026-09-30): que el panel del agente deje claro qué sesiones siguen vivas y se pueden recuperar, con datos que ayuden a reconocerlas. Por ejemplo, desde cuándo están activas y la fecha y hora en que empezaron. Hoy el panel solo da el estado, el último uso y la memoria. Ideas en dos grupos: las que salen de datos que el agente ya envía (inicio, tiempo activa, desde cuándo sin cliente, tamaño del historial, número de clientes) y las que piden cambiar el agente (shell, proceso en primer plano, directorio actual, tamaño del PTY, última salida, vista previa de la pantalla). El usuario aprueba todas las ideas (2026-09-30), y todo va en el panel del agente, nunca en la franja de encima del terminal.'
 Decisiones: 'Decisión del usuario (2026-09-30): se hacen todas las ideas de la lista, y solo en el panel del agente (la pantalla secundaria "[<] Agente · destino"). La franja de estado del terminal no recibe nada, según [[Franja de estado del terminal solo para el estado y los scripts]]. Cómo se reparte el detalle dentro del panel (fila plegada o desplegada) se propone al implementarlo. Amplía el panel de [[Estado y control del agente en la interfaz]], que se hizo en [[Transparencia y control del agente en el destino]]. Si cambia lo que se ve en el panel, se decide con el usuario y se recoge en esa decisión visual o en una nueva que la reemplace.'
 Bloqueada: []
 Fecha de creación: 2026-09-30T21:00:00+02:00
-Última modificación: 2026-09-30T22:30:00+02:00
+Última modificación: 2026-10-01T01:01:00+02:00
 ---
 
 # Detalle de las sesiones del agente en el panel
@@ -138,8 +138,9 @@ centinela que parecían venir de una sesión antigua (ver
 - El usuario aprobó el reparto entre fila plegada y desplegada el
   2026-09-30. [[Detalle de las sesiones en el panel del agente]] pasa a
   `Aceptada`.
-- **Pendiente**: la prueba del usuario en el Pixel con `v0.1.0-beta.8`. Hasta
-  entonces la tarea sigue `En curso`.
+- **Verificación en dispositivo real**: el usuario probó la APK
+  `v0.1.0-beta.8` en su Pixel 9 el 2026-09-30 y confirmó que el detalle de las
+  sesiones y la vista previa funcionan correctamente.
 
 Hallazgo aparte, sin tocar: la ruta inicial `~/proyecto` de la sesión de
 pruebas falla (`cd -- '~/proyecto'`: *No such file or directory*).
@@ -148,3 +149,10 @@ a propósito según su comentario. Pero una ruta con `~` es lo natural en un
 destino POSIX. Queda para decidir con el usuario.
 
 ## Resultado
+
+Completada y verificada. El agente de nivel 3 recopila y expone la información
+detallada de las sesiones activas (shell, proceso en primer plano, PID,
+dimensiones PTY, CPU, memoria, timestamps y vista previa de pantalla mediante
+`--preview`), y el panel del agente en la app los visualiza al desplegar cada
+sesión según lo acordado en [[Detalle de las sesiones en el panel del agente]].
+Probado en emulador y validado por el usuario en su Pixel 9 con `v0.1.0-beta.8`.
