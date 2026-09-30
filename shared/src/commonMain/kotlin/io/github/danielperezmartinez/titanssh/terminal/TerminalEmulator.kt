@@ -44,8 +44,16 @@ class TerminalEmulator(
     /** One mutable screen row; [freeze] hands out a cached immutable copy until it changes. */
     private class Line(var cells: Array<TerminalCell>, var wrapped: Boolean = false, private var frozen: TerminalRow? = null) {
 
+        /** Blanked by [blankLinesMatching] and not written since: dropped when it scrolls off. */
+        var concealed = false
+
+        /** Its last column was printed to (even a space) and nothing changed it since. */
+        var filled = false
+
         fun touch() {
             frozen = null
+            concealed = false
+            filled = false
         }
 
         fun freeze(): TerminalRow = frozen ?: TerminalRow(cells.toList(), wrapped).also { frozen = it }
@@ -365,7 +373,7 @@ class TerminalEmulator(
     private fun scrollRegionUp(n: Int) {
         repeat(n.coerceIn(0, scrollBottom - scrollTop + 1)) {
             val evicted = screen[scrollTop]
-            if (scrollTop == 0 && !inAltScreen) pushScrollback(evicted.freeze())
+            if (scrollTop == 0 && !inAltScreen && !evicted.concealed) pushScrollback(evicted.freeze())
             for (r in scrollTop until scrollBottom) screen[r] = screen[r + 1]
             screen[scrollBottom] = blankLine(columns)
         }
@@ -456,6 +464,7 @@ class TerminalEmulator(
         if (width == 2) setCell(cursorRow, cursorCol + 1, TerminalCell(' '.code, style, 0))
         val next = cursorCol + width
         if (next >= columns) {
+            screen[cursorRow].filled = true
             cursorCol = columns - 1
             wrapPending = autoWrap
         } else {
@@ -769,9 +778,37 @@ class TerminalEmulator(
      * Used to hide the automation's own commands (completion sentinels and
      * probes), which only make sense to the app.
      */
-    fun eraseLinesMatching(pattern: Regex, scrollbackDepth: Int = 200): Boolean {
+    fun eraseLinesMatching(pattern: Regex, scrollbackDepth: Int = 200): Boolean =
+        concealLines(pattern, scrollbackDepth, unfinished = null)
+
+    /**
+     * Like [eraseLinesMatching], for a console that repaints by absolute
+     * position (a Windows ConPTY): a matching line is blanked where it is on
+     * the screen, so every other row keeps its place, and is taken out of the
+     * scrollback, which the console never addresses. A blanked row that later
+     * scrolls off the top is dropped instead of leaving a gap in the scrollback.
+     *
+     * ConPTY breaks a long line with a hard CR LF instead of wrapping it, so a
+     * row that fills its last column is judged together with the next one. That
+     * also joins an unrelated line that happens to follow a full row, so
+     * [pattern] must reach the end of the line to hide: the rows after its last
+     * match stay. While the cursor is in the line it waits (returns true) if the
+     * cursor is not past the last match yet, or the text after it ends in what
+     * [unfinished] says can still become one.
+     */
+    fun blankLinesMatching(pattern: Regex, unfinished: Regex, scrollbackDepth: Int = 200): Boolean =
+        concealLines(pattern, scrollbackDepth, unfinished)
+
+    /** [eraseLinesMatching] when [unfinished] is null, [blankLinesMatching] otherwise. */
+    private fun concealLines(pattern: Regex, scrollbackDepth: Int, unfinished: Regex?): Boolean {
         if (inAltScreen) return false
+        val inPlace = unfinished != null
         var pendingOnCursor = false
+        val continues: (TerminalRow) -> Boolean =
+            if (inPlace) { row -> row.wrapped || row.lastOrNull()?.isBlank == false } else { row -> row.wrapped }
+        // How many of [line]'s rows the automation's line takes, from the top, given its last match.
+        fun hidden(line: List<TerminalRow>, last: MatchResult): Int =
+            if (inPlace) rowAt(line, last.range.last) + 1 else line.size
 
         // Scrollback tail: whole logical lines that end before the screen starts.
         val firstChecked = maxOf(0, scrollback.size - scrollbackDepth)
@@ -780,8 +817,14 @@ class TerminalEmulator(
         var group = ArrayList<TerminalRow>()
         for (index in firstChecked until scrollback.size) {
             group.add(scrollback[index])
-            if (!scrollback[index].wrapped) {
-                if (pattern.containsMatchIn(textOf(group))) removedAny = true else keep.addAll(group)
+            if (!continues(scrollback[index])) {
+                val last = pattern.findAll(textOf(group)).lastOrNull()
+                if (last == null) {
+                    keep.addAll(group)
+                } else {
+                    removedAny = true
+                    keep.addAll(group.subList(hidden(group, last), group.size))
+                }
                 group = ArrayList()
             }
         }
@@ -795,15 +838,26 @@ class TerminalEmulator(
         val carriedCount = carried.size
         while (start <= used) {
             var end = start
-            while (end < used && screen[end].wrapped) end++
+            while (end < used && (continues(screen[end].freeze()) || (inPlace && screen[end].filled))) end++
             val rowsOfLine = (start..end).map { screen[it].freeze() }
-            val text = textOf(if (start == 0) carried + rowsOfLine else rowsOfLine)
-            if (pattern.containsMatchIn(text)) {
-                if (cursorRow in start..end) {
+            val lineRows = if (start == 0) carried + rowsOfLine else rowsOfLine
+            val carriedHere = lineRows.size - rowsOfLine.size
+            val text = textOf(lineRows)
+            val last = pattern.findAll(text).lastOrNull()
+            if (last != null) {
+                val hiddenRows = hidden(lineRows, last)
+                val lastHidden = start + hiddenRows - 1 - carriedHere
+                // Only what is written up to the cursor: a repaint overwrites old
+                // text in place and erases what is left of it afterwards.
+                val waiting = cursorRow in start..end && (
+                    unfinished == null || cursorRow <= lastHidden ||
+                        unfinished.containsMatchIn(writtenAfter(lineRows, carriedHere + cursorRow - start, last))
+                    )
+                if (waiting) {
                     pendingOnCursor = true
                 } else {
-                    for (r in start..end) removeScreen[r] = true
-                    if (start == 0 && carriedCount > 0) carried.clear()
+                    for (r in start..lastHidden) removeScreen[r] = true
+                    if (carriedHere > 0) carried.subList(0, minOf(hiddenRows, carriedHere)).clear()
                 }
             }
             start = end + 1
@@ -819,7 +873,16 @@ class TerminalEmulator(
             scrollback.addAll(carried)
             scrollbackView = null
         }
-        if (removedScreen > 0) {
+        if (removedScreen > 0 && inPlace) {
+            for (r in removeScreen.indices) {
+                if (!removeScreen[r]) continue
+                val line = screen[r]
+                line.cells.fill(TerminalCell.Blank)
+                line.wrapped = false
+                line.touch()
+                line.concealed = true
+            }
+        } else if (removedScreen > 0) {
             val cursorLine = screen[cursorRow]
             val remaining = screen.filterIndexed { r, _ -> !removeScreen[r] }.toMutableList()
             // Pull scrollback down into the top so the lines below stay put.
@@ -839,6 +902,22 @@ class TerminalEmulator(
 
     private fun textOf(rows: List<TerminalRow>): String = buildString {
         for (row in rows) for (cell in row) if (cell.width != 0) append(cell.text)
+    }
+
+    /** The text of [line] after [match] and before the cursor, on its row [cursorIndex] of [line]. */
+    private fun writtenAfter(line: List<TerminalRow>, cursorIndex: Int, match: MatchResult): String {
+        val upToCursor = textOf(line.subList(0, cursorIndex) + listOf(TerminalRow(line[cursorIndex].subList(0, cursorCol))))
+        return if (match.range.last + 1 >= upToCursor.length) "" else upToCursor.substring(match.range.last + 1).trimEnd()
+    }
+
+    /** Index into [rows] of the row holding character [index] of [textOf]. */
+    private fun rowAt(rows: List<TerminalRow>, index: Int): Int {
+        var seen = 0
+        for ((r, row) in rows.withIndex()) {
+            for (cell in row) if (cell.width != 0) seen += cell.text.length
+            if (index < seen) return r
+        }
+        return rows.lastIndex
     }
 
     /** Clears the screen, scrollback and rendition (full reset, RIS). */

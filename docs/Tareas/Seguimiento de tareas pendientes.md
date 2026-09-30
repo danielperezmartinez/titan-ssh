@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-30T22:45:00+02:00
+Última modificación: 2026-10-01T00:42:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -166,6 +166,8 @@ mismo commit).
     reengancharse a una sesión viva, el centinela del último script leído por
     `pwsh`, y el centinela visible en Windows. El primero es un fallo que
     descuadra la terminal; va primero.
+  - 2026-10-01: los tres hechos y probados en el emulador. 👤 Falta que el
+    usuario lo pruebe y acepte el hueco en blanco que deja en Windows.
 - [ ] **10g. Detalle de las sesiones del agente** 👤 (el usuario aprueba cómo
   se reparte en el panel)
   - [[Detalle de las sesiones del agente en el panel]]
@@ -681,3 +683,9 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   `README`). 👤 Falta que el usuario instale la APK en el Pixel desde el
   Release y confirme que funciona. Para ver los datos nuevos en un destino,
   su agente tiene que ser de la beta.8, y actualizarlo cierra sus sesiones.
+- 2026-10-01 — **Paso 10f** hecho a falta de la prueba del usuario:
+  [[Sin rastro de la automatización en destinos Windows]]. El reenganche a un
+  destino Windows ya no descuadra la terminal, el último paso de la cadena va
+  sin centinela (un último `pwsh` ya no caduca) y en Windows el centinela se
+  vacía en su sitio, dejando un hueco en blanco. Probado en el emulador contra
+  el sshd de Windows y el contenedor de pruebas.

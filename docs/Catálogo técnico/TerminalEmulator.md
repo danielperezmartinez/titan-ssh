@@ -7,8 +7,8 @@ Estado: "Vigente"
 Ámbito: "Feature"
 Fuente: "shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/TerminalEmulator.kt"
 Entrada pública: "io.github.danielperezmartinez.titanssh.terminal"
-Resumen: "Emulador VT100/xterm pragmático, libre de tipos Compose (testeable headless). feed(bytes) parsea UTF-8 completo (los glifos anchos CJK/emoji ocupan dos celdas; las marcas combinantes se descartan), controles C0, autowrap diferido (DECAWM), CSI de cursor (CUU/CUD/CUF/CUB/CNL/CPL/CUP/CHA/VPA), borrado (ED/EL/ECH), edición (IL/DL/ICH/DCH/REP), pantalla alterna (47/1047/1049, sin scrollback propio), regiones de scroll (DECSTBM), SGR (negrita, tenue, cursiva, subrayado, inverso, invisible, tachado, 16/256 colores y true-color), guardar/restaurar cursor, visibilidad del cursor (DECTCEM), teclas de cursor de aplicación (DECCKM) y pegado entre corchetes; responde a DSR y DA por takeResponses(). Marca las filas que continúan por ajuste (TerminalRow.wrapped), así que resize() reajusta la pantalla principal y el scrollback al nuevo ancho, empuja filas al scrollback o las recupera al cambiar el alto y mantiene la línea del cursor; la pantalla alterna solo se recorta. eraseLinesMatching(regex) quita líneas (salvo la del cursor) para ocultar las de la automatización. snapshot() es barato: comparte filas inmutables sin cambios y el scrollback si no creció. Fuera: DECOM, modo inserción, tab-stops, charsets. La paleta la aporta AnsiPalette."
-Última modificación: 2026-09-28T11:05:00+02:00
+Resumen: "Emulador VT100/xterm pragmático, libre de tipos Compose (testeable headless). feed(bytes) parsea UTF-8 completo (los glifos anchos CJK/emoji ocupan dos celdas; las marcas combinantes se descartan), controles C0, autowrap diferido (DECAWM), CSI de cursor (CUU/CUD/CUF/CUB/CNL/CPL/CUP/CHA/VPA), borrado (ED/EL/ECH), edición (IL/DL/ICH/DCH/REP), pantalla alterna (47/1047/1049, sin scrollback propio), regiones de scroll (DECSTBM), SGR (negrita, tenue, cursiva, subrayado, inverso, invisible, tachado, 16/256 colores y true-color), guardar/restaurar cursor, visibilidad del cursor (DECTCEM), teclas de cursor de aplicación (DECCKM) y pegado entre corchetes; responde a DSR y DA por takeResponses(). Marca las filas que continúan por ajuste (TerminalRow.wrapped), así que resize() reajusta la pantalla principal y el scrollback al nuevo ancho, empuja filas al scrollback o las recupera al cambiar el alto y mantiene la línea del cursor; la pantalla alterna solo se recorta. eraseLinesMatching(regex) quita líneas (salvo la del cursor) para ocultar las de la automatización; blankLinesMatching(regex, unfinished) las vacía en su sitio para una consola Windows (ConPTY), que corta las líneas largas con CR LF y repinta por posición absoluta. snapshot() es barato: comparte filas inmutables sin cambios y el scrollback si no creció. Fuera: DECOM, modo inserción, tab-stops, charsets. La paleta la aporta AnsiPalette."
+Última modificación: 2026-10-01T00:35:00+02:00
 ---
 
 # TerminalEmulator
@@ -42,3 +42,12 @@ regiones de scroll y edición de líneas/caracteres añadidas en
 
 Reajuste de líneas al redimensionar, glifos anchos, modos DECTCEM/DECCKM/pegado entre corchetes, respuestas DSR/DA y snapshots que comparten filas añadidos en
 [[Terminal fluida con ajuste de líneas y sin rastro de la automatización]].
+
+- **Ocultar líneas en una consola Windows** (`blankLinesMatching`): ConPTY no
+  ajusta las líneas largas, las corta con CR LF en el margen, y coloca el cursor
+  por posición absoluta tras repintar (al redimensionar, con `cls`). Por eso las
+  líneas de la automatización se vacían sin mover ninguna fila, y una fila que
+  llega a la última columna se junta con la siguiente. Solo se vacían las filas
+  hasta la última coincidencia del patrón, y espera mientras el cursor siga
+  escribiendo un token. Una fila vaciada que sale por arriba no pasa al
+  scrollback. Añadido en [[Sin rastro de la automatización en destinos Windows]].

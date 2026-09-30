@@ -172,6 +172,9 @@ internal fun ScriptBehaviorFields(behavior: ScriptBehavior, onChange: (ScriptBeh
     SectionHeader("Comportamiento")
     TitanCheck("Silencioso (no se muestra en el terminal)", behavior.silent) { onChange(behavior.copy(silent = it)) }
     TitanCheck("Esperar a que termine (secuencial)", behavior.waitForCompletion) { onChange(behavior.copy(waitForCompletion = it)) }
+    // The wait is a line typed in the destination's shell syntax, which a
+    // shell started by the script (pwsh from cmd.exe) would not run.
+    Caption("Un script que abre otra shell (pwsh, bash…) va el último: la espera de los siguientes usa la sintaxis de la shell de antes.")
     Gap()
     TitanSegmented("Si falla", ScriptFailurePolicy.entries, behavior.onFailure, { onChange(behavior.copy(onFailure = it)) }, optionLabel = { if (it == ScriptFailurePolicy.CONTINUE) "continuar" else "abortar" })
     Gap()

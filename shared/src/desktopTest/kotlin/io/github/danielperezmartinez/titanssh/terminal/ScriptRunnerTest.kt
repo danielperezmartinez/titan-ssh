@@ -101,7 +101,9 @@ class ScriptRunnerTest {
 
         val commands = fake.sent.filterNot { it.startsWith("printf ") }.map { it.trim() }
         assertEquals(listOf("cd -- '/srv/app'", "alpha", "beta"), commands)
-        assertEquals(listOf(RunStatus.COMPLETED, RunStatus.COMPLETED, RunStatus.COMPLETED), outcomes.map { it.status })
+        // Only the units something waits for print a sentinel: not the last one.
+        assertEquals(listOf(RunStatus.COMPLETED, RunStatus.COMPLETED, RunStatus.SENT), outcomes.map { it.status })
+        assertEquals("beta\n", fake.sent.last())
     }
 
     @Test
@@ -210,7 +212,7 @@ class ScriptRunnerTest {
         )
 
         assertEquals(RunStatus.FAILED, outcomes[0].status)
-        assertEquals(RunStatus.COMPLETED, outcomes[1].status)
+        assertEquals(RunStatus.SENT, outcomes[1].status)
         assertTrue(fake.sent.any { it.contains("after") })
     }
 

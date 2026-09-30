@@ -43,8 +43,8 @@ import kotlinx.coroutines.test.runTest
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionTabAgentAutomationTest {
 
-    /** Stands in for `titan-agent`: answers HELLO with [created] and a prompt. */
-    private class FakeAgent(private val created: Boolean) : SshExecChannel {
+    /** Stands in for `titan-agent`: answers HELLO with [created] and [replay] (a prompt by default). */
+    private class FakeAgent(private val created: Boolean, private val replay: String = "$ ") : SshExecChannel {
         private val outCh = Channel<ByteArray>(Channel.UNLIMITED)
         override val output: Flow<ByteArray> = outCh.receiveAsFlow()
         override val errors: Flow<ByteArray> = emptyFlow()
@@ -55,7 +55,7 @@ class SessionTabAgentAutomationTest {
             for (frame in decoder.feed(data)) when (frame) {
                 is AgentFrame.Hello -> {
                     outCh.trySend(AgentProtocol.encode(AgentFrame.HelloOk(0, 0, created)))
-                    outCh.trySend(AgentProtocol.encode(AgentFrame.Data(0, "$ ".encodeToByteArray())))
+                    outCh.trySend(AgentProtocol.encode(AgentFrame.Data(0, replay.encodeToByteArray())))
                 }
                 is AgentFrame.Input -> inputs += frame.bytes.decodeToString()
                 else -> Unit
@@ -66,13 +66,14 @@ class SessionTabAgentAutomationTest {
         fun end() { outCh.close() }
     }
 
-    private class FakeSession(created: Boolean) : SshSession {
+    /** [probe] is what the shell probe prints (empty: a POSIX shell). */
+    private class FakeSession(created: Boolean, replay: String = "$ ", private val probe: String = "") : SshSession {
         private val _state = MutableStateFlow(SshConnectionState.CONNECTED)
         override val state = _state.asStateFlow()
-        val agent = FakeAgent(created)
+        val agent = FakeAgent(created, replay)
         override suspend fun openShell(columns: Int, rows: Int): SshShell = error("agent path only")
         override suspend fun exec(command: String): SshExecChannel =
-            if (command == ShellSyntax.PROBE) FakeProbeChannel() else agent
+            if (command == ShellSyntax.PROBE) FakeProbeChannel(probe) else agent
         override suspend fun close() { _state.value = SshConnectionState.DISCONNECTED; agent.end() }
         /** Network micro-cut: the agent channel ends and the transport reports itself down. */
         fun drop() { _state.value = SshConnectionState.DISCONNECTED; agent.end() }
@@ -176,5 +177,55 @@ class SessionTabAgentAutomationTest {
         assertEquals(listOf("agent(afterDrop=false)", "agent(afterDrop=true)"), automation.calls)
         assertEquals(listOf("cd /work\n"), recreated.agent.inputs)
         tab.close()
+    }
+
+    /** What an earlier run's `cd` and its sentinel left on a `cmd.exe` console, replayed on re-attach. */
+    private val cmdReplay = "C:\\Users\\u>cd /d \"D:\\work\"\r\n\r\n" +
+        "D:\\work>echo __TITAN_0123456789abcdef__:%errorlevel%:__TITAN_0123456789abcdef__\r\n" +
+        "__TITAN_0123456789abcdef__:0:__TITAN_0123456789abcdef__\r\n\r\nD:\\work>"
+
+    @Test
+    fun reattaching_to_a_windows_session_blanks_the_sentinels_in_place() = runTest {
+        // The second tab of a saved session, or the app reopened: no automation
+        // has probed the shell, and the replay repaints a ConPTY console, which
+        // later positions the cursor by absolute row: no row may move.
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + Job())
+        val session = FakeSession(created = false, replay = cmdReplay, probe = "Windows_NT C:\\PS\r\n")
+        val tab = newTab(scope, listOf(session), RecordingAutomation())
+
+        tab.start()
+        advanceUntilIdle()
+
+        val snap = tab.snapshot.value
+        val rows = snap.screen.map { line -> line.joinToString("") { it.char.toString() }.trimEnd() }
+        assertTrue(rows.none { "__TITAN_" in it }, "the sentinels are hidden:\n${rows.joinToString("\n")}")
+        assertEquals("C:\\Users\\u>cd /d \"D:\\work\"", rows[0])
+        assertEquals(listOf("", "", "", ""), rows.subList(1, 5), "the sentinel rows stay, blank")
+        assertEquals("D:\\work>", rows[5], "the prompt keeps its row")
+        assertEquals(5, snap.cursorRow)
+        tab.close()
+    }
+
+    @Test
+    fun reattaching_to_a_posix_session_still_hides_the_replayed_sentinels() = runTest {
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + Job())
+        val replay = "$ cd -- '/work'\r\n" +
+            "$ printf '%s:%s:%s\\n' '__TITAN_0123456789abcdef__' \"\$?\" '__TITAN_0123456789abcdef__'\r\n" +
+            "__TITAN_0123456789abcdef__:0:__TITAN_0123456789abcdef__\r\n$ "
+        val session = FakeSession(created = false, replay = replay)
+        val tab = newTab(scope, listOf(session), RecordingAutomation())
+
+        tab.start()
+        advanceUntilIdle()
+
+        val text = screenText(tab)
+        assertTrue("__TITAN_" !in text, "the sentinels are erased once the shell is known:\n$text")
+        assertTrue("cd -- '/work'" in text, "the user's lines stay:\n$text")
+        tab.close()
+    }
+
+    private fun screenText(tab: SessionTab): String {
+        val snap = tab.snapshot.value
+        return (snap.scrollback + snap.screen).joinToString("\n") { line -> line.joinToString("") { it.char.toString() } }
     }
 }

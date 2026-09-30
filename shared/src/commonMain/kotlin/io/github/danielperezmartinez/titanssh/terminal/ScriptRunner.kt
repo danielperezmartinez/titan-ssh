@@ -56,14 +56,15 @@ enum class RunStatus {
  * - **Behavior:** `delaySeconds` (wait before running), `expectPattern` (wait for
  *   a pattern before sending), `waitForCompletion` + `timeoutSeconds` (await a
  *   completion sentinel that also carries `$?`), and `onFailure` (CONTINUE vs
- *   ABORT the rest of the chain).
+ *   ABORT the rest of the chain). The last unit is sent without a sentinel:
+ *   nothing waits for it, so it always reports [RunStatus.SENT].
  * - **Destination shell:** the `cd`, the exported variables, the completion
  *   sentinel and the line endings follow [shell]'s syntax ([ShellSyntax]), so a
  *   Windows destination (`cmd.exe`, PowerShell) runs them too. Script bodies
  *   are sent as written: they must already be in that shell's language.
  *
- * The sentinel lines never reach the user on a POSIX destination: the tab
- * erases every terminal line carrying a sentinel token (see
+ * The sentinel lines never reach the user: the tab erases every terminal line
+ * carrying a sentinel token, or blanks it in place on a Windows console (see
  * `SessionTab.concealAutomation`).
  *
  * ## Known limitation
@@ -119,12 +120,12 @@ class ScriptRunner(
                 if (outcome.isFailure()) aborted = true
             }
 
-            for (script in scripts) {
+            for ((index, script) in scripts.withIndex()) {
                 if (aborted) {
                     outcomes += ScriptOutcome(script.id, RunStatus.ABORTED)
                     continue
                 }
-                val outcome = execute(script, seen)
+                val outcome = execute(script, seen, last = index == scripts.lastIndex)
                 outcomes += outcome
                 if (outcome.isFailure() &&
                     script.behavior.onFailure == ScriptFailurePolicy.ABORT
@@ -138,7 +139,8 @@ class ScriptRunner(
         outcomes
     }
 
-    private suspend fun execute(script: SessionScript, seen: StateFlow<String>): ScriptOutcome {
+    /** Runs [script]; the [last] unit is never awaited, as nothing waits for it. */
+    private suspend fun execute(script: SessionScript, seen: StateFlow<String>, last: Boolean): ScriptOutcome {
         val behavior = script.behavior
 
         // Resolve the secrets this script needs; a missing one skips the script
@@ -175,7 +177,10 @@ class ScriptRunner(
             append(render(script.body, secrets))
         }
 
-        if (!behavior.waitForCompletion) {
+        // The sentinel only gates the next unit. After the last one it would
+        // just print noise, and a script that starts another shell (`pwsh`
+        // from `cmd.exe`) would get it in the wrong syntax and time out.
+        if (!behavior.waitForCompletion || last) {
             io.send(ShellSyntax.lines(shell, block))
             return ScriptOutcome(script.id, RunStatus.SENT)
         }

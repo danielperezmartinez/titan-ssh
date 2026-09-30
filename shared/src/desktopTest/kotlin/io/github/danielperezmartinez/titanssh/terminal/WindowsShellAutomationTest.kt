@@ -111,7 +111,7 @@ class WindowsShellAutomationTest {
             .run(listOf(script), initialDirectory = "D:\\work\\")
 
         assertEquals(listOf("cd /d \"D:\\work\\\"", "set \"MODE=dev\"\rgit status\rdir"), fake.commands())
-        assertEquals(listOf(RunStatus.COMPLETED, RunStatus.COMPLETED), outcomes.map { it.status })
+        assertEquals(listOf(RunStatus.COMPLETED, RunStatus.SENT), outcomes.map { it.status })
         assertFalse(fake.sent.any { '\n' in it }, "a Windows console only takes \\r as Enter: ${fake.sent}")
         assertTrue(fake.sent.all { it.endsWith("\r") })
     }
@@ -139,6 +139,25 @@ class WindowsShellAutomationTest {
 
         assertEquals(listOf("cd /d \"D:\\work\\\"\r"), fake.sent)
         assertEquals(RunStatus.SENT, outcomes.single().status)
+    }
+
+    @Test
+    fun a_last_script_that_starts_powershell_gets_no_cmd_sentinel() = runTest {
+        // The user's session: a `cd`, a script that changes directory again and
+        // one that opens `pwsh`, which would read a `cmd.exe` sentinel literally.
+        val out = newOut()
+        val fake = FakeWindowsShell(out, RemoteShell.CMD)
+        val scripts = listOf(
+            SessionScript(id = "sub", label = "sub", phase = ScriptPhase.ON_SHELL_START, body = "cd titan-ssh"),
+            SessionScript(id = "pwsh", label = "pwsh", phase = ScriptPhase.ON_SHELL_START, body = "pwsh"),
+        )
+
+        val outcomes = ScriptRunner(io(fake, out, RemoteShell.CMD), { null }, shell = RemoteShell.CMD)
+            .run(scripts, initialDirectory = "D:\\work\\")
+
+        assertEquals(listOf(RunStatus.COMPLETED, RunStatus.COMPLETED, RunStatus.SENT), outcomes.map { it.status })
+        assertEquals("pwsh\r", fake.sent.last(), "nothing is typed after the last script: ${fake.sent}")
+        assertEquals(2, fake.sent.size - fake.commands().size, "a sentinel gates only the units after it")
     }
 
     @Test

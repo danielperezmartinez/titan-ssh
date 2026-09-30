@@ -207,6 +207,17 @@ class SessionTab(
     /** The destination's shell once probed; the host stays the same across reconnects. */
     private var remoteShell: RemoteShell? = null
 
+    /**
+     * The shell the automation types for, which decides whether its lines can be
+     * erased ([concealAutomation]); null until known. Unlike [remoteShell] it also
+     * holds the POSIX fallback of a failed probe, as the automation uses it.
+     * Guarded by [emulatorLock].
+     */
+    private var concealShell: RemoteShell? = null
+
+    /** A marker arrived while [concealShell] was unknown; hide it once the shell is known. */
+    private var concealDeferred = false
+
     /** Set once by [close] so the reconnect loop stops instead of retrying. */
     private var closed = false
 
@@ -484,8 +495,14 @@ class SessionTab(
             // live session as it was.
             onAttached = { fresh ->
                 _resilience.value = _resilience.value.copy(level = EffectiveLevel.AGENT)
-                if (fresh) launchAutomation {
-                    automation.onAgentSessionCreated(io, resolved, afterDrop = reconnecting)
+                if (fresh) {
+                    launchAutomation {
+                        automation.onAgentSessionCreated(io, resolved, afterDrop = reconnecting)
+                    }
+                } else {
+                    // The replay can hold the lines of an earlier run's
+                    // automation; whether they can be erased depends on the shell.
+                    scope.launch { runCatching { detectShell(opened) } }
                 }
                 agentObserver?.let { observer ->
                     scope.launch { observer.onAgentReady(AgentKey.of(resolved.endpoint), AgentControl(opened, agentLaunch)) }
@@ -553,7 +570,12 @@ class SessionTab(
      * when the probe fails (not cached, so the next connection asks again).
      */
     private suspend fun detectShell(session: SshSession): RemoteShell {
-        remoteShell?.let { return it }
+        val shell = remoteShell ?: probeShell(session)
+        onShellKnown(shell)
+        return shell
+    }
+
+    private suspend fun probeShell(session: SshSession): RemoteShell {
         val output = withTimeoutOrNull(SHELL_PROBE_TIMEOUT_MILLIS) {
             runCatching {
                 val channel = session.exec(ShellSyntax.PROBE)
@@ -565,6 +587,17 @@ class SessionTab(
             }.getOrNull()
         } ?: return RemoteShell.POSIX
         return ShellSyntax.parseProbe(output).also { remoteShell = it }
+    }
+
+    /** Lets [concealAutomation] act for [shell], and hides the markers it had to leave meanwhile. */
+    private suspend fun onShellKnown(shell: RemoteShell) {
+        emulatorLock.withLock {
+            concealShell = shell
+            if (!concealDeferred) return
+            concealDeferred = false
+            concealPending = conceal(shell)
+            _snapshot.value = emulator.snapshot()
+        }
     }
 
     /** Runs [hook] concurrently with painting, replacing any automation still running. */
@@ -622,17 +655,31 @@ class SessionTab(
      * sentinels of [ScriptRunner] and the probes of [TerminalMultiplexer], both
      * the echoed command and what it prints. They are typed into the user's
      * shell because only the shell knows when a command ends, but they mean
-     * nothing to the user. Only on a POSIX destination: a Windows console
-     * (ConPTY) repaints by absolute position and would not match a screen with
-     * lines taken out. Inside tmux/screen (the alternate screen) the lines stay.
+     * nothing to the user. A POSIX terminal loses those lines; a Windows
+     * console (ConPTY) repaints by absolute position and would not match a
+     * screen with lines taken out, so there they are blanked in their place.
+     * Inside tmux/screen (the alternate screen) the lines stay.
+     *
+     * Nothing is hidden while the shell is unknown ([concealShell]): a re-attach
+     * replays an earlier run's markers before its probe answers. They are
+     * hidden then, in [onShellKnown].
      */
     private fun concealAutomation(bytes: ByteArray) {
-        if (remoteShell != null && remoteShell != RemoteShell.POSIX) return
         val window = markerCarry + bytes
         markerCarry = window.copyOfRange(maxOf(0, window.size - MARKER_PREFIX.size + 1), window.size)
         if (!concealPending && !window.containsAscii(MARKER_PREFIX)) return
-        concealPending = emulator.eraseLinesMatching(AUTOMATION_LINE)
+        val shell = concealShell
+        if (shell == null) {
+            concealDeferred = true
+            return
+        }
+        concealPending = conceal(shell)
     }
+
+    /** Hides every automation line on screen for [shell]; true while one is still being written. */
+    private fun conceal(shell: RemoteShell): Boolean =
+        if (shell == RemoteShell.POSIX) emulator.eraseLinesMatching(AUTOMATION_LINE)
+        else emulator.blankLinesMatching(CONSOLE_AUTOMATION_LINE, UNFINISHED_MARKER)
 
     /**
      * Shows [info] for the user to trust and waits for [answer]. The prompt stays
@@ -712,3 +759,17 @@ private fun ByteArray.containsAscii(needle: ByteArray): Boolean {
     }
     return false
 }
+
+/**
+ * [AUTOMATION_LINE] on a Windows console, reaching the end of the automation's
+ * line as [TerminalEmulator.blankLinesMatching] needs: a line ends in a token,
+ * or in `')` after it (the PowerShell sentinel).
+ */
+private val CONSOLE_AUTOMATION_LINE = Regex("""__TITAN_[0-9a-f]{16}__(?:'\))?""")
+
+/**
+ * What follows a finished token on a line that may still go on: part of a
+ * `__TITAN_…__` token, or nothing or `'` of the `')` that closes a PowerShell
+ * sentinel.
+ */
+private val UNFINISHED_MARKER = Regex("^'?$|_(_(T(I(T(A(N(_[0-9a-f]{0,16}_?)?)?)?)?)?)?)?$")

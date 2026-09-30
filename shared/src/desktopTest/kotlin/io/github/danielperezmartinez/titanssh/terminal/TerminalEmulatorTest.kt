@@ -2,6 +2,7 @@ package io.github.danielperezmartinez.titanssh.terminal
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class TerminalEmulatorTest {
 
@@ -361,5 +362,108 @@ class TerminalEmulatorTest {
         assertEquals(0, s.scrollback.size)
         assertEquals(listOf("old", "new", "$"), s.screen.map { r -> r.joinToString("") { it.text }.trimEnd() })
         assertEquals(2, s.cursorRow)
+    }
+
+    // A Windows console (ConPTY) breaks a long line with a hard CR LF at the
+    // margin, repaints by absolute position, and erases what is left of old
+    // text only after rewriting a row. These follow what it sent in a real
+    // recording of cmd.exe and PowerShell.
+
+    private val consoleLine = Regex("""__TITAN_[0-9a-f]{16}__(?:'\))?""")
+    private val unfinished = Regex("^'?$|_(_(T(I(T(A(N(_[0-9a-f]{0,16}_?)?)?)?)?)?)?)?$")
+    private val tok = "__TITAN_0123456789abcdef__"
+
+    /** [lines] as ConPTY sends them to a [cols]-wide terminal: hard breaks at the margin. */
+    private fun console(cols: Int, vararg lines: String): String =
+        lines.joinToString("\r\n") { it.chunked(cols).joinToString("\r\n") }
+
+    /** Feeds [s] in pieces of [size] bytes, blanking after each as the tab does. */
+    private fun TerminalEmulator.feedBlanking(s: String, size: Int = 3): Boolean {
+        var pending = false
+        for (piece in s.chunked(size)) {
+            feed(bytes(piece))
+            pending = blankLinesMatching(consoleLine, unfinished)
+        }
+        return pending
+    }
+
+    private fun TerminalEmulator.rows(): List<String> =
+        snapshot().screen.map { row -> row.filter { it.width != 0 }.joinToString("") { it.text }.trimEnd() }
+
+    @Test
+    fun blanks_a_hard_broken_console_line_in_place() {
+        val e = TerminalEmulator(30, 10)
+        val pending = e.feedBlanking(
+            console(30, "C:\\w>cd x", "", "C:\\w>echo $tok:%errorlevel%:$tok", "$tok:0:$tok", "", "C:\\w>"),
+        )
+        assertEquals(false, pending)
+        val rows = e.rows()
+        assertEquals("C:\\w>cd x", rows[0])
+        assertEquals(List(7) { "" }, rows.subList(1, 8), "the sentinel rows stay, blank: $rows")
+        assertEquals("C:\\w>", rows[8])
+        assertEquals(8, e.snapshot().cursorRow, "no row moved")
+    }
+
+    @Test
+    fun waits_while_a_hard_broken_token_is_still_being_written() {
+        val e = TerminalEmulator(30, 8)
+        val echo = console(30, "C:\\w>echo $tok:%errorlevel%:$tok")
+        // The second token is not finished yet: nothing is blanked.
+        val split = echo.length - 5
+        assertEquals(true, e.feedBlanking(echo.substring(0, split)))
+        assertTrue(e.rows().any { "echo" in it })
+        e.feedBlanking(echo.substring(split) + "\r\n$tok:0:$tok\r\n\r\nC:\\w>")
+        assertEquals(List(6) { "" } + listOf("C:\\w>", ""), e.rows(), "no piece of a token is left")
+    }
+
+    @Test
+    fun a_sentinel_that_fills_the_row_keeps_the_prompt_after_it() {
+        // Its output is exactly as wide as the terminal, and PowerShell prints
+        // its prompt on the next row: they join, but the prompt is the user's.
+        val output = "$tok:0:$tok"
+        val e = TerminalEmulator(output.length, 5)
+        e.feedBlanking("$output\r\nPS C:\\w> ")
+        assertEquals(listOf("", "PS C:\\w>", "", "", ""), e.rows())
+        e.feedBlanking("dir\r\nfile\r\nPS C:\\w> ")
+        assertEquals(listOf("", "PS C:\\w> dir", "file", "PS C:\\w>", ""), e.rows())
+    }
+
+    @Test
+    fun blanks_a_powershell_sentinel_up_to_its_closing_paren() {
+        val echo = "PS C:\\w> \$__titanOk = \$?; \$__titanCode = if (\$__titanOk) { 0 } else { 1 }; " +
+            "Write-Output ('$tok' + ':' + \$__titanCode + ':' + '$tok')"
+        // A width that breaks a row on a space (a printed blank in the last
+        // column) and leaves only `')` on the last row.
+        val cols = 29
+        assertEquals("')", echo.chunked(cols).last())
+        assertTrue(echo.chunked(cols).any { it.endsWith(" ") })
+        val e = TerminalEmulator(cols, 12)
+        e.feedBlanking(console(cols, echo, "$tok:0:$tok", "PS C:\\w>") + " ")
+        val rows = e.rows()
+        assertTrue(rows.none { "titan" in it.lowercase() || it == "')" }, "nothing of the sentinel is left: $rows")
+        assertEquals("PS C:\\w>", rows.last { it.isNotEmpty() })
+    }
+
+    @Test
+    fun a_repaint_over_blanked_rows_is_blanked_again_in_place() {
+        // A resize makes ConPTY repaint the screen from the top, sentinel
+        // included, over whatever each row held, and then place the cursor.
+        val e = TerminalEmulator(30, 8)
+        e.feedBlanking(console(30, "C:\\w>echo $tok:%errorlevel%:$tok", "$tok:0:$tok", "", "C:\\w>"))
+        val repaint = "\u001b[H" + listOf("C:\\w>echo $tok:%errorlevel%:$tok".chunked(30), listOf("$tok:0:$tok", "", "C:\\w>"))
+            // A full row is followed by the break itself, a shorter one by EL.
+            .flatten().joinToString("\r\n") { if (it.length == 30) it else "$it\u001b[K" } + "\u001b[7;6H"
+        assertEquals(false, e.feedBlanking(repaint, size = 5))
+        assertEquals(List(6) { "" } + listOf("C:\\w>", ""), e.rows())
+        assertEquals(6, e.snapshot().cursorRow)
+        assertEquals(5, e.snapshot().cursorColumn)
+    }
+
+    @Test
+    fun a_blanked_row_that_scrolls_off_leaves_no_gap_in_the_scrollback() {
+        val e = TerminalEmulator(40, 4)
+        e.feedBlanking("C:\\w>echo $tok:%errorlevel%:$tok\r\n$tok:0:$tok\r\nC:\\w>")
+        e.feed(bytes("dir\r\na\r\nb\r\nc\r\nC:\\w>"))
+        assertEquals(listOf("C:\\w>dir"), e.snapshot().scrollback.map { r -> r.joinToString("") { it.text }.trimEnd() })
     }
 }
