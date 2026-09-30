@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-30T22:30:00+02:00
+Última modificación: 2026-09-30T22:45:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -671,3 +671,13 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   Probado con tests (Go en Windows y en Linux con `-race`, 246 de Kotlin), de
   extremo a extremo contra el contenedor y en el emulador. 👤 Falta que el
   usuario apruebe cómo se reparte el detalle.
+- 2026-09-30 — **Publicada
+  [`v0.1.0-beta.8`](https://github.com/danielperezmartinez/titan-ssh/releases/tag/v0.1.0-beta.8)**,
+  a petición del usuario, con [[Detalle de las sesiones del agente en el panel]]
+  (paso 10g). Todos los jobs del run `36766264534` acaban bien (`aur` y
+  `winget` se saltan, porque sus variables siguen desactivadas). El Release
+  está marcado como pre-release, `sha256sum -c SHA256SUMS` da `OK` en los 19
+  ficheros y la APK está firmada con la clave de release (huella del
+  `README`). 👤 Falta que el usuario instale la APK en el Pixel desde el
+  Release y confirme que funciona. Para ver los datos nuevos en un destino,
+  su agente tiene que ser de la beta.8, y actualizarlo cierra sus sesiones.
