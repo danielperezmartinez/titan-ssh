@@ -1,11 +1,11 @@
 ---
 Nombre: 'Terminal fluida con ajuste de líneas y sin rastro de la automatización'
 Estado: 'En curso'
-Resumen: 'Tres fallos que el usuario vio en el emulador: el centinela interno __TITAN_…__ de los scripts de inicio salía en la terminal, las líneas largas se perdían por la derecha y la terminal iba a tirones al abrir el teclado y al escribir. Causa principal del segundo: en Android la fuente JetBrains Mono nunca se cargaba (el módulo compartido no empaquetaba los recursos de Compose como assets) y toda la app pintaba en Roboto proporcional. Arreglado activando androidResources y rehaciendo la terminal: el emulador marca las líneas ajustadas y las reajusta al redimensionar, admite glifos anchos y más modos; la vista pinta celda a celda sobre un Canvas con caché por fila, redimensiona el PTY cuando el tamaño se estabiliza y permite scroll; SessionTab borra de la terminal las líneas del centinela y de las sondas de tmux. Verificado con tests (220, integración incluida) y en el emulador; falta que el usuario lo confirme.'
+Resumen: 'Tres fallos que el usuario vio en el emulador: el centinela interno __TITAN_…__ de los scripts de inicio salía en la terminal, las líneas largas se perdían por la derecha y la terminal iba a tirones al abrir el teclado y al escribir. Causa principal del segundo: en Android la fuente JetBrains Mono nunca se cargaba (el módulo compartido no empaquetaba los recursos de Compose como assets) y toda la app pintaba en Roboto proporcional. Arreglado activando androidResources y rehaciendo la terminal: el emulador marca las líneas ajustadas y las reajusta al redimensionar, admite glifos anchos y más modos; la vista pinta celda a celda sobre un Canvas con caché por fila, redimensiona el PTY cuando el tamaño se estabiliza y permite scroll; SessionTab borra de la terminal las líneas del centinela y de las sondas de tmux. Verificado con tests (220, integración incluida) y en el emulador. El 2026-09-30 el usuario lo probó en el Pixel con la beta.7 contra un destino Windows por nivel 3: confirma la fluidez y el ajuste de líneas. El centinela sigue viéndose en Windows, que quedaba fuera del alcance, y salió un fallo nuevo al reengancharse (ver Prueba del usuario).'
 Decisiones: 'Ajuste de [[Terminal multipestaña con sesiones simultáneas]] y de [[Scripts de inicio por sesión]]. El centinela sigue tecleándose en la shell (solo ella sabe cuándo acaba un comando), pero la pestaña borra sus líneas; en Windows no, porque ConPTY repinta por posición absoluta y se descuadraría, y dentro de tmux/screen tampoco. Superficies en [[TerminalEmulator]], [[TerminalView]], [[TerminalKeys]] y [[ScriptRunner]].'
 Bloqueada: []
 Fecha de creación: 2026-09-28T10:45:00+02:00
-Última modificación: 2026-09-28T11:10:00+02:00
+Última modificación: 2026-09-30T20:45:00+02:00
 ---
 
 # Terminal fluida con ajuste de líneas y sin rastro de la automatización
@@ -73,6 +73,35 @@ Encontrado por el usuario probando en el emulador:
   percentil 95 de 150 ms a 36 ms, percentil 99 de 350 ms a 65 ms. La mediana
   (18 ms) es la del emulador, que renderiza por software.
 - **Pendiente**: que el usuario lo pruebe en el emulador y confirme.
+
+## Prueba del usuario (2026-09-30)
+
+Prueba en el Pixel con `v0.1.0-beta.7`, contra un destino Windows por nivel 3.
+La sesión guardada hace `cd` a una ruta inicial y lanza dos scripts (otro `cd`
+y `pwsh`), y se abrió en dos pestañas.
+
+- **Confirmado**: la terminal va fluida y las líneas largas ya no se cortan.
+- **Centinela visible en Windows**: es lo que se implementó (en Windows no se
+  borra, ver *Decisiones*), pero el usuario no quiere verlo.
+- **Fallo nuevo: restos del centinela al reengancharse**. La segunda pestaña
+  no abre otra terminal. Se engancha a la misma sesión del agente que la
+  primera, como se decidió en
+  [[Transparencia y control del agente en el destino]]: las dos pestañas
+  muestran los mismos tokens.
+  - Como el PTY no es nuevo, no arranca la automatización y nunca se llama a
+    `detectShell`. `remoteShell` se queda en `null`, `concealAutomation` lo
+    trata como POSIX y borra filas en una consola ConPTY.
+  - Solo quita la fila física que contiene el token entero. Quedan las
+    continuaciones de las líneas ajustadas (`TAN_…__`, `…483a__`) y se pierde
+    la línea del prompt de PowerShell que llevaba el eco.
+  - Pasa en cualquier reenganche a un destino Windows desde una pestaña que no
+    ha lanzado la automatización: una segunda pestaña, o volver a abrir la
+    sesión tras reiniciar la app.
+- **Centinela de `cmd.exe` escrito en PowerShell**. El último script lanza
+  `pwsh`, y quien lee su centinela (`echo …:%errorlevel%:…`) ya es
+  PowerShell. Lo imprime tal cual, nunca casa con `sentinelPattern` y el
+  script acaba en `TIMED_OUT` a los 30 s. Si hubiera scripts detrás, se
+  abortarían.
 
 ## Resultado
 
