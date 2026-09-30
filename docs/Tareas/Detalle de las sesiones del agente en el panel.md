@@ -1,11 +1,11 @@
 ---
 Nombre: 'Detalle de las sesiones del agente en el panel'
-Estado: 'Planificando'
-Resumen: 'Petición del usuario (2026-09-30): que el panel del agente deje claro qué sesiones siguen vivas y se pueden recuperar, con datos que ayuden a reconocerlas. Por ejemplo, desde cuándo están activas y la fecha y hora en que empezaron. Hoy el panel solo da el estado, el último uso y la memoria. Ideas en dos grupos: las que salen de datos que el agente ya envía (inicio, tiempo activa, desde cuándo sin cliente, tamaño del historial, número de clientes) y las que piden cambiar el agente (shell, proceso en primer plano, directorio actual, tamaño del PTY, última salida, vista previa de la pantalla). Falta que el usuario elija cuáles.'
-Decisiones: 'Amplía el panel de [[Estado y control del agente en la interfaz]], que se hizo en [[Transparencia y control del agente en el destino]]. Si cambia lo que se ve en el panel, se decide con el usuario y se recoge en esa decisión visual o en una nueva que la reemplace.'
+Estado: 'Pendiente'
+Resumen: 'Petición del usuario (2026-09-30): que el panel del agente deje claro qué sesiones siguen vivas y se pueden recuperar, con datos que ayuden a reconocerlas. Por ejemplo, desde cuándo están activas y la fecha y hora en que empezaron. Hoy el panel solo da el estado, el último uso y la memoria. Ideas en dos grupos: las que salen de datos que el agente ya envía (inicio, tiempo activa, desde cuándo sin cliente, tamaño del historial, número de clientes) y las que piden cambiar el agente (shell, proceso en primer plano, directorio actual, tamaño del PTY, última salida, vista previa de la pantalla). El usuario aprueba todas las ideas (2026-09-30), y todo va en el panel del agente, nunca en la franja de encima del terminal.'
+Decisiones: 'Decisión del usuario (2026-09-30): se hacen todas las ideas de la lista, y solo en el panel del agente (la pantalla secundaria "[<] Agente · destino"). La franja de estado del terminal no recibe nada, según [[Franja de estado del terminal solo para el estado y los scripts]]. Cómo se reparte el detalle dentro del panel (fila plegada o desplegada) se propone al implementarlo. Amplía el panel de [[Estado y control del agente en la interfaz]], que se hizo en [[Transparencia y control del agente en el destino]]. Si cambia lo que se ve en el panel, se decide con el usuario y se recoge en esa decisión visual o en una nueva que la reemplace.'
 Bloqueada: []
 Fecha de creación: 2026-09-30T21:00:00+02:00
-Última modificación: 2026-09-30T21:00:00+02:00
+Última modificación: 2026-09-30T21:15:00+02:00
 ---
 
 # Detalle de las sesiones del agente en el panel
@@ -61,7 +61,9 @@ centinela que parecían venir de una sesión antigua (ver
 
 ## Criterios de finalización
 
-- El usuario elige qué datos se muestran y dónde (fila plegada o desplegada).
+- Todas las ideas de la lista se ven en el panel del agente, y ninguna en la
+  franja de estado del terminal. El reparto entre fila plegada y desplegada
+  lo aprueba el usuario.
 - El agente y `AgentSessionReport` reportan los datos nuevos, si los hay, con
   el esquema actualizado en los dos lados.
 - Probado en el emulador contra el contenedor de pruebas y contra el sshd de

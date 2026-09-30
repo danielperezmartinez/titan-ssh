@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-30T21:00:00+02:00
+Última modificación: 2026-09-30T21:15:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -166,11 +166,12 @@ mismo commit).
     reengancharse a una sesión viva, el centinela del último script leído por
     `pwsh`, y el centinela visible en Windows. El primero es un fallo que
     descuadra la terminal; va primero.
-- [ ] **10g. Detalle de las sesiones del agente** 👤 (el usuario elige qué
-  datos se ven)
-  - [[Detalle de las sesiones del agente en el panel]] (`Planificando`)
-  - Petición del usuario: ver en el panel qué sesiones son recuperables, desde
-    cuándo están activas y qué hay dentro. Independiente de 10f.
+- [ ] **10g. Detalle de las sesiones del agente** 👤 (el usuario aprueba cómo
+  se reparte en el panel)
+  - [[Detalle de las sesiones del agente en el panel]]
+  - Petición del usuario: ver en el panel del agente qué sesiones son
+    recuperables, desde cuándo están activas y qué hay dentro. Aprobadas todas
+    las ideas, solo en el panel. Independiente de 10f.
 
 ### Fase 5 · Distribución pública
 
@@ -196,6 +197,12 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
     que ya actualizan solos.
 
 ### Aparcada
+
+- [[Revisar el contenido de la franja de estado del terminal]] (`Pendiente`):
+  el usuario quiere revisarla más adelante. Por
+  [[Franja de estado del terminal solo para el estado y los scripts]], la
+  franja solo lleva el estado, el nivel y `[>] scripts`; lo que tiene de más
+  (reconectar, túneles, aviso del nivel 3) no se toca hasta entonces.
 
 - [[Indicar cuando la conexión deja de responder]] (`Pendiente`): el usuario
   prefiere retomarla cuando haya usado más la app, para dar mejores
@@ -643,3 +650,10 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   pidió ver más datos de las sesiones en el panel del agente:
   [[Detalle de las sesiones del agente en el panel]] (paso 10g), en
   `Planificando` hasta que elija qué datos quiere.
+- 2026-09-30 — Nueva regla del usuario:
+  [[Franja de estado del terminal solo para el estado y los scripts]]. La
+  franja de encima del terminal solo lleva el estado de la conexión, el nivel
+  de resiliencia y `[>] scripts`. Lo que tiene de más se revisará en
+  [[Revisar el contenido de la franja de estado del terminal]] (**Aparcada**).
+  En [[Detalle de las sesiones del agente en el panel]] (paso 10g) el usuario
+  aprueba todas las ideas, solo en el panel del agente; pasa a `Pendiente`.
