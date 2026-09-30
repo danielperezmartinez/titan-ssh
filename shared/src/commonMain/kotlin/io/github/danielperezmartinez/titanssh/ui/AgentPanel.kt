@@ -1,5 +1,7 @@
 package io.github.danielperezmartinez.titanssh.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,10 +30,12 @@ import io.github.danielperezmartinez.titanssh.config.ConfigController
 import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
 import io.github.danielperezmartinez.titanssh.config.TitanConfig
 import io.github.danielperezmartinez.titanssh.config.resolve
+import io.github.danielperezmartinez.titanssh.formatLocalDateTime
 import io.github.danielperezmartinez.titanssh.terminal.AgentHost
 import io.github.danielperezmartinez.titanssh.terminal.AgentInsights
 import io.github.danielperezmartinez.titanssh.terminal.AgentManager
 import io.github.danielperezmartinez.titanssh.terminal.AgentObservation
+import io.github.danielperezmartinez.titanssh.terminal.AgentPreview
 import io.github.danielperezmartinez.titanssh.terminal.AgentSessionReport
 import io.github.danielperezmartinez.titanssh.terminal.AgentStatusReport
 import io.github.danielperezmartinez.titanssh.terminal.AgentTransport
@@ -88,15 +93,17 @@ fun AgentPanel(
     val watch by agents.watch.state.collectAsState()
     val errors by agents.watch.errors.collectAsState()
     val busy by agents.busy.collectAsState()
+    val allPreviews by agents.previews.collectAsState()
     val now = rememberAppNow()
     val key = host.key
     val obs = watch.observations[key.id]
+    val previews = allPreviews[key.id].orEmpty()
     val pending = watch.pendingClose[key.id].orEmpty()
     val isBusy = key.id in busy
     var expandedId by remember { mutableStateOf<String?>(null) }
     var confirming by remember { mutableStateOf<PanelConfirm?>(null) }
 
-    LaunchedEffect(key.id) { agents.refresh(host) }
+    LaunchedEffect(key.id) { agents.refreshWithPreviews(host) }
 
     Column(Modifier.fillMaxSize()) {
         TopBar("Agente · ${key.label}", onBack)
@@ -113,7 +120,7 @@ fun AgentPanel(
                         },
                         modifier = Modifier.weight(1f),
                     )
-                    TitanButton("[>] Consultar", onClick = { agents.refresh(host) }, kind = ButtonKind.SECONDARY, enabled = !isBusy)
+                    TitanButton("[>] Consultar", onClick = { agents.refreshWithPreviews(host) }, kind = ButtonKind.SECONDARY, enabled = !isBusy)
                 }
                 errors[key.id]?.let { Caption("[x] $it", color = TitanColors.Danger) }
                 Spacer(Modifier.height(TitanDimens.SpaceMd))
@@ -153,8 +160,11 @@ fun AgentPanel(
                     Hairline()
                 }
             }
-            val listed = report?.sessions.orEmpty().filter { !it.closed }
-            items(listed, key = { it.id }) { s ->
+            val shown = report?.sessions.orEmpty()
+            // Recoverable ones; a session whose shell ended is shown until the
+            // daemon drops it, but cannot be opened or terminated.
+            val listed = shown.filter { !it.closed }
+            items(shown, key = { it.id }) { s ->
                 val saved = config.sessions.firstOrNull { AgentTransport.sanitizeId(it.id) == s.id }
                 val resolved = saved?.let { runCatching { config.resolve(it) }.getOrNull() }
                 val expanded = expandedId == s.id
@@ -173,6 +183,8 @@ fun AgentPanel(
                     onMarkerClick = toggle,
                     expanded = expanded,
                     expandedContent = {
+                        if (obs != null) SessionDetails(obs, s, previews[s.id], now, orphan = saved == null)
+                        if (s.closed) return@ListRow
                         if (resolved != null) {
                             ListRow(marker = "[>]", title = "Abrir", onClick = { onOpenSession(resolved) })
                         }
@@ -209,7 +221,7 @@ fun AgentPanel(
                 ListRow(marker = "[-]", markerColor = TitanColors.Mute, title = "(sesión borrada)", subtitle = "pendiente de terminar")
                 Hairline()
             }
-            if (report?.isRunning == true && listed.isEmpty() && unlisted.isEmpty()) {
+            if (report?.isRunning == true && shown.isEmpty() && unlisted.isEmpty()) {
                 item { EmptyState("El agente no guarda ninguna sesión.") }
             }
             if (report != null && (report.isRunning || report.state == AgentStatusReport.STATE_LEGACY)) {
@@ -263,7 +275,38 @@ private fun PanelHeader(obs: AgentObservation?, now: Long) {
     Text(text, style = MaterialTheme.typography.bodyMedium, color = color, modifier = Modifier.padding(vertical = TitanDimens.SpaceSm))
 }
 
+/**
+ * The unfolded detail of one session ([[Detalle de las sesiones en el panel
+ * del agente]]): a line per fact, then the preview of its terminal.
+ */
+@Composable
+private fun SessionDetails(obs: AgentObservation, s: AgentSessionReport, preview: AgentPreview?, now: Long, orphan: Boolean) {
+    Column(Modifier.fillMaxWidth().padding(vertical = TitanDimens.SpaceSm, horizontal = TitanDimens.SpaceXs)) {
+        AgentInsights.sessionDetails(obs, s, now, orphan) { formatLocalDateTime(it, now) }.forEachIndexed { i, line ->
+            Caption(line, color = if (i == 0 && !s.closed) TitanColors.Body else TitanColors.Mute)
+        }
+        val lines = preview?.lines().orEmpty()
+        if (lines.isNotEmpty()) {
+            Spacer(Modifier.height(TitanDimens.SpaceSm))
+            Caption("vista previa")
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = TitanDimens.SpaceXs, end = TitanDimens.SpaceSm)
+                    .background(TitanColors.TerminalBg)
+                    .horizontalScroll(rememberScrollState())
+                    .padding(TitanDimens.SpaceSm),
+            ) {
+                lines.forEach { line ->
+                    Text(line.ifEmpty { " " }, style = MaterialTheme.typography.labelSmall, color = TitanColors.Body, softWrap = false, maxLines = 1)
+                }
+            }
+        }
+    }
+}
+
 private fun sessionMarker(obs: AgentObservation?, s: AgentSessionReport, now: Long): Pair<String, Color> = when {
+    s.closed -> "[x]" to TitanColors.Mute
     s.clients > 0 -> "[+]" to TitanColors.Success
     obs != null && AgentInsights.isAbandoned(obs, s, now) -> "[-]" to TitanColors.Warning
     else -> "[-]" to TitanColors.Mute
@@ -271,6 +314,7 @@ private fun sessionMarker(obs: AgentObservation?, s: AgentSessionReport, now: Lo
 
 private fun sessionLine(obs: AgentObservation?, s: AgentSessionReport, now: Long, orphan: Boolean, pending: Boolean): String {
     if (pending) return "pendiente de terminar"
+    if (s.closed) return "la shell terminó · no se puede recuperar"
     val idle = when {
         s.clients > 0 -> "conectada ahora"
         obs != null && AgentInsights.isAbandoned(obs, s, now) ->
@@ -284,7 +328,8 @@ private fun sessionLine(obs: AgentObservation?, s: AgentSessionReport, now: Long
         else -> null
     }
     val memory = s.memoryBytes?.let { AgentInsights.formatBytes(it) }
-    return listOfNotNull(state, idle, memory).joinToString(" · ")
+    // What runs in it first: what most tells two sessions apart.
+    return listOfNotNull(s.foreground, state, idle, memory).joinToString(" · ")
 }
 
 private fun sessionsLabel(n: Int) = if (n == 1) "1 sesión" else "$n sesiones"

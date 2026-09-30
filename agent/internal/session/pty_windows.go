@@ -3,6 +3,7 @@ package session
 import (
 	"errors"
 	"os"
+	"strings"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -68,6 +69,7 @@ func startConPty(cmdline string, cols, rows uint16) (Pty, error) {
 		hpc:     hpc,
 		process: process,
 		pid:     int(pid),
+		shell:   strings.Trim(cmdline, `"`),
 		in:      os.NewFile(uintptr(inW), "conpty-in"),
 		out:     os.NewFile(uintptr(outR), "conpty-out"),
 		exited:  make(chan struct{}),
@@ -116,7 +118,8 @@ type conPty struct {
 
 	mu         sync.Mutex // guards process against use after waitExit closes it
 	process    windows.Handle
-	pid        int // the shell's process id
+	pid        int    // the shell's process id
+	shell      string // the command line it was started with
 	procClosed bool
 	exited     chan struct{} // closed once the process has exited and been released
 }
@@ -126,6 +129,11 @@ func (p *conPty) Write(b []byte) (int, error) { return p.in.Write(b) }
 
 // Pid is the shell's process id, the root of what the session runs.
 func (p *conPty) Pid() int { return p.pid }
+
+// Shell is the program the session started. ConPTY has no foreground process
+// group, so there is no Foreground: the daemon guesses it from the process
+// tree instead.
+func (p *conPty) Shell() string { return p.shell }
 
 func (p *conPty) Resize(cols, rows uint16) error {
 	return windows.ResizePseudoConsole(p.hpc, coord(cols, rows))

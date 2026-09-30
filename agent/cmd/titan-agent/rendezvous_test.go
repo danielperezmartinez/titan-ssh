@@ -86,11 +86,14 @@ func startTestDaemon(t *testing.T, dir string) *daemon {
 func shortTimeouts(t *testing.T) {
 	t.Helper()
 	oldWait, oldPoll, oldGap, oldHello, oldDial := spawnWait, pollInterval, respawnGap, helloTimeout, dialTimeout
+	oldSample := cpuSample
 	spawnWait, pollInterval, respawnGap = 2*time.Second, 10*time.Millisecond, 200*time.Millisecond
 	helloTimeout, dialTimeout = 200*time.Millisecond, time.Second
+	cpuSample = 10 * time.Millisecond
 	t.Cleanup(func() {
 		spawnWait, pollInterval, respawnGap = oldWait, oldPoll, oldGap
 		helloTimeout, dialTimeout = oldHello, oldDial
+		cpuSample = oldSample
 	})
 }
 

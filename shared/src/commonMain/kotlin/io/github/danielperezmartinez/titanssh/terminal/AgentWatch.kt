@@ -197,6 +197,63 @@ object AgentInsights {
         report.state == AgentStatusReport.STATE_LEGACY ||
             (report.hasDaemon && report.agent != null && report.agent != appVersion)
 
+    /** [agentMs], a time on the destination's clock, on the app's clock. */
+    fun toAppClock(obs: AgentObservation, agentMs: Long): Long =
+        agentMs + (obs.observedAtMs - obs.report.nowMs)
+
+    /** The program [path] names: its last path segment, "/usr/bin/bash" → "bash". */
+    fun programName(path: String): String =
+        path.trim().trimEnd('/', '\\').substringAfterLast('/').substringAfterLast('\\')
+
+    /**
+     * The details of one agent session, a line each, for the agent panel's
+     * unfolded row ([[Detalle de las sesiones en el panel del agente]]). Dates
+     * are on the app's clock; [formatDateTime] turns epoch milliseconds into
+     * the local "27/09 16:10".
+     */
+    fun sessionDetails(
+        obs: AgentObservation,
+        s: AgentSessionReport,
+        appNowMs: Long,
+        orphan: Boolean = false,
+        formatDateTime: (Long) -> String,
+    ): List<String> {
+        val agentNow = agentNow(obs, appNowMs)
+        fun at(agentMs: Long) = formatDateTime(toAppClock(obs, agentMs))
+        fun ago(agentMs: Long) = formatDuration((agentNow - agentMs).coerceAtLeast(0))
+        val lines = mutableListOf<String>()
+        lines += when {
+            s.closed -> "La shell terminó: ya no se puede recuperar"
+            // Its saved session was deleted, or lives on another device.
+            orphan -> "Sigue viva, pero aquí no hay una sesión guardada para abrirla"
+            else -> "Recuperable: al abrirla vuelves a esta terminal"
+        }
+        lines += "creada el ${at(s.createdMs)} · activa desde hace ${ago(s.createdMs)}"
+        lines += when {
+            s.clients > 1 -> "conectada en ${s.clients} pestañas o dispositivos"
+            s.clients == 1 -> "conectada en 1 pestaña o dispositivo"
+            s.detachedMs != null -> "sin conectar desde el ${at(s.detachedMs)} (hace ${ago(s.detachedMs)})"
+            else -> "sin conectar"
+        }
+        if (!s.closed && s.shell != null) {
+            lines += s.foreground?.let { fg -> "en marcha: $fg" + (s.foregroundPid?.let { " (PID $it)" } ?: "") }
+                ?: "en el prompt de la shell"
+        }
+        s.shell?.let { shell ->
+            val size = if (s.cols != null && s.rows != null) " · ${s.cols}×${s.rows}" else ""
+            lines += "shell ${programName(shell)}" + (s.shellPid?.let { " (PID $it)" } ?: "") + size
+        }
+        s.cwd?.let { lines += "directorio: $it" }
+        s.title?.takeIf { it.isNotBlank() }?.let { lines += "título: $it" }
+        listOfNotNull(
+            s.lastOutputMs?.let { "última salida hace ${ago(it)}" },
+            s.cpuPercent?.let { "CPU $it %" },
+            s.memoryBytes?.let { "memoria ${formatBytes(it)}" },
+        ).takeIf { it.isNotEmpty() }?.let { lines += it.joinToString(" · ") }
+        lines += "historial guardado " + if (s.bufferBytes > 0) formatBytes(s.bufferBytes) else "vacío"
+        return lines
+    }
+
     /** "3 min", "5 h", "2 días": a duration as the UI shows it. */
     fun formatDuration(ms: Long): String {
         val minutes = ms / 60_000

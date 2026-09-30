@@ -139,3 +139,33 @@ func TestListReportsAttachmentAndHistory(t *testing.T) {
 		t.Fatalf("after the client left: %+v", in)
 	}
 }
+
+// Info reports the size the session was created with, the last output time
+// and window title, and Tail gives the end of the history for a preview.
+func TestInfoAndTailDescribeTheSession(t *testing.T) {
+	f := &fakeFactory{}
+	reg := NewRegistry(f.new, 1024)
+	t.Cleanup(func() { reg.CloseAll() })
+	s, _, _ := reg.AttachOrCreate("s", 100, 30)
+	if in := reg.List()[0]; !in.LastOutput.IsZero() || in.Cols != 100 || in.Rows != 30 {
+		t.Fatalf("fresh info = %+v", in)
+	}
+
+	f.ptys[0].push("hello \x1b]0;my title\x07world")
+	waitHead(t, s, 24)
+	in := reg.List()[0]
+	if in.LastOutput.IsZero() || in.Title != "my title" {
+		t.Fatalf("info after output = %+v", in)
+	}
+
+	data, cols, rows, ok := reg.Tail("s", 5)
+	if !ok || string(data) != "world" || cols != 100 || rows != 30 {
+		t.Fatalf("Tail = %q %dx%d %v", data, cols, rows, ok)
+	}
+	if data, _, _, _ := reg.Tail("s", 1<<20); len(data) != 24 {
+		t.Fatalf("Tail beyond the history = %d bytes; want all 24", len(data))
+	}
+	if _, _, _, ok := reg.Tail("missing", 5); ok {
+		t.Fatal("Tail of a missing session must report it")
+	}
+}

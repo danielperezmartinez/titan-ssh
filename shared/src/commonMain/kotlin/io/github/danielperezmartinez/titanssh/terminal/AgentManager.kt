@@ -9,6 +9,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -34,8 +35,33 @@ class AgentManager(
     fun hostOf(resolved: ResolvedConnection) =
         AgentHost(resolved.endpoint, resolved.auth, resolved.host.keepAliveSeconds)
 
+    private val _previews = MutableStateFlow<Map<String, Map<String, AgentPreview>>>(emptyMap())
+
+    /**
+     * The last preview of each agent session, by [AgentKey.id] and agent
+     * session id. Only in memory: it holds what the terminals showed.
+     */
+    val previews: StateFlow<Map<String, Map<String, AgentPreview>>> = _previews.asStateFlow()
+
     /** Refreshes what the app knows about [host]'s agent. */
     fun refresh(host: AgentHost) = launchOn(host) { access.refresh(host) }
+
+    /**
+     * Refreshes [host]'s agent and fetches a preview of each live session, on
+     * the same connection: what the agent panel shows.
+     */
+    fun refreshWithPreviews(host: AgentHost) = launchOn(host) {
+        access.withAgent(host) { control ->
+            val sessionIds = watch.state.value.observations[host.key.id]?.report?.sessions.orEmpty()
+                .filter { !it.closed }
+                .map { it.id }
+            // An agent without --preview, or a session that just ended, has none.
+            val fetched = sessionIds.mapNotNull { id ->
+                runCatching { control.preview(id) }.getOrNull()?.let { id to it }
+            }.toMap()
+            _previews.update { it + (host.key.id to fetched) }
+        }
+    }
 
     /**
      * Ends saved session [session] on its destination: closes its tabs first,

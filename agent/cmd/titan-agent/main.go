@@ -16,6 +16,7 @@
 //     one per user.
 //
 // --status reports the daemon and its sessions (--json for the client),
+// --preview prints the end of one session's output (for the client's preview),
 // --close-session ends one session and --stop ends the daemon in order,
 // closing every session first. Nothing else ever ends them: sessions do not
 // expire (ADR-0014).
@@ -42,8 +43,9 @@ func main() {
 	daemon := flag.Bool("daemon", false, "run the persistent session daemon")
 	stop := flag.Bool("stop", false, "stop the user's daemon, closing every session, and exit")
 	status := flag.Bool("status", false, "print the user's daemon and its sessions, and exit")
-	asJSON := flag.Bool("json", false, "with --status: print the report as JSON")
+	asJSON := flag.Bool("json", false, "with --status or --preview: print the report as JSON")
 	closeID := flag.String("close-session", "", "close the session with this id, and exit")
+	previewID := flag.String("preview", "", "print the end of this session's output, and exit")
 	// Carried in the HELLO frame now; accepted for the documented exec command
 	// but not required by the front (the daemon reads the id from the protocol).
 	_ = flag.String("session", "", "stable session id (informational; id travels in HELLO)")
@@ -57,7 +59,10 @@ func main() {
 		return
 	}
 
-	err := run(*stateDir, mode{daemon: *daemon, stop: *stop, status: *status, json: *asJSON, closeID: *closeID}, *bufCap)
+	err := run(*stateDir, mode{
+		daemon: *daemon, stop: *stop, status: *status, json: *asJSON,
+		closeID: *closeID, previewID: *previewID,
+	}, *bufCap)
 	if err != nil {
 		var ae *agentError
 		if errors.As(err, &ae) {
@@ -73,7 +78,7 @@ func main() {
 // runs as the front.
 type mode struct {
 	daemon, stop, status, json bool
-	closeID                    string
+	closeID, previewID         string
 }
 
 func run(stateDir string, m mode, bufCap int) error {
@@ -106,6 +111,17 @@ func run(stateDir string, m mode, bufCap int) error {
 			fmt.Println("titan-agent: no such session; nothing to close")
 		}
 		return nil
+	case m.previewID != "":
+		p, err := queryPreview(stateDir, m.previewID)
+		if err != nil {
+			return err
+		}
+		if m.json {
+			return json.NewEncoder(os.Stdout).Encode(p)
+		}
+		// The raw bytes: a terminal draws them as the session looks.
+		_, err = os.Stdout.Write(p.Data)
+		return err
 	case m.daemon:
 		return runDaemon(stateDir, bufCap)
 	default:

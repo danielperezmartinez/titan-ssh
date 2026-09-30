@@ -77,7 +77,7 @@ func recv(t *testing.T, ch <-chan protocol.Frame) protocol.Frame {
 
 func TestHandleReplaysThenStreamsLiveAndAppliesInput(t *testing.T) {
 	fake := newFakePty()
-	s := newSession("s1", fake, 1<<20)
+	s := newSession("s1", fake, 1<<20, 80, 24)
 	defer fake.Close()
 
 	fake.push("hello ")
@@ -126,7 +126,7 @@ func TestHandleReplaysThenStreamsLiveAndAppliesInput(t *testing.T) {
 
 func TestHandleReplaysFromClientOffsetOnReconnect(t *testing.T) {
 	fake := newFakePty()
-	s := newSession("s2", fake, 1<<20)
+	s := newSession("s2", fake, 1<<20, 80, 24)
 	defer fake.Close()
 
 	fake.push("abcdef")

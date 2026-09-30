@@ -32,6 +32,22 @@ class AgentControl(private val session: SshSession, private val launch: AgentLau
         run("--close-session", agentSessionId).requireSuccess("--close-session")
     }
 
+    /**
+     * `--preview`: the end of agent session [agentSessionId]'s output, or
+     * null when the daemon does not hold it. An agent from before `--preview`
+     * fails the command, which throws like any other failure.
+     */
+    suspend fun preview(agentSessionId: String): AgentPreview? {
+        val result = run("--preview", agentSessionId, "--json")
+        if (result.stderr.contains("no such session")) return null
+        result.requireSuccess("--preview")
+        return try {
+            AgentPreview.parse(result.stdout)
+        } catch (e: Exception) {
+            throw AgentControlException("Respuesta del agente ilegible: ${e.message}", e)
+        }
+    }
+
     /** `--stop`: the daemon closes every session and exits. */
     suspend fun stop() {
         run("--stop").requireSuccess("--stop")

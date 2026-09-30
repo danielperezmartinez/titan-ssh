@@ -4,11 +4,17 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
-// list reads /proc: the parent and start time from /proc/<pid>/stat, the
-// resident pages from /proc/<pid>/statm. Processes that exit mid-scan are
-// skipped.
+// clockTick is USER_HZ, the unit of the CPU times in /proc/<pid>/stat. It is
+// 100 on every Linux architecture the agent ships for (the kernel exports
+// that value to user space whatever its internal HZ is).
+const clockTick = 10 * time.Millisecond
+
+// list reads /proc: the name, parent, CPU time and start time from
+// /proc/<pid>/stat, the resident pages from /proc/<pid>/statm. Processes that
+// exit mid-scan are skipped.
 func list() ([]proc, error) {
 	entries, err := os.ReadDir("/proc")
 	if err != nil {
@@ -35,7 +41,7 @@ func readProc(pid int, page uint64) (proc, bool) {
 	if err != nil {
 		return proc{}, false
 	}
-	ppid, start, ok := parseStat(string(stat))
+	p, ok := parseStat(string(stat))
 	if !ok {
 		return proc{}, false
 	}
@@ -51,29 +57,48 @@ func readProc(pid int, page uint64) (proc, bool) {
 	if err != nil {
 		return proc{}, false
 	}
-	return proc{pid: pid, ppid: ppid, rss: resident * page, start: start}, true
+	p.pid = pid
+	p.rss = resident * page
+	return p, true
 }
 
-// parseStat extracts the parent PID (field 4) and start time (field 22) of a
-// /proc/<pid>/stat line. The command name (field 2) is parenthesised and may
-// hold spaces or parentheses, so fields are counted after its last ')'.
-func parseStat(s string) (ppid int, start uint64, ok bool) {
-	i := strings.LastIndexByte(s, ')')
-	if i < 0 {
-		return 0, 0, false
+// parseStat extracts the command name (field 2), the parent PID (field 4),
+// the user and system CPU times (fields 14 and 15) and the start time (field
+// 22) of a /proc/<pid>/stat line. The name is parenthesised and may hold
+// spaces or parentheses, so fields are counted after its last ')'.
+func parseStat(s string) (proc, bool) {
+	open, close := strings.IndexByte(s, '('), strings.LastIndexByte(s, ')')
+	if open < 0 || close < open {
+		return proc{}, false
 	}
-	fields := strings.Fields(s[i+1:])
+	fields := strings.Fields(s[close+1:])
 	// fields[0] is field 3 (state), so field n is fields[n-3].
 	if len(fields) < 20 {
-		return 0, 0, false
+		return proc{}, false
 	}
 	ppid, err := strconv.Atoi(fields[1])
 	if err != nil {
-		return 0, 0, false
+		return proc{}, false
 	}
-	start, err = strconv.ParseUint(fields[19], 10, 64)
+	utime, err1 := strconv.ParseUint(fields[11], 10, 64)
+	stime, err2 := strconv.ParseUint(fields[12], 10, 64)
+	start, err3 := strconv.ParseUint(fields[19], 10, 64)
+	if err1 != nil || err2 != nil || err3 != nil {
+		return proc{}, false
+	}
+	return proc{
+		ppid:  ppid,
+		name:  s[open+1 : close],
+		cpu:   time.Duration(utime+stime) * clockTick,
+		start: start,
+	}, true
+}
+
+// Cwd is pid's working directory, or "" when it cannot be read.
+func Cwd(pid int) string {
+	dir, err := os.Readlink("/proc/" + strconv.Itoa(pid) + "/cwd")
 	if err != nil {
-		return 0, 0, false
+		return ""
 	}
-	return ppid, start, true
+	return dir
 }

@@ -80,6 +80,12 @@ class AgentControlIntegrationTest {
                 val t = AgentTransport(s, savedId, agentLaunch, { b -> synchronized(seen) { seen.append(b.decodeToString()) } }, 80, 24)
                 val j = launch { t.run() }
                 withTimeout(10_000) { while (synchronized(seen) { seen.isEmpty() }) delay(20) }
+                // A job left running in it, for the details: typed once the
+                // shell is up (a PTY drops input sent before it reads).
+                delay(1_000)
+                val posix = agentLaunch.shell == RemoteShell.POSIX
+                t.sendInput((if (posix) "sleep 60\n" else "ping -n 60 127.0.0.1\r").encodeToByteArray())
+                delay(1_000)
                 t.close()
                 j.join()
 
@@ -95,6 +101,24 @@ class AgentControlIntegrationTest {
                 assertEquals(0, listed.clients)
                 assertTrue(listed.bufferBytes > 0, "the prompt is in the history")
                 println("[integration] status: agent ${report.agent} on ${report.os}/${report.arch}, memory ${report.memoryBytes}, session memory ${listed.memoryBytes}")
+
+                // The details of [[Detalle de las sesiones del agente en el panel]].
+                println("[integration] details: shell ${listed.shell} (${listed.shellPid}) ${listed.cols}x${listed.rows}, running ${listed.foreground} (${listed.foregroundPid}) in ${listed.cwd}, cpu ${listed.cpuPercent}%, title ${listed.title}")
+                assertNotNull(listed.shell, "the shell")
+                assertTrue((listed.shellPid ?: 0) > 0, "the shell's PID")
+                assertEquals(80 to 24, listed.cols to listed.rows)
+                assertNotNull(listed.lastOutputMs, "the last output")
+                assertNotNull(listed.cpuPercent, "the CPU sample")
+                val running = assertNotNull(listed.foreground, "the job in front of the user")
+                assertTrue(running.lowercase().startsWith(if (posix) "sleep" else "ping"), "foreground: $running")
+                if (report.os == "linux") assertNotNull(listed.cwd, "Linux reports the working directory")
+
+                val preview = assertNotNull(control.preview(agentId), "a live session has a preview")
+                assertEquals(80 to 24, preview.cols to preview.rows)
+                val lines = preview.lines()
+                println("[integration] preview:\n" + lines.joinToString("\n"))
+                assertTrue(lines.any { it.contains(if (posix) "sleep 60" else "ping") }, "the preview shows the typed job")
+                assertNull(control.preview("titan-missing"), "a session the daemon does not hold has none")
 
                 // Deleting the saved session: the next sync closes it on the host.
                 val watch = AgentWatch(CoroutineScope(SupervisorJob() + Dispatchers.Default), MemoryStore())

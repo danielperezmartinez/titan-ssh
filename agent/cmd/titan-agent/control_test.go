@@ -246,4 +246,70 @@ func TestStatusJSONContract(t *testing.T) {
 	if string(data) != want {
 		t.Fatalf("JSON contract changed:\n got %s\nwant %s", data, want)
 	}
+
+	// The session details added later are all optional fields.
+	cpu := 12
+	full := sessionReport{
+		ID: "s2", CreatedMs: 1, LastUsedMs: 2, BufferBytes: 3, CPUPercent: &cpu,
+		Shell: "/bin/bash", ShellPID: 40, Foreground: "vim", ForegroundPID: 41, Cwd: "/tmp",
+		Cols: 80, Rows: 24, LastOutputMs: 2, Title: "vim notes",
+	}
+	data, err = json.Marshal(full)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want = `{"id":"s2","createdMs":1,"lastUsedMs":2,"clients":0,"bufferBytes":3,"cpuPercent":12,` +
+		`"shell":"/bin/bash","shellPid":40,"foreground":"vim","foregroundPid":41,"cwd":"/tmp",` +
+		`"cols":80,"rows":24,"lastOutputMs":2,"title":"vim notes"}`
+	if string(data) != want {
+		t.Fatalf("session JSON contract changed:\n got %s\nwant %s", data, want)
+	}
+
+	data, err = json.Marshal(previewReport{Cols: 80, Rows: 24, Data: []byte("hi")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `{"cols":80,"rows":24,"data":"aGk="}`; string(data) != want {
+		t.Fatalf("preview JSON contract changed:\n got %s\nwant %s", data, want)
+	}
+}
+
+// The status reports the session's size, and --preview gives the end of its
+// history; a session the daemon does not hold has no preview.
+func TestPreviewGivesTheEndOfTheHistory(t *testing.T) {
+	shortTimeouts(t)
+	dir := testStateDir(t)
+	d := startTestDaemon(t, dir)
+	st, _ := readState(dir)
+	conn, err := dialDaemon(st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	helloConn(t, conn, "s1")
+	defer conn.Close()
+
+	rep := waitStatus(t, dir, "the session", func(r statusReport) bool { return len(r.Sessions) == 1 })
+	if s := rep.Sessions[0]; s.Cols == 0 || s.Rows == 0 {
+		t.Fatalf("session size missing: %+v", s)
+	}
+	if _, _, _, ok := d.reg.Tail("s1", 1); !ok {
+		t.Fatal("the registry must hold s1")
+	}
+	p, err := queryPreview(dir, "s1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Cols != rep.Sessions[0].Cols || p.Rows != rep.Sessions[0].Rows {
+		t.Fatalf("preview size %dx%d; status says %dx%d", p.Cols, p.Rows, rep.Sessions[0].Cols, rep.Sessions[0].Rows)
+	}
+	if _, err := queryPreview(dir, "missing"); !errors.Is(err, errNoSession) {
+		t.Fatalf("preview of a missing session: %v", err)
+	}
+}
+
+func TestPreviewWithoutDaemonHasNoSession(t *testing.T) {
+	dir := testStateDir(t)
+	if _, err := queryPreview(dir, "s1"); !errors.Is(err, errNoSession) {
+		t.Fatalf("preview with no daemon: %v", err)
+	}
 }

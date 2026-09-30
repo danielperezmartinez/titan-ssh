@@ -71,6 +71,24 @@ func (p *unixPty) Resize(cols, rows uint16) error { return setWinsize(p.master, 
 // Pid is the shell's process id, the root of what the session runs.
 func (p *unixPty) Pid() int { return p.cmd.Process.Pid }
 
+// Shell is the program the session started.
+func (p *unixPty) Shell() string { return p.cmd.Path }
+
+// Foreground is the process group the terminal belongs to now (the job in
+// front of the user, or the shell itself at its prompt); 0 if unreadable.
+func (p *unixPty) Foreground() int {
+	var pgrp int
+	err := withFd(p.master, func(fd int) error {
+		var err error
+		pgrp, err = unix.IoctlGetInt(fd, unix.TIOCGPGRP)
+		return err
+	})
+	if err != nil {
+		return 0
+	}
+	return pgrp
+}
+
 func (p *unixPty) Close() error {
 	err := p.master.Close()
 	if p.cmd.Process != nil {

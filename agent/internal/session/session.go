@@ -45,11 +45,18 @@ type Session struct {
 	// detached is when the last client left; zero while one is attached.
 	detached time.Time
 	minAcked uint64
+	// lastOutput is when the PTY last wrote anything; zero until it does.
+	lastOutput time.Time
+	cols, rows uint16 // the PTY's size, as last set
+	titles     titleScanner
 }
 
-func newSession(id string, pty Pty, capBytes int) *Session {
+func newSession(id string, pty Pty, capBytes int, cols, rows uint16) *Session {
 	now := time.Now()
-	s := &Session{ID: id, pty: pty, buf: buffer.New(capBytes), created: now, lastUsed: now, detached: now}
+	s := &Session{
+		ID: id, pty: pty, buf: buffer.New(capBytes),
+		created: now, lastUsed: now, detached: now, cols: cols, rows: rows,
+	}
 	s.cond = sync.NewCond(&s.mu)
 	go s.pump()
 	return s
@@ -64,6 +71,8 @@ func (s *Session) pump() {
 		if n > 0 {
 			s.buf.Append(b[:n])
 			s.mu.Lock()
+			s.lastOutput = time.Now()
+			s.titles.Feed(b[:n])
 			s.cond.Broadcast()
 			s.mu.Unlock()
 		}
@@ -168,7 +177,11 @@ func (s *Session) Handle(hello protocol.Frame, created bool, out func(protocol.F
 				loopErr = err
 			}
 		case protocol.TypeResize:
-			_ = s.pty.Resize(f.Cols, f.Rows)
+			if s.pty.Resize(f.Cols, f.Rows) == nil {
+				s.mu.Lock()
+				s.cols, s.rows = f.Cols, f.Rows
+				s.mu.Unlock()
+			}
 		case protocol.TypeReplayFrom:
 			rf, data := s.buf.Since(f.OffsetArg)
 			if len(data) > 0 {
@@ -234,9 +247,31 @@ func (r *Registry) AttachOrCreate(id string, cols, rows uint16) (*Session, bool,
 	if err != nil {
 		return nil, false, err
 	}
-	s := newSession(id, pty, r.bufCap)
+	s := newSession(id, pty, r.bufCap, cols, rows)
 	r.sessions[id] = s
 	return s, true, nil
+}
+
+// Tail is the last n bytes of session id's retained output and the PTY size
+// they were drawn for, so the client can show what the terminal looks like
+// without attaching. The bool is false when the session does not exist.
+func (r *Registry) Tail(id string, n int) (data []byte, cols, rows uint16, ok bool) {
+	r.mu.Lock()
+	s, ok := r.sessions[id]
+	r.mu.Unlock()
+	if !ok {
+		return nil, 0, 0, false
+	}
+	head := s.buf.Head()
+	from := uint64(0)
+	if n >= 0 && head > uint64(n) {
+		from = head - uint64(n)
+	}
+	_, data = s.buf.Since(from)
+	s.mu.Lock()
+	cols, rows = s.cols, s.rows
+	s.mu.Unlock()
+	return data, cols, rows, true
 }
 
 // GC drops the sessions whose shell has exited and that no client is still
@@ -305,6 +340,14 @@ type Info struct {
 	Closed      bool   // the shell exited; GC drops it once no client reads it
 	BufferBytes uint64 // output history held for replay
 	ShellPID    int    // 0 if the PTY does not expose it
+	Shell       string // the shell's program, "" if the PTY does not tell
+	// ForegroundPID is the process group leading the terminal on a POSIX
+	// PTY; 0 where the terminal cannot tell (ConPTY) or it could not be read.
+	ForegroundPID int
+	// LastOutput is when the PTY last wrote anything; zero until it does.
+	LastOutput time.Time
+	Cols, Rows uint16
+	Title      string // the last window title set with OSC 0/2, "" if none
 }
 
 // List describes every session, oldest first.
@@ -334,9 +377,19 @@ func (s *Session) info() Info {
 		Clients:     s.clients,
 		Closed:      s.closed,
 		BufferBytes: s.buf.Head() - s.buf.Tail(),
+		LastOutput:  s.lastOutput,
+		Cols:        s.cols,
+		Rows:        s.rows,
+		Title:       s.titles.title,
 	}
 	if p, ok := s.pty.(interface{ Pid() int }); ok {
 		in.ShellPID = p.Pid()
+	}
+	if p, ok := s.pty.(interface{ Shell() string }); ok {
+		in.Shell = p.Shell()
+	}
+	if p, ok := s.pty.(interface{ Foreground() int }); ok && !s.closed {
+		in.ForegroundPID = p.Foreground()
 	}
 	return in
 }

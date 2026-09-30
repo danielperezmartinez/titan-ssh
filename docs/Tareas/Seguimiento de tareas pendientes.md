@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-30T21:30:00+02:00
+Última modificación: 2026-09-30T22:00:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -657,3 +657,12 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   [[Revisar el contenido de la franja de estado del terminal]] (**Aparcada**).
   En [[Detalle de las sesiones del agente en el panel]] (paso 10g) el usuario
   aprueba todas las ideas, solo en el panel del agente; pasa a `Pendiente`.
+- 2026-09-30 — **Paso 10g hecho, a falta del visto bueno del usuario**
+  ([[Detalle de las sesiones del agente en el panel]]). El agente informa por
+  sesión de la shell, el programa en marcha, el directorio (en Linux), el
+  tamaño, la última salida, el título, la CPU, y tiene la orden `--preview`.
+  El panel lo muestra al desplegar cada sesión, con una vista previa de la
+  terminal ([[Detalle de las sesiones en el panel del agente]], `Propuesta`).
+  Probado con tests (Go en Windows y en Linux con `-race`, 246 de Kotlin), de
+  extremo a extremo contra el contenedor y en el emulador. 👤 Falta que el
+  usuario apruebe cómo se reparte el detalle.

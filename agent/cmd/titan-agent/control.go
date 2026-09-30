@@ -28,9 +28,10 @@ import (
 const controlLineMax = 4096
 
 const (
-	opStatus = "status"
-	opClose  = "close"
-	opStop   = "stop"
+	opStatus  = "status"
+	opClose   = "close"
+	opStop    = "stop"
+	opPreview = "preview"
 )
 
 type controlRequest struct {
@@ -39,10 +40,27 @@ type controlRequest struct {
 }
 
 type controlReply struct {
-	Error  string        `json:"error,omitempty"`
-	Status *statusReport `json:"status,omitempty"`
-	Closed bool          `json:"closed,omitempty"` // opClose: the session existed
+	Error   string         `json:"error,omitempty"`
+	Status  *statusReport  `json:"status,omitempty"`
+	Closed  bool           `json:"closed,omitempty"` // opClose: the session existed
+	Preview *previewReport `json:"preview,omitempty"`
 }
+
+// previewReport is the --preview --json contract: the end of a session's
+// history and the terminal size it was drawn for, so the client can render
+// what the terminal shows without attaching to it.
+type previewReport struct {
+	Cols uint16 `json:"cols"`
+	Rows uint16 `json:"rows"`
+	Data []byte `json:"data"` // base64 in JSON
+}
+
+// previewBytes is how much history a preview carries: enough for a full
+// screen of a shell, small enough to fetch over a slow link.
+const previewBytes = 16 * 1024
+
+// errNoSession reports a preview of a session the daemon does not hold.
+var errNoSession = errors.New("no such session")
 
 // Daemon states in a statusReport.
 const (
@@ -54,7 +72,8 @@ const (
 
 // statusReport is the --status --json contract the client parses (schema 1).
 // Times are Unix milliseconds on the destination's clock; the client compares
-// them with nowMs, never with its own clock.
+// them with nowMs, never with its own clock. Fields are only ever added, as
+// optional ones, so an older client still reads a newer agent.
 type statusReport struct {
 	Schema int    `json:"schema"`
 	State  string `json:"state"`
@@ -83,9 +102,30 @@ type sessionReport struct {
 	Closed      bool    `json:"closed,omitempty"`
 	BufferBytes uint64  `json:"bufferBytes"`
 	MemoryBytes *uint64 `json:"memoryBytes,omitempty"` // the shell and its descendants
+	// CPUPercent is the CPU the shell and its descendants used over the
+	// status sample (100 = one core); absent when not measurable.
+	CPUPercent *int `json:"cpuPercent,omitempty"`
+
+	Shell    string `json:"shell,omitempty"` // the program the session started
+	ShellPID int    `json:"shellPid,omitempty"`
+	// Foreground is the program running in front of the user, absent while
+	// the shell itself waits at its prompt. On POSIX it is the terminal's
+	// foreground process group; on Windows, a guess from the process tree
+	// (the newest descendant of the shell).
+	Foreground    string `json:"foreground,omitempty"`
+	ForegroundPID int    `json:"foregroundPid,omitempty"`
+	Cwd           string `json:"cwd,omitempty"` // the shell's directory; Linux only
+	Cols          uint16 `json:"cols,omitempty"`
+	Rows          uint16 `json:"rows,omitempty"`
+	LastOutputMs  int64  `json:"lastOutputMs,omitempty"`
+	Title         string `json:"title,omitempty"` // the last OSC 0/2 window title
 }
 
 const statusSchema = 1
+
+// cpuSample is how long a status request watches the sessions to tell how
+// much CPU they use now.
+var cpuSample = 250 * time.Millisecond
 
 // serveControl answers one control request. A stop reply is sent before
 // stop runs, so the caller knows the daemon took it.
@@ -101,6 +141,8 @@ func (d *daemon) serveControl(conn net.Conn) {
 		writeReply(conn, controlReply{Error: "malformed request"})
 		return
 	}
+	// The request arrived; answering may take a status sample.
+	_ = conn.SetDeadline(time.Now().Add(controlTimeout))
 	switch req.Op {
 	case opStatus:
 		st := d.status()
@@ -110,6 +152,13 @@ func (d *daemon) serveControl(conn net.Conn) {
 	case opStop:
 		writeReply(conn, controlReply{})
 		d.stop()
+	case opPreview:
+		data, cols, rows, ok := d.reg.Tail(req.Session, previewBytes)
+		if !ok {
+			writeReply(conn, controlReply{Error: errNoSession.Error()})
+			return
+		}
+		writeReply(conn, controlReply{Preview: &previewReport{Cols: cols, Rows: rows, Data: data}})
 	default:
 		writeReply(conn, controlReply{Error: "unknown op " + req.Op})
 	}
@@ -135,19 +184,48 @@ func (d *daemon) status() statusReport {
 		StartedMs: d.started.UnixMilli(),
 		Sessions:  []sessionReport{},
 	}
-	table, _ := procmem.Snapshot() // nil when the system cannot be measured
+	// Two snapshots a moment apart: the CPU time used between them is the
+	// load now. Either is nil when the system cannot be measured.
+	before, _ := procmem.Snapshot()
+	start := time.Now()
+	if before != nil {
+		time.Sleep(cpuSample)
+	}
+	table, _ := procmem.Snapshot()
+	sample := sampleWindow{before: before, after: table, elapsed: time.Since(start)}
 	if table != nil {
 		if b, ok := table.TreeBytes(os.Getpid()); ok {
 			st.MemoryBytes = &b
 		}
 	}
 	for _, in := range d.reg.List() {
-		st.Sessions = append(st.Sessions, sessionFrom(in, table))
+		st.Sessions = append(st.Sessions, sessionFrom(in, sample))
 	}
 	return st
 }
 
-func sessionFrom(in session.Info, table *procmem.Table) sessionReport {
+// sampleWindow is the process table at the start and end of a status sample.
+type sampleWindow struct {
+	before, after *procmem.Table
+	elapsed       time.Duration
+}
+
+// cpuPercent is the CPU pid's tree used during the sample, 100 per core.
+func (w sampleWindow) cpuPercent(pid int) (int, bool) {
+	if w.before == nil || w.after == nil || w.elapsed <= 0 {
+		return 0, false
+	}
+	t0, ok0 := w.before.TreeCPU(pid)
+	t1, ok1 := w.after.TreeCPU(pid)
+	if !ok0 || !ok1 {
+		return 0, false
+	}
+	// A process that exits takes its CPU time with it: never negative.
+	used := max(t1-t0, 0)
+	return int((used*100 + w.elapsed/2) / w.elapsed), true
+}
+
+func sessionFrom(in session.Info, w sampleWindow) sessionReport {
 	r := sessionReport{
 		ID:          in.ID,
 		CreatedMs:   in.Created.UnixMilli(),
@@ -155,15 +233,40 @@ func sessionFrom(in session.Info, table *procmem.Table) sessionReport {
 		Clients:     in.Clients,
 		Closed:      in.Closed,
 		BufferBytes: in.BufferBytes,
+		Shell:       in.Shell,
+		ShellPID:    in.ShellPID,
+		Cols:        in.Cols,
+		Rows:        in.Rows,
+		Title:       in.Title,
 	}
 	if !in.Detached.IsZero() {
 		r.DetachedMs = in.Detached.UnixMilli()
 	}
-	if table != nil && in.ShellPID > 0 {
-		if b, ok := table.TreeBytes(in.ShellPID); ok {
-			r.MemoryBytes = &b
+	if !in.LastOutput.IsZero() {
+		r.LastOutputMs = in.LastOutput.UnixMilli()
+	}
+	table := w.after
+	if table == nil || in.ShellPID <= 0 || in.Closed {
+		return r
+	}
+	if b, ok := table.TreeBytes(in.ShellPID); ok {
+		r.MemoryBytes = &b
+	}
+	if p, ok := w.cpuPercent(in.ShellPID); ok {
+		r.CPUPercent = &p
+	}
+	fg := in.ForegroundPID
+	if fg == 0 {
+		fg = table.Newest(in.ShellPID)
+	}
+	if fg > 0 && fg != in.ShellPID {
+		if name := table.Name(fg); name != "" {
+			r.Foreground, r.ForegroundPID = name, fg
 		}
 	}
+	// The shell's directory, not the running program's: that is where the
+	// user is (a program may move elsewhere, as busybox top does to /proc).
+	r.Cwd = procmem.Cwd(in.ShellPID)
 	return r
 }
 
@@ -270,6 +373,24 @@ func closeSession(stateDir, id string) (bool, error) {
 	return false, nil
 }
 
+// queryPreview is --preview: the end of one session's history, or
+// errNoSession when the daemon does not hold it (or none runs).
+func queryPreview(stateDir, id string) (previewReport, error) {
+	if err := ensureStateDir(stateDir); err != nil {
+		return previewReport{}, withCode(codeStateDir, err)
+	}
+	reply, _, err := request(stateDir, controlRequest{Op: opPreview, Session: id})
+	switch {
+	case err == nil && reply.Preview != nil:
+		return *reply.Preview, nil
+	case err == nil, errors.Is(err, fs.ErrNotExist):
+		return previewReport{}, errNoSession
+	case err.Error() == errNoSession.Error():
+		return previewReport{}, errNoSession
+	}
+	return previewReport{}, err
+}
+
 // printStatus writes st for a person.
 func printStatus(w io.Writer, st statusReport) {
 	now := time.UnixMilli(st.NowMs)
@@ -308,6 +429,16 @@ func printStatus(w io.Writer, st statusReport) {
 		}
 		fmt.Fprintf(w, "  %s  %s · created %s ago · memory %s · history %s\n",
 			s.ID, state, ago(now, s.CreatedMs), mem, humanBytes(s.BufferBytes))
+		if s.Shell != "" {
+			line := fmt.Sprintf("    shell %s (PID %d) · %dx%d", s.Shell, s.ShellPID, s.Cols, s.Rows)
+			if s.Foreground != "" {
+				line += " · running " + s.Foreground
+			}
+			if s.Cwd != "" {
+				line += " · in " + s.Cwd
+			}
+			fmt.Fprintln(w, line)
+		}
 	}
 }
 
