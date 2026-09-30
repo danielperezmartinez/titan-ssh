@@ -3,7 +3,6 @@ package io.github.danielperezmartinez.titanssh.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,8 +26,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import io.github.danielperezmartinez.titanssh.config.ConfigController
 import io.github.danielperezmartinez.titanssh.config.Group
+import io.github.danielperezmartinez.titanssh.config.GroupScope
+import io.github.danielperezmartinez.titanssh.config.GroupTree
 import io.github.danielperezmartinez.titanssh.config.Host
-import io.github.danielperezmartinez.titanssh.config.Ids
 import io.github.danielperezmartinez.titanssh.config.Session
 import io.github.danielperezmartinez.titanssh.config.LibraryScript
 import io.github.danielperezmartinez.titanssh.config.TitanConfig
@@ -42,19 +42,21 @@ private enum class ConfigTab(val label: String) {
     HOSTS("Hosts"),
     SESSIONS("Sesiones"),
     SCRIPTS("Scripts"),
-    GROUPS("Grupos"),
 }
 
 private sealed interface Editor {
-    data class HostEdit(val id: String?) : Editor
-    data class SessionEdit(val id: String?) : Editor
+    /** [groupId]: the group a new host starts in. */
+    data class HostEdit(val id: String?, val groupId: String? = null) : Editor
+    data class SessionEdit(val id: String?, val groupId: String? = null) : Editor
     data class LibraryScriptEdit(val id: String?) : Editor
 }
 
 /**
- * The "Configuración" area: manage and persist hosts, sessions, the script
- * library and groups. Lists route to full-screen editors; there is no Termius-
- * style layout (visual decision), just flat mono lists with ASCII markers.
+ * The "Configuración" area: manage and persist hosts, sessions and the script
+ * library. Lists route to full-screen editors; there is no Termius-style layout
+ * (visual decision), just flat mono lists with ASCII markers. Hosts and
+ * sessions are shown in the folders of their own groups, which are created and
+ * managed right in those lists ([[Grupos de hosts y de sesiones como carpetas]]).
  * Opened from the header's `[*]`; [onBack] returns to Sesiones. With
  * [editSessionId] it opens straight on that session's editor (the launcher's
  * "Editar"), and closing that editor returns to Sesiones too. With
@@ -80,8 +82,14 @@ fun ConfigArea(
     val closeEditor = { if (editSessionId != null) onBack() else editor = null }
 
     when (val current = editor) {
-        is Editor.HostEdit -> HostEditor(controller, current.id, provisioner) { editor = null }
-        is Editor.SessionEdit -> SessionEditor(controller, current.id, onDone = closeEditor, deleteSession = onDeleteSession)
+        is Editor.HostEdit -> HostEditor(controller, current.id, provisioner, initialGroupId = current.groupId) { editor = null }
+        is Editor.SessionEdit -> SessionEditor(
+            controller,
+            current.id,
+            onDone = closeEditor,
+            deleteSession = onDeleteSession,
+            initialGroupId = current.groupId,
+        )
         is Editor.LibraryScriptEdit -> LibraryScriptEditor(controller, current.id) { editor = null }
         null -> Column(Modifier.fillMaxSize()) {
             TopBar("Configuración", onBack)
@@ -91,20 +99,23 @@ fun ConfigArea(
             Box(Modifier.fillMaxSize()) {
                 when (tab) {
                     ConfigTab.HOSTS -> HostList(
-                        config.hosts,
-                        config.groups,
-                        onNew = { editor = Editor.HostEdit(null) },
+                        controller,
+                        config,
+                        onNew = { groupId -> editor = Editor.HostEdit(null, groupId) },
                         onOpenAgent = onOpenAgent,
                     ) {
                         editor = Editor.HostEdit(it.id)
                     }
-                    ConfigTab.SESSIONS -> SessionList(config.sessions, config.hosts, onNew = { editor = Editor.SessionEdit(null) }) {
+                    ConfigTab.SESSIONS -> SessionList(
+                        controller,
+                        config,
+                        onNew = { groupId -> editor = Editor.SessionEdit(null, groupId) },
+                    ) {
                         editor = Editor.SessionEdit(it.id)
                     }
                     ConfigTab.SCRIPTS -> LibraryScriptList(config, onNew = { editor = Editor.LibraryScriptEdit(null) }) {
                         editor = Editor.LibraryScriptEdit(it.id)
                     }
-                    ConfigTab.GROUPS -> GroupList(controller, config.groups)
                 }
             }
         }
@@ -159,72 +170,170 @@ private fun NewRow(label: String, onClick: () -> Unit) {
 }
 
 /**
- * The hosts. Tapping one edits it; its marker or a long press opens its
- * actions: edit and, with [onOpenAgent], see the agent of its default user.
+ * A list of hosts or sessions shown in the folders of [scope]'s groups, with
+ * the rows to create an entry and a group at the top. A folder folds or unfolds
+ * with a tap and remembers it; its marker or a long press opens its actions
+ * ([GroupActions]). One row of the list shows its actions at a time: [entry]
+ * gets the open row's key and a way to change it (`"i:<id>"` for an entry).
  */
 @Composable
-private fun HostList(
-    hosts: List<Host>,
+private fun <T> GroupedConfigList(
+    controller: ConfigController,
+    scope: GroupScope,
     groups: List<Group>,
-    onNew: () -> Unit,
-    onOpenAgent: ((AgentHost) -> Unit)?,
-    onOpen: (Host) -> Unit,
+    entries: List<T>,
+    groupOf: (T) -> String?,
+    idOf: (T) -> String,
+    newLabel: String,
+    newInGroupLabel: String,
+    emptyText: String,
+    countSingular: String,
+    countPlural: String,
+    onNew: (groupId: String?) -> Unit,
+    entry: @Composable (T, openKey: String?, setOpenKey: (String?) -> Unit) -> Unit,
 ) {
-    var expandedId by remember { mutableStateOf<String?>(null) }
+    var openKey by remember { mutableStateOf<String?>(null) }
+    var step by remember { mutableStateOf<GroupStep?>(null) }
+    var creatingGroup by remember { mutableStateOf(false) }
+    val setOpenKey: (String?) -> Unit = { key ->
+        openKey = key
+        step = null
+    }
+    val tree = GroupTree(groups)
     LazyColumn(Modifier.fillMaxSize(), contentPadding = bodyPadding()) {
-        item { NewRow("Nuevo host", onNew) }
-        item { Hairline() }
-        if (hosts.isEmpty()) {
-            item { EmptyState("Sin hosts. Crea el primero con [+].") }
-        }
-        items(hosts, key = { it.id }) { host ->
-            val group = groups.firstOrNull { it.id == host.groupId }?.name
-            val subtitle = buildString {
-                append("${host.username}@${host.hostname}:${host.port}")
-                if (group != null) append("  ·  $group")
+        item { NewRow(newLabel) { onNew(null) } }
+        item {
+            if (creatingGroup) {
+                NameEntryRow(
+                    label = "Nuevo grupo",
+                    onConfirm = { name ->
+                        controller.createGroup(scope, name)
+                        creatingGroup = false
+                    },
+                    onCancel = { creatingGroup = false },
+                )
+            } else {
+                NewRow("Nuevo grupo") { creatingGroup = true }
             }
-            val expanded = expandedId == host.id
-            val toggle = { expandedId = if (expanded) null else host.id }
-            ListRow(
-                marker = host.marker,
-                markerColor = if (expanded) TitanColors.Accent else TitanColors.Body,
-                title = host.alias.ifBlank { host.hostname },
-                subtitle = subtitle,
-                onClick = { onOpen(host) },
-                onLongClick = onOpenAgent?.let { toggle },
-                onMarkerClick = onOpenAgent?.let { toggle },
-                expanded = expanded,
-                expandedContent = onOpenAgent?.let { open ->
-                    {
-                        ListRow(marker = "[~]", title = "Editar", onClick = { onOpen(host) })
-                        ListRow(marker = "[@]", title = "Ver el agente del destino", onClick = { open(AgentHost.of(host)) })
-                    }
-                },
-            )
-            Hairline()
         }
+        item { Hairline() }
+        if (entries.isEmpty() && groups.isEmpty()) {
+            item { EmptyState(emptyText) }
+        }
+        groupedRows(
+            tree.rows(entries, groupOf),
+            itemKey = { "item-${idOf(it)}" },
+            folder = { folder ->
+                val key = "g:${folder.group.id}"
+                val open = openKey == key
+                FolderRow(
+                    folder,
+                    count = folderCount(folder.itemCount, countSingular, countPlural),
+                    onToggle = { controller.setGroupCollapsed(scope, folder.group.id, !folder.group.collapsed) },
+                    onActions = { setOpenKey(if (open) null else key) },
+                    actionsOpen = open,
+                    actions = {
+                        GroupActions(
+                            controller,
+                            scope,
+                            tree,
+                            folder,
+                            step = step,
+                            onStep = { step = it },
+                            newEntryLabel = newInGroupLabel,
+                            onNewEntry = {
+                                setOpenKey(null)
+                                onNew(folder.group.id)
+                            },
+                            onClose = { setOpenKey(null) },
+                        )
+                    },
+                )
+            },
+            item = { value -> entry(value, openKey, setOpenKey) },
+        )
     }
 }
 
+/**
+ * The hosts, in the folders of the hosts groups. Tapping one edits it; its
+ * marker or a long press opens its actions: edit and, with [onOpenAgent], see
+ * the agent of its default user.
+ */
 @Composable
-private fun SessionList(sessions: List<Session>, hosts: List<Host>, onNew: () -> Unit, onOpen: (Session) -> Unit) {
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = bodyPadding()) {
-        item { NewRow("Nueva sesión", onNew) }
-        item { Hairline() }
-        if (sessions.isEmpty()) {
-            item { EmptyState("Sin sesiones. Crea una que reutilice un host.") }
-        }
-        items(sessions) { session ->
-            val host = hosts.firstOrNull { it.id == session.hostId }
-            val hostLabel = host?.alias?.ifBlank { host.hostname } ?: "host desconocido"
-            val scripts = session.scripts.size
-            val subtitle = "$hostLabel  ·  ${scripts} script(s)  ·  ${session.resilienceLevel.name.lowercase()}"
-            // Neutral marker for a saved session; danger only flags the real error
-            // state of a dangling host reference.
-            val markerColor = if (host == null) TitanColors.Danger else TitanColors.Body
-            ListRow(marker = if (host == null) "[x]" else session.marker, title = session.name, subtitle = subtitle, onClick = { onOpen(session) }, markerColor = markerColor)
-            Hairline()
-        }
+private fun HostList(
+    controller: ConfigController,
+    config: TitanConfig,
+    onNew: (groupId: String?) -> Unit,
+    onOpenAgent: ((AgentHost) -> Unit)?,
+    onOpen: (Host) -> Unit,
+) {
+    GroupedConfigList(
+        controller,
+        GroupScope.HOSTS,
+        config.hostGroups,
+        config.hosts,
+        groupOf = { it.groupId },
+        idOf = { it.id },
+        newLabel = "Nuevo host",
+        newInGroupLabel = "Nuevo host en este grupo",
+        emptyText = "Sin hosts. Crea el primero con [+].",
+        countSingular = "host",
+        countPlural = "hosts",
+        onNew = onNew,
+    ) { host, openKey, setOpenKey ->
+        val key = "i:${host.id}"
+        val expanded = openKey == key
+        val toggle = { setOpenKey(if (expanded) null else key) }
+        ListRow(
+            marker = host.marker,
+            markerColor = if (expanded) TitanColors.Accent else TitanColors.Body,
+            title = host.alias.ifBlank { host.hostname },
+            subtitle = "${host.username}@${host.hostname}:${host.port}",
+            onClick = { onOpen(host) },
+            onLongClick = onOpenAgent?.let { toggle },
+            onMarkerClick = onOpenAgent?.let { toggle },
+            expanded = expanded,
+            expandedContent = onOpenAgent?.let { open ->
+                {
+                    ListRow(marker = "[~]", title = "Editar", onClick = { onOpen(host) })
+                    ListRow(marker = "[@]", title = "Ver el agente del destino", onClick = { open(AgentHost.of(host)) })
+                }
+            },
+        )
+    }
+}
+
+/** The sessions, in the folders of the sessions groups. Tapping one edits it. */
+@Composable
+private fun SessionList(
+    controller: ConfigController,
+    config: TitanConfig,
+    onNew: (groupId: String?) -> Unit,
+    onOpen: (Session) -> Unit,
+) {
+    GroupedConfigList(
+        controller,
+        GroupScope.SESSIONS,
+        config.sessionGroups,
+        config.sessions,
+        groupOf = { it.groupId },
+        idOf = { it.id },
+        newLabel = "Nueva sesión",
+        newInGroupLabel = "Nueva sesión en este grupo",
+        emptyText = "Sin sesiones. Crea una que reutilice un host.",
+        countSingular = "sesión",
+        countPlural = "sesiones",
+        onNew = onNew,
+    ) { session, _, _ ->
+        val host = config.hosts.firstOrNull { it.id == session.hostId }
+        val hostLabel = host?.alias?.ifBlank { host.hostname } ?: "host desconocido"
+        val scripts = session.scripts.size
+        val subtitle = "$hostLabel  ·  ${scripts} script(s)  ·  ${session.resilienceLevel.name.lowercase()}"
+        // Neutral marker for a saved session; danger only flags the real error
+        // state of a dangling host reference.
+        val markerColor = if (host == null) TitanColors.Danger else TitanColors.Body
+        ListRow(marker = if (host == null) "[x]" else session.marker, title = session.name, subtitle = subtitle, onClick = { onOpen(session) }, markerColor = markerColor)
     }
 }
 
@@ -241,41 +350,6 @@ private fun LibraryScriptList(config: TitanConfig, onNew: () -> Unit, onOpen: (L
             val subtitle = script.body.lineSequence().firstOrNull().orEmpty().take(60) +
                 if (uses > 0) "  ·  en $uses sesión(es)" else ""
             ListRow(marker = "[>]", title = script.name, subtitle = subtitle, onClick = { onOpen(script) }, markerColor = TitanColors.Mute)
-            Hairline()
-        }
-    }
-}
-
-@Composable
-private fun GroupList(controller: ConfigController, groups: List<Group>) {
-    var name by remember { mutableStateOf("") }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = bodyPadding()) {
-        item {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(TitanDimens.SpaceSm)) {
-                Box(Modifier.weight(1f)) {
-                    TitanTextField(label = "Nuevo grupo (proyecto)", value = name, onValueChange = { name = it }, placeholder = "p. ej. cliente-x")
-                }
-                TitanButton("[+] Añadir", onClick = {
-                    if (name.isNotBlank()) {
-                        controller.upsertGroup(Group(id = Ids.group(), name = name.trim()))
-                        name = ""
-                    }
-                }, kind = ButtonKind.PRIMARY)
-            }
-            Spacer(Modifier.height(TitanDimens.SpaceMd))
-            Hairline()
-        }
-        if (groups.isEmpty()) {
-            item { EmptyState("Sin grupos. Agrupa hosts y sesiones por proyecto.") }
-        }
-        items(groups) { group ->
-            ListRow(
-                marker = "[#]",
-                title = group.name,
-                subtitle = null,
-                markerColor = TitanColors.Body,
-                trailing = { GlyphButton("[x]", onClick = { controller.deleteGroup(group.id) }, color = TitanColors.Danger) },
-            )
             Hairline()
         }
     }

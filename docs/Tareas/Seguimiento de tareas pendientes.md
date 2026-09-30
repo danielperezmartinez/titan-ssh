@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-10-01T00:50:00+02:00
+Última modificación: 2026-10-01T01:05:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -183,6 +183,11 @@ mismo commit).
   - Petición del usuario (2026-10-01): un `[x]` en cada fila; en un script de
     la biblioteca solo lo quita de la sesión. Hecho y probado en el emulador.
     👤 Falta que el usuario lo pruebe.
+- [x] **10j. Grupos como carpetas**
+  - [[Grupos de hosts y de sesiones como carpetas]] (`Hecha` el 2026-10-01)
+  - Petición del usuario (2026-10-01): grupos de hosts y de sesiones
+    independientes y anidables, mostrados como carpetas plegables en sus
+    listas y en la lanzadera. Configuración versión 3.
 
 ### Fase 5 · Distribución pública
 

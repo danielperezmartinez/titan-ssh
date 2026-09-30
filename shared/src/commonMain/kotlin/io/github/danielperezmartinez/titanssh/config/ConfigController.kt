@@ -102,17 +102,62 @@ class ConfigController(
 
     // --- Groups --------------------------------------------------------------
 
-    fun upsertGroup(group: Group) = mutate { cfg ->
-        cfg.copy(groups = cfg.groups.upsert(group) { it.id == group.id })
+    /**
+     * Creates a group named [name] in [scope]'s list, inside [parentId] (or at
+     * the top), and returns it.
+     */
+    fun createGroup(scope: GroupScope, name: String, parentId: String? = null): Group {
+        val group = Group(id = Ids.group(), name = name.trim(), parentId = parentId)
+        mutate { cfg -> cfg.withGroups(scope, cfg.groups(scope) + group) }
+        return group
     }
 
-    /** Removes a group and detaches hosts/sessions that pointed at it. */
-    fun deleteGroup(groupId: String) = mutate { cfg ->
-        cfg.copy(
-            groups = cfg.groups.filterNot { it.id == groupId },
-            hosts = cfg.hosts.map { if (it.groupId == groupId) it.copy(groupId = null) else it },
-            sessions = cfg.sessions.map { if (it.groupId == groupId) it.copy(groupId = null) else it },
-        )
+    fun renameGroup(scope: GroupScope, groupId: String, name: String) =
+        updateGroup(scope, groupId) { it.copy(name = name.trim()) }
+
+    fun setGroupCollapsed(scope: GroupScope, groupId: String, collapsed: Boolean) =
+        updateGroup(scope, groupId) { it.copy(collapsed = collapsed) }
+
+    /**
+     * Moves a group, with everything it holds, inside [parentId] (or to the
+     * top). Moving it into itself or into one of its own subfolders is refused
+     * and returns `false`.
+     */
+    fun moveGroup(scope: GroupScope, groupId: String, parentId: String?): Boolean {
+        val groups = _state.value.groups(scope)
+        if (parentId != null) {
+            if (parentId == groupId || groups.none { it.id == parentId }) return false
+            if (parentId in GroupTree(groups).descendants(groupId)) return false
+        }
+        updateGroup(scope, groupId) { it.copy(parentId = parentId) }
+        return true
+    }
+
+    /**
+     * Removes a group of [scope]'s list. What it held (subfolders and members)
+     * moves up to the group's parent, so deleting a folder never deletes a
+     * host or a session.
+     */
+    fun deleteGroup(scope: GroupScope, groupId: String) = mutate { cfg ->
+        val groups = cfg.groups(scope)
+        val group = groups.firstOrNull { it.id == groupId } ?: return@mutate cfg
+        val parent = group.parentId?.takeIf { p -> groups.any { it.id == p } }
+        val remaining = groups
+            .filterNot { it.id == groupId }
+            .map { if (it.parentId == groupId) it.copy(parentId = parent) else it }
+        val moved = cfg.withGroups(scope, remaining)
+        when (scope) {
+            GroupScope.HOSTS -> moved.copy(
+                hosts = cfg.hosts.map { if (it.groupId == groupId) it.copy(groupId = parent) else it },
+            )
+            GroupScope.SESSIONS -> moved.copy(
+                sessions = cfg.sessions.map { if (it.groupId == groupId) it.copy(groupId = parent) else it },
+            )
+        }
+    }
+
+    private fun updateGroup(scope: GroupScope, groupId: String, change: (Group) -> Group) = mutate { cfg ->
+        cfg.withGroups(scope, cfg.groups(scope).map { if (it.id == groupId) change(it) else it })
     }
 
     // --- Script library (ADR-0013) -------------------------------------------

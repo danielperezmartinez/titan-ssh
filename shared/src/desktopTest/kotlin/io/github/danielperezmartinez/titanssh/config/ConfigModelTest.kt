@@ -147,17 +147,25 @@ class ConfigModelTest {
     }
 
     @Test
-    fun controller_delete_group_detaches_members() {
-        val g = Group(id = "g1", name = "proj")
+    fun controller_delete_group_detaches_only_the_members_of_its_list() {
+        // The same id in both lists: deleting the hosts group leaves the
+        // sessions group and its members alone.
         val h = host("h1", groupId = "g1")
         val s = Session(id = "s1", name = "s", hostId = "h1", groupId = "g1")
-        val controller = ConfigController(FakeConfigStore(TitanConfig(hosts = listOf(h), sessions = listOf(s), groups = listOf(g))), CoroutineScope(Dispatchers.Unconfined))
+        val cfg = TitanConfig(
+            hosts = listOf(h),
+            sessions = listOf(s),
+            hostGroups = listOf(Group(id = "g1", name = "proj")),
+            sessionGroups = listOf(Group(id = "g1", name = "proj")),
+        )
+        val controller = ConfigController(FakeConfigStore(cfg), CoroutineScope(Dispatchers.Unconfined))
 
-        controller.deleteGroup("g1")
+        controller.deleteGroup(GroupScope.HOSTS, "g1")
 
-        assertTrue(controller.state.value.groups.isEmpty())
+        assertTrue(controller.state.value.hostGroups.isEmpty())
         assertNull(controller.state.value.hosts.single().groupId)
-        assertNull(controller.state.value.sessions.single().groupId)
+        assertEquals(cfg.sessionGroups, controller.state.value.sessionGroups)
+        assertEquals("g1", controller.state.value.sessions.single().groupId)
     }
 
     private val restart = LibraryScript(
@@ -255,7 +263,7 @@ class ConfigModelTest {
 }
 
 /** In-memory [ConfigStore] for controller tests. */
-private class FakeConfigStore(private var config: TitanConfig) : ConfigStore {
+internal class FakeConfigStore(private var config: TitanConfig) : ConfigStore {
     override suspend fun load(): TitanConfig = config
     override suspend fun save(config: TitanConfig) {
         this.config = config

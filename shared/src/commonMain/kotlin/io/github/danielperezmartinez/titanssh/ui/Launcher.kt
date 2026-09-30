@@ -21,6 +21,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import io.github.danielperezmartinez.titanssh.config.ConfigController
+import io.github.danielperezmartinez.titanssh.config.GroupScope
+import io.github.danielperezmartinez.titanssh.config.GroupTree
 import io.github.danielperezmartinez.titanssh.config.ResilienceLevel
 import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
 import io.github.danielperezmartinez.titanssh.config.resolve
@@ -38,8 +40,9 @@ private enum class LauncherConfirm { DELETE, TERMINATE }
  * The launcher: saved sessions and the connection each resolves to. Tapping a
  * resolvable session (or its `[>] Lanzar`) opens a live tab; an unresolved one
  * is flagged and cannot be launched. The marker or a long press opens the
- * session's actions, one session at a time. With no sessions saved it offers a
- * shortcut to Configuración's Sesiones tab.
+ * session's actions, one session at a time. The sessions are shown in the
+ * folders of their groups ([[Carpetas de grupos en las listas]]). With no
+ * sessions saved it offers a shortcut to Configuración's Sesiones tab.
  *
  * It also shows what the app last knew about each session's agent
  * ([[Estado y control del agente en la interfaz]]): a line on a session that is
@@ -100,7 +103,21 @@ internal fun Launcher(
                     }
                 }
             }
-            items(config.sessions, key = { it.id }) { session ->
+            // In the folders of the sessions groups; the empty ones are left
+            // out, and folding one here folds it in Configuración too.
+            groupedRows(
+                GroupTree(config.sessionGroups).rows(config.sessions, { it.groupId }, hideEmpty = true),
+                itemKey = { it.id },
+                folder = { folder ->
+                    FolderRow(
+                        folder,
+                        count = folderCount(folder.itemCount, "sesión", "sesiones"),
+                        onToggle = {
+                            controller.setGroupCollapsed(GroupScope.SESSIONS, folder.group.id, !folder.group.collapsed)
+                        },
+                    )
+                },
+            ) { session ->
                 val resolved = runCatching { config.resolve(session) }.getOrNull()
                 val subtitle = if (resolved != null) {
                     "${resolved.endpoint.username}@${resolved.endpoint.host}:${resolved.endpoint.port}"
@@ -208,7 +225,6 @@ internal fun Launcher(
                         }
                     },
                 )
-                Hairline()
             }
         }
     }

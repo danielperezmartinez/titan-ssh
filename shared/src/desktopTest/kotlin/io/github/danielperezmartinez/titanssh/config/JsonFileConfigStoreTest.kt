@@ -58,7 +58,8 @@ class JsonFileConfigStoreTest {
                 groupId = "g1",
             ),
         ),
-        groups = listOf(Group(id = "g1", name = "casa")),
+        hostGroups = listOf(Group(id = "g1", name = "casa")),
+        sessionGroups = listOf(Group(id = "g1", name = "casa", collapsed = true), Group(id = "g2", name = "web", parentId = "g1")),
         scripts = listOf(
             LibraryScript(
                 id = "lib1", name = "restart", body = "sudo systemctl restart app", tags = listOf("ops"),

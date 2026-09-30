@@ -55,7 +55,7 @@ class ConfigMigrationTest {
     fun snippets_become_library_scripts_with_the_same_id() {
         val cfg = migrated()
 
-        assertEquals(2, cfg.version)
+        assertEquals(TitanConfig.CURRENT_VERSION, cfg.version)
         assertEquals(listOf(LibraryScript(id = "sn1", name = "restart", body = "sudo systemctl restart app", tags = listOf("ops"))), cfg.scripts)
     }
 
@@ -93,7 +93,7 @@ class ConfigMigrationTest {
 
     @Test
     fun a_current_document_is_left_as_is() {
-        val document = json.parseToJsonElement("""{ "version": 2, "scripts": [{ "id": "l", "name": "n" }] }""").jsonObject
+        val document = json.parseToJsonElement("""{ "version": 3, "scripts": [{ "id": "l", "name": "n" }] }""").jsonObject
 
         assertEquals(document, ConfigMigration.migrate(document))
     }
@@ -111,7 +111,7 @@ class ConfigMigrationTest {
             assertEquals(migrated(), loaded)
             assertEquals(v1, File(dir, "${JsonFileConfigStore.CONFIG_FILE}.v1.bak").readText())
             val saved = File(dir, JsonFileConfigStore.CONFIG_FILE).readText()
-            assertTrue(saved.contains("\"version\": 2"))
+            assertTrue(saved.contains("\"version\": ${TitanConfig.CURRENT_VERSION}"))
             assertTrue(!saved.contains("snippet"), "no legacy fields are written back: $saved")
             assertEquals(loaded, JsonFileConfigStore(dir).load())
         } finally {

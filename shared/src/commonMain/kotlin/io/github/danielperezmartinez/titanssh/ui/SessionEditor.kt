@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import io.github.danielperezmartinez.titanssh.config.ConfigController
+import io.github.danielperezmartinez.titanssh.config.GroupScope
 import io.github.danielperezmartinez.titanssh.config.Ids
 import io.github.danielperezmartinez.titanssh.config.ResilienceLevel
 import io.github.danielperezmartinez.titanssh.config.Session
@@ -57,6 +58,8 @@ fun SessionEditor(
     onDone: () -> Unit,
     /** Deletes the session; the app also terminates it on its destination (level 3). */
     deleteSession: (Session) -> Unit = { controller.deleteSession(it.id) },
+    /** The group a new session starts in (created from a folder's actions). */
+    initialGroupId: String? = null,
 ) {
     val config by controller.state.collectAsState()
     val existing = remember(sessionId) { config.sessions.firstOrNull { it.id == sessionId } }
@@ -67,7 +70,7 @@ fun SessionEditor(
     var portOverride by remember { mutableStateOf(existing?.portOverride?.toString() ?: "") }
     var initialDirectory by remember { mutableStateOf(existing?.initialDirectory ?: "") }
     var resilience by remember { mutableStateOf(existing?.resilienceLevel ?: ResilienceLevel.BASE) }
-    var groupId by remember { mutableStateOf(existing?.groupId) }
+    var groupId by remember { mutableStateOf(if (existing != null) existing.groupId else initialGroupId) }
     var tags by remember { mutableStateOf(existing?.tags?.joinToString(", ") ?: "") }
     var marker by remember { mutableStateOf(existing?.marker ?: "[+]") }
     var fontSize by remember { mutableStateOf(existing?.appearance?.fontSize?.toString() ?: "") }
@@ -317,15 +320,7 @@ private fun SessionForm(
             TitanButton("[+] Añadir túnel", onClick = { onOpenTunnel(null) }, kind = ButtonKind.SECONDARY)
 
             SectionHeader("Organización y apariencia")
-            val groupOptions = config.groups
-            TitanDropdown(
-                "Grupo (proyecto)",
-                options = groupOptions,
-                selected = groupOptions.firstOrNull { it.id == groupId },
-                onSelect = { onGroupId(if (groupId == it.id) null else it.id) },
-                optionLabel = { it.name },
-                placeholder = "sin grupo",
-            )
+            GroupPicker(controller, GroupScope.SESSIONS, config.sessionGroups, groupId, onGroupId)
             Gap()
             TitanTextField("Etiquetas (separadas por coma)", tags, onTags, placeholder = "deploy, europa")
             Gap()

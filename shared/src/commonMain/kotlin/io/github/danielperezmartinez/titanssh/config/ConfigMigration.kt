@@ -27,7 +27,47 @@ object ConfigMigration {
     fun migrate(document: JsonObject): JsonObject {
         var current = document
         if (versionOf(current) < 2) current = v1ToV2(current)
+        if (versionOf(current) < 3) current = v2ToV3(current)
         return current
+    }
+
+    /**
+     * 2 → 3: the shared `groups` split into `hostGroups` and `sessionGroups`.
+     * A group goes to the list of whatever it holds, directly or through a
+     * subgroup, keeping its id (ids only need to be unique within one list), so
+     * no host or session changes. A group that holds nothing goes to both lists,
+     * so none is lost. Each list also takes the parents of its groups.
+     */
+    private fun v2ToV3(document: JsonObject): JsonObject {
+        val groups = document["groups"]?.jsonArray.orEmpty().map { it.jsonObject }
+        val parents = groups.mapNotNull { g -> g.string("id")?.let { it to g.string("parentId") } }.toMap()
+
+        fun withAncestors(ids: Set<String>): Set<String> {
+            val result = mutableSetOf<String>()
+            ids.forEach { id ->
+                var current: String? = id
+                while (current != null && current in parents && result.add(current)) current = parents[current]
+            }
+            return result
+        }
+
+        fun usedBy(key: String): Set<String> = document[key]?.jsonArray.orEmpty()
+            .mapNotNull { it.jsonObject.string("groupId") }
+            .filter { it in parents }
+            .toSet()
+
+        val forHosts = withAncestors(usedBy("hosts"))
+        val forSessions = withAncestors(usedBy("sessions"))
+        val unused = withAncestors(parents.keys - forHosts - forSessions)
+
+        fun groupsIn(ids: Set<String>): JsonArray = JsonArray(groups.filter { it.string("id") in ids })
+
+        val fields = document.toMutableMap()
+        fields.remove("groups")
+        fields["hostGroups"] = groupsIn(forHosts + unused)
+        fields["sessionGroups"] = groupsIn(forSessions + unused)
+        fields["version"] = JsonPrimitive(3)
+        return JsonObject(fields)
     }
 
     /**

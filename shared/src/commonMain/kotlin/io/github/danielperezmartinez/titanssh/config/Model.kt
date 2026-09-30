@@ -219,12 +219,24 @@ data class LibraryScript(
     val secretRefs: List<String> = emptyList(),
 )
 
-/** A folder for organizing hosts and sessions by project. */
+/**
+ * Which list a [Group] organizes. Hosts and sessions have independent groups:
+ * a host only goes in a hosts group and a session in a sessions group.
+ */
+enum class GroupScope { HOSTS, SESSIONS }
+
+/**
+ * A folder of the hosts list or of the sessions list (see [GroupScope]).
+ * [parentId] nests it inside another group of the same list; `null` puts it at
+ * the top. [collapsed] remembers whether its folder was left folded. Ids are
+ * unique within one list.
+ */
 @Serializable
 data class Group(
     val id: String,
     val name: String,
     val parentId: String? = null,
+    val collapsed: Boolean = false,
 )
 
 /**
@@ -284,13 +296,31 @@ data class TitanConfig(
     val version: Int = CURRENT_VERSION,
     val hosts: List<Host> = emptyList(),
     val sessions: List<Session> = emptyList(),
-    val groups: List<Group> = emptyList(),
+    /** The folders of the hosts list; [Host.groupId] points here. */
+    val hostGroups: List<Group> = emptyList(),
+    /** The folders of the sessions list; [Session.groupId] points here. */
+    val sessionGroups: List<Group> = emptyList(),
     /** The script library (ADR-0013). */
     val scripts: List<LibraryScript> = emptyList(),
     val defaultAppearance: TerminalAppearance = TerminalAppearance(),
 ) {
+    /** The groups of [scope]'s list. */
+    fun groups(scope: GroupScope): List<Group> = when (scope) {
+        GroupScope.HOSTS -> hostGroups
+        GroupScope.SESSIONS -> sessionGroups
+    }
+
+    /** This config with [groups] as [scope]'s groups. */
+    fun withGroups(scope: GroupScope, groups: List<Group>): TitanConfig = when (scope) {
+        GroupScope.HOSTS -> copy(hostGroups = groups)
+        GroupScope.SESSIONS -> copy(sessionGroups = groups)
+    }
+
     companion object {
-        /** 2: the snippets became the script library (see [ConfigMigration]). */
-        const val CURRENT_VERSION: Int = 2
+        /**
+         * 2: the snippets became the script library. 3: the shared groups split
+         * into hosts groups and sessions groups. See [ConfigMigration].
+         */
+        const val CURRENT_VERSION: Int = 3
     }
 }

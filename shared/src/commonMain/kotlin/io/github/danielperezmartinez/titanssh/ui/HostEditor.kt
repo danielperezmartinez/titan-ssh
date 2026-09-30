@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import io.github.danielperezmartinez.titanssh.config.ConfigController
+import io.github.danielperezmartinez.titanssh.config.GroupScope
 import io.github.danielperezmartinez.titanssh.config.Host
 import io.github.danielperezmartinez.titanssh.config.HostAuth
 import io.github.danielperezmartinez.titanssh.config.HostKeyPolicy
@@ -60,6 +61,8 @@ fun HostEditor(
     controller: ConfigController,
     hostId: String?,
     provisioner: SecretProvisioner,
+    /** The group a new host starts in (created from a folder's actions). */
+    initialGroupId: String? = null,
     onDone: () -> Unit,
 ) {
     val config by controller.state.collectAsState()
@@ -106,7 +109,7 @@ fun HostEditor(
     var hostKeyPolicy by remember { mutableStateOf(existing?.hostKeyPolicy ?: HostKeyPolicy.TOFU) }
     var keepAlive by remember { mutableStateOf((existing?.keepAliveSeconds ?: 30).toString()) }
     var proxyJumpHostId by remember { mutableStateOf(existing?.proxyJumpHostId) }
-    var groupId by remember { mutableStateOf(existing?.groupId) }
+    var groupId by remember { mutableStateOf(if (existing != null) existing.groupId else initialGroupId) }
     var tags by remember { mutableStateOf(existing?.tags?.joinToString(", ") ?: "") }
     var marker by remember { mutableStateOf(existing?.marker ?: "[+]") }
     var fontSize by remember { mutableStateOf(existing?.appearance?.fontSize?.toString() ?: "") }
@@ -316,15 +319,7 @@ fun HostEditor(
             )
 
             SectionHeader("Organización y apariencia")
-            val groupOptions = config.groups
-            TitanDropdown(
-                "Grupo (proyecto)",
-                options = groupOptions,
-                selected = groupOptions.firstOrNull { it.id == groupId },
-                onSelect = { groupId = if (groupId == it.id) null else it.id },
-                optionLabel = { it.name },
-                placeholder = "sin grupo",
-            )
+            GroupPicker(controller, GroupScope.HOSTS, config.hostGroups, groupId, onGroupId = { groupId = it })
             Gap()
             TitanTextField("Etiquetas (separadas por coma)", tags, { tags = it }, placeholder = "prod, europa")
             Gap()
