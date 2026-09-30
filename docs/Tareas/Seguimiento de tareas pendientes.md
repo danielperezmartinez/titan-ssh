@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-29T12:00:00+02:00
+Última modificación: 2026-09-30T19:35:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -607,3 +607,14 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   Release. El clic derecho de escritorio de
   [[Acciones contextuales en las filas de lista]] sigue sin probar; el usuario
   la da por cerrada igualmente.
+- 2026-09-30 — **Publicada
+  [`v0.1.0-beta.7`](https://github.com/danielperezmartinez/titan-ssh/releases/tag/v0.1.0-beta.7)**,
+  a petición del usuario, con
+  [[Transparencia y control del agente en el destino]] (sesiones sin
+  caducidad, órdenes de control del agente y panel del agente) y el acceso a
+  Configuración desde la lanzadera vacía. Todos los jobs del run
+  `36750827348` acaban bien (`aur` y `winget` se saltan, porque sus variables
+  siguen desactivadas). El Release está marcado como pre-release,
+  `sha256sum -c SHA256SUMS` da `OK` en los 19 ficheros y la APK está firmada
+  con la clave de release (huella del `README`). 👤 Falta que el usuario
+  instale la APK en el Pixel desde el Release y confirme que funciona.
