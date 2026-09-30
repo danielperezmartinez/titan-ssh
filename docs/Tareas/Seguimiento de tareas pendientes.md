@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-09-30T21:15:00+02:00
+Última modificación: 2026-09-30T21:30:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -201,8 +201,8 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
 - [[Revisar el contenido de la franja de estado del terminal]] (`Pendiente`):
   el usuario quiere revisarla más adelante. Por
   [[Franja de estado del terminal solo para el estado y los scripts]], la
-  franja solo lleva el estado, el nivel y `[>] scripts`; lo que tiene de más
-  (reconectar, túneles, aviso del nivel 3) no se toca hasta entonces.
+  franja solo lleva el estado, el nivel, `reconectar` y `[>] scripts`; lo que
+  tiene de más (túneles, aviso del nivel 3) no se toca hasta entonces.
 
 - [[Indicar cuando la conexión deja de responder]] (`Pendiente`): el usuario
   prefiere retomarla cuando haya usado más la app, para dar mejores
