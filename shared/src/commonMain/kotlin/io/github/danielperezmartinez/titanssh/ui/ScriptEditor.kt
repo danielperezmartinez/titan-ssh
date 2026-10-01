@@ -81,6 +81,9 @@ fun ScriptEditor(
         onDelete = if (isNew) null else onDelete,
         // A library reference only leaves this session; an own script is gone.
         deleteLabel = if (draft.libraryScriptId != null) "[x] Quitar" else "[x] Eliminar",
+        // Same wording as the [x] of the script's row in the session form.
+        deleteQuestion = if (draft.libraryScriptId != null) "¿Quitar de la sesión?" else "¿Eliminar el script?",
+        deleteSubtitle = if (linked != null) "Sigue en la biblioteca" else null,
     ) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bodyPadding())) {
             TitanCheck("Habilitado", draft.enabled) { draft = draft.copy(enabled = it) }

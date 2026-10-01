@@ -42,8 +42,10 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import io.github.danielperezmartinez.titanssh.theme.TitanColors
 import io.github.danielperezmartinez.titanssh.theme.TitanDimens
@@ -439,9 +441,13 @@ fun ListRow(
 }
 
 /**
- * An inline confirmation built on [ListRow]: the [question] with a confirm and
- * a cancel button, for a step that must not happen on a single tap (e.g.
- * deleting). Shown in place of the row that asked for it; no dialog.
+ * An inline confirmation laid out like a [ListRow]: the [question] with a
+ * confirm and a cancel button, for a step that must not happen on a single tap
+ * (e.g. deleting). Shown in place of the row that asked for it; no dialog.
+ *
+ * The buttons sit at the end of the question's line while the question fits on
+ * one line next to them; otherwise (narrow screen, long [confirmLabel]) they
+ * drop below it, right-aligned, instead of squeezing the question.
  */
 @Composable
 fun ConfirmRow(
@@ -456,18 +462,74 @@ fun ConfirmRow(
     cancelLabel: String = "[<] No",
     confirmKind: ButtonKind = ButtonKind.DANGER,
 ) {
-    ListRow(
-        title = question,
-        modifier = modifier,
-        subtitle = subtitle,
-        marker = marker,
-        markerColor = markerColor,
-        trailing = {
-            TitanButton(cancelLabel, onClick = onCancel, kind = ButtonKind.SECONDARY)
-            Spacer(Modifier.width(TitanDimens.SpaceSm))
-            TitanButton(confirmLabel, onClick = onConfirm, kind = confirmKind)
-        },
-    )
+    Layout(
+        modifier = modifier.fillMaxWidth().defaultMinSize(minHeight = TitanDimens.TouchTarget),
+        content = { ConfirmRowContent(question, subtitle, marker, markerColor, cancelLabel, confirmLabel, confirmKind, onConfirm, onCancel) },
+    ) { measurables, constraints ->
+        val (text, buttons) = measurables
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val b = buttons.measure(loose)
+        val width = if (constraints.hasBoundedWidth) constraints.maxWidth else text.maxIntrinsicWidth(Constraints.Infinity) + b.width
+        if (text.maxIntrinsicWidth(Constraints.Infinity) + b.width <= width) {
+            val t = text.measure(loose.copy(maxWidth = width - b.width))
+            val h = maxOf(t.height, b.height, constraints.minHeight)
+            layout(width, h) {
+                t.place(0, (h - t.height) / 2)
+                b.place(width - b.width, (h - b.height) / 2)
+            }
+        } else {
+            val t = text.measure(loose.copy(maxWidth = width))
+            val h = maxOf(t.height + b.height, constraints.minHeight)
+            layout(width, h) {
+                t.place(0, 0)
+                b.place(width - b.width, t.height)
+            }
+        }
+    }
+}
+
+/** [ConfirmRow]'s two parts, in order: the marker and texts, then the buttons. */
+@Composable
+private fun ConfirmRowContent(
+    question: String,
+    subtitle: String?,
+    marker: String?,
+    markerColor: Color,
+    cancelLabel: String,
+    confirmLabel: String,
+    confirmKind: ButtonKind,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    // Same paddings as ListRow's marker and text column.
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (marker != null) {
+            Text(
+                marker,
+                style = MaterialTheme.typography.bodyLarge,
+                color = markerColor,
+                modifier = Modifier.padding(start = TitanDimens.SpaceXs, end = TitanDimens.SpaceMd),
+            )
+        }
+        Column(
+            Modifier
+                .padding(vertical = TitanDimens.SpaceSm)
+                .padding(start = if (marker == null) TitanDimens.SpaceXs else 0.dp),
+        ) {
+            Text(question, style = MaterialTheme.typography.bodyLarge, color = TitanColors.Ink)
+            if (subtitle != null) {
+                Text(subtitle, style = MaterialTheme.typography.labelSmall, color = TitanColors.Mute)
+            }
+        }
+    }
+    Row(
+        Modifier.padding(start = TitanDimens.SpaceSm, end = TitanDimens.SpaceXs, top = TitanDimens.SpaceXs, bottom = TitanDimens.SpaceXs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TitanButton(cancelLabel, onClick = onCancel, kind = ButtonKind.SECONDARY)
+        Spacer(Modifier.width(TitanDimens.SpaceSm))
+        TitanButton(confirmLabel, onClick = onConfirm, kind = confirmKind)
+    }
 }
 
 /** Centered empty-state message for a list. */
@@ -526,6 +588,11 @@ fun bodyPadding(): PaddingValues = PaddingValues(
  * Editor chrome: a top bar with a `[<]` back action, a title, an optional
  * delete action ([deleteLabel], `[x] Eliminar` by default) and a `[✓] Guardar`,
  * over a scrollable body. [onSave] is only enabled when [canSave] holds.
+ *
+ * The delete action never runs on a single tap: it swaps the bar for a
+ * [ConfirmRow] asking [deleteQuestion] (with an optional [deleteSubtitle]),
+ * and [onDelete] only runs on [deleteConfirmLabel]; `[<] No` brings the bar
+ * back.
  */
 @Composable
 fun EditorScaffold(
@@ -536,10 +603,29 @@ fun EditorScaffold(
     modifier: Modifier = Modifier,
     onDelete: (() -> Unit)? = null,
     deleteLabel: String = "[x] Eliminar",
+    deleteQuestion: String = "¿Eliminar?",
+    deleteSubtitle: String? = null,
+    deleteConfirmLabel: String = "[x] Sí",
     body: @Composable () -> Unit,
 ) {
+    var confirmingDelete by remember { mutableStateOf(false) }
     Column(modifier.fillMaxWidth()) {
-        Row(
+        if (confirmingDelete && onDelete != null) {
+            ConfirmRow(
+                question = deleteQuestion,
+                subtitle = deleteSubtitle,
+                confirmLabel = deleteConfirmLabel,
+                marker = "[x]",
+                markerColor = TitanColors.Danger,
+                // The bar's own horizontal inset.
+                modifier = Modifier.padding(horizontal = TitanDimens.SpaceSm),
+                onConfirm = {
+                    confirmingDelete = false
+                    onDelete()
+                },
+                onCancel = { confirmingDelete = false },
+            )
+        } else Row(
             Modifier
                 .fillMaxWidth()
                 .padding(horizontal = TitanDimens.SpaceSm, vertical = TitanDimens.SpaceSm),
@@ -553,7 +639,7 @@ fun EditorScaffold(
                 modifier = Modifier.weight(1f).padding(start = TitanDimens.SpaceSm),
             )
             if (onDelete != null) {
-                TitanButton(deleteLabel, onClick = onDelete, kind = ButtonKind.DANGER)
+                TitanButton(deleteLabel, onClick = { confirmingDelete = true }, kind = ButtonKind.DANGER)
                 Spacer(Modifier.width(TitanDimens.SpaceSm))
             }
             TitanButton("[ok] Guardar", onClick = onSave, kind = ButtonKind.PRIMARY, enabled = canSave)

@@ -1,8 +1,6 @@
 package io.github.danielperezmartinez.titanssh.ui
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -21,14 +19,13 @@ import io.github.danielperezmartinez.titanssh.config.Ids
 import io.github.danielperezmartinez.titanssh.config.LibraryScript
 import io.github.danielperezmartinez.titanssh.config.ScriptBehavior
 import io.github.danielperezmartinez.titanssh.config.sessionsUsing
-import io.github.danielperezmartinez.titanssh.theme.TitanColors
 import io.github.danielperezmartinez.titanssh.theme.TitanDimens
 
 /**
  * Create/edit form for a [LibraryScript] of the "Scripts" tab (ADR-0013): the
  * command and how it runs, reused by reference from any session and runnable
- * on demand from an open one. Deleting a script that sessions use asks first
- * and leaves each of them an own copy ([ConfigController.deleteLibraryScript]).
+ * on demand from an open one. Deleting asks first (and says how many sessions
+ * use it); each of them keeps an own copy ([ConfigController.deleteLibraryScript]).
  */
 @Composable
 fun LibraryScriptEditor(controller: ConfigController, libraryScriptId: String?, onDone: () -> Unit) {
@@ -41,7 +38,6 @@ fun LibraryScriptEditor(controller: ConfigController, libraryScriptId: String?, 
     var behavior by remember { mutableStateOf(existing?.behavior ?: ScriptBehavior()) }
     var envText by remember { mutableStateOf(formatEnv(existing?.envVars ?: emptyMap())) }
     var secretRefs by remember { mutableStateOf(existing?.secretRefs ?: emptyList()) }
-    var confirmDelete by remember { mutableStateOf(false) }
 
     val usedBy = existing?.let { config.sessionsUsing(it.id) } ?: emptyList()
     val canSave = name.isNotBlank()
@@ -71,22 +67,16 @@ fun LibraryScriptEditor(controller: ConfigController, libraryScriptId: String?, 
         onBack = onDone,
         onSave = { save() },
         canSave = canSave,
-        onDelete = existing?.let { { if (usedBy.isEmpty()) delete() else confirmDelete = true } },
+        onDelete = existing?.let { { delete() } },
+        deleteQuestion = "¿Eliminar el script?",
+        deleteSubtitle = when (usedBy.size) {
+            0 -> null
+            1 -> "Lo usa 1 sesión: se queda con una copia propia"
+            else -> "Lo usan ${usedBy.size} sesiones: cada una se queda con una copia propia"
+        },
     ) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bodyPadding())) {
-            if (confirmDelete) {
-                Caption(
-                    "Lo usan ${usedBy.size} sesión(es): ${usedBy.joinToString(", ") { it.name }}. " +
-                        "Al eliminarlo, cada una se queda con una copia propia.",
-                    color = TitanColors.Danger,
-                )
-                Spacer(Modifier.height(TitanDimens.SpaceSm))
-                Row(horizontalArrangement = Arrangement.spacedBy(TitanDimens.SpaceSm)) {
-                    TitanButton("[x] Eliminar igualmente", onClick = { delete() }, kind = ButtonKind.DANGER)
-                    TitanButton("Cancelar", onClick = { confirmDelete = false })
-                }
-                Spacer(Modifier.height(TitanDimens.SpaceMd))
-            } else if (usedBy.isNotEmpty()) {
+            if (usedBy.isNotEmpty()) {
                 Caption("Lo usan ${usedBy.size} sesión(es). Los cambios llegan a todas.")
                 Spacer(Modifier.height(TitanDimens.SpaceMd))
             }

@@ -87,6 +87,16 @@ class AgentManager(
         config.deleteSession(session.id)
     }
 
+    /**
+     * Whether saved [session] is alive on its destination according to its
+     * agent's last report, i.e. whether [delete] would also terminate it there.
+     */
+    fun isLive(session: Session): Boolean {
+        val resolved = runCatching { config.state.value.resolve(session) }.getOrNull() ?: return false
+        val obs = watch.state.value.observations[AgentKey.of(resolved.endpoint).id] ?: return false
+        return AgentInsights.sessionOf(obs, session.id) != null
+    }
+
     /** Closes one agent session listed in [host]'s panel (e.g. an orphan). */
     fun closeAgentSession(host: AgentHost, agentSessionId: String) = launchOn(host) {
         watch.addPendingClose(host.key, agentSessionId)

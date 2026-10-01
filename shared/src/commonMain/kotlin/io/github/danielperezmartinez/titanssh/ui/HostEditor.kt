@@ -183,12 +183,23 @@ fun HostEditor(
         onDone()
     }
 
+    // What deleting the host leaves behind: its sessions lose their host and
+    // the hosts that jump through it go direct.
+    val usingSessions = existing?.let { h -> config.sessions.count { it.hostId == h.id } } ?: 0
+    val jumpingHosts = existing?.let { h -> config.hosts.count { it.proxyJumpHostId == h.id } } ?: 0
+    val deleteSubtitle = listOfNotNull(
+        usingSessions.takeIf { it > 0 }?.let { if (it == 1) "1 sesión se queda sin host" else "$it sesiones se quedan sin host" },
+        jumpingHosts.takeIf { it > 0 }?.let { if (it == 1) "1 host deja de saltar por él" else "$it hosts dejan de saltar por él" },
+    ).joinToString(" · ").ifEmpty { null }
+
     EditorScaffold(
         title = if (existing == null) "Nuevo host" else "Editar host",
         onBack = onDone,
         onSave = { save() },
         canSave = canSave,
         onDelete = existing?.let { { controller.deleteHost(it.id); onDone() } },
+        deleteQuestion = "¿Eliminar el host?",
+        deleteSubtitle = deleteSubtitle,
     ) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bodyPadding())) {
             TitanTextField("Alias", alias, { alias = it }, placeholder = "servidor de casa")

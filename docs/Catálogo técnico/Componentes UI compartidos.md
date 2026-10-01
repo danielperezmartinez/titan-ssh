@@ -7,8 +7,8 @@ Estado: "Vigente"
 Ámbito: "Aplicación"
 Fuente: "shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/ui/Components.kt"
 Entrada pública: "io.github.danielperezmartinez.titanssh.ui"
-Resumen: "Biblioteca de primitivas Compose dark-first, reutilizables en cualquier pantalla: TitanTextField, TitanDropdown (genérico), TitanButton (ButtonKind PRIMARY/SECONDARY/DANGER), TitanCheck, TitanSegmented (genérico; sus opciones saltan de línea si no caben), ListRow (fila configurable por zonas: fila con pulsar y mantener pulsada, marcador y zona derecha, cada una solo si se le da acción; puede desplegar debajo acciones contextuales hechas con más ListRow y llevar una tercera línea opcional, note, en su propio color, p. ej. un estado en warning), ConfirmRow (confirmación en línea), EmptyState, GlyphButton, Hairline, SectionHeader, Caption, EditorScaffold y bodyPadding(). Construidas al lenguaje visual (mono, marcadores ASCII, superficies planas con hairline 1px, radios 4px/0px), evitando el chrome de Material (elevación, tarjetas redondeadas, labels animados) que competiría con la identidad de terminal. Se apoyan en los tokens de TitanColors/TitanDimens."
-Última modificación: 2026-10-01T00:45:00+02:00
+Resumen: "Biblioteca de primitivas Compose dark-first, reutilizables en cualquier pantalla: TitanTextField, TitanDropdown (genérico), TitanButton (ButtonKind PRIMARY/SECONDARY/DANGER), TitanCheck, TitanSegmented (genérico; sus opciones saltan de línea si no caben), ListRow (fila configurable por zonas: fila con pulsar y mantener pulsada, marcador y zona derecha, cada una solo si se le da acción; puede desplegar debajo acciones contextuales hechas con más ListRow y llevar una tercera línea opcional, note, en su propio color, p. ej. un estado en warning), ConfirmRow (confirmación en línea; sus botones bajan bajo la pregunta si no cabe en una línea a su lado), EmptyState, GlyphButton, Hairline, SectionHeader, Caption, EditorScaffold (su botón de borrar siempre pide confirmación en la propia barra) y bodyPadding(). Construidas al lenguaje visual (mono, marcadores ASCII, superficies planas con hairline 1px, radios 4px/0px), evitando el chrome de Material (elevación, tarjetas redondeadas, labels animados) que competiría con la identidad de terminal. Se apoyan en los tokens de TitanColors/TitanDimens."
+Última modificación: 2026-10-01T12:10:00+02:00
 ---
 
 # Componentes UI compartidos
@@ -24,7 +24,11 @@ Cuándo reutilizar en lugar de crear:
 - `EditorScaffold` es la envoltura estándar de cualquier editor (barra `[<]` +
   título + borrar opcional + `[ok] Guardar` sobre cuerpo desplazable). El botón
   de borrar dice `[x] Eliminar` salvo que se pase otro `deleteLabel` (p. ej.
-  `[x] Quitar` cuando solo se saca algo de la ficha, sin borrarlo).
+  `[x] Quitar` cuando solo se saca algo de la ficha, sin borrarlo). Nunca
+  borra con un toque: cambia la barra por un `ConfirmRow` con
+  `deleteQuestion` (por defecto "¿Eliminar?"), un `deleteSubtitle` opcional
+  para avisar de las consecuencias y `deleteConfirmLabel` (por defecto
+  `[x] Sí`). `onDelete` solo se llama al confirmar.
 - Los genéricos `TitanDropdown<T>` / `TitanSegmented<T>` sirven enums, hosts, etc.
 - `ListRow` es **la** fila de cualquier lista de la app (listas de
   Configuración, lanzadera, editores, menús del terminal, Acerca de). No se
@@ -57,7 +61,9 @@ Reglas de uso:
 - El separador entre filas (`Hairline()`) lo pone la lista, no la fila.
 - Lo destructivo no se ejecuta con un toque: se sustituye la fila de la acción
   por un `ConfirmRow` (pregunta + `[<] No` + botón de confirmar, textos y tipo
-  de botón configurables).
+  de botón configurables). Los botones van a la derecha de la pregunta si la
+  pregunta y el subtítulo caben enteros en una línea a su lado; si no, bajan
+  debajo, alineados a la derecha, para que la pregunta no se estreche.
 - Colores: `danger` solo para errores reales y acciones destructivas; nunca
   como adorno.
 

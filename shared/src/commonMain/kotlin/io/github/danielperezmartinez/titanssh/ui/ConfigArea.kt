@@ -71,6 +71,8 @@ fun ConfigArea(
     openOnSessions: Boolean = false,
     /** Deletes a saved session; the app also terminates it on its destination. */
     onDeleteSession: (Session) -> Unit = { controller.deleteSession(it.id) },
+    /** Whether a saved session is still alive on its destination (deleting it terminates it). */
+    isSessionLive: (Session) -> Boolean = { false },
     /** Opens the panel of a host's agent (its default user). */
     onOpenAgent: ((AgentHost) -> Unit)? = null,
 ) {
@@ -88,6 +90,7 @@ fun ConfigArea(
             current.id,
             onDone = closeEditor,
             deleteSession = onDeleteSession,
+            isLiveOnDestination = isSessionLive,
             initialGroupId = current.groupId,
         )
         is Editor.LibraryScriptEdit -> LibraryScriptEditor(controller, current.id) { editor = null }

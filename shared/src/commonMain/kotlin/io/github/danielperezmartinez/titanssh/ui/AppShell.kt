@@ -165,6 +165,7 @@ fun AppShell() {
                             editSessionId = editingSessionId,
                             openOnSessions = configOnSessions,
                             onDeleteSession = { agents.delete(it) },
+                            isSessionLive = { agents.isLive(it) },
                             onOpenAgent = { openAgent(it, Screen.CONFIG) },
                         )
                         Screen.ABOUT -> AboutScreen(onBack = home)

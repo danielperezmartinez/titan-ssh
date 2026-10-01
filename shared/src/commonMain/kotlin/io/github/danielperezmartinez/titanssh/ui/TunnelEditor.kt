@@ -50,6 +50,7 @@ fun TunnelEditor(
         onSave = { onSave(draft) },
         canSave = canSave,
         onDelete = if (isNew) null else onDelete,
+        deleteQuestion = "¿Eliminar el túnel?",
     ) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bodyPadding())) {
             TitanCheck("Habilitado", draft.enabled) { draft = draft.copy(enabled = it) }

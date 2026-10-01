@@ -58,6 +58,8 @@ fun SessionEditor(
     onDone: () -> Unit,
     /** Deletes the session; the app also terminates it on its destination (level 3). */
     deleteSession: (Session) -> Unit = { controller.deleteSession(it.id) },
+    /** Whether the session is still alive on its destination, so deleting it also terminates it. */
+    isLiveOnDestination: (Session) -> Boolean = { false },
     /** The group a new session starts in (created from a folder's actions). */
     initialGroupId: String? = null,
 ) {
@@ -134,6 +136,7 @@ fun SessionEditor(
             controller = controller,
             existing = existing,
             deleteSession = deleteSession,
+            isLiveOnDestination = isLiveOnDestination,
             name = name, onName = { name = it },
             hostId = hostId, onHostId = { hostId = it },
             usernameOverride = usernameOverride, onUsernameOverride = { usernameOverride = it },
@@ -158,6 +161,7 @@ private fun SessionForm(
     controller: ConfigController,
     existing: Session?,
     deleteSession: (Session) -> Unit,
+    isLiveOnDestination: (Session) -> Boolean,
     name: String, onName: (String) -> Unit,
     hostId: String?, onHostId: (String) -> Unit,
     usernameOverride: String, onUsernameOverride: (String) -> Unit,
@@ -201,12 +205,18 @@ private fun SessionForm(
         onDone()
     }
 
+    // Same wording as the launcher's "Eliminar": deleting a live session also
+    // terminates it on its destination.
+    val live = existing?.let(isLiveOnDestination) ?: false
     EditorScaffold(
         title = if (existing == null) "Nueva sesión" else "Editar sesión",
         onBack = onDone,
         onSave = { save() },
         canSave = canSave,
         onDelete = existing?.let { { deleteSession(it); onDone() } },
+        deleteQuestion = "¿Eliminar la sesión?",
+        deleteSubtitle = if (live) "Sigue viva en el destino" else null,
+        deleteConfirmLabel = if (live) "[x] Eliminar y terminarla" else "[x] Sí",
     ) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bodyPadding())) {
             TitanTextField("Nombre", name, onName, placeholder = "deploy en prod")
