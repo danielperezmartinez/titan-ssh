@@ -27,6 +27,10 @@ const headerSize = 5
 // helloOKCreated is bit 0 of HELLO_OK's trailing flags byte (see Frame.Created).
 const helloOKCreated = 0x01
 
+// inputReadyBlocked is bit 0 of INPUT_READY's optional flags byte (see
+// Frame.Blocked).
+const inputReadyBlocked = 0x01
+
 // Type is the one-byte wire code identifying a frame.
 type Type uint8
 
@@ -39,6 +43,14 @@ const (
 	TypeReplayFrom Type = 6 // client -> agent
 	TypeAck        Type = 7 // client -> agent
 	TypeBye        Type = 8 // either direction
+
+	// Input frames (input.go), on an `--input` connection only.
+	TypePointerMove   Type = 9  // client -> agent
+	TypePointerButton Type = 10 // client -> agent
+	TypeScroll        Type = 11 // client -> agent
+	TypeText          Type = 12 // client -> agent
+	TypeKey           Type = 13 // client -> agent
+	TypeInputReady    Type = 14 // agent -> client
 )
 
 // ErrUnknownType and ErrFrameTooLarge are protocol violations from a peer.
@@ -66,7 +78,7 @@ type Frame struct {
 	Created bool
 	// Data
 	Offset uint64
-	// Data / Input
+	// Data / Input / Text
 	Bytes []byte
 	// ReplayFrom / Ack
 	OffsetArg uint64
@@ -74,6 +86,20 @@ type Frame struct {
 	// TITAN_AGENT_ERROR contract (ADR-0009); empty for a plain goodbye. It is
 	// an optional payload, so a peer that predates it reads an ordinary BYE.
 	Reason string
+
+	// PointerMove / Scroll: relative motion (units in input.go).
+	DX int16
+	DY int16
+	// PointerButton
+	Button  uint8
+	Pressed bool
+	// Key
+	Key    uint16
+	Mods   uint8
+	Action uint8
+	// InputReady: input cannot reach the desktop right now (it is locked, or
+	// a secure desktop such as UAC is in front).
+	Blocked bool
 }
 
 // Encode serializes f (header + payload) into a new byte slice.
@@ -132,6 +158,29 @@ func encodePayload(f Frame) []byte {
 			return nil
 		}
 		return []byte(f.Reason)
+	case TypePointerMove, TypeScroll:
+		buf := make([]byte, 4)
+		binary.BigEndian.PutUint16(buf[0:2], uint16(f.DX))
+		binary.BigEndian.PutUint16(buf[2:4], uint16(f.DY))
+		return buf
+	case TypePointerButton:
+		buf := []byte{f.Button, 0}
+		if f.Pressed {
+			buf[1] = 1
+		}
+		return buf
+	case TypeText:
+		return append([]byte(nil), f.Bytes...)
+	case TypeKey:
+		buf := make([]byte, 4)
+		binary.BigEndian.PutUint16(buf[0:2], f.Key)
+		buf[2], buf[3] = f.Mods, f.Action
+		return buf
+	case TypeInputReady:
+		if f.Blocked {
+			return []byte{inputReadyBlocked}
+		}
+		return nil
 	default:
 		return nil
 	}
@@ -190,6 +239,28 @@ func decodePayload(t Type, payload []byte) (Frame, error) {
 		f.OffsetArg = binary.BigEndian.Uint64(payload)
 	case TypeBye:
 		f.Reason = string(payload) // empty for a plain goodbye
+	case TypePointerMove, TypeScroll:
+		if len(payload) < 4 {
+			return f, io.ErrUnexpectedEOF
+		}
+		f.DX = int16(binary.BigEndian.Uint16(payload[0:2]))
+		f.DY = int16(binary.BigEndian.Uint16(payload[2:4]))
+	case TypePointerButton:
+		if len(payload) < 2 {
+			return f, io.ErrUnexpectedEOF
+		}
+		f.Button, f.Pressed = payload[0], payload[1] != 0
+	case TypeText:
+		f.Bytes = append([]byte(nil), payload...)
+	case TypeKey:
+		if len(payload) < 4 {
+			return f, io.ErrUnexpectedEOF
+		}
+		f.Key = binary.BigEndian.Uint16(payload[0:2])
+		f.Mods, f.Action = payload[2], payload[3]
+	case TypeInputReady:
+		// An optional flags byte; unknown bits are room for later flags.
+		f.Blocked = len(payload) > 0 && payload[0]&inputReadyBlocked != 0
 	default:
 		return f, fmt.Errorf("%w: %d", ErrUnknownType, t)
 	}
