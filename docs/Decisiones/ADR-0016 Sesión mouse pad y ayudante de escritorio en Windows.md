@@ -16,6 +16,8 @@ Fecha de creación: 2026-10-01T19:20:00+02:00
 > **Nota (2026-10-01)**: el punto **Sin consola** lo sustituye
 > [[ADR-0017 Ayudante de escritorio con una copia gráfica del agente]]. Con
 > el subsistema gráfico, PowerShell no recoge el código de salida del agente.
+> En la implementación, la tarea se llama `titan-ssh-desktop-<usuario>`: los
+> nombres de las tareas son comunes a todos los usuarios del PC.
 
 ## Contexto
 

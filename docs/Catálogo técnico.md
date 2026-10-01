@@ -37,7 +37,8 @@ que ninguno de los valores existentes cubra.
 - **Feature**: `Custodia de credenciales` · `Autenticación` · `Conexión` ·
   `Resiliencia` · `Gestión de hosts` · `Shared UI` · `Terminal` ·
   `Distribución` (añadido con `BuildInfo`: versión y avisos legales de los
-  artefactos publicados).
+  artefactos publicados) · `Mouse pad` (añadido con `InputTransport`: el móvil
+  como touchpad y teclado del destino, ADR-0016).
 - **Ámbito**: `Aplicación` · `Feature` · `Shell`.
 
 <!-- Opcional: si el proyecto tiene una comprobación automatizada del catálogo

@@ -732,4 +732,13 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   con tres subtareas: Windows (primero, con la ADR y la base común), Linux
   X11 y Linux Wayland. El usuario acepta en Windows una tarea programada
   visible para lanzar el ayudante en su escritorio.
+- 2026-10-01 — **Paso 10k.1** implementado en la rama
+  `worktree-mousepad-tasks`, con
+  [[ADR-0016 Sesión mouse pad y ayudante de escritorio en Windows]] aceptada y
+  [[ADR-0017 Ayudante de escritorio con una copia gráfica del agente]]
+  propuesta (👤 falta que el usuario la acepte). Funciona de punta a punta por
+  SSH y desde el emulador: movimiento, clics, arrastre y teclado Unicode con
+  atajos. 👤 Falta que el usuario pruebe los gestos de dos dedos, el teclado
+  del móvil y el PC bloqueado. Se aparca
+  [[Desbloqueo del destino Windows con un servicio de sistema]].
 

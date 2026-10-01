@@ -32,7 +32,12 @@ agent/
 ├── go.mod / go.sum
 ├── cmd/titan-agent/
 │   ├── main.go            # modos: front (default) / --daemon / --status / --close-session / --stop
+│   │                      #        / --input / --desktop / --remove-desktop (mouse pad)
 │   ├── daemon.go          # candado + listen TCP loopback + serve del protocolo por conexión
+│   ├── desktop.go         # mouse pad: ayudante de escritorio, front --input, estado y retirada
+│   ├── desktop_windows.go # tarea programada (schtasks /xml) y copia gráfica del binario
+│   ├── desktoptask.go     # XML UTF-16 de la tarea y comillas de la línea de órdenes de Windows
+│   ├── pe.go              # copia del ejecutable con el subsistema PE gráfico (ADR-0017)
 │   ├── control.go         # canal de control: estado, cerrar una sesión y parada ordenada
 │   ├── front.go           # dial-or-spawn del daemon + empalme de stdio; --stop
 │   ├── rendezvous.go      # preámbulo con token entre front y daemon (sesión o control)
@@ -42,7 +47,8 @@ agent/
 │   ├── errors.go          # códigos TITAN_AGENT_ERROR del front
 │   └── detach_*.go        # desacople del daemon: setsid (unix), breakaway del job (windows)
 └── internal/
-    ├── protocol/          # códec de tramas (espejo de AgentProtocol.kt) + tests
+    ├── protocol/          # códec de tramas (espejo de AgentProtocol.kt) + tests; input.go, las del mouse pad
+    ├── inject/            # mouse pad: Serve (aplica tramas, suelta lo pulsado) + SendInput en Windows
     ├── buffer/            # ring buffer de salida con offsets + tests
     ├── procmem/           # memoria residente por árbol de procesos (/proc, Toolhelp, ps) + tests
     └── session/           # Registry + Session (PTY, tee vivo, reenganche, cierre) + tests
@@ -134,19 +140,55 @@ de respuesta. El protocolo cliente-agente no cambia.
 La memoria se mide por árbol de procesos: `/proc` en Linux, Toolhelp en
 Windows y `ps` en macOS y FreeBSD; en otros sistemas se omite.
 
+### Mouse pad (ADR-0016, ADR-0017)
+
+Una sesión mouse pad hace `exec` de `titan-agent --input`. Ese front no habla
+con el daemon, sino con el **ayudante de escritorio** del usuario
+(`--desktop`), el único proceso que puede inyectar ratón y teclado, porque
+corre en la sesión de escritorio del usuario y no en la de sshd (la sesión 0
+en Windows). Las tramas de entrada (`internal/protocol/input.go`) no tienen
+offsets ni replay. Cuando se cierra una conexión, `inject.Serve` suelta los
+botones y teclas que quedaran pulsados.
+
+- **Encuentro**: el mismo esquema que el daemon, con otros ficheros
+  (`desktop.lock`, `desktop.json`) y otras marcas (`TTNADSK1` para la
+  entrada, `TTNADCT1` para el control: `status` y `stop`).
+- **Windows**: si no responde ningún ayudante, el front escribe
+  `desktop-<versión>.exe` en el directorio de estado. Es una copia de sí
+  mismo con el subsistema PE gráfico, para que no abra una consola. Después
+  registra (`schtasks /create /xml`, en UTF-16) la tarea
+  `titan-ssh-desktop-<usuario>`, que solo se ejecuta con el usuario conectado
+  y sin elevar, y la lanza. Windows la arranca en el escritorio del usuario,
+  también si es de escritorio remoto. Si el ayudante que responde es de otra
+  versión, se para y se relanza.
+- **Inyección**: `SendInput`. El movimiento se aplica en posición absoluta,
+  sin la aceleración de Windows, y encadena las ráfagas sobre su propio
+  destino, porque `GetCursorPos` va por detrás. El texto va como Unicode. El
+  bloqueo se detecta porque `OpenInputDesktop` falla con la pantalla de
+  bloqueo, UAC o Ctrl+Alt+Supr delante, y se avisa con `INPUT_READY`.
+- **Vida y control**: el ayudante no se cierra solo. Termina al cerrar la
+  sesión de Windows o con `--remove-desktop`, que además borra la tarea y las
+  copias. `--status --json` lo incluye en `desktop`.
+- Fuera de Windows, `--input` termina con `E_INPUT_UNSUPPORTED` (X11 y
+  Wayland tienen sus tareas).
+
 ### Errores
 
 Si el front no puede dar servicio, termina con código distinto de 0 y una línea
 en stderr: `TITAN_AGENT_ERROR <código> <mensaje>`. Códigos de este binario:
 `E_STATE_DIR`, `E_LOCK`, `E_DAEMON_START`, `E_AUTH` y, en Windows,
 `E_JOB_NO_BREAKAWAY` (tabla completa en la
-tarea `Nivel 3 portable a todos los destinos`).
+tarea `Nivel 3 portable a todos los destinos`). Los del mouse pad:
+`E_INPUT_UNSUPPORTED`, `E_NO_DESKTOP` (no arrancó el ayudante: nadie tiene la
+sesión iniciada, o el ayudante dejó su error en `desktop-error.txt`) y
+`E_DESKTOP_TASK` (no se pudo crear o lanzar la tarea).
 
 ## Build / test
 
 ```sh
 cd agent
-go test ./...               # protocolo, buffer, procmem, session (PTY real y fake), front/daemon y control
+go test ./...               # protocolo, buffer, procmem, session (PTY real y fake), front/daemon, control y mouse pad
+TITAN_INJECT_LIVE=1 go test -run TestLiveMoveIsExact ./internal/inject/  # Windows: mueve el cursor real
 # binarios multi-arch (estáticos, ~2.5 MB):
 GOOS=linux  GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/titan-agent-linux-amd64 ./cmd/titan-agent
 GOOS=linux  GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o dist/titan-agent-linux-arm64 ./cmd/titan-agent
