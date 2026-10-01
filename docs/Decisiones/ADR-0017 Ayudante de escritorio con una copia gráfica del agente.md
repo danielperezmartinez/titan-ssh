@@ -1,14 +1,14 @@
 ---
 Nombre: 'Ayudante de escritorio con una copia gráfica del agente'
 Número: 17
-Estado: 'Propuesta'
+Estado: 'Aceptada'
 Resumen: 'Sustituye en parte a ADR-0016, solo en el punto Sin consola. Compilar todo el binario de Windows con el subsistema gráfico rompe los destinos cuya shell de SSH es PowerShell: PowerShell (5.1 y 7) espera al programa y le pasa el stdio, pero no recoge su código de salida, ni con exit $LASTEXITCODE, y la app lo usa en --status, --stop, --close-session y en el diagnóstico. En su lugar, el binario del agente sigue siendo de consola, y el front --input escribe en el directorio de estado una copia de sí mismo con el campo Subsystem de la cabecera PE cambiado a gráfico (desktop-<versión>.exe). La tarea programada lanza esa copia, que arranca en el escritorio del usuario sin ventana de consola. Probado el 2026-10-01 por SSH, con cmd, PowerShell y pwsh.'
 Decisión: 'Mantener titan-agent como binario de consola en Windows y lanzar el ayudante de escritorio desde una copia derivada en tiempo de ejecución, idéntica salvo por el subsistema PE (gráfico), guardada en el directorio de estado del usuario y apuntada por la tarea programada.'
 Consecuencias: 'El front, el daemon, ConPTY y la CLI no cambian, y PowerShell conserva los códigos de salida. No hay artefactos nuevos en el empaquetado de ADR-0010. A cambio, el destino guarda un ejecutable más (unos MB) en el directorio de estado, que el front mantiene al día por versión y que se borra al quitar el ayudante; y si algún día se firma el agente, la copia pierde la firma, porque cambia un byte de la cabecera.'
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-10-01T20:10:00+02:00
-Última modificación: 2026-10-01T20:10:00+02:00
+Última modificación: 2026-10-01T21:30:00+02:00
 ---
 
 # ADR-0017 · Ayudante de escritorio con una copia gráfica del agente
