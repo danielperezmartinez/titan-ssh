@@ -31,6 +31,9 @@ type agentState struct {
 	Port   int    `json:"port"`  // on 127.0.0.1
 	Token  string `json:"token"` // hex of the preamble secret
 	PID    int    `json:"pid"`
+	// Session is the Windows session the desktop helper runs in (desktop.json
+	// only).
+	Session int `json:"session,omitempty"`
 }
 
 // token decodes the preamble secret.
@@ -46,6 +49,12 @@ func (s agentState) token() ([]byte, error) {
 // (created O_EXCL, 0600), synced, then renamed over agent.json. A reader sees
 // the old record or the new one, never a torn one.
 func writeState(dir string, st agentState) error {
+	return writeStateFile(dir, stateFileName, st)
+}
+
+// writeStateFile is writeState for the record called name (agent.json, or
+// the desktop helper's desktop.json).
+func writeStateFile(dir, name string, st agentState) error {
 	data, err := json.Marshal(st)
 	if err != nil {
 		return err
@@ -66,7 +75,7 @@ func writeState(dir string, st agentState) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	return renameRetrying(tmp.Name(), filepath.Join(dir, stateFileName))
+	return renameRetrying(tmp.Name(), filepath.Join(dir, name))
 }
 
 // renameRetrying renames, retrying briefly: on Windows the rename fails while a
@@ -85,8 +94,13 @@ func renameRetrying(from, to string) error {
 // readState loads and validates agent.json. A missing file is reported as
 // fs.ErrNotExist (no daemon has published yet).
 func readState(dir string) (agentState, error) {
+	return readStateFile(dir, stateFileName)
+}
+
+// readStateFile is readState for the record called name.
+func readStateFile(dir, name string) (agentState, error) {
 	var st agentState
-	data, err := os.ReadFile(filepath.Join(dir, stateFileName))
+	data, err := os.ReadFile(filepath.Join(dir, name))
 	if err != nil {
 		return st, err
 	}
@@ -108,7 +122,12 @@ func readState(dir string) (agentState, error) {
 // removeOwnState deletes agent.json if it is still the record of process pid,
 // so a daemon never removes the record of the one that replaced it.
 func removeOwnState(dir string, pid int) {
-	if st, err := readState(dir); err == nil && st.PID == pid {
-		_ = os.Remove(filepath.Join(dir, stateFileName))
+	removeOwnStateFile(dir, stateFileName, pid)
+}
+
+// removeOwnStateFile is removeOwnState for the record called name.
+func removeOwnStateFile(dir, name string, pid int) {
+	if st, err := readStateFile(dir, name); err == nil && st.PID == pid {
+		_ = os.Remove(filepath.Join(dir, name))
 	}
 }

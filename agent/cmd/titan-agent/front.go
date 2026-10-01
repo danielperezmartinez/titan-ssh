@@ -35,12 +35,17 @@ func runFront(stateDir string) error {
 		return err
 	}
 	defer conn.Close()
-
-	done := make(chan struct{}, 2)
-	go func() { _, _ = io.Copy(conn, os.Stdin); done <- struct{}{} }()  // client -> daemon
-	go func() { _, _ = io.Copy(os.Stdout, conn); done <- struct{}{} }() // daemon -> client
-	<-done
+	splice(conn)
 	return nil
+}
+
+// splice copies this process's stdio (the SSH exec channel) to and from conn
+// until either side closes.
+func splice(conn net.Conn) {
+	done := make(chan struct{}, 2)
+	go func() { _, _ = io.Copy(conn, os.Stdin); done <- struct{}{} }()  // client -> agent
+	go func() { _, _ = io.Copy(os.Stdout, conn); done <- struct{}{} }() // agent -> client
+	<-done
 }
 
 // dialOrSpawn connects to the daemon published in stateDir. While none

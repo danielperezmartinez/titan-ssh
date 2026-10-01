@@ -90,6 +90,9 @@ type statusReport struct {
 	// system does not let the agent measure it.
 	MemoryBytes *uint64         `json:"memoryBytes,omitempty"`
 	Sessions    []sessionReport `json:"sessions"`
+	// Desktop is the mouse pad's desktop helper, on systems that have one
+	// (Windows); the CLI adds it, whatever state the daemon is in.
+	Desktop *desktopReport `json:"desktop,omitempty"`
 }
 
 type sessionReport struct {
@@ -393,6 +396,23 @@ func queryPreview(stateDir, id string) (previewReport, error) {
 
 // printStatus writes st for a person.
 func printStatus(w io.Writer, st statusReport) {
+	printDaemonStatus(w, st)
+	if d := st.Desktop; d != nil {
+		switch {
+		case d.State == stateRunning:
+			fmt.Fprintf(w, "mouse pad desktop helper: running (PID %d, session %d)\n", d.PID, d.Session)
+		case d.State == stateUnreachable:
+			fmt.Fprintln(w, "mouse pad desktop helper: holds its lock but does not answer")
+		case d.Task:
+			fmt.Fprintln(w, "mouse pad desktop helper: not running (its scheduled task is registered)")
+		}
+		if d.Task || d.State != stateStopped {
+			fmt.Fprintln(w, "remove it with --remove-desktop")
+		}
+	}
+}
+
+func printDaemonStatus(w io.Writer, st statusReport) {
 	now := time.UnixMilli(st.NowMs)
 	switch st.State {
 	case stateStopped:

@@ -80,8 +80,9 @@ func Serve(conn io.ReadWriter, inj Injector, mu *sync.Mutex) error {
 			_ = send(protocol.Frame{Type: protocol.TypeInputReady, Blocked: now})
 		}
 	}
+	poll := BlockedPoll
 	go func() {
-		t := time.NewTicker(BlockedPoll)
+		t := time.NewTicker(poll)
 		defer t.Stop()
 		for {
 			select {

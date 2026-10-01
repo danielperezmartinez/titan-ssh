@@ -13,6 +13,11 @@ const (
 	// Windows: the SSH session's job kills its processes on close and does not
 	// let the daemon leave it.
 	codeJobNoBreakaway = "E_JOB_NO_BREAKAWAY"
+
+	// Mouse pad (--input, ADR-0016).
+	codeInputUnsupported = "E_INPUT_UNSUPPORTED" // no injector for this system yet
+	codeNoDesktop        = "E_NO_DESKTOP"        // the desktop helper did not start: nobody signed in
+	codeDesktopTask      = "E_DESKTOP_TASK"      // the helper's scheduled task cannot be created or run
 )
 
 // agentError is a failure tagged with its error-contract code. main prints it

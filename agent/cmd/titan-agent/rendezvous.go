@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"crypto/subtle"
 	"errors"
 	"io"
@@ -23,6 +22,12 @@ const (
 	// talking to an older agent.
 	controlMagic = "TTNACTL1"
 	controlAck   = "TTNACOK1"
+	// The desktop helper (desktop_windows.go) has its own listener, token and
+	// magics: an input connection from a --input front, and a control one.
+	desktopMagic        = "TTNADSK1"
+	desktopAck          = "TTNADOK1"
+	desktopControlMagic = "TTNADCT1"
+	desktopControlAck   = "TTNADCO1"
 )
 
 // dialTimeout bounds the connect plus the preamble exchange. A var so tests
@@ -80,25 +85,27 @@ func dialWith(st agentState, magic, wantAck string) (net.Conn, error) {
 // within helloTimeout, so a silent connection cannot pin a goroutine. On any
 // error the caller closes the connection without a word.
 func acceptPreamble(conn net.Conn, token []byte) (control bool, err error) {
+	magic, err := acceptMagics(conn, token, map[string]string{preambleMagic: preambleAck, controlMagic: controlAck})
+	return magic == controlMagic, err
+}
+
+// acceptMagics is acceptPreamble for any set of magics, each with its ack (all
+// of the same length): it returns the magic the connection opened with.
+func acceptMagics(conn net.Conn, token []byte, acks map[string]string) (string, error) {
 	_ = conn.SetDeadline(time.Now().Add(helloTimeout))
 	pre := make([]byte, len(preambleMagic)+tokenLen)
 	if _, err := io.ReadFull(conn, pre); err != nil {
-		return false, err
+		return "", err
 	}
-	magic := pre[:len(preambleMagic)]
-	control = bytes.Equal(magic, []byte(controlMagic))
-	magicOK := control || bytes.Equal(magic, []byte(preambleMagic))
+	magic := string(pre[:len(preambleMagic)])
+	ack, magicOK := acks[magic]
 	tokenOK := subtle.ConstantTimeCompare(pre[len(preambleMagic):], token) == 1
 	if !magicOK || !tokenOK {
-		return false, errRejected
-	}
-	ack := preambleAck
-	if control {
-		ack = controlAck
+		return "", errRejected
 	}
 	if _, err := conn.Write([]byte(ack)); err != nil {
-		return false, err
+		return "", err
 	}
 	_ = conn.SetDeadline(time.Time{})
-	return control, nil
+	return magic, nil
 }

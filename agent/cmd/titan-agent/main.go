@@ -21,6 +21,11 @@
 // closing every session first. Nothing else ever ends them: sessions do not
 // expire (ADR-0014).
 //
+// A mouse pad session (ADR-0016) uses two more modes: --input, the front the
+// client execs for it, and --desktop, the helper on the user's desktop that
+// the --input front starts (on Windows, through a scheduled task) and that
+// injects the input. --remove-desktop stops the helper and deletes its task.
+//
 // When the front cannot give the client a daemon connection it exits non-zero
 // with one stderr line, `TITAN_AGENT_ERROR <code> <message>` (see errors.go).
 package main
@@ -46,6 +51,9 @@ func main() {
 	asJSON := flag.Bool("json", false, "with --status or --preview: print the report as JSON")
 	closeID := flag.String("close-session", "", "close the session with this id, and exit")
 	previewID := flag.String("preview", "", "print the end of this session's output, and exit")
+	input := flag.Bool("input", false, "connect a mouse pad session to the user's desktop helper")
+	desktop := flag.Bool("desktop", false, "run the desktop helper that injects mouse pad input")
+	removeDesk := flag.Bool("remove-desktop", false, "stop the desktop helper and delete its scheduled task, and exit")
 	// Carried in the HELLO frame now; accepted for the documented exec command
 	// but not required by the front (the daemon reads the id from the protocol).
 	_ = flag.String("session", "", "stable session id (informational; id travels in HELLO)")
@@ -62,6 +70,7 @@ func main() {
 	err := run(*stateDir, mode{
 		daemon: *daemon, stop: *stop, status: *status, json: *asJSON,
 		closeID: *closeID, previewID: *previewID,
+		input: *input, desktop: *desktop, removeDesktop: *removeDesk,
 	}, *bufCap)
 	if err != nil {
 		var ae *agentError
@@ -77,8 +86,9 @@ func main() {
 // mode is what the command line asks for; with none of them set, the binary
 // runs as the front.
 type mode struct {
-	daemon, stop, status, json bool
-	closeID, previewID         string
+	daemon, stop, status, json    bool
+	closeID, previewID            string
+	input, desktop, removeDesktop bool
 }
 
 func run(stateDir string, m mode, bufCap int) error {
@@ -96,6 +106,10 @@ func run(stateDir string, m mode, bufCap int) error {
 		st, err := queryStatus(stateDir)
 		if err != nil {
 			return err
+		}
+		if desktopSupported {
+			d := queryDesktop(stateDir)
+			st.Desktop = &d
 		}
 		if m.json {
 			return json.NewEncoder(os.Stdout).Encode(st)
@@ -124,6 +138,12 @@ func run(stateDir string, m mode, bufCap int) error {
 		return err
 	case m.daemon:
 		return runDaemon(stateDir, bufCap)
+	case m.input:
+		return runInput(stateDir)
+	case m.desktop:
+		return runDesktop(stateDir)
+	case m.removeDesktop:
+		return removeDesktop(stateDir)
 	default:
 		return runFront(stateDir)
 	}

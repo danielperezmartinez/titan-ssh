@@ -20,7 +20,13 @@ var errLocked = errors.New("the daemon lock is held by another process")
 // the shells the daemon starts never inherit the lock and cannot keep it after
 // the daemon is gone.
 func lockDaemon(dir string) (*os.File, error) {
-	f, err := os.OpenFile(filepath.Join(dir, lockFileName), os.O_CREATE|os.O_RDWR, 0o600)
+	return lockNamed(dir, lockFileName)
+}
+
+// lockNamed is lockDaemon for the lock file called name (agent.lock, or the
+// desktop helper's desktop.lock).
+func lockNamed(dir, name string) (*os.File, error) {
+	f, err := os.OpenFile(filepath.Join(dir, name), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +40,12 @@ func lockDaemon(dir string) (*os.File, error) {
 // lockHeld reports whether a live daemon holds the lock in dir, by taking and
 // at once releasing it. An error means the OS refuses the lock altogether.
 func lockHeld(dir string) (bool, error) {
-	f, err := lockDaemon(dir)
+	return lockNamedHeld(dir, lockFileName)
+}
+
+// lockNamedHeld is lockHeld for the lock file called name.
+func lockNamedHeld(dir, name string) (bool, error) {
+	f, err := lockNamed(dir, name)
 	if errors.Is(err, errLocked) {
 		return true, nil
 	}
