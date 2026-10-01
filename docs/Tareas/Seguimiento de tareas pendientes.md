@@ -780,3 +780,7 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   pasa a `Cerrada`. SEC-2026-02 y 03 bajan a severidad media. 👤 Quedan el
   `SECURITY.md`, activar el aviso privado de vulnerabilidades (hoy
   desactivado) y revocar el token temporal.
+- 2026-10-01 — **S1, casi completo**: el usuario activó el aviso privado de
+  vulnerabilidades y se escribió `SECURITY.md`, enlazado desde el `README.md`.
+  👤 Faltan revisar sus plazos (7, 30 y 90 días), llevarlo a `main` y revocar
+  el token.

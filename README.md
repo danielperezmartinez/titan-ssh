@@ -64,6 +64,11 @@ anterior. Mientras el instalador no esté firmado, SmartScreen mostrará un avis
 - Cualquier distribución: `titan-ssh-<versión>-linux-x64.tar.gz`. Se
   descomprime y se ejecuta `titan-ssh/bin/titan-ssh`.
 
+## Seguridad
+
+Si encuentras una vulnerabilidad, avísanos en privado como explica
+[SECURITY.md](SECURITY.md), nunca en una issue pública.
+
 ## Estructura
 
 Tres módulos Gradle (topología nativa de AGP 9 para apps KMP + Compose):
