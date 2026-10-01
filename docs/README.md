@@ -118,18 +118,21 @@ nota-índice en `Catálogo técnico.md`.
 
 _Versión del sistema: 1._
 
-Revisiones de seguridad manuales y periódicas, una nota por auditoría en
+Revisiones de seguridad manuales, una nota por auditoría en
 `Auditorías de seguridad/`, indexadas por
 `Auditorías de seguridad/Auditorías de seguridad.base`. La nota-índice
 `Auditorías de seguridad.md` es la fuente de verdad del procedimiento: niveles,
-cadencia, herramientas y checklist.
+herramientas, checklist y cómo trabajar con los avisos privados.
 
-- `Tipo` ∈ `Release` · `Trimestral` · `Completa` (anual o tras un cambio
-  mayor).
-- `Estado` ∈ `Planificada` · `En curso` · `Cerrada`. Una auditoría se cierra
-  cuando **cada hallazgo tiene destino** (aviso privado con su `GHSA-…`, o
-  tarea), no cuando están todos corregidos. Al cerrarla se fija
-  `Próxima auditoría`.
+- **Solo a demanda**: una auditoría se hace cuando el usuario la pide en una
+  sesión. No hay calendario ni plazos, y ningún agente la lanza ni la exige
+  por su cuenta. Un agente puede sugerirla (p. ej. antes de una release con
+  cambios de seguridad) y espera la respuesta.
+- `Tipo` es la profundidad: `Rápida` (nivel A) · `Estándar` (A y B) ·
+  `Completa` (A, B y C).
+- `Estado` ∈ `En curso` · `Cerrada`. Una auditoría se cierra cuando **cada
+  hallazgo tiene destino** (aviso privado con su `GHSA-…`, o tarea), no cuando
+  están todos corregidos.
 - **Hallazgos sensibles**: solo como referencia opaca `SEC-AAAA-NN`; su
   contenido vive en el aviso privado (regla 5, "Vulnerabilidades y hallazgos
   de seguridad"). **Hallazgos no sensibles**: una tarea enlazada desde
@@ -137,8 +140,8 @@ cadencia, herramientas y checklist.
 - Una auditoría cerrada no se reescribe: el seguimiento de cada hallazgo vive
   en su aviso o en su tarea. Solo se actualiza la fila de un hallazgo cuando su
   aviso se publica.
-- Antes de crear una auditoría se revisa si hay una `Planificada` para ese
-  periodo y se usa esa.
+- Antes de crear una auditoría se revisa si hay otra `En curso` y se continúa
+  esa.
 
 ## Reglas fundamentales del proyecto
 
@@ -287,9 +290,10 @@ el repositorio es explicar cómo atacar a quien usa la versión publicada.
 - **En la bóveda** solo se anota una referencia opaca: `SEC-AAAA-NN`
   (correlativo por año, no se reutiliza), severidad, estado y el ID `GHSA-…`
   del aviso. Nunca un título descriptivo.
-- **El arreglo** se prepara en el fork privado temporal del aviso o, si va
-  directo a `main`, con un mensaje de commit neutro que no explique el fallo.
-  Se publica una versión con el arreglo cuanto antes.
+- **El arreglo** se prepara en local, sin subirlo hasta que se suba junto con
+  el tag de la versión que lo publica, y con mensajes de commit neutros que no
+  expliquen el fallo. El procedimiento detallado está en la nota-índice
+  `Auditorías de seguridad.md`, en "Corregir un hallazgo privado".
 - **Al publicar el arreglo** se publica el aviso (con CVE si procede). A partir
   de ahí la bóveda ya puede enlazarlo y describirlo, y la auditoría que lo
   encontró se actualiza.

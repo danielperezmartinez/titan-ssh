@@ -210,17 +210,20 @@ sensibles **no** tienen tarea: se siguen en su aviso privado de GitHub (regla
   vulnerabilidades y da de alta los borradores)
   - [[Política de seguridad y avisos privados en GitHub]]
   - Va primero: los arreglos de S2 se coordinan desde esos avisos.
-- [ ] **S2. Corregir los hallazgos privados de la auditoría 2026-10-01**
-  (`SEC-2026-01` … `SEC-2026-09`, primero los de severidad alta)
-  - Cada arreglo, con un commit de mensaje neutro o en el fork privado del
-    aviso, y en la siguiente pre-release. Al publicarla se publica el aviso.
-- [ ] **S3. Dependencias criptográficas**
+- [ ] **S2. Auditoría estándar tras integrar el trabajo en curso** 👤 (el
+  usuario la pide cuando la otra sesión termine y todo esté en `main`)
+  - Cubre las pruebas dinámicas que la primera auditoría dejó pendientes y
+    los cambios nuevos. Amplía los avisos existentes en lugar de duplicarlos.
+- [ ] **S3. Corregir los hallazgos privados** (`SEC-2026-01` … `SEC-2026-09`
+  y los que añada S2, primero los de severidad alta)
+  - Según "Corregir un hallazgo privado" en [[Auditorías de seguridad]]:
+    trabajo local sin subir, mensajes neutros, y subida junto con el tag de la
+    pre-release. Al publicarla se publica el aviso, si el usuario lo aprueba.
+- [ ] **S4. Dependencias criptográficas**
   - [[Actualizar sshj y BouncyCastle y retirar EdDSA-Java]]
-  - Puede ir junto a S2 si un arreglo toca la configuración de sshj.
-- [ ] **S4. Cadena de suministro** 👤 (activar los avisos de Dependabot)
+  - Puede ir junto a S3 si un arreglo toca la configuración de sshj.
+- [ ] **S5. Cadena de suministro** 👤 (activar los avisos de Dependabot)
   - [[Endurecer la cadena de suministro]]
-- [ ] **S5. Primera auditoría trimestral**, como muy tarde el 2027-01-01, con
-  las pruebas dinámicas que la primera auditoría dejó pendientes.
 - Aparcada hasta que el usuario decida:
   [[Pedir desbloqueo o biometría para usar las credenciales]] (`Planificando`).
 
@@ -782,5 +785,11 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   desactivado) y revocar el token temporal.
 - 2026-10-01 — **S1, casi completo**: el usuario activó el aviso privado de
   vulnerabilidades y se escribió `SECURITY.md`, enlazado desde el `README.md`.
-  👤 Faltan revisar sus plazos (7, 30 y 90 días), llevarlo a `main` y revocar
-  el token.
+  👤 Faltan llevarlo a `main` y revocar el token.
+- 2026-10-01 — Por decisión del usuario, las auditorías son **solo a
+  demanda**: sin calendario ni fecha de la próxima, y `SECURITY.md` no
+  promete plazos. Los tipos pasan a indicar la profundidad (`Rápida`,
+  `Estándar`, `Completa`). La nota-índice [[Auditorías de seguridad]] explica
+  cómo pedirlas, cómo leer y crear avisos con el token y cómo corregir un
+  hallazgo privado. Nuevo orden: S2 es la auditoría estándar después de
+  integrar la otra sesión, y S3 los arreglos.

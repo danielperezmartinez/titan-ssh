@@ -38,14 +38,10 @@ Ayuda mucho que el informe incluya:
 
 ## Qué puedes esperar
 
-titan-ssh es un proyecto personal sin financiación, así que los plazos son
-objetivos, no garantías:
+titan-ssh es un proyecto personal sin financiación y no se compromete a plazos
+fijos. Cada aviso se lee, se valora y se responde en el propio aviso en cuanto
+es posible, y los más graves pasan por delante del resto del trabajo.
 
-- **Acuse de recibo** en un máximo de 7 días.
-- **Primera valoración** (si se confirma y con qué severidad) en un máximo de
-  30 días.
-- **Arreglo** publicado en un máximo de 90 días desde el aviso; antes cuanto
-  más grave sea.
 - **Publicación coordinada**: el aviso se publica (con CVE si procede) junto con
   la versión que lo corrige, y se te reconoce en él si quieres.
 
@@ -74,8 +70,8 @@ Fuera:
 
 No emprenderemos acciones contra quien investigue y avise de buena fe:
 pruebas solo contra equipos y cuentas propias, sin acceder a datos de otras
-personas, sin degradar servicios de terceros y dando un plazo razonable antes
-de hacer nada público.
+personas, sin degradar servicios de terceros y sin hacer nada público hasta
+acordarlo en el aviso.
 
 ## Comprobar las descargas
 

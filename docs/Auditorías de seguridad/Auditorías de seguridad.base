@@ -23,8 +23,6 @@ properties:
     displayName: Privados
   Hallazgos públicos:
     displayName: Públicos
-  Próxima auditoría:
-    displayName: Próxima
   formula.created_display:
     displayName: Creada
   formula.updated_display:
@@ -41,16 +39,14 @@ views:
       - Resumen
       - Hallazgos privados
       - Hallazgos públicos
-      - Próxima auditoría
       - formula.updated_display
     sort:
       - property: Fecha
         direction: DESC
   - type: table
-    name: Abiertas
+    name: En curso
     filters:
       or:
-        - Estado == "Planificada"
         - Estado == "En curso"
     order:
       - Fecha
@@ -73,7 +69,6 @@ views:
       - Tipo
       - Versión auditada
       - Resumen
-      - Próxima auditoría
     sort:
       - property: Fecha
         direction: DESC

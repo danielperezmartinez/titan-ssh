@@ -4,16 +4,15 @@ Tipo: 'Completa'
 Estado: 'Cerrada'
 Fecha: 2026-10-01
 Versión auditada: 'v0.1.0-beta.9 + 2 commits (4691034)'
-Resumen: 'Primera auditoría de seguridad del proyecto, con la que nace este sistema. Revisión estática del código de cliente, almacén de secretos, conexión SSH, túneles, terminal, agente de nivel 3, Android y pipeline de release, sin pruebas dinámicas. Nueve hallazgos sensibles (1 de severidad alta, 5 media y 3 baja), dados de alta como avisos privados de GitHub, y cuatro tareas públicas de endurecimiento. Las pruebas dinámicas quedan para la primera trimestral.'
+Resumen: 'Primera auditoría de seguridad del proyecto, con la que nace este sistema. Revisión estática del código de cliente, almacén de secretos, conexión SSH, túneles, terminal, agente de nivel 3, Android y pipeline de release, sin pruebas dinámicas. Nueve hallazgos sensibles (1 de severidad alta, 5 media y 3 baja), dados de alta como avisos privados de GitHub, y cuatro tareas públicas de endurecimiento. Las pruebas dinámicas quedan para la siguiente auditoría estándar.'
 Hallazgos privados: 9
 Hallazgos públicos:
   - '[[Política de seguridad y avisos privados en GitHub]]'
   - '[[Endurecer la cadena de suministro]]'
   - '[[Actualizar sshj y BouncyCastle y retirar EdDSA-Java]]'
   - '[[Pedir desbloqueo o biometría para usar las credenciales]]'
-Próxima auditoría: 2027-01-01
 Fecha de creación: 2026-10-01T18:11:30+02:00
-Última modificación: 2026-10-01T18:40:00+02:00
+Última modificación: 2026-10-01T19:04:06+02:00
 ---
 
 # Auditoría 2026-10-01 Completa
@@ -40,7 +39,7 @@ Fecha de creación: 2026-10-01T18:11:30+02:00
   versiones de las dependencias con avisos públicos (CVE). **Sin pruebas
   dinámicas**: los puntos del nivel B que necesitan el servidor de pruebas, el
   emulador o herramientas (`ssh-audit -c`, MobSF, `gosec`, `osv-scanner`)
-  quedan para la primera auditoría trimestral. Uno de los hallazgos está
+  quedan para la siguiente auditoría estándar. Uno de los hallazgos está
   pendiente de confirmar con esas pruebas.
 - **Hecha por**: un agente, a petición del usuario, en la misma sesión en que
   se creó [[Auditorías de seguridad]].
@@ -51,7 +50,7 @@ Esta auditoría es anterior al checklist: lo originó. Cubre por lectura de
 código los puntos A.4, B.2, B.3, B.5, B.6, B.7 (manifiesto) y B.9, y los C.1
 a C.4 sin un modelo STRIDE formal. Quedan sin ejecutar A.1 a A.3, B.1, B.4,
 B.7 (MobSF, copias de seguridad reales y capturas), B.8 y B.10, que toca
-cubrir en la primera trimestral.
+cubrir en la siguiente auditoría estándar.
 
 ## Hallazgos privados
 

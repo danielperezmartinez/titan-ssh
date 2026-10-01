@@ -1,13 +1,12 @@
 ---
 Nombre: '<Auditoría AAAA-MM-DD Tipo>'
-Tipo: 'Release'
-Estado: 'Planificada'
+Tipo: 'Rápida'
+Estado: 'En curso'
 Fecha: <AAAA-MM-DD>
 Versión auditada: '<tag o commit auditado>'
 Resumen: '<Alcance, método y resultado en una o dos frases, sin describir ningún hallazgo sensible.>'
 Hallazgos privados: 0
 Hallazgos públicos: []
-Próxima auditoría: <AAAA-MM-DD>
 Fecha de creación: <AAAA-MM-DDTHH:mm:ss+ZZ:ZZ>
 Última modificación: <AAAA-MM-DDTHH:mm:ss+ZZ:ZZ>
 ---

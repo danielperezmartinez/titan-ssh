@@ -2,9 +2,10 @@
 
 titan-ssh custodia credenciales SSH y mantiene sesiones vivas en los destinos,
 así que la seguridad es un pilar del producto (ver [[README]], "Propósito del
-proyecto"). Este sistema fija **cómo y cada cuánto** se revisa, de forma
-manual, que la app sigue cumpliendo lo que promete. Cada auditoría deja una
-nota en `Auditorías de seguridad/`.
+proyecto"). Este sistema fija **cómo** se revisa, de forma manual, que la app
+sigue cumpliendo lo que promete. Las auditorías se hacen **solo cuando el
+usuario las pide**, sin calendario. Cada una deja una nota en
+`Auditorías de seguridad/`.
 
 [[Auditorías de seguridad/Auditorías de seguridad.base|Abrir la vista de auditorías]]
 
@@ -13,26 +14,94 @@ nota en `Auditorías de seguridad/`.
 > [[README]], "Vulnerabilidades y hallazgos de seguridad"). Por eso este
 > checklist describe **qué** se comprueba, nunca qué falla hoy.
 
+## Cómo se pide una auditoría
+
+El usuario la pide en una sesión de cualquier CLI o agente, por ejemplo:
+"haz una auditoría de seguridad rápida", "… estándar" o "… completa". Si no
+dice el tipo, el agente propone uno según lo que haya cambiado desde la
+última auditoría y espera la respuesta.
+
+Momentos en que conviene pedirla (son sugerencias, no obligaciones):
+
+- **Rápida** antes de publicar una versión que toque las áreas del punto A.4.
+- **Estándar** cuando se hayan acumulado varias versiones desde la última.
+- **Completa** tras un cambio de fondo: un método de autenticación nuevo, el
+  protocolo o el transporte del agente, un canal de distribución nuevo, o el
+  almacén de secretos.
+
 ## Cómo hacer una auditoría
 
-1. Buscar en la vista una auditoría `Planificada` para este periodo. Si no
-   existe, crear la nota desde `Plantillas/Auditoría de seguridad.md` con el
-   nombre `Auditoría AAAA-MM-DD <Tipo>`, y pasarla a `En curso`.
-2. Ejecutar el nivel que toque (abajo) y los anteriores: una `Trimestral`
-   incluye el nivel A, y una `Completa` incluye A y B.
-3. Clasificar cada hallazgo con el criterio de la regla 5:
-   - **Sensible** → el agente prepara el borrador del aviso y el usuario lo da
-     de alta en GitHub (*Security* → *Advisories* → *New draft security
-     advisory*). En la nota solo va la fila `SEC-AAAA-NN` con severidad, estado
-     y el `GHSA-…`.
+1. Si hay una auditoría `En curso` en la vista, continuarla. Si no, crear la
+   nota desde `Plantillas/Auditoría de seguridad.md` con el nombre
+   `Auditoría AAAA-MM-DD <Tipo>`, en estado `En curso`.
+2. Ejecutar el nivel del tipo pedido y los anteriores: una `Rápida` es el
+   nivel A, una `Estándar` los niveles A y B, y una `Completa` los tres.
+3. Antes de dar algo por hallazgo nuevo, leer los avisos privados abiertos
+   (ver "Trabajar con los avisos privados") para no duplicar ninguno. Si un
+   hallazgo ya tiene aviso, se amplía ese aviso.
+4. Clasificar cada hallazgo con el criterio de la regla 5:
+   - **Sensible** → aviso privado en borrador (ver abajo). En la nota solo va
+     la fila `SEC-AAAA-NN` con severidad, estado y el `GHSA-…`.
    - **No sensible** → tarea normal, enlazada desde `Hallazgos públicos` y
      colocada en [[Seguimiento de tareas pendientes]].
-4. Severidad: **Alta** (un tercero puede suplantar al servidor, leer
-   credenciales o sesiones, o ejecutar órdenes), **Media** (fuga de datos o
-   ejecución que necesita una condición poco habitual), **Baja** (endurecimiento
-   o información de poco valor).
-5. Cerrar la nota cuando cada hallazgo tenga destino, y fijar
-   `Próxima auditoría`.
+5. Severidad:
+   - **Alta**: un tercero puede suplantar al servidor, leer credenciales o
+     sesiones, o ejecutar órdenes.
+   - **Media**: fuga de datos, o ejecución que necesita una condición poco
+     habitual.
+   - **Baja**: endurecimiento, o información de poco valor.
+6. Comprobar también los avisos ya existentes cuyo arreglo se haya publicado,
+   y proponer al usuario publicarlos.
+7. Cerrar la nota cuando cada hallazgo tenga destino.
+
+## Trabajar con los avisos privados
+
+Los avisos en borrador solo los ve quien administra el repositorio, así que un
+agente necesita un **token del usuario** para leerlos o crearlos:
+
+- Un *fine-grained token* limitado a este repositorio, con el único permiso
+  **Repository security advisories**: lectura para leerlos, y lectura y
+  escritura para crearlos o editarlos. Con caducidad corta.
+- El usuario lo guarda en su terminal, nunca en el chat, en la variable de
+  usuario `TITAN_ADVISORY_TOKEN`:
+  `[Environment]::SetEnvironmentVariable('TITAN_ADVISORY_TOKEN','<token>','User')`.
+  El agente la lee del registro, no de su propio entorno, así que funciona sin
+  reiniciar la sesión.
+- Con el trabajo terminado, el usuario borra la variable y revoca el token.
+
+API REST de GitHub (`/repos/danielperezmartinez/titan-ssh/security-advisories`):
+
+- **Listar** los avisos con `GET …?state=draft` y leer uno con `GET …/<GHSA>`.
+- **Crear** uno con `POST …`. Los campos son: `summary`, `description`,
+  `severity`, `cwe_ids` y `vulnerabilities` (paquete `other` / `titan-ssh`,
+  con el rango de versiones afectadas).
+- **Editar** con `PATCH …/<GHSA>`.
+
+Los avisos se escriben en inglés: serán públicos cuando se publiquen. Después
+de crearlos, se comprueba que una petición sin autenticar no los ve.
+
+Sin el token, el agente da el borrador en el chat y el usuario lo da de alta a
+mano en *Security* → *Advisories* → *New draft security advisory*.
+
+Ningún agente **publica** ni **cierra** un aviso sin que el usuario lo pida en
+esa sesión.
+
+## Corregir un hallazgo privado
+
+1. Leer su aviso con el token. Es la única fuente del detalle.
+2. Trabajar en un worktree o rama local. **No se sube nada** hasta que el
+   arreglo esté listo para publicarse: los commits se suben junto con el tag
+   de la versión, así el código del arreglo está a la vista el menor tiempo
+   posible antes de la publicación.
+3. Mensajes de commit, nombres de rama y comentarios **neutros**, que no
+   expliquen el fallo (p. ej. "Harden host key checks"). Los tests que lo
+   cubren no llevan nombres que lo describan.
+4. Verificar como cualquier otro cambio: tests y prueba en el emulador (regla
+   4, paso 0).
+5. Publicar la versión cuando el usuario lo pida (regla 4). Después, si el
+   usuario lo aprueba, publicar el aviso con
+   `patched_versions` = esa versión, actualizar su fila en la auditoría y
+   añadir aquí su comprobación de regresión.
 
 ## Modelo de amenazas resumido
 
@@ -61,11 +130,11 @@ Frente a quién:
 Fuera de alcance: un destino ya comprometido (root en el host) y el propio
 usuario como atacante de su cuenta.
 
-## Nivel A · En cada release (unos 30 min)
+## Nivel A · Rápida (unos 30 min)
 
-Se ejecuta antes de crear el tag (paso 1 de la publicación, regla 4 del
-[[README]]). Si sale un hallazgo `Alta`, no se publica hasta decidir con el
-usuario.
+Revisa lo que ha cambiado desde la última auditoría o el último tag. Si se
+hace antes de una publicación y sale un hallazgo `Alta`, el agente lo dice
+antes de seguir con la publicación, y decide el usuario.
 
 1. **Dependencias con vulnerabilidades conocidas.**
    - Kotlin/Gradle: `osv-scanner scan source -r .` (lee
@@ -73,7 +142,7 @@ usuario.
    - Agente Go: `govulncheck ./...` en `agent/`.
    - Avisos abiertos de Dependabot en la pestaña *Security*, si está activo.
 2. **Secretos y datos personales** en el diff de la versión y en el historial:
-   `gitleaks git --log-opts="<tag-anterior>..HEAD"`, además de la comprobación
+   `gitleaks git --log-opts="<última-auditoría-o-tag>..HEAD"`, además de la comprobación
    rápida de la regla 5.
 3. **Workflows de GitHub Actions**: `zizmor .github/workflows/` (acciones sin
    fijar por SHA, permisos de más, inyección de expresiones, secretos
@@ -85,7 +154,7 @@ usuario.
 5. **Avisos privados abiertos**: repasar si alguno se corrige en esta versión.
    Si es así, preparar su publicación junto al Release.
 
-## Nivel B · Trimestral (medio día)
+## Nivel B · Estándar (medio día)
 
 Se hace con el servidor de pruebas de `tools/test-sshd/` y el emulador
 `Pixel_9_Pro_XL`, nunca contra máquinas del usuario sin su permiso.
@@ -121,17 +190,15 @@ Se hace con el servidor de pruebas de `tools/test-sshd/` y el emulador
    - Captura de pantalla y vista de apps recientes con una sesión abierta.
    - Componentes exportados y permisos del manifiesto.
 8. **Agente estático.** `gosec ./...` en `agent/`, y `go test -race ./...`
-   (ver la memoria del agente para hacerlo en Docker).
+   (en un contenedor de Go si el equipo no tiene la toolchain).
 9. **Dependencias al día.** Comparar sshj, BouncyCastle, java-keyring y
    `golang.org/x/sys` con su última versión, y leer sus notas de seguridad.
 10. **Checklist OWASP MASVS** (v2, perfil L1): repasar las categorías STORAGE,
-    CRYPTO, AUTH, NETWORK, PLATFORM y CODE contra los cambios del trimestre.
+    CRYPTO, AUTH, NETWORK, PLATFORM y CODE contra los cambios desde la última auditoría.
 
-## Nivel C · Completa (anual o tras un cambio mayor)
+## Nivel C · Completa
 
-Toca cuando cambia algo de fondo: un método de autenticación nuevo, el
-protocolo o el transporte del agente, un canal de distribución nuevo, o el
-almacén de secretos.
+Revisa el diseño, no solo lo que ha cambiado.
 
 1. Rehacer el **modelo de amenazas** de arriba (STRIDE por componente:
    cliente, almacén de secretos, conexión SSH, túneles, agente, pipeline) y
