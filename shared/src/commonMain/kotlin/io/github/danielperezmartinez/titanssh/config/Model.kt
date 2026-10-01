@@ -263,10 +263,38 @@ data class Host(
     val colorHex: String? = null,
 )
 
+/** What a session opens (ADR-0016). */
+@Serializable
+enum class SessionType {
+    /** A terminal on the destination's shell. */
+    TERMINAL,
+
+    /**
+     * The phone as the destination's touchpad and keyboard, through
+     * `titan-agent --input`. The terminal fields (working directory, scripts,
+     * tunnels, resilience level and appearance) do not apply; they are kept,
+     * so switching the type back loses nothing.
+     */
+    MOUSEPAD,
+}
+
+/** How a mouse pad session moves the pointer and scrolls (ADR-0016 §1). */
+@Serializable
+data class MousepadSettings(
+    /** Multiplies the pointer speed; 1 is the default. */
+    val pointerSpeed: Float = 1f,
+    /**
+     * Content follows the fingers, as on the phone itself and on Windows'
+     * touchpads; false scrolls like a mouse wheel.
+     */
+    val naturalScroll: Boolean = true,
+)
+
 /**
  * A session: what to do on connect. References a [Host] and adds its own
  * scripts, tunnels, working directory, resilience level and appearance, and may
- * override the host's username/port.
+ * override the host's username/port. Its [type] says whether it opens a terminal
+ * or a mouse pad.
  */
 @Serializable
 data class Session(
@@ -285,6 +313,9 @@ data class Session(
     val tags: List<String> = emptyList(),
     val marker: String = "[+]",
     val colorHex: String? = null,
+    /** A field with a default: documents written before it read as terminals. */
+    val type: SessionType = SessionType.TERMINAL,
+    val mousepad: MousepadSettings = MousepadSettings(),
 )
 
 /**

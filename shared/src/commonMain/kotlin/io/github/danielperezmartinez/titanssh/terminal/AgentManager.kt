@@ -4,6 +4,7 @@ import io.github.danielperezmartinez.titanssh.config.ConfigController
 import io.github.danielperezmartinez.titanssh.config.ResilienceLevel
 import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
 import io.github.danielperezmartinez.titanssh.config.Session
+import io.github.danielperezmartinez.titanssh.config.SessionType
 import io.github.danielperezmartinez.titanssh.config.resolve
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -112,6 +113,19 @@ class AgentManager(
             .filter { s -> runCatching { AgentKey.of(config.state.value.resolve(s).endpoint) == host.key }.getOrDefault(false) }
             .forEach { sessions.closeTabsOf(it.id) }
         access.withAgent(host) { it.stop() }
+    }
+
+    /**
+     * Removes the mouse pad's desktop helper from [host]: stops it and deletes
+     * its scheduled task (ADR-0016). The mouse pad tabs on that host close
+     * first; the next one launches the helper again.
+     */
+    fun removeDesktop(host: AgentHost) = launchOn(host) {
+        config.state.value.sessions
+            .filter { it.type == SessionType.MOUSEPAD }
+            .filter { s -> runCatching { AgentKey.of(config.state.value.resolve(s).endpoint) == host.key }.getOrDefault(false) }
+            .forEach { sessions.closeTabsOf(it.id) }
+        access.withAgent(host) { it.removeDesktop() }
     }
 
     private fun launchOn(host: AgentHost, work: suspend () -> Unit) {

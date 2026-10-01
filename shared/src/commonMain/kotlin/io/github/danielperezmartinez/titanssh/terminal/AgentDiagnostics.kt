@@ -73,6 +73,15 @@ object AgentDiagnostics {
     /** The PTY or its shell could not be started. */
     const val E_PTY = "E_PTY"
 
+    /** Mouse pad: the destination has no input injector yet (only Windows has one). */
+    const val E_INPUT_UNSUPPORTED = "E_INPUT_UNSUPPORTED"
+
+    /** Mouse pad: the desktop helper did not start, most often because nobody is signed in. */
+    const val E_NO_DESKTOP = "E_NO_DESKTOP"
+
+    /** Mouse pad, Windows: the helper's scheduled task could not be created or run. */
+    const val E_DESKTOP_TASK = "E_DESKTOP_TASK"
+
     // --- client side ---
 
     /** The destination's OS or architecture has no agent build, or could not be detected. */
@@ -188,7 +197,30 @@ object AgentDiagnostics {
      * Spanish, with the code at the end so it can be looked up.
      */
     fun describe(issue: AgentIssue): String {
-        val (what, todo) = when (issue.code) {
+        if (issue.code == E_SYSTEMD_KILL) {
+            return "Aviso del nivel 3: systemd cerrará el agente (y tmux) al salir de la última sesión, " +
+                "porque KillUserProcesses=yes y tu usuario no tiene linger. " +
+                "Actívalo con loginctl enable-linger. ($E_SYSTEMD_KILL)"
+        }
+        return render("Nivel 3 no disponible: ", issue)
+    }
+
+    /** [describe] for a mouse pad tab, which needs the agent to inject its input (ADR-0016). */
+    fun describeMousepad(issue: AgentIssue): String = render("El mouse pad no está disponible: ", issue)
+
+    private fun render(prefix: String, issue: AgentIssue): String {
+        val (what, todo) = explain(issue)
+        val unknown = todo == UNKNOWN_TODO
+        val detail = issue.detail.takeIf { it.isNotBlank() && (unknown || issue.code in SHOWS_DETAIL) }
+        return buildString {
+            append(prefix).append(what).append(". ").append(todo)
+            if (detail != null) append(" Detalle: ").append(detail)
+            append(" (").append(issue.code).append(')')
+        }
+    }
+
+    private fun explain(issue: AgentIssue): Pair<String, String> =
+        when (issue.code) {
             E_UNSUPPORTED_TARGET ->
                 "el sistema o la arquitectura del destino no tiene agente" to
                     "Hay agente para Linux, macOS, FreeBSD y Windows 10 1809 o posterior de 64 bits."
@@ -235,26 +267,23 @@ object AgentDiagnostics {
             E_PTY ->
                 "el agente no pudo abrir un terminal" to
                     "Comprueba que la shell de tu usuario en el destino arranca."
-            E_SYSTEMD_KILL ->
-                return "Aviso del nivel 3: systemd cerrará el agente (y tmux) al salir de la última sesión, " +
-                    "porque KillUserProcesses=yes y tu usuario no tiene linger. " +
-                    "Actívalo con loginctl enable-linger. ($E_SYSTEMD_KILL)"
+            E_INPUT_UNSUPPORTED ->
+                "el destino todavía no admite el mouse pad" to
+                    "Por ahora solo funciona con destinos Windows."
+            E_NO_DESKTOP ->
+                "no hay nadie con la sesión iniciada en el escritorio del destino" to
+                    "Inicia sesión en Windows en ese PC (también vale por escritorio remoto) y reconecta."
+            E_DESKTOP_TASK ->
+                "no se pudo preparar la tarea programada que lanza el ayudante de escritorio" to
+                    "Revisa el detalle. La tarea se puede quitar desde el panel del agente."
             else ->
                 "el agente devolvió un error desconocido" to UNKNOWN_TODO
         }
-        val unknown = todo == UNKNOWN_TODO
-        val detail = issue.detail.takeIf { it.isNotBlank() && (unknown || issue.code in SHOWS_DETAIL) }
-        return buildString {
-            append("Nivel 3 no disponible: ").append(what).append(". ").append(todo)
-            if (detail != null) append(" Detalle: ").append(detail)
-            append(" (").append(issue.code).append(')')
-        }
-    }
 
     private const val UNKNOWN_TODO = "Revisa el detalle."
 
     /** The codes whose message depends on the agent's own words (unknown codes show it too). */
-    private val SHOWS_DETAIL = setOf(E_AGENT_EXIT, E_PTY, E_UPLOAD, E_DAEMON_START)
+    private val SHOWS_DETAIL = setOf(E_AGENT_EXIT, E_PTY, E_UPLOAD, E_DAEMON_START, E_DESKTOP_TASK, E_NO_DESKTOP)
 
     /** A contract code: `E_` and upper-case words. */
     private val CODE = Regex("^E_[A-Z0-9_]+$")

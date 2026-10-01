@@ -104,7 +104,7 @@ fun SessionsArea(
 
     if (fullscreen && isAndroidRuntime()) {
         Box(Modifier.fillMaxSize()) {
-            TerminalView(active, Modifier.fillMaxSize(), scripts = config.menuScripts(active))
+            TabContent(active, Modifier.fillMaxSize(), scripts = config.menuScripts(active))
             GlyphButton(
                 "[v]",
                 onClick = { fullscreen = false },
@@ -132,14 +132,20 @@ fun SessionsArea(
         val secondary = if (splitEnabled && !isAndroidRuntime()) secondaryTab(tabs, active) else null
         if (secondary != null) {
             Row(Modifier.fillMaxSize()) {
-                TerminalView(active, Modifier.weight(1f).fillMaxHeight(), scripts = config.menuScripts(active))
+                TabContent(active, Modifier.weight(1f).fillMaxHeight(), scripts = config.menuScripts(active))
                 Box(Modifier.width(TitanDimens.Hairline).fillMaxHeight().background(TitanColors.HairlineStrong))
-                TerminalView(secondary, Modifier.weight(1f).fillMaxHeight(), scripts = config.menuScripts(secondary))
+                TabContent(secondary, Modifier.weight(1f).fillMaxHeight(), scripts = config.menuScripts(secondary))
             }
         } else {
-            TerminalView(active, Modifier.fillMaxSize(), scripts = config.menuScripts(active))
+            TabContent(active, Modifier.fillMaxSize(), scripts = config.menuScripts(active))
         }
     }
+}
+
+/** A tab's pane: its terminal, or its mouse pad (ADR-0016). */
+@Composable
+private fun TabContent(tab: SessionTab, modifier: Modifier, scripts: List<SessionScript>) {
+    if (tab.isMousepad) MousepadView(tab, modifier) else TerminalView(tab, modifier, scripts = scripts)
 }
 
 /**

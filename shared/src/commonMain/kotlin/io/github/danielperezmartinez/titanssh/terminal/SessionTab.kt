@@ -3,6 +3,7 @@ package io.github.danielperezmartinez.titanssh.terminal
 import io.github.danielperezmartinez.titanssh.config.ResilienceLevel
 import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
 import io.github.danielperezmartinez.titanssh.config.SessionScript
+import io.github.danielperezmartinez.titanssh.config.SessionType
 import io.github.danielperezmartinez.titanssh.ssh.HostKeyInfo
 import io.github.danielperezmartinez.titanssh.ssh.HostKeyVerifier
 import io.github.danielperezmartinez.titanssh.ssh.KnownHostsStore
@@ -60,6 +61,18 @@ data class ResilienceStatus(
 )
 
 /**
+ * Where a mouse pad tab's input stands (ADR-0016): [ready] once the destination's
+ * desktop helper takes input, [blocked] while the desktop is locked or a secure
+ * desktop (UAC) is in front, and the [issue] that keeps the mouse pad from
+ * working there.
+ */
+data class MousepadStatus(
+    val ready: Boolean = false,
+    val blocked: Boolean = false,
+    val issue: AgentIssue? = null,
+)
+
+/**
  * A host key awaiting the user's trust decision on first contact (TOFU,
  * ADR-0005). The UI shows [info] and calls [accept]/[reject]; the connection is
  * blocked in the verifier until then.
@@ -100,6 +113,13 @@ class PendingHostKey internal constructor(
  * The session's enabled tunnels open on every connection, right after it is
  * established, and close when it ends, so a reconnect reopens them on the new
  * one. Their state is in [tunnels]; a failed tunnel never ends the session.
+ *
+ * ## Mouse pad (ADR-0016)
+ * A [SessionType.MOUSEPAD] session uses the same connection lifecycle, but
+ * instead of a shell it installs the agent and drives `titan-agent --input`
+ * ([InputTransport]): [sendInput] sends the touchpad and keyboard events, and
+ * [mousepad] says whether they reach the desktop. No tunnels, scripts or
+ * emulator output are involved.
  */
 class SessionTab(
     val id: String,
@@ -137,6 +157,23 @@ class SessionTab(
     private val timeSource: TimeSource = TimeSource.Monotonic,
 ) {
     val title: String get() = resolved.session.name
+
+    /** Whether this tab is a mouse pad rather than a terminal (ADR-0016). */
+    val isMousepad: Boolean get() = resolved.session.type == SessionType.MOUSEPAD
+
+    private val _mousepad = MutableStateFlow(MousepadStatus())
+
+    /** A mouse pad tab's input state, for its view. */
+    val mousepad: StateFlow<MousepadStatus> = _mousepad.asStateFlow()
+
+    /** The live `--input` channel of a mouse pad tab; null while not connected. */
+    private var input: InputTransport? = null
+
+    /**
+     * Input events in order, from the UI to the channel. Whatever is still
+     * queued when a connection starts is from before it and is dropped.
+     */
+    private val inputQueue = Channel<AgentFrame>(Channel.UNLIMITED)
 
     private val emulator = TerminalEmulator(columns, rows)
     private val emulatorLock = Mutex()
@@ -395,6 +432,7 @@ class SessionTab(
                 return AttemptResult.TRUSTED_LATE
             }
             session = opened
+            if (isMousepad) return runMousepad(opened)
             // Tunnels ride the SSH connection itself, whatever carries the PTY.
             sessionTunnels.open(opened)
             tunnelRetryJob = scope.launch { sessionTunnels.retryFailed(opened) }
@@ -517,6 +555,56 @@ class SessionTab(
             return degrade(issue)
         }
         return if (droppedWithin(opened)) AttemptResult.DROPPED else AttemptResult.CLEAN_EXIT
+    }
+
+    /**
+     * The mouse pad on [opened]: install the agent and drive `titan-agent
+     * --input` until its channel closes. A destination where the mouse pad
+     * cannot work fails the tab with the reason, and is not retried on its own:
+     * the user reconnects once it is fixed (say, after signing in).
+     */
+    private suspend fun runMousepad(opened: SshSession): AttemptResult {
+        val deployer = agentDeployer ?: return mousepadFailed(
+            AgentIssue(AgentDiagnostics.E_NO_BINARY, "this build has no agent"),
+        )
+        val launch = when (val deployment = deployer.ensureInstalled(opened)) {
+            is AgentDeployment.Unavailable -> return mousepadFailed(deployment.issue)
+            is AgentDeployment.Ready -> deployment.launch
+        }
+        // Drop what was queued before this connection.
+        while (inputQueue.tryReceive().isSuccess) {
+            continue
+        }
+        val transport = InputTransport(opened, launch) { blocked ->
+            if (_status.value.phase != TabPhase.CONNECTED) markConnected()
+            _mousepad.value = MousepadStatus(ready = true, blocked = blocked)
+        }
+        input = transport
+        val pump = scope.launch { for (frame in inputQueue) transport.send(frame) }
+        try {
+            transport.run()
+        } finally {
+            pump.cancel()
+            input = null
+        }
+        transport.unavailable?.let { return mousepadFailed(it) }
+        _mousepad.value = MousepadStatus()
+        return if (droppedWithin(opened)) AttemptResult.DROPPED else AttemptResult.CLEAN_EXIT
+    }
+
+    private fun mousepadFailed(issue: AgentIssue): AttemptResult {
+        _mousepad.value = MousepadStatus(issue = issue)
+        _status.value = TabStatus(TabPhase.FAILED, AgentDiagnostics.describeMousepad(issue))
+        return AttemptResult.FATAL
+    }
+
+    /**
+     * Sends one mouse pad event (see [AgentFrame]'s input frames). Events keep
+     * their order; while the tab is not connected they are dropped.
+     */
+    fun sendInput(frame: AgentFrame) {
+        if (input == null) return
+        inputQueue.trySend(frame)
     }
 
     /** Records why level 3 is unavailable for the rest of the tab's life; null: open a shell. */
@@ -733,9 +821,11 @@ class SessionTab(
         connectJob?.cancel()
         tunnelRetryJob?.cancel()
         sessionTunnels.close()
+        runCatching { input?.close() }
         runCatching { agent?.close() }
         runCatching { shell?.close() }
         runCatching { session?.close() }
+        input = null
         agent = null
         shell = null
         session = null

@@ -20,9 +20,12 @@ import androidx.compose.ui.Modifier
 import io.github.danielperezmartinez.titanssh.config.ConfigController
 import io.github.danielperezmartinez.titanssh.config.GroupScope
 import io.github.danielperezmartinez.titanssh.config.Ids
+import io.github.danielperezmartinez.titanssh.config.MousepadSettings
 import io.github.danielperezmartinez.titanssh.config.ResilienceLevel
 import io.github.danielperezmartinez.titanssh.config.Session
 import io.github.danielperezmartinez.titanssh.config.SessionScript
+import io.github.danielperezmartinez.titanssh.config.SessionType
+import io.github.danielperezmartinez.titanssh.terminal.MousepadMotion
 import io.github.danielperezmartinez.titanssh.config.TerminalAppearance
 import io.github.danielperezmartinez.titanssh.config.Tunnel
 import io.github.danielperezmartinez.titanssh.config.TunnelType
@@ -77,6 +80,8 @@ fun SessionEditor(
     var marker by remember { mutableStateOf(existing?.marker ?: "[+]") }
     var fontSize by remember { mutableStateOf(existing?.appearance?.fontSize?.toString() ?: "") }
 
+    var type by remember { mutableStateOf(existing?.type ?: SessionType.TERMINAL) }
+    var mousepad by remember { mutableStateOf(existing?.mousepad ?: MousepadSettings()) }
     var scripts by remember { mutableStateOf(existing?.scripts ?: emptyList()) }
     var tunnels by remember { mutableStateOf(existing?.tunnels ?: emptyList()) }
     var subEditor by remember { mutableStateOf<SubEditor?>(null) }
@@ -138,6 +143,8 @@ fun SessionEditor(
             deleteSession = deleteSession,
             isLiveOnDestination = isLiveOnDestination,
             name = name, onName = { name = it },
+            type = type, onType = { type = it },
+            mousepad = mousepad, onMousepad = { mousepad = it },
             hostId = hostId, onHostId = { hostId = it },
             usernameOverride = usernameOverride, onUsernameOverride = { usernameOverride = it },
             portOverride = portOverride, onPortOverride = { portOverride = it },
@@ -163,6 +170,8 @@ private fun SessionForm(
     deleteSession: (Session) -> Unit,
     isLiveOnDestination: (Session) -> Boolean,
     name: String, onName: (String) -> Unit,
+    type: SessionType, onType: (SessionType) -> Unit,
+    mousepad: MousepadSettings, onMousepad: (MousepadSettings) -> Unit,
     hostId: String?, onHostId: (String) -> Unit,
     usernameOverride: String, onUsernameOverride: (String) -> Unit,
     portOverride: String, onPortOverride: (String) -> Unit,
@@ -200,6 +209,9 @@ private fun SessionForm(
                 groupId = groupId,
                 tags = tags.split(",").map { it.trim() }.filter { it.isNotEmpty() },
                 marker = marker.ifBlank { "[+]" },
+                colorHex = existing?.colorHex,
+                type = type,
+                mousepad = mousepad,
             ),
         )
         onDone()
@@ -221,6 +233,20 @@ private fun SessionForm(
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bodyPadding())) {
             TitanTextField("Nombre", name, onName, placeholder = "deploy en prod")
             Gap()
+            TitanSegmented("Tipo", SessionType.entries, type, onType, optionLabel = {
+                when (it) {
+                    SessionType.TERMINAL -> "terminal"
+                    SessionType.MOUSEPAD -> "mouse pad"
+                }
+            })
+            if (type == SessionType.MOUSEPAD) {
+                Spacer(Modifier.height(TitanDimens.SpaceXs))
+                Caption(
+                    "El móvil hace de touchpad y teclado del escritorio del destino. Usa el agente, " +
+                        "que se instala solo; por ahora, solo en destinos Windows con la sesión iniciada.",
+                )
+            }
+            Gap()
             val hostOptions = config.hosts
             TitanDropdown(
                 "Host",
@@ -236,6 +262,17 @@ private fun SessionForm(
                 Box(Modifier.weight(1f)) { TitanTextField("Puerto (override)", portOverride, { onPortOverride(it.filter(Char::isDigit)) }, placeholder = "hereda") }
             }
             Gap()
+            if (type == SessionType.MOUSEPAD) {
+                MousepadFields(mousepad, onMousepad)
+                SectionHeader("Organización")
+                GroupPicker(controller, GroupScope.SESSIONS, config.sessionGroups, groupId, onGroupId)
+                Gap()
+                TitanTextField("Etiquetas (separadas por coma)", tags, onTags, placeholder = "casa, oficina")
+                Gap()
+                TitanTextField("Marcador ASCII", marker, onMarker, placeholder = "[+]")
+                Spacer(Modifier.height(TitanDimens.SpaceSection))
+                return@Column
+            }
             TitanTextField("Directorio inicial (cd)", initialDirectory, onInitialDirectory, placeholder = "/srv/miapp")
             Gap()
             TitanSegmented("Nivel de resiliencia", ResilienceLevel.entries, resilience, onResilience, optionLabel = {
@@ -339,6 +376,23 @@ private fun SessionForm(
             TitanTextField("Tamaño de fuente del terminal (override, opcional)", fontSize, { onFontSize(it.filter(Char::isDigit)) })
             Spacer(Modifier.height(TitanDimens.SpaceSection))
         }
+    }
+}
+
+/** A mouse pad session's own settings: pointer speed and scroll direction (ADR-0016). */
+@Composable
+private fun MousepadFields(settings: MousepadSettings, onChange: (MousepadSettings) -> Unit) {
+    SectionHeader("Mouse pad")
+    TitanSegmented(
+        "Velocidad del puntero",
+        MousepadMotion.SPEED_PRESETS.map { it.second },
+        MousepadMotion.nearestPreset(settings.pointerSpeed),
+        { onChange(settings.copy(pointerSpeed = it)) },
+        optionLabel = { speed -> MousepadMotion.SPEED_PRESETS.first { it.second == speed }.first.lowercase() },
+    )
+    Gap()
+    TitanCheck("Scroll natural: el contenido sigue a los dedos", settings.naturalScroll) {
+        onChange(settings.copy(naturalScroll = it))
     }
 }
 

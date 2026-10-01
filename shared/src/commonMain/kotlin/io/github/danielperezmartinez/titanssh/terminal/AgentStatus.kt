@@ -28,6 +28,11 @@ data class AgentStatusReport(
     /** The daemon and every process under it; null when the destination cannot measure it. */
     val memoryBytes: Long? = null,
     val sessions: List<AgentSessionReport> = emptyList(),
+    /**
+     * The mouse pad's desktop helper (ADR-0016), on destinations that have one
+     * (Windows); null elsewhere and from agents that predate it.
+     */
+    val desktop: AgentDesktopReport? = null,
 ) {
     val isRunning: Boolean get() = state == STATE_RUNNING
 
@@ -47,6 +52,28 @@ data class AgentStatusReport(
         /** Parses the `--status --json` output (one JSON object). */
         fun parse(text: String): AgentStatusReport = JSON.decodeFromString(serializer(), text.trim())
     }
+}
+
+/**
+ * The desktop helper that injects a mouse pad's input on the user's desktop,
+ * and the scheduled task that starts it (ADR-0016 §3). Mirrors `desktopReport`
+ * in `agent/cmd/titan-agent/desktop.go`.
+ */
+@Serializable
+data class AgentDesktopReport(
+    /** The scheduled task is registered on the destination. */
+    val task: Boolean = false,
+    /** [AgentStatusReport.STATE_RUNNING], `STATE_STOPPED` or `STATE_UNREACHABLE`. */
+    val state: String = AgentStatusReport.STATE_STOPPED,
+    val agent: String? = null,
+    val pid: Int? = null,
+    /** The Windows session it runs in. */
+    val session: Int? = null,
+) {
+    val isRunning: Boolean get() = state == AgentStatusReport.STATE_RUNNING
+
+    /** Something of the helper is left on the destination that the user can remove. */
+    val isPresent: Boolean get() = task || state != AgentStatusReport.STATE_STOPPED
 }
 
 /** One session held by the daemon. */

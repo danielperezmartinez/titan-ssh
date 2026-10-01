@@ -25,6 +25,7 @@ import io.github.danielperezmartinez.titanssh.config.GroupScope
 import io.github.danielperezmartinez.titanssh.config.GroupTree
 import io.github.danielperezmartinez.titanssh.config.ResilienceLevel
 import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
+import io.github.danielperezmartinez.titanssh.config.SessionType
 import io.github.danielperezmartinez.titanssh.config.resolve
 import io.github.danielperezmartinez.titanssh.terminal.AgentHost
 import io.github.danielperezmartinez.titanssh.terminal.AgentInsights
@@ -119,12 +120,15 @@ internal fun Launcher(
                 },
             ) { session ->
                 val resolved = runCatching { config.resolve(session) }.getOrNull()
+                val mousepad = session.type == SessionType.MOUSEPAD
                 val subtitle = if (resolved != null) {
-                    "${resolved.endpoint.username}@${resolved.endpoint.host}:${resolved.endpoint.port}"
+                    (if (mousepad) "mouse pad · " else "") +
+                        "${resolved.endpoint.username}@${resolved.endpoint.host}:${resolved.endpoint.port}"
                 } else {
                     "host no encontrado — revisa la configuración"
                 }
-                val isAgent = resolved != null && session.resilienceLevel == ResilienceLevel.AGENT
+                // A mouse pad keeps nothing alive in the agent's daemon.
+                val isAgent = resolved != null && !mousepad && session.resilienceLevel == ResilienceLevel.AGENT
                 val obs = resolved?.let { watch.observations[AgentKey.of(it.endpoint).id] }
                 val live = obs?.let { AgentInsights.sessionOf(it, session.id) }
                 val note = if (obs == null || live == null || session.id in openSessionIds) {

@@ -533,7 +533,7 @@ private fun levelLabel(level: EffectiveLevel, resilience: ResilienceStatus): Str
 
 /** Inline first-contact host-key confirmation bar (TOFU, ADR-0005). */
 @Composable
-private fun HostKeyPromptBar(
+internal fun HostKeyPromptBar(
     fingerprint: String,
     keyType: String,
     host: String,
@@ -624,7 +624,7 @@ private fun AndroidInputBar(
 
 
 @Composable
-private fun AccessoryButton(label: String, active: Boolean, onClick: () -> Unit) {
+internal fun AccessoryButton(label: String, active: Boolean, onClick: () -> Unit) {
     Box(
         Modifier
             .background(if (active) TitanColors.Accent.copy(alpha = 0.15f) else TitanColors.Surface)
@@ -648,7 +648,7 @@ private fun AccessoryButton(label: String, active: Boolean, onClick: () -> Unit)
  * only mounted on Android.
  */
 @Composable
-private fun SoftKeyboardCapture(
+internal fun SoftKeyboardCapture(
     focusRequester: FocusRequester,
     onText: (String) -> Unit,
     onEnter: () -> Unit,

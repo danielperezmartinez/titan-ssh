@@ -31,6 +31,7 @@ import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
 import io.github.danielperezmartinez.titanssh.config.TitanConfig
 import io.github.danielperezmartinez.titanssh.config.resolve
 import io.github.danielperezmartinez.titanssh.formatLocalDateTime
+import io.github.danielperezmartinez.titanssh.terminal.AgentDesktopReport
 import io.github.danielperezmartinez.titanssh.terminal.AgentHost
 import io.github.danielperezmartinez.titanssh.terminal.AgentInsights
 import io.github.danielperezmartinez.titanssh.terminal.AgentManager
@@ -73,6 +74,7 @@ private sealed interface PanelConfirm {
     data class Terminate(val agentSessionId: String) : PanelConfirm
     data object Stop : PanelConfirm
     data object Update : PanelConfirm
+    data object RemoveDesktop : PanelConfirm
 }
 
 /**
@@ -224,6 +226,23 @@ fun AgentPanel(
             if (report?.isRunning == true && shown.isEmpty() && unlisted.isEmpty()) {
                 item { EmptyState("El agente no guarda ninguna sesión.") }
             }
+            val desktop = report?.desktop
+            if (desktop != null && desktop.isPresent) {
+                item {
+                    Spacer(Modifier.height(TitanDimens.SpaceMd))
+                    DesktopHelperRow(
+                        desktop = desktop,
+                        confirming = confirming == PanelConfirm.RemoveDesktop,
+                        onAsk = { confirming = PanelConfirm.RemoveDesktop },
+                        onConfirm = {
+                            agents.removeDesktop(host)
+                            confirming = null
+                        },
+                        onCancel = { confirming = null },
+                    )
+                    Hairline()
+                }
+            }
             if (report != null && (report.isRunning || report.state == AgentStatusReport.STATE_LEGACY)) {
                 item {
                     Spacer(Modifier.height(TitanDimens.SpaceMd))
@@ -253,6 +272,47 @@ fun AgentPanel(
             }
         }
     }
+}
+
+/**
+ * The mouse pad's desktop helper on a Windows destination and its scheduled
+ * task (ADR-0016), with the way to remove both. The next mouse pad brings
+ * them back.
+ */
+@Composable
+private fun DesktopHelperRow(
+    desktop: AgentDesktopReport,
+    confirming: Boolean,
+    onAsk: () -> Unit,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    if (confirming) {
+        ConfirmRow(
+            question = "¿Quitar el ayudante del mouse pad?",
+            subtitle = "Se cierran los mouse pad abiertos; el siguiente lo vuelve a instalar",
+            confirmLabel = "[x] Sí",
+            marker = "[x]",
+            markerColor = TitanColors.Danger,
+            onConfirm = onConfirm,
+            onCancel = onCancel,
+        )
+        return
+    }
+    val state = when (desktop.state) {
+        AgentStatusReport.STATE_RUNNING -> "en marcha en la sesión ${desktop.session ?: "?"} de Windows"
+        AgentStatusReport.STATE_UNREACHABLE -> "no responde"
+        else -> "parado"
+    }
+    ListRow(
+        marker = if (desktop.isRunning) "[+]" else "[-]",
+        markerColor = if (desktop.isRunning) TitanColors.Success else TitanColors.Mute,
+        title = "Ayudante del mouse pad",
+        subtitle = state + if (desktop.task) " · tarea programada registrada" else "",
+        trailing = {
+            TitanButton("[x] Quitar", onClick = onAsk, kind = ButtonKind.SECONDARY)
+        },
+    )
 }
 
 /** The agent's own lines: version, uptime and memory, or why there is nothing to show. */

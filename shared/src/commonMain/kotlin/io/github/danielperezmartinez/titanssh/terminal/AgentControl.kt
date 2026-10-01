@@ -53,6 +53,14 @@ class AgentControl(private val session: SshSession, private val launch: AgentLau
         run("--stop").requireSuccess("--stop")
     }
 
+    /**
+     * `--remove-desktop`: stops the mouse pad's desktop helper and deletes its
+     * scheduled task and executable copies (ADR-0016). Nothing to remove succeeds.
+     */
+    suspend fun removeDesktop() {
+        run("--remove-desktop").requireSuccess("--remove-desktop")
+    }
+
     private suspend fun run(vararg args: String): ExecResult = session.execCollect(launch.command(*args))
 
     private fun ExecResult.requireSuccess(what: String) {
