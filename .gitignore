@@ -30,6 +30,8 @@ docs/**/Screenshot_*.png
 .claude/skills/
 # Personal Claude Code settings (never shared)
 .claude/settings.local.json
+# Git worktrees that agent sessions create to work without touching the main tree
+.claude/worktrees/
 
 # Android release signing keys: never versioned (ADR-0011 §5)
 *.jks
