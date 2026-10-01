@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-10-01T10:35:00+02:00
+Última modificación: 2026-10-01T18:25:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -188,6 +188,15 @@ mismo commit).
   - Petición del usuario (2026-10-01): grupos de hosts y de sesiones
     independientes y anidables, mostrados como carpetas plegables en sus
     listas y en la lanzadera. Configuración versión 3.
+- [ ] **10k. Sesión mouse pad** (seguir el orden interno de
+  [[Sesión mouse pad para controlar el escritorio del destino]])
+  - [ ] 10k.1 [[Mouse pad en destinos Windows]]: primero la ADR; incluye la
+    base común (tipo de sesión, protocolo de entrada y pestaña de gestos).
+  - [ ] 10k.2 [[Mouse pad en destinos Linux X11]], solo si el usuario lo pide.
+  - [ ] 10k.3 [[Mouse pad en destinos Linux Wayland]], solo si el usuario lo
+    pide. 👤 El respaldo con uinput exige una preparación con root.
+  - Petición del usuario (2026-10-01): controlar el ratón y el teclado del PC
+    desde el móvil. Sobre todo destinos Windows, que van primero.
 
 ### Fase 5 · Distribución pública
 
@@ -712,4 +721,10 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   de scripts y túneles funciona bien. [[Sin rastro de la automatización en destinos Windows]]
   (paso 10f) y [[Quitar scripts y túneles desde la ficha de la sesión]] (paso 10i)
   pasan a `Hecha`.
+- 2026-10-01 — Nueva petición del usuario: una sesión **mouse pad** para
+  controlar el ratón y el teclado del destino desde el móvil (paso 10k).
+  Tarea paraguas [[Sesión mouse pad para controlar el escritorio del destino]]
+  con tres subtareas: Windows (primero, con la ADR y la base común), Linux
+  X11 y Linux Wayland. El usuario acepta en Windows una tarea programada
+  visible para lanzar el ayudante en su escritorio.
 
