@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-10-01T01:05:00+02:00
+Última modificación: 2026-10-01T10:35:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -160,14 +160,14 @@ mismo commit).
     (`Hecha` el 2026-09-30)
   - Encontrado por el usuario en el emulador: el centinela `__TITAN_…__` a la
     vista, líneas largas cortadas por la derecha y tirones con el teclado.
-- [ ] **10f. Sin rastro de la automatización en Windows**
-  - [[Sin rastro de la automatización en destinos Windows]]
+- [x] **10f. Sin rastro de la automatización en Windows**
+  - [[Sin rastro de la automatización en destinos Windows]] (`Hecha` el 2026-10-01)
   - Sale de la prueba del usuario de 10e: restos del centinela al
     reengancharse a una sesión viva, el centinela del último script leído por
     `pwsh`, y el centinela visible en Windows. El primero es un fallo que
     descuadra la terminal; va primero.
-  - 2026-10-01: los tres hechos y probados en el emulador. 👤 Falta que el
-    usuario lo pruebe y acepte el hueco en blanco que deja en Windows.
+  - 2026-10-01: probado por el usuario en su dispositivo; ya no aparecen los
+    centinelas `__TITAN_…__`.
 - [x] **10g. Detalle de las sesiones del agente**
   - [[Detalle de las sesiones del agente en el panel]] (`Hecha` el 2026-09-30)
   - Petición del usuario: ver en el panel del agente qué sesiones son
@@ -178,11 +178,11 @@ mismo commit).
   - Encontrado en las pruebas de 10g: `~/proyecto` falla porque la ruta va
     entre comillas simples. Pequeña; se puede hacer junto a 10f, que también
     toca la automatización de inicio.
-- [ ] **10i. Quitar scripts y túneles desde la ficha**
-  - [[Quitar scripts y túneles desde la ficha de la sesión]]
+- [x] **10i. Quitar scripts y túneles desde la ficha**
+  - [[Quitar scripts y túneles desde la ficha de la sesión]] (`Hecha` el 2026-10-01)
   - Petición del usuario (2026-10-01): un `[x]` en cada fila; en un script de
-    la biblioteca solo lo quita de la sesión. Hecho y probado en el emulador.
-    👤 Falta que el usuario lo pruebe.
+    la biblioteca solo lo quita de la sesión. Hecho y probado en el emulador,
+    y validado por el usuario.
 - [x] **10j. Grupos como carpetas**
   - [[Grupos de hosts y de sesiones como carpetas]] (`Hecha` el 2026-10-01)
   - Petición del usuario (2026-10-01): grupos de hosts y de sesiones
@@ -695,9 +695,21 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
 - 2026-09-30 — El usuario probó la APK de `v0.1.0-beta.8` en el Pixel 9 y
   confirma que funciona bien. [[Detalle de las sesiones del agente en el panel]]
   (paso 10g) pasa a `Hecha`.
-- 2026-10-01 — **Paso 10f** hecho a falta de la prueba del usuario:
+- 2026-10-01 — **Paso 10f** hecho:
   [[Sin rastro de la automatización en destinos Windows]]. El reenganche a un
   destino Windows ya no descuadra la terminal, el último paso de la cadena va
   sin centinela (un último `pwsh` ya no caduca) y en Windows el centinela se
   vacía en su sitio, dejando un hueco en blanco. Probado en el emulador contra
   el sshd de Windows y el contenedor de pruebas.
+- 2026-10-01 — **Publicada
+  [`v0.1.0-beta.9`](https://github.com/danielperezmartinez/titan-ssh/releases/tag/v0.1.0-beta.9)**,
+  con [[Sin rastro de la automatización en destinos Windows]] (paso 10f),
+  [[Quitar scripts y túneles desde la ficha de la sesión]] (paso 10i) y
+  [[Grupos de hosts y de sesiones como carpetas]] (paso 10j). El run
+  `36789594455` acaba bien.
+- 2026-10-01 — El usuario probó la APK de `v0.1.0-beta.9` y confirma que ya no
+  aparecen los centinelas `__TITAN_…__` en Windows y que la eliminación/desvinculación
+  de scripts y túneles funciona bien. [[Sin rastro de la automatización en destinos Windows]]
+  (paso 10f) y [[Quitar scripts y túneles desde la ficha de la sesión]] (paso 10i)
+  pasan a `Hecha`.
+

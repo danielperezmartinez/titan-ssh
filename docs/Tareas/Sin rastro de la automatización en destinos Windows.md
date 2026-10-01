@@ -1,11 +1,11 @@
 ---
 Nombre: 'Sin rastro de la automatización en destinos Windows'
-Estado: 'En curso'
+Estado: 'Hecha'
 Resumen: 'En un destino Windows, la automatización de la sesión sigue dejando rastro en la terminal, y a veces la estropea. Son tres puntos que el usuario vio el 2026-09-30 en el Pixel, por nivel 3. (1) Una pestaña que se engancha a una sesión del agente que ya existía no comprueba la shell del destino, la trata como POSIX y borra filas en una consola ConPTY: quedan trozos del centinela y se pierde el prompt. (2) El último script escribe un centinela aunque detrás no haya nada que esperar; si ese script lanza otra shell (pwsh), el centinela de cmd.exe lo lee PowerShell, sale tal cual y el script caduca a los 30 s. (3) En Windows el centinela no se borra; se probará a vaciar sus filas en su sitio en vez de quitarlas. Hecho el 2026-10-01 y probado en el emulador: el reenganche ya no oculta nada hasta conocer la shell, el último paso va sin centinela, y en Windows las líneas del centinela se vacían sin mover filas (queda un hueco en blanco). Falta que el usuario lo pruebe y acepte ese hueco.'
 Decisiones: 'Sale de [[Terminal fluida con ajuste de líneas y sin rastro de la automatización]] al cerrarla (2026-09-30), por petición del usuario. Que la misma sesión guardada en dos pestañas comparta el PTY es lo decidido en [[Transparencia y control del agente en el destino]] y no cambia. Continúa [[Ruta inicial y scripts de inicio en destinos Windows]].'
 Bloqueada: []
 Fecha de creación: 2026-09-30T21:00:00+02:00
-Última modificación: 2026-10-01T00:40:00+02:00
+Última modificación: 2026-10-01T10:35:00+02:00
 ---
 
 # Sin rastro de la automatización en destinos Windows
@@ -154,7 +154,19 @@ filas en ConPTY.
     `SessionTabAgentAutomationTest`.
 - La sesión "Apps (agente)" del emulador conserva los dos scripts de la
   prueba. Copia previa de la config en `files/titan-config/config.pre-10f.bak`.
-- **Pendiente** 👤: que el usuario lo pruebe y diga si los huecos en blanco en
-  Windows le valen. Hasta entonces la tarea sigue `En curso`.
+- **Prueba del usuario** (2026-10-01): el usuario probó la APK (`v0.1.0-beta.9`)
+  en su dispositivo y confirmó que funciona bien y que ya no aparecen los
+  centinelas `__TITAN_…__`.
 
 ## Resultado
+
+Completada y verificada. La automatización en destinos Windows ya no estropea la
+consola ni deja centinelas visibles:
+1. Al reengancharse a una sesión viva del agente se detecta la shell antes de
+   aplicar cualquier borrado, evitando descuadres en ConPTY.
+2. El último paso de una cadena de automatización no genera centinela de fin,
+   impidiendo que un script final que invoque `pwsh` desde `cmd.exe` lo consuma
+   como entrada y caduque.
+3. En Windows las filas del centinela se vacían en su posición original sin
+   provocar saltos de línea ni desplazamiento de scrollback.
+Validado por el usuario en `v0.1.0-beta.9`.

@@ -1,11 +1,11 @@
 ---
 Nombre: 'Quitar scripts y túneles desde la ficha de la sesión'
-Estado: 'En curso'
+Estado: 'Hecha'
 Resumen: 'En la ficha de una sesión, cada fila de script y de túnel lleva un [x] en danger que pide confirmación en la propia fila. En un script de la biblioteca es "quitar": solo lo saca de esta sesión y el script sigue en la biblioteca y en las demás sesiones. En un script propio o un túnel es "eliminar", porque no existe en otro sitio. El botón de la cabecera del editor de script dice [x] Quitar en un script de la biblioteca y [x] Eliminar en uno propio. Como el resto de la ficha, el cambio se aplica al guardar la sesión.'
 Decisiones: 'Pedida por el usuario el 2026-10-01. Se descartó que la fila abriese el script maestro de la biblioteca (y que [x] lo borrase del todo): la referencia guarda la fase, el habilitado y la reconexión propios de la sesión, que el maestro no tiene; los scripts propios no tienen maestro; y borrar el maestro dejaría rotas las demás sesiones que lo usan (ver [[ADR-0013 Biblioteca de scripts unificada con los snippets]]). Sigue [[Filas de lista con acciones contextuales desplegables]] para la confirmación en línea.'
 Bloqueada: []
 Fecha de creación: 2026-10-01T00:25:00+02:00
-Última modificación: 2026-10-01T00:25:00+02:00
+Última modificación: 2026-10-01T10:35:00+02:00
 ---
 
 # Quitar scripts y túneles desde la ficha de la sesión
@@ -63,4 +63,15 @@ nombre hacía pensar que borraba el script de la biblioteca.
     ficha, sigue ahí.
   - Después se restauró la config del emulador desde una copia
     (`config.pre-remove.bak`).
-- **Pendiente**: que el usuario lo pruebe en el emulador y lo dé por bueno.
+- **Prueba del usuario** (2026-10-01): el usuario probó la funcionalidad en su
+  dispositivo y confirmó que funciona correctamente.
+
+## Resultado
+
+Completada y verificada. Cada fila de script y de túnel en la ficha de una
+sesión incluye un botón `[x]` con confirmación en línea:
+- Si el script procede de la biblioteca, la acción es "Quitar de la sesión"
+  (manteniéndolo en la biblioteca y en el resto de sesiones).
+- Si es un script propio o un túnel, la acción es "Eliminar" definitivamente.
+- La cabecera del editor muestra coherentemente `[x] Quitar` o `[x] Eliminar`.
+Validado por el usuario en `v0.1.0-beta.9`.
