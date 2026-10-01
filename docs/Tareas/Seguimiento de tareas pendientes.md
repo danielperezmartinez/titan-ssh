@@ -770,7 +770,6 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   atajos. 👤 Falta que el usuario pruebe los gestos de dos dedos, el teclado
   del móvil y el PC bloqueado. Se aparca
   [[Desbloqueo del destino Windows con un servicio de sistema]].
-
 - 2026-10-01 — Primera auditoría de seguridad,
   [[Auditoría 2026-10-01 Completa]], con la que nace el sistema
   [[Auditorías de seguridad]] y la norma de la regla 5 del [[README]] sobre
