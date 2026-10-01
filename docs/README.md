@@ -114,6 +114,32 @@ nota-índice en `Catálogo técnico.md`.
 - Cada nota es un puntero corto: la **implementación** sigue siendo la fuente
   de verdad técnica del contrato.
 
+### Auditorías de seguridad
+
+_Versión del sistema: 1._
+
+Revisiones de seguridad manuales y periódicas, una nota por auditoría en
+`Auditorías de seguridad/`, indexadas por
+`Auditorías de seguridad/Auditorías de seguridad.base`. La nota-índice
+`Auditorías de seguridad.md` es la fuente de verdad del procedimiento: niveles,
+cadencia, herramientas y checklist.
+
+- `Tipo` ∈ `Release` · `Trimestral` · `Completa` (anual o tras un cambio
+  mayor).
+- `Estado` ∈ `Planificada` · `En curso` · `Cerrada`. Una auditoría se cierra
+  cuando **cada hallazgo tiene destino** (aviso privado con su `GHSA-…`, o
+  tarea), no cuando están todos corregidos. Al cerrarla se fija
+  `Próxima auditoría`.
+- **Hallazgos sensibles**: solo como referencia opaca `SEC-AAAA-NN`; su
+  contenido vive en el aviso privado (regla 5, "Vulnerabilidades y hallazgos
+  de seguridad"). **Hallazgos no sensibles**: una tarea enlazada desde
+  `Hallazgos públicos`.
+- Una auditoría cerrada no se reescribe: el seguimiento de cada hallazgo vive
+  en su aviso o en su tarea. Solo se actualiza la fila de un hallazgo cuando su
+  aviso se publica.
+- Antes de crear una auditoría se revisa si hay una `Planificada` para ese
+  periodo y se usa esa.
+
 ## Reglas fundamentales del proyecto
 
 ### 1. Idioma de código y documentación
@@ -217,6 +243,8 @@ después no lo quita del historial, de los forks ni de las cachés.
   rutas personales (`C:\Users\<nombre>`, `/home/<nombre>`, unidades y carpetas
   propias), huellas de claves de host, correos personales ni la topología de su
   red.
+- Vulnerabilidades sin corregir: van solo a avisos privados de GitHub (ver
+  "Vulnerabilidades y hallazgos de seguridad" más abajo).
 
 **Cómo se hace en su lugar:**
 
@@ -238,6 +266,42 @@ después no lo quita del historial, de los forks ni de las cachés.
 - Si algo sensible ya se ha subido, se avisa al usuario **de inmediato**. No se
   reescribe el historial ni se fuerza un push sin su permiso explícito. Si era
   un secreto, se da por comprometido y se revoca o se rota.
+
+#### Vulnerabilidades y hallazgos de seguridad
+
+Una vulnerabilidad sin corregir es tan sensible como un secreto: publicarla en
+el repositorio es explicar cómo atacar a quien usa la versión publicada.
+
+- **Criterio.** Un hallazgo es **sensible** si describe cómo dañar, espiar o
+  engañar a usuarios de una versión ya publicada y todavía no hay una versión
+  publicada que lo corrija. Ante la duda, se trata como sensible.
+- **Dónde vive.** Cada hallazgo sensible es un **aviso privado de GitHub**
+  (*Security Advisory* en borrador, en la pestaña *Security* del repositorio),
+  uno por hallazgo: descripción, cómo reproducirlo, impacto, severidad y
+  propuesta de arreglo. Es su única fuente de verdad mientras no se publique.
+- **Qué nunca lo cuenta** mientras no se publique el arreglo: esta bóveda, los
+  mensajes de commit, los nombres de rama, los títulos y cuerpos de PR, las
+  issues, los comentarios de código, los nombres de test ni los checklists de
+  auditoría. Las comprobaciones de regresión específicas de un hallazgo se
+  añaden al checklist cuando su aviso se publica.
+- **En la bóveda** solo se anota una referencia opaca: `SEC-AAAA-NN`
+  (correlativo por año, no se reutiliza), severidad, estado y el ID `GHSA-…`
+  del aviso. Nunca un título descriptivo.
+- **El arreglo** se prepara en el fork privado temporal del aviso o, si va
+  directo a `main`, con un mensaje de commit neutro que no explique el fallo.
+  Se publica una versión con el arreglo cuanto antes.
+- **Al publicar el arreglo** se publica el aviso (con CVE si procede). A partir
+  de ahí la bóveda ya puede enlazarlo y describirlo, y la auditoría que lo
+  encontró se actualiza.
+- **Lo no sensible** (endurecimiento general, CVE públicos de dependencias cuyas
+  versiones ya están a la vista, piezas de infraestructura que faltan) se
+  gestiona con tareas normales.
+- **Los agentes** no crean, publican ni cierran avisos por su cuenta: preparan
+  el borrador y el usuario lo da de alta, o autoriza a hacerlo en esa sesión.
+  Publicar un aviso es irreversible.
+- Si un hallazgo sensible llega al repositorio por error, se aplica la misma
+  regla que a un secreto: avisar al usuario de inmediato, no reescribir el
+  historial sin su permiso y priorizar el arreglo.
 
 ## Propósito del proyecto
 

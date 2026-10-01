@@ -1,0 +1,79 @@
+filters:
+  and:
+    - file.inFolder("Auditorías de seguridad")
+    - file.ext == "md"
+    - Estado != null
+formulas:
+  created_display: note["Fecha de creación"].format("DD-MM-YYYY HH:mm")
+  updated_display: note["Última modificación"].format("DD-MM-YYYY HH:mm")
+properties:
+  file.name:
+    displayName: Auditoría
+  Tipo:
+    displayName: Tipo
+  Estado:
+    displayName: Estado
+  Fecha:
+    displayName: Fecha
+  Versión auditada:
+    displayName: Versión
+  Resumen:
+    displayName: Resumen
+  Hallazgos privados:
+    displayName: Privados
+  Hallazgos públicos:
+    displayName: Públicos
+  Próxima auditoría:
+    displayName: Próxima
+  formula.created_display:
+    displayName: Creada
+  formula.updated_display:
+    displayName: Modificada
+views:
+  - type: table
+    name: Todo
+    order:
+      - Fecha
+      - file.name
+      - Tipo
+      - Estado
+      - Versión auditada
+      - Resumen
+      - Hallazgos privados
+      - Hallazgos públicos
+      - Próxima auditoría
+      - formula.updated_display
+    sort:
+      - property: Fecha
+        direction: DESC
+  - type: table
+    name: Abiertas
+    filters:
+      or:
+        - Estado == "Planificada"
+        - Estado == "En curso"
+    order:
+      - Fecha
+      - file.name
+      - Tipo
+      - Estado
+      - Resumen
+      - Hallazgos privados
+    sort:
+      - property: Fecha
+        direction: ASC
+  - type: table
+    name: Cerradas
+    filters:
+      and:
+        - Estado == "Cerrada"
+    order:
+      - Fecha
+      - file.name
+      - Tipo
+      - Versión auditada
+      - Resumen
+      - Próxima auditoría
+    sort:
+      - property: Fecha
+        direction: DESC

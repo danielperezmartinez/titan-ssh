@@ -198,6 +198,32 @@ mismo commit).
   - Petición del usuario (2026-10-01): controlar el ratón y el teclado del PC
     desde el móvil. Sobre todo destinos Windows, que van primero.
 
+### Seguridad · Antes de la distribución pública
+
+Sale de la [[Auditoría 2026-10-01 Completa]] (sistema
+[[Auditorías de seguridad]]). Va antes de la fase 5: no conviene llevar la app
+a usuarios ajenos con hallazgos de severidad alta abiertos. Los hallazgos
+sensibles **no** tienen tarea: se siguen en su aviso privado de GitHub (regla
+5 del [[README]]).
+
+- [ ] **S1. Canal privado y avisos** 👤 (el usuario activa el aviso privado de
+  vulnerabilidades y da de alta los borradores)
+  - [[Política de seguridad y avisos privados en GitHub]]
+  - Va primero: los arreglos de S2 se coordinan desde esos avisos.
+- [ ] **S2. Corregir los hallazgos privados de la auditoría 2026-10-01**
+  (`SEC-2026-01` … `SEC-2026-09`, primero los de severidad alta)
+  - Cada arreglo, con un commit de mensaje neutro o en el fork privado del
+    aviso, y en la siguiente pre-release. Al publicarla se publica el aviso.
+- [ ] **S3. Dependencias criptográficas**
+  - [[Actualizar sshj y BouncyCastle y retirar EdDSA-Java]]
+  - Puede ir junto a S2 si un arreglo toca la configuración de sshj.
+- [ ] **S4. Cadena de suministro** 👤 (activar los avisos de Dependabot)
+  - [[Endurecer la cadena de suministro]]
+- [ ] **S5. Primera auditoría trimestral**, como muy tarde el 2027-01-01, con
+  las pruebas dinámicas que la primera auditoría dejó pendientes.
+- Aparcada hasta que el usuario decida:
+  [[Pedir desbloqueo o biometría para usar las credenciales]] (`Planificando`).
+
 ### Fase 5 · Distribución pública
 
 Tiene sentido cuando el producto esté listo para usuarios ajenos (tras la
@@ -742,3 +768,10 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   del móvil y el PC bloqueado. Se aparca
   [[Desbloqueo del destino Windows con un servicio de sistema]].
 
+- 2026-10-01 — Primera auditoría de seguridad,
+  [[Auditoría 2026-10-01 Completa]], con la que nace el sistema
+  [[Auditorías de seguridad]] y la norma de la regla 5 del [[README]] sobre
+  vulnerabilidades: los hallazgos sensibles van solo a avisos privados de
+  GitHub. Nueva sección **Seguridad** antes de la fase 5, con cuatro tareas
+  públicas y los nueve hallazgos privados `SEC-2026-01` … `SEC-2026-09`.
+  👤 Siguiente: S1.

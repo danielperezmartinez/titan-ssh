@@ -22,6 +22,10 @@ reglas del proyecto.
 
 [[Catálogo técnico|Abrir la nota-índice del catálogo técnico]]
 
+### Auditorías de seguridad
+
+[[Auditorías de seguridad|Abrir la nota-índice de las auditorías de seguridad]]
+
 ## Próximos sistemas
 
 - Ningún sistema adicional pendiente por ahora. Para añadir uno nuevo, reinvoca
