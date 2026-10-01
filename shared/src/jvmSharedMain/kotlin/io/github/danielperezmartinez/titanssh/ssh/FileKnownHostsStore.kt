@@ -1,6 +1,8 @@
 package io.github.danielperezmartinez.titanssh.ssh
 
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -33,6 +35,26 @@ class FileKnownHostsStore(private val file: File) : KnownHostsStore {
         mutex.withLock {
             file.parentFile?.mkdirs()
             file.appendText(formatLine(entry) + "\n")
+        }
+    }
+
+    override suspend fun replace(entry: KnownHostEntry) = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            // Every other line stays as it was, comments and unparsable ones included.
+            val kept = if (file.exists()) {
+                file.readLines().filter { line ->
+                    val parsed = parseLine(line)
+                    parsed == null || parsed.host != entry.host || parsed.port != entry.port
+                }
+            } else {
+                emptyList()
+            }
+            file.parentFile?.mkdirs()
+            // Written aside and moved over, so a crash never leaves a half file.
+            val next = File(file.parentFile, file.name + ".new")
+            next.writeText((kept + formatLine(entry)).joinToString("\n", postfix = "\n"))
+            Files.move(next.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+            Unit
         }
     }
 

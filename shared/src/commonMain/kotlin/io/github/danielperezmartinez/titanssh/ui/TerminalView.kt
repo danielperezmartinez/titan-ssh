@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.sp
 import io.github.danielperezmartinez.titanssh.config.SessionScript
 import io.github.danielperezmartinez.titanssh.terminal.AccessoryKey
 import io.github.danielperezmartinez.titanssh.terminal.AgentDiagnostics
+import io.github.danielperezmartinez.titanssh.terminal.ChangedHostKey
 import io.github.danielperezmartinez.titanssh.terminal.DefaultAccessoryKeys
 import io.github.danielperezmartinez.titanssh.terminal.EffectiveLevel
 import io.github.danielperezmartinez.titanssh.terminal.ModifierKind
@@ -109,6 +110,7 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier, scripts: List<S
     val resilience by tab.resilience.collectAsState()
     val tunnels by tab.tunnels.collectAsState()
     val pendingHostKey by tab.pendingHostKey.collectAsState()
+    val changedHostKey by tab.changedHostKey.collectAsState()
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
 
@@ -184,6 +186,10 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier, scripts: List<S
                 onAccept = { pendingHostKey!!.accept() },
                 onReject = { pendingHostKey!!.reject() },
             )
+            Hairline()
+        }
+        changedHostKey?.let { changed ->
+            ChangedHostKeyBar(changed, onReplace = { scope.launch { tab.replaceHostKey() } })
             Hairline()
         }
 
@@ -557,6 +563,49 @@ internal fun HostKeyPromptBar(
         Row(horizontalArrangement = Arrangement.spacedBy(TitanDimens.SpaceSm)) {
             TitanButton("[ok] Confiar", onClick = onAccept, kind = ButtonKind.PRIMARY)
             TitanButton("[x] Rechazar", onClick = onReject, kind = ButtonKind.DANGER)
+        }
+    }
+}
+
+/**
+ * Alarm for a host key that differs from the trusted ones (ADR-0005): the
+ * connection is already blocked. Replacing the stored key takes two steps, so
+ * it is never a reflex tap like the first-contact [HostKeyPromptBar].
+ */
+@Composable
+internal fun ChangedHostKeyBar(changed: ChangedHostKey, onReplace: () -> Unit) {
+    var confirming by remember(changed) { mutableStateOf(false) }
+    val presented = changed.presented
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(TitanColors.Surface)
+            .padding(TitanDimens.SpaceMd),
+    ) {
+        Text(
+            "[!] La clave de ${presented.host}:${presented.port} ha cambiado",
+            style = MaterialTheme.typography.bodyLarge,
+            color = TitanColors.Danger,
+        )
+        Spacer(Modifier.height(TitanDimens.SpaceXs))
+        Caption(
+            "Alguien podría estar haciéndose pasar por el servidor. Si no sabes por qué ha cambiado " +
+                "(una reinstalación, una clave nueva), no te conectes y compruébalo con quien lo administra.",
+            color = TitanColors.Body,
+        )
+        Spacer(Modifier.height(TitanDimens.SpaceXs))
+        changed.stored.forEach { Caption("Guardada: ${it.keyType}  ·  ${it.fingerprintSha256}") }
+        Caption("Recibida: ${presented.keyType}  ·  ${presented.fingerprintSha256}")
+        Spacer(Modifier.height(TitanDimens.SpaceSm))
+        if (!confirming) {
+            TitanButton("[!] Sustituir la clave guardada", onClick = { confirming = true }, kind = ButtonKind.DANGER)
+        } else {
+            Caption("La clave recibida pasará a ser la de confianza para este host.", color = TitanColors.Warning)
+            Spacer(Modifier.height(TitanDimens.SpaceXs))
+            Row(horizontalArrangement = Arrangement.spacedBy(TitanDimens.SpaceSm)) {
+                TitanButton("[!] Sí, sustituirla", onClick = onReplace, kind = ButtonKind.DANGER)
+                TitanButton("[x] Cancelar", onClick = { confirming = false })
+            }
         }
     }
 }

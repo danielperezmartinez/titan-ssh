@@ -32,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,6 +70,7 @@ import io.github.danielperezmartinez.titanssh.terminal.SessionTab
 import io.github.danielperezmartinez.titanssh.terminal.TabPhase
 import io.github.danielperezmartinez.titanssh.terminal.TabStatus
 import io.github.danielperezmartinez.titanssh.terminal.isAndroidRuntime
+import kotlinx.coroutines.launch
 import io.github.danielperezmartinez.titanssh.theme.TitanColors
 import io.github.danielperezmartinez.titanssh.theme.TitanDimens
 
@@ -89,6 +91,8 @@ fun MousepadView(tab: SessionTab, modifier: Modifier = Modifier) {
     val status by tab.status.collectAsState()
     val pad by tab.mousepad.collectAsState()
     val pendingHostKey by tab.pendingHostKey.collectAsState()
+    val changedHostKey by tab.changedHostKey.collectAsState()
+    val scope = rememberCoroutineScope()
     val motion = remember(tab.id) { MousepadMotion(tab.resolved.session.mousepad) }
     val density = LocalDensity.current
     val haptics = LocalHapticFeedback.current
@@ -138,6 +142,10 @@ fun MousepadView(tab: SessionTab, modifier: Modifier = Modifier) {
                 onAccept = { pending.accept() },
                 onReject = { pending.reject() },
             )
+            Hairline()
+        }
+        changedHostKey?.let { changed ->
+            ChangedHostKeyBar(changed, onReplace = { scope.launch { tab.replaceHostKey() } })
             Hairline()
         }
         MousepadStatusStrip(status, pad, onReconnect = { tab.reconnectNow() })

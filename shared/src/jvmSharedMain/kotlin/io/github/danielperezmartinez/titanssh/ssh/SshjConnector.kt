@@ -63,8 +63,12 @@ internal class SshjConnector : SshConnector {
                     return true
                 }
 
+                // sshj puts these first in its host key proposal, so a host keeps
+                // presenting the key that was trusted for it.
                 override fun findExistingAlgorithms(hostname: String, port: Int): List<String> =
-                    emptyList()
+                    runBlocking { hostKeyVerifier.knownKeyTypes(hostname, port) }
+                        .flatMap(::hostKeyAlgorithmsFor)
+                        .distinct()
             },
         )
 
@@ -156,6 +160,13 @@ internal fun sshFingerprintSha256(blob: ByteArray): String {
 /** Standard `SHA256:<base64-no-pad>` fingerprint of an SSH public key. */
 internal fun sshFingerprintSha256(key: PublicKey): String =
     sshFingerprintSha256(sshPublicKeyBlob(key))
+
+/**
+ * The host key algorithm names that sign with a key of [keyType]. Only RSA
+ * differs: one `ssh-rsa` key serves the SHA-2 signature algorithms as well.
+ */
+internal fun hostKeyAlgorithmsFor(keyType: String): List<String> =
+    if (keyType == "ssh-rsa") listOf("rsa-sha2-512", "rsa-sha2-256", "ssh-rsa") else listOf(keyType)
 
 /** TCP connect timeout for every SSH connection. */
 private const val CONNECT_TIMEOUT_MILLIS = 15_000

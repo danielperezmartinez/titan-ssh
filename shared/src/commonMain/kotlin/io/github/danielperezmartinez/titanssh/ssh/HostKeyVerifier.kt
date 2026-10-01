@@ -31,4 +31,14 @@ data class HostKeyInfo(
 fun interface HostKeyVerifier {
     /** Returns `true` to trust [info] and proceed, `false` to abort. */
     suspend fun verify(info: HostKeyInfo): Boolean
+
+    /**
+     * The key types (e.g. `ssh-ed25519`) already trusted for [host]:[port], so
+     * the engine asks the server for one of them first, as OpenSSH does. Empty
+     * leaves the engine's own preference order.
+     */
+    suspend fun knownKeyTypes(host: String, port: Int): List<String> = emptyList()
 }
+
+/** The standard `SHA256:...` fingerprint of a host key blob given in base64. */
+expect fun hostKeyFingerprint(publicKeyBase64: String): String

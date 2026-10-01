@@ -2,6 +2,7 @@ package io.github.danielperezmartinez.titanssh.terminal
 
 import io.github.danielperezmartinez.titanssh.config.Host
 import io.github.danielperezmartinez.titanssh.config.HostAuth
+import io.github.danielperezmartinez.titanssh.ssh.HostKeyRejection
 import io.github.danielperezmartinez.titanssh.ssh.HostTrustPrompt
 import io.github.danielperezmartinez.titanssh.ssh.KnownHostsStore
 import io.github.danielperezmartinez.titanssh.ssh.KnownHostsVerifier
@@ -45,12 +46,22 @@ class AgentHostAccess(
         try {
             val deployer = agentDeployer ?: throw AgentControlException("Esta compilación no incluye el agente")
             val creds = credentialResolver.resolve(host.auth)
-            val verifier = KnownHostsVerifier(knownHostsStore, HostTrustPrompt { false })
+            var rejection: HostKeyRejection? = null
+            val verifier = KnownHostsVerifier(
+                store = knownHostsStore,
+                acceptNewHosts = false,
+                onRejected = { rejection = it },
+                prompt = HostTrustPrompt { false },
+            )
             val session = try {
                 connector.connect(host.endpoint, creds, verifier, host.keepAliveSeconds)
             } catch (e: SshHostKeyRejected) {
                 throw AgentControlException(
-                    "La clave de este host no es de confianza todavía: abre una sesión con él para confirmarla",
+                    if (rejection is HostKeyRejection.Changed) {
+                        "La clave de este host ha cambiado: abre una sesión con él para revisarla"
+                    } else {
+                        "La clave de este host no es de confianza todavía: abre una sesión con él para confirmarla"
+                    },
                     e,
                 )
             } finally {

@@ -1,11 +1,14 @@
 package io.github.danielperezmartinez.titanssh.terminal
 
+import io.github.danielperezmartinez.titanssh.config.HostKeyPolicy
 import io.github.danielperezmartinez.titanssh.config.ResilienceLevel
 import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
 import io.github.danielperezmartinez.titanssh.config.SessionScript
 import io.github.danielperezmartinez.titanssh.config.SessionType
 import io.github.danielperezmartinez.titanssh.ssh.HostKeyInfo
+import io.github.danielperezmartinez.titanssh.ssh.HostKeyRejection
 import io.github.danielperezmartinez.titanssh.ssh.HostKeyVerifier
+import io.github.danielperezmartinez.titanssh.ssh.KnownHostEntry
 import io.github.danielperezmartinez.titanssh.ssh.KnownHostsStore
 import io.github.danielperezmartinez.titanssh.ssh.KnownHostsVerifier
 import io.github.danielperezmartinez.titanssh.ssh.SshAuthFailed
@@ -17,6 +20,7 @@ import io.github.danielperezmartinez.titanssh.ssh.SshException
 import io.github.danielperezmartinez.titanssh.ssh.SshHostKeyRejected
 import io.github.danielperezmartinez.titanssh.ssh.SshSession
 import io.github.danielperezmartinez.titanssh.ssh.SshShell
+import io.github.danielperezmartinez.titanssh.ssh.toKnownHostEntry
 import io.github.danielperezmartinez.titanssh.ssh.trust
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -36,6 +40,13 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
+
+/** A tab's failure detail for a refused host key; null [why] when no reason was recorded. */
+internal fun hostKeyRejectedDetail(why: HostKeyRejection?): String = when (why) {
+    is HostKeyRejection.Changed -> "La clave del host ha cambiado: conexión bloqueada"
+    is HostKeyRejection.NotTrusted -> "Host sin clave de confianza: la política STRICT no acepta claves nuevas"
+    is HostKeyRejection.Declined, null -> "Clave de host rechazada"
+}
 
 /** Lifecycle phase of one terminal tab, surfaced in the tab strip. */
 enum class TabPhase { CONNECTING, CONNECTED, RECONNECTING, DISCONNECTED, FAILED }
@@ -86,6 +97,13 @@ class PendingHostKey internal constructor(
 }
 
 /**
+ * The server presented a key other than the ones trusted for it (ADR-0005): the
+ * connection was blocked. The UI shows [presented] next to [stored]; only the
+ * user's deliberate [SessionTab.replaceHostKey] trusts the new key.
+ */
+data class ChangedHostKey(val presented: HostKeyInfo, val stored: List<KnownHostEntry>)
+
+/**
  * One open terminal tab: owns a single SSH connection and its interactive shell,
  * drives a [TerminalEmulator] from the shell output, and exposes observable
  * [status] and [snapshot] for the UI. Input goes back out through [sendBytes];
@@ -93,7 +111,8 @@ class PendingHostKey internal constructor(
  *
  * The connection is opened by [start]; failures land in [status] as
  * [TabPhase.FAILED] rather than throwing, so the tab stays visible with its
- * reason. Trust-on-first-use prompts surface through [pendingHostKey].
+ * reason. Trust-on-first-use prompts surface through [pendingHostKey], and a
+ * key that differs from the trusted ones through [changedHostKey].
  *
  * ## Resilience level 1 ([[Resiliencia de sesión ante microcortes de red]])
  * Once a session has been live, a network micro-cut does not close the tab: the
@@ -191,6 +210,11 @@ class SessionTab(
 
     private val _pendingHostKey = MutableStateFlow<PendingHostKey?>(null)
     val pendingHostKey: StateFlow<PendingHostKey?> = _pendingHostKey.asStateFlow()
+
+    private val _changedHostKey = MutableStateFlow<ChangedHostKey?>(null)
+
+    /** Set while the last attempt was blocked by a changed host key. */
+    val changedHostKey: StateFlow<ChangedHostKey?> = _changedHostKey.asStateFlow()
 
     private val sessionTunnels = SessionTunnels(resolved.session.tunnels)
 
@@ -397,16 +421,26 @@ class SessionTab(
         val prompted = CompletableDeferred<HostKeyInfo>()
         val answer = CompletableDeferred<Boolean>()
         val verified = CompletableDeferred<Unit>()
-        val knownHosts = KnownHostsVerifier(knownHostsStore) { info ->
+        val rejection = CompletableDeferred<HostKeyRejection>()
+        _changedHostKey.value = null
+        val knownHosts = KnownHostsVerifier(
+            store = knownHostsStore,
+            acceptNewHosts = resolved.host.hostKeyPolicy == HostKeyPolicy.TOFU,
+            onRejected = { rejection.complete(it) },
+        ) { info ->
             prompted.complete(info)
             promptHostKey(info, answer)
         }
-        val verifier = HostKeyVerifier { info ->
-            try {
-                knownHosts.verify(info)
-            } finally {
-                verified.complete(Unit)
-            }
+        val verifier = object : HostKeyVerifier {
+            override suspend fun verify(info: HostKeyInfo): Boolean =
+                try {
+                    knownHosts.verify(info)
+                } finally {
+                    verified.complete(Unit)
+                }
+
+            override suspend fun knownKeyTypes(host: String, port: Int): List<String> =
+                knownHosts.knownKeyTypes(host, port)
         }
         val creds = try {
             credentials()
@@ -472,7 +506,9 @@ class SessionTab(
             // up; a drop takes it down (keepalive/heartbeat, ADR-0004).
             return if (droppedWithin(opened)) AttemptResult.DROPPED else AttemptResult.CLEAN_EXIT
         } catch (e: SshHostKeyRejected) {
-            _status.value = TabStatus(TabPhase.FAILED, "Clave de host rechazada")
+            val why = if (rejection.isCompleted) rejection.await() else null
+            if (why is HostKeyRejection.Changed) _changedHostKey.value = ChangedHostKey(why.presented, why.stored)
+            _status.value = TabStatus(TabPhase.FAILED, hostKeyRejectedDetail(why))
             return AttemptResult.FATAL
         } catch (e: SshAuthFailed) {
             _status.value = TabStatus(TabPhase.FAILED, e.message ?: "Autenticación rechazada")
@@ -778,6 +814,18 @@ class SessionTab(
         _pendingHostKey.value = pending
         answer.invokeOnCompletion { _pendingHostKey.compareAndSet(pending, null) }
         return answer.await()
+    }
+
+    /**
+     * Trusts the key in [changedHostKey] in place of the ones stored for its
+     * host and connects again. The UI calls it only once the user has confirmed
+     * it on purpose.
+     */
+    suspend fun replaceHostKey() {
+        val changed = _changedHostKey.value ?: return
+        knownHostsStore.replace(changed.presented.toKnownHostEntry())
+        _changedHostKey.value = null
+        reconnectNow()
     }
 
     /** Sends raw input bytes to the shell — or, on the agent path, as INPUT frames

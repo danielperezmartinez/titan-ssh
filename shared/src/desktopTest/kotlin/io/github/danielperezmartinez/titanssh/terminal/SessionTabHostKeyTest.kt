@@ -2,12 +2,14 @@ package io.github.danielperezmartinez.titanssh.terminal
 
 import io.github.danielperezmartinez.titanssh.config.Host
 import io.github.danielperezmartinez.titanssh.config.HostAuth
+import io.github.danielperezmartinez.titanssh.config.HostKeyPolicy
 import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
 import io.github.danielperezmartinez.titanssh.config.Session
 import io.github.danielperezmartinez.titanssh.config.TerminalAppearance
 import io.github.danielperezmartinez.titanssh.ssh.HostKeyInfo
 import io.github.danielperezmartinez.titanssh.ssh.HostKeyVerifier
 import io.github.danielperezmartinez.titanssh.ssh.InMemoryKnownHostsStore
+import io.github.danielperezmartinez.titanssh.ssh.KnownHostEntry
 import io.github.danielperezmartinez.titanssh.ssh.SshConnectFailed
 import io.github.danielperezmartinez.titanssh.ssh.SshConnectionState
 import io.github.danielperezmartinez.titanssh.ssh.SshConnector
@@ -85,8 +87,11 @@ class SessionTabHostKeyTest {
         }
     }
 
-    private fun resolved(): ResolvedConnection {
-        val host = Host(id = "h", alias = "h", hostname = "x", username = "u", auth = HostAuth.Password("r"))
+    private fun resolved(policy: HostKeyPolicy = HostKeyPolicy.TOFU): ResolvedConnection {
+        val host = Host(
+            id = "h", alias = "h", hostname = "x", username = "u", auth = HostAuth.Password("r"),
+            hostKeyPolicy = policy,
+        )
         return ResolvedConnection(
             session = Session(id = "s", name = "n", hostId = "h"),
             host = host,
@@ -97,9 +102,14 @@ class SessionTabHostKeyTest {
         )
     }
 
-    private fun newTab(scope: CoroutineScope, connector: SshConnector, store: InMemoryKnownHostsStore) = SessionTab(
+    private fun newTab(
+        scope: CoroutineScope,
+        connector: SshConnector,
+        store: InMemoryKnownHostsStore,
+        policy: HostKeyPolicy = HostKeyPolicy.TOFU,
+    ) = SessionTab(
         id = "tab",
-        resolved = resolved(),
+        resolved = resolved(policy),
         connector = connector,
         credentials = { SshCredentials.Password("pw".toCharArray()) },
         knownHostsStore = store,
@@ -188,6 +198,61 @@ class SessionTabHostKeyTest {
         advanceUntilIdle()
         assertNull(tab.pendingHostKey.value, "the prompt is rejected, so nothing waits on it")
         assertEquals(0, store.entriesFor("x", 22).size)
+    }
+
+    @Test
+    fun another_stored_key_blocks_until_the_user_replaces_it() = runTest {
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + Job())
+        val stored = KnownHostEntry("x", 22, "ecdsa-sha2-nistp256", "AAAAE2VjZHNhstored")
+        val store = InMemoryKnownHostsStore(listOf(stored))
+        val connector = HandshakeConnector(scope, interruptVerifier = true)
+        val tab = newTab(scope, connector, store)
+
+        tab.start()
+        advanceUntilIdle()
+
+        assertNull(tab.pendingHostKey.value, "never asked as a new host")
+        assertEquals(TabPhase.FAILED, tab.status.value.phase)
+        assertEquals("La clave del host ha cambiado: conexión bloqueada", tab.status.value.detail)
+        assertEquals(ChangedHostKey(KEY, listOf(stored)), tab.changedHostKey.value)
+        assertEquals(listOf(stored), store.entriesFor("x", 22))
+
+        tab.replaceHostKey()
+        advanceUntilIdle()
+
+        assertEquals(TabPhase.CONNECTED, tab.status.value.phase)
+        assertNull(tab.changedHostKey.value)
+        assertEquals(listOf("AAAAC3NzaC1lZDI1NTE5AAAAItest"), store.entriesFor("x", 22).map { it.publicKeyBase64 })
+        assertEquals(2, connector.calls)
+
+        tab.close()
+    }
+
+    @Test
+    fun strict_policy_connects_only_to_stored_keys() = runTest {
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + Job())
+        val store = InMemoryKnownHostsStore()
+        val tab = newTab(scope, HandshakeConnector(scope, interruptVerifier = true), store, HostKeyPolicy.STRICT)
+
+        tab.start()
+        advanceUntilIdle()
+
+        assertNull(tab.pendingHostKey.value, "STRICT never asks")
+        assertEquals(TabPhase.FAILED, tab.status.value.phase)
+        assertEquals(
+            "Host sin clave de confianza: la política STRICT no acepta claves nuevas",
+            tab.status.value.detail,
+        )
+        assertNull(tab.changedHostKey.value)
+        assertEquals(0, store.entriesFor("x", 22).size)
+        tab.close()
+
+        store.add(KnownHostEntry("x", 22, KEY.keyType, KEY.publicKeyBase64))
+        val known = newTab(scope, HandshakeConnector(scope, interruptVerifier = true), store, HostKeyPolicy.STRICT)
+        known.start()
+        advanceUntilIdle()
+        assertEquals(TabPhase.CONNECTED, known.status.value.phase)
+        known.close()
     }
 
     private companion object {
