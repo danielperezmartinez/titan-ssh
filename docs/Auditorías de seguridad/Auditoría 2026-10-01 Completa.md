@@ -1,10 +1,10 @@
 ---
 Nombre: 'Auditoría 2026-10-01 Completa'
 Tipo: 'Completa'
-Estado: 'En curso'
+Estado: 'Cerrada'
 Fecha: 2026-10-01
 Versión auditada: 'v0.1.0-beta.9 + 2 commits (4691034)'
-Resumen: 'Primera auditoría de seguridad del proyecto, con la que nace este sistema. Revisión estática del código de cliente, almacén de secretos, conexión SSH, túneles, terminal, agente de nivel 3, Android y pipeline de release, sin pruebas dinámicas. Nueve hallazgos sensibles (3 de severidad alta, 3 media y 3 baja) que van a avisos privados, y cuatro tareas públicas de endurecimiento. Sigue En curso hasta dar de alta los avisos.'
+Resumen: 'Primera auditoría de seguridad del proyecto, con la que nace este sistema. Revisión estática del código de cliente, almacén de secretos, conexión SSH, túneles, terminal, agente de nivel 3, Android y pipeline de release, sin pruebas dinámicas. Nueve hallazgos sensibles (1 de severidad alta, 5 media y 3 baja), dados de alta como avisos privados de GitHub, y cuatro tareas públicas de endurecimiento. Las pruebas dinámicas quedan para la primera trimestral.'
 Hallazgos privados: 9
 Hallazgos públicos:
   - '[[Política de seguridad y avisos privados en GitHub]]'
@@ -13,7 +13,7 @@ Hallazgos públicos:
   - '[[Pedir desbloqueo o biometría para usar las credenciales]]'
 Próxima auditoría: 2027-01-01
 Fecha de creación: 2026-10-01T18:11:30+02:00
-Última modificación: 2026-10-01T18:11:30+02:00
+Última modificación: 2026-10-01T18:40:00+02:00
 ---
 
 # Auditoría 2026-10-01 Completa
@@ -57,15 +57,20 @@ cubrir en la primera trimestral.
 
 | Referencia | Severidad | Aviso | Estado |
 | --- | --- | --- | --- |
-| SEC-2026-01 | Alta | por crear | Abierto |
-| SEC-2026-02 | Alta | por crear | Abierto |
-| SEC-2026-03 | Alta | por crear | Abierto |
-| SEC-2026-04 | Media | por crear | Abierto |
-| SEC-2026-05 | Media | por crear | Abierto |
-| SEC-2026-06 | Media | por crear | Abierto (pendiente de confirmar) |
-| SEC-2026-07 | Baja | por crear | Abierto |
-| SEC-2026-08 | Baja | por crear | Abierto |
-| SEC-2026-09 | Baja | por crear | Abierto |
+| SEC-2026-01 | Alta | GHSA-96cw-9gc4-5gr2 | Abierto |
+| SEC-2026-02 | Media | GHSA-43gm-5hr8-289r | Abierto |
+| SEC-2026-03 | Media | GHSA-47wh-gfch-cf7j | Abierto |
+| SEC-2026-04 | Media | GHSA-ffg7-jcp2-mqvr | Abierto |
+| SEC-2026-05 | Media | GHSA-vgg5-jx96-6rh8 | Abierto |
+| SEC-2026-06 | Media | GHSA-55h9-9836-2485 | Abierto (pendiente de confirmar) |
+| SEC-2026-07 | Baja | GHSA-rp34-phhg-8cqp | Abierto |
+| SEC-2026-08 | Baja | GHSA-c4qw-v76w-7q5j | Abierto |
+| SEC-2026-09 | Baja | GHSA-mmrp-2xxc-6vrq | Abierto |
+
+Los nueve avisos se dieron de alta el 2026-10-01 como borradores privados,
+para la versión afectada `<= 0.1.0-beta.9`. Al redactarlos, SEC-2026-02 y
+SEC-2026-03 bajaron de Alta a Media: el usuario sigue viendo la verificación
+de host, así que no permiten suplantar al servidor sin que intervenga.
 
 ## Hallazgos públicos
 

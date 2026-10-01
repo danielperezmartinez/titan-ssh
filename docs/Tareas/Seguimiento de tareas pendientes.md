@@ -775,3 +775,8 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   GitHub. Nueva sección **Seguridad** antes de la fase 5, con cuatro tareas
   públicas y los nueve hallazgos privados `SEC-2026-01` … `SEC-2026-09`.
   👤 Siguiente: S1.
+- 2026-10-01 — **S1, en parte**: los nueve hallazgos ya son avisos privados
+  en borrador. Sus `GHSA-…` están en [[Auditoría 2026-10-01 Completa]], que
+  pasa a `Cerrada`. SEC-2026-02 y 03 bajan a severidad media. 👤 Quedan el
+  `SECURITY.md`, activar el aviso privado de vulnerabilidades (hoy
+  desactivado) y revocar el token temporal.
