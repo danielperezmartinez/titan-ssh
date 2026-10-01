@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-10-01T18:25:00+02:00
+Última modificación: 2026-10-01T19:45:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -222,6 +222,11 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
     que ya actualizan solos.
 
 ### Aparcada
+
+- [[Desbloqueo del destino Windows con un servicio de sistema]]
+  (`Planificando`): el usuario lo aparca el 2026-10-01. Para que el mouse pad
+  llegue a la pantalla de bloqueo haría falta un servicio como `SYSTEM`
+  instalado por un administrador. Va después de 10k.1.
 
 - [[Revisar el contenido de la franja de estado del terminal]] (`Pendiente`):
   el usuario quiere revisarla más adelante. Por

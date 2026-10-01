@@ -1,14 +1,14 @@
 ---
 Nombre: 'Sesión mouse pad y ayudante de escritorio en Windows'
 Número: 16
-Estado: 'Propuesta'
+Estado: 'Aceptada'
 Resumen: 'Nuevo tipo de sesión, mouse pad, que controla el ratón y el teclado del destino. Session gana el campo type (TERMINAL o MOUSEPAD, por defecto TERMINAL, sin cambiar la versión de la configuración). La app lanza titan-agent --input por exec sobre la conexión SSH y le manda tramas de entrada con el mismo encuadre del protocolo del nivel 3, sin replay; al cortarse la entrada, el agente suelta los botones y teclas pulsados. En Windows el agente corre en la sesión 0, sin escritorio, así que inyecta un ayudante, titan-agent --desktop, que arranca en la sesión interactiva del usuario mediante una tarea programada del propio usuario (solo interactiva, sin administrador ni contraseña). El front de entrada se encuentra con él por TCP loopback con token, y el ayudante aplica los eventos con SendInput: posición absoluta, para que solo cuente la curva de la app, y texto Unicode. El binario de Windows pasa al subsistema gráfico para que la tarea no abra una consola. La tarea y el ayudante se ven y se quitan desde el panel del agente. Linux X11 y Wayland reutilizan el protocolo y deciden su inyector en sus tareas.'
 Decisión: 'Añadir el tipo de sesión MOUSEPAD con un modo --input del agente y tramas de entrada neutras respecto al SO; en Windows, inyectar con un ayudante en la sesión interactiva lanzado por una tarea programada del usuario y alcanzado por loopback con token, compilando el binario de Windows con el subsistema gráfico.'
 Consecuencias: 'Reutiliza la conexión SSH, la instalación del agente y el encuentro loopback; no abre puertos ni pide administrador. Deja una huella visible en el destino Windows (la tarea programada), que el panel enseña y quita. No se controlan la pantalla de bloqueo, el escritorio seguro (UAC) ni las ventanas elevadas, y hace falta que el usuario tenga su sesión de escritorio iniciada. Cambiar el subsistema del binario de Windows obliga a volver a verificar el front, el daemon y ConPTY, y a que la CLI se enganche a la consola que la lanza para seguir imprimiendo.'
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-10-01T19:20:00+02:00
-Última modificación: 2026-10-01T19:20:00+02:00
+Última modificación: 2026-10-01T19:45:00+02:00
 ---
 
 # ADR-0016 · Sesión mouse pad y ayudante de escritorio en Windows
@@ -108,8 +108,10 @@ Win32-OpenSSH 10.0p2, usuario conectado por escritorio remoto; detalle en
   sesión de escritorio y el front termina con un error nuevo, `E_NO_DESKTOP`.
 - **Versiones**: si el ayudante que responde es de otra versión del agente, el
   front lo para, vuelve a registrar la tarea con el binario actual y la lanza.
-- **Vida**: el ayudante termina cuando se cierra la sesión de escritorio del
-  usuario, o cuando el usuario lo quita desde el panel. No se cierra por
+- **Vida**: el ayudante termina cuando se cierra la sesión de Windows del
+  usuario (cerrar sesión, reiniciar o apagar), o cuando el usuario lo quita
+  desde el panel. Cerrar la pestaña del mouse pad o un corte de red no lo
+  paran: la siguiente conexión lo encuentra vivo. No se cierra por
   inactividad, igual que el daemon
   ([[ADR-0014 Sesiones del agente sin caducidad]]).
 - **Inyección**: `SendInput` de `user32.dll` con `golang.org/x/sys/windows`.
@@ -146,6 +148,11 @@ Win32-OpenSSH 10.0p2, usuario conectado por escritorio remoto; detalle en
   con `E_INPUT_UNSUPPORTED` en esos sistemas, y lo mismo en macOS y BSD.
 - Varias sesiones de escritorio abiertas a la vez por el mismo usuario: el
   ayudante corre en la que elija el Programador de tareas.
+- **Pantalla de bloqueo y escritorio seguro**: un proceso del usuario no
+  puede escribir en el escritorio de Winlogon. Hacerlo exigiría un servicio
+  como `SYSTEM` instalado por un administrador; queda aparcado en
+  [[Desbloqueo del destino Windows con un servicio de sistema]]. Con el PC
+  bloqueado, la pestaña lo avisa.
 
 ## Alternativas consideradas
 

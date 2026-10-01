@@ -2,10 +2,10 @@
 Nombre: 'Mouse pad en destinos Windows'
 Estado: 'En curso'
 Resumen: 'Subtarea 1 del mouse pad: controlar ratón y teclado de un destino Windows desde el móvil, y construir la base común (ADR, tipo de sesión, protocolo de entrada y pestaña de gestos). El agente que lanza sshd corre en la sesión 0, sin escritorio, así que SendInput desde ahí no llega a la pantalla del usuario. Para entrar en su escritorio sin ser administrador, el agente registra una tarea programada del usuario, "solo cuando haya iniciado sesión", y la lanza; arranca titan-agent en modo ayudante dentro de la sesión interactiva, que recibe los eventos del agente por loopback con token y los aplica con SendInput. La tarea se ve y se quita desde el panel del agente.'
-Decisiones: 'Parte de [[Sesión mouse pad para controlar el escritorio del destino]]. El usuario aceptó el 2026-10-01 la tarea programada visible y gestionable desde el panel del agente, frente a una entrada de arranque automático (siempre activa) o un servicio (exige administrador). Experimento del 2026-10-01: la tarea programada solo interactiva, creada y lanzada por SSH, arranca en la sesión del usuario (también de escritorio remoto) y mueve el cursor. El diseño queda propuesto en [[ADR-0016 Sesión mouse pad y ayudante de escritorio en Windows]], pendiente de que el usuario la acepte.'
+Decisiones: 'Parte de [[Sesión mouse pad para controlar el escritorio del destino]]. El usuario aceptó el 2026-10-01 la tarea programada visible y gestionable desde el panel del agente, frente a una entrada de arranque automático (siempre activa) o un servicio (exige administrador). Experimento del 2026-10-01: la tarea programada solo interactiva, creada y lanzada por SSH, arranca en la sesión del usuario (también de escritorio remoto) y mueve el cursor. El diseño es [[ADR-0016 Sesión mouse pad y ayudante de escritorio en Windows]], aceptada por el usuario el 2026-10-01: cerrar la pestaña no para el ayudante (solo cerrar la sesión de Windows o quitarlo desde el panel), y el binario de Windows pasa al subsistema gráfico. El desbloqueo de la pantalla de bloqueo queda aparcado en [[Desbloqueo del destino Windows con un servicio de sistema]].'
 Bloqueada: []
 Fecha de creación: 2026-10-01T18:25:00+02:00
-Última modificación: 2026-10-01T19:20:00+02:00
+Última modificación: 2026-10-01T19:45:00+02:00
 ---
 
 # Mouse pad en destinos Windows
