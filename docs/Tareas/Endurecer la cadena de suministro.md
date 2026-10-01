@@ -5,7 +5,7 @@ Resumen: 'Cerrar los huecos de la cadena de suministro que encontró la [[Audito
 Decisiones: ''
 Bloqueada: []
 Fecha de creación: 2026-10-01T18:11:30+02:00
-Última modificación: 2026-10-01T18:11:30+02:00
+Última modificación: 2026-10-01T21:43:04+02:00
 ---
 
 # Endurecer la cadena de suministro
@@ -37,7 +37,24 @@ del agente fijado dentro de la app
   comprobación (`gh attestation verify`) documentada en el `README.md` de la
   raíz. Solo el job que publica recibe `id-token: write` y
   `attestations: write`.
-- [ ] Ejecutar `zizmor` sobre `.github/workflows/` y corregir lo que salga.
+- [ ] Corregir lo que dio `zizmor` en la [[Auditoría 2026-10-01 Estándar]]
+  (14 avisos, todos en `release.yml`):
+  - **`artipacked`** en los 7 `actions/checkout`: añadir
+    `persist-credentials: false`. Ningún artefacto sube el directorio de
+    trabajo (solo `dist/` y los binarios del agente), así que hoy no se filtra
+    el token, pero así deja de depender de eso.
+  - **`cache-poisoning`** en `setup-go` y `setup-gradle` de un workflow que
+    publica: desactivar la caché en los jobs que generan artefactos
+    publicados (`cache: false`, `cache-disabled: true`), o justificar por qué
+    no hace falta. No hay workflows de `pull_request` que escriban caché, así
+    que el riesgo actual es bajo.
+- [ ] `.gitleaksignore` para los dos falsos positivos de `gitleaks` (claves de
+  ejemplo de AWS en `.agents/skills/golang-security/references/secrets.md`),
+  para que el escaneo del nivel A salga limpio.
+- [ ] **Firma APK v3**: la APK publicada solo lleva el esquema v2 (MobSF, en
+  la [[Auditoría 2026-10-01 Estándar]]). Activar v3 (`enableV3Signing`) para
+  poder rotar la clave de firma algún día sin que los usuarios tengan que
+  desinstalar, y comprobarlo con `apksigner verify -v`.
 - [ ] La firma del MSI sigue en
   [[Firma de código Windows con SignPath Foundation]]; aquí no se duplica.
 

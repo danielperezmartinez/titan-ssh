@@ -5,7 +5,7 @@ Resumen: 'Subtarea 1 del mouse pad: controlar ratón y teclado de un destino Win
 Decisiones: 'Parte de [[Sesión mouse pad para controlar el escritorio del destino]]. El usuario aceptó el 2026-10-01 la tarea programada visible y gestionable desde el panel del agente, frente a una entrada de arranque automático (siempre activa) o un servicio (exige administrador). Experimento del 2026-10-01: la tarea programada solo interactiva, creada y lanzada por SSH, arranca en la sesión del usuario (también de escritorio remoto) y mueve el cursor. El diseño es [[ADR-0016 Sesión mouse pad y ayudante de escritorio en Windows]], aceptada por el usuario el 2026-10-01: cerrar la pestaña no para el ayudante (solo cerrar la sesión de Windows o quitarlo desde el panel), y, por [[ADR-0017 Ayudante de escritorio con una copia gráfica del agente]] (aceptada el 2026-10-01), el binario sigue siendo de consola y el ayudante usa una copia gráfica (con el subsistema gráfico PowerShell perdía el código de salida). El desbloqueo de la pantalla de bloqueo queda aparcado en [[Desbloqueo del destino Windows con un servicio de sistema]].'
 Bloqueada: []
 Fecha de creación: 2026-10-01T18:25:00+02:00
-Última modificación: 2026-10-01T21:30:00+02:00
+Última modificación: 2026-10-01T21:43:04+02:00
 ---
 
 # Mouse pad en destinos Windows
@@ -140,6 +140,11 @@ app en el catálogo ([[InputTransport]], [[MousepadView]]).
 - Tests del protocolo en Go y Kotlin, y del inyector donde se pueda.
 - Probado en el emulador contra el sshd de Windows de pruebas, con capturas, y
   confirmado por el usuario en el Pixel.
+- **Antes de publicar el mouse pad**: resueltos los avisos privados
+  `SEC-2026-10` a `SEC-2026-13` de la [[Auditoría 2026-10-01 Estándar]], que
+  afectan al ayudante de escritorio, y hecha
+  [[Endurecer la entrada del mouse pad y del teclado del móvil]]. El detalle
+  está en los avisos (regla 5 del [[README]]).
 
 ## Verificación
 

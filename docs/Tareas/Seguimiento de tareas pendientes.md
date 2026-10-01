@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-10-01T19:45:00+02:00
+Última modificación: 2026-10-01T21:43:04+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -210,12 +210,15 @@ sensibles **no** tienen tarea: se siguen en su aviso privado de GitHub (regla
   vulnerabilidades y da de alta los borradores)
   - [[Política de seguridad y avisos privados en GitHub]]
   - Va primero: los arreglos de S2 se coordinan desde esos avisos.
-- [ ] **S2. Auditoría estándar tras integrar el trabajo en curso** 👤 (el
-  usuario la pide cuando la otra sesión termine y todo esté en `main`)
-  - Cubre las pruebas dinámicas que la primera auditoría dejó pendientes y
-    los cambios nuevos. Amplía los avisos existentes en lugar de duplicarlos.
-- [ ] **S3. Corregir los hallazgos privados** (`SEC-2026-01` … `SEC-2026-09`
-  y los que añada S2, primero los de severidad alta)
+- [x] **S2. Auditoría estándar tras integrar el trabajo en curso**
+  - [[Auditoría 2026-10-01 Estándar]]: cuatro avisos nuevos
+    (`SEC-2026-10` … `13`), dos confirmados en pruebas y una tarea pública
+    nueva.
+- [ ] **S3. Corregir los hallazgos privados** (`SEC-2026-01` … `SEC-2026-13`;
+  primero los de severidad alta, `SEC-2026-01` y `SEC-2026-10`)
+  - `SEC-2026-10` … `13` y
+    [[Endurecer la entrada del mouse pad y del teclado del móvil]] bloquean
+    la publicación del mouse pad (paso 10k).
   - Según "Corregir un hallazgo privado" en [[Auditorías de seguridad]]:
     trabajo local sin subir, mensajes neutros, y subida junto con el tag de la
     pre-release. Al publicarla se publica el aviso, si el usuario lo aprueba.
@@ -792,3 +795,10 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   cómo pedirlas, cómo leer y crear avisos con el token y cómo corregir un
   hallazgo privado. Nuevo orden: S2 es la auditoría estándar después de
   integrar la otra sesión, y S3 los arreglos.
+- 2026-10-01 — **S2 completado**:
+  [[Auditoría 2026-10-01 Estándar]], sobre `main` con el mouse pad integrado.
+  Cuatro avisos privados nuevos (`SEC-2026-10`, de severidad alta, y tres
+  bajos), `SEC-2026-01` y `06` confirmados en pruebas, y la nueva tarea
+  [[Endurecer la entrada del mouse pad y del teclado del móvil]]. El mouse
+  pad no se publica hasta resolver `SEC-2026-10` … `13`. Siguiente: S3,
+  empezando por `SEC-2026-01` y `SEC-2026-10`.

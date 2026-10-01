@@ -137,13 +137,21 @@ hace antes de una publicación y sale un hallazgo `Alta`, el agente lo dice
 antes de seguir con la publicación, y decide el usuario.
 
 1. **Dependencias con vulnerabilidades conocidas.**
-   - Kotlin/Gradle: `osv-scanner scan source -r .` (lee
-     `gradle/libs.versions.toml` y los lockfiles que haya).
-   - Agente Go: `govulncheck ./...` en `agent/`.
+   - Kotlin/Gradle: el proyecto no tiene lockfile, así que `osv-scanner` no ve
+     las transitivas. Se resuelven con
+     `./gradlew -q :androidApp:dependencies --configuration releaseRuntimeClasspath :desktopApp:dependencies --configuration runtimeClasspath`.
+     Las coordenadas `grupo:artefacto:versión` resultantes se consultan todas
+     juntas en `POST https://api.osv.dev/v1/querybatch` (ecosistema `Maven`).
+   - Agente Go: `govulncheck ./...` en `agent/`, con `GOOS` de Windows y de
+     Linux, y con la versión de Go de CI (`GO_VERSION` en `release.yml`).
    - Avisos abiertos de Dependabot en la pestaña *Security*, si está activo.
 2. **Secretos y datos personales** en el diff de la versión y en el historial:
-   `gitleaks git --log-opts="<última-auditoría-o-tag>..HEAD"`, además de la comprobación
-   rápida de la regla 5.
+   `gitleaks git --redact --log-opts="<última-auditoría-o-tag>..HEAD"` (en
+   Docker, imagen `zricethezav/gitleaks`, con el repositorio montado en solo
+   lectura), además de la comprobación rápida de la regla 5. Hasta que exista
+   un `.gitleaksignore`, los dos avisos de
+   `.agents/skills/golang-security/references/secrets.md` son falsos
+   positivos conocidos.
 3. **Workflows de GitHub Actions**: `zizmor .github/workflows/` (acciones sin
    fijar por SHA, permisos de más, inyección de expresiones, secretos
    expuestos).
@@ -159,9 +167,16 @@ antes de seguir con la publicación, y decide el usuario.
 Se hace con el servidor de pruebas de `tools/test-sshd/` y el emulador
 `Pixel_9_Pro_XL`, nunca contra máquinas del usuario sin su permiso.
 
-1. **Algoritmos que ofrece el cliente.** `ssh-audit -c -p 2223` deja un
-   servidor falso escuchando, y se conecta la app a `127.0.0.1:2223` (en el
-   emulador, `10.0.2.2:2223`). Todo lo que salga en rojo o amarillo se evalúa.
+1. **Algoritmos que ofrece el cliente.** `ssh-audit -c -p 2223 -t 300` (en
+   Docker, imagen `positronsecurity/ssh-audit`, publicada solo en
+   `127.0.0.1:2223`) deja un servidor falso escuchando.
+   - **Escritorio**: se le conecta el motor sin interfaz con el test opcional
+     `SshjIntegrationTest`, pasando `-PtitanSshTestHost=127.0.0.1`,
+     `-PtitanSshTestPort=2223` y una clave cualquiera. El test falla al
+     cortar `ssh-audit` la conexión, pero antes se registra lo que ofrece el
+     cliente.
+   - **Android**: desde la app en el emulador, contra `10.0.2.2:2223`.
+   - Todo lo que salga en rojo o amarillo se evalúa.
 2. **Identidad del servidor (MITM).** Contra el contenedor de pruebas, después
    de haber confiado su clave: cualquier cambio de la identidad que presenta el
    servidor respecto a lo guardado tiene que acabar en una alerta que bloquea,
@@ -183,7 +198,13 @@ Se hace con el servidor de pruebas de `tools/test-sshd/` y el emulador
    en ningún sitio por el que pase, en el cliente ni en el destino. Revisar
    también los permisos de los ficheros que crea la app en cada plataforma.
 7. **Android.**
-   - Escaneo de la APK de release con MobSF (estático).
+   - Escaneo estático con MobSF de la APK **publicada** en el último Release
+     (es la que usan los usuarios): imagen
+     `opensecurity/mobile-security-framework-mobsf` en `127.0.0.1:8000`, con
+     `MOBSF_API_KEY` fijada al arrancar y la API `upload` → `scan` →
+     `scorecard`/`report_json`. Los "secretos" que encuentra en sshj y
+     BouncyCastle (constantes de curvas, la cabecera `BEGIN OPENSSH PRIVATE
+     KEY` del parser) son falsos positivos conocidos.
    - Lint de Android con las comprobaciones de seguridad.
    - Copias de seguridad y transferencia entre dispositivos: qué ficheros
      salen.
