@@ -1,11 +1,11 @@
 ---
 Nombre: 'Mouse pad en destinos Windows'
-Estado: 'Planificando'
+Estado: 'En curso'
 Resumen: 'Subtarea 1 del mouse pad: controlar ratón y teclado de un destino Windows desde el móvil, y construir la base común (ADR, tipo de sesión, protocolo de entrada y pestaña de gestos). El agente que lanza sshd corre en la sesión 0, sin escritorio, así que SendInput desde ahí no llega a la pantalla del usuario. Para entrar en su escritorio sin ser administrador, el agente registra una tarea programada del usuario, "solo cuando haya iniciado sesión", y la lanza; arranca titan-agent en modo ayudante dentro de la sesión interactiva, que recibe los eventos del agente por loopback con token y los aplica con SendInput. La tarea se ve y se quita desde el panel del agente.'
-Decisiones: 'Parte de [[Sesión mouse pad para controlar el escritorio del destino]]. El usuario aceptó el 2026-10-01 la tarea programada visible y gestionable desde el panel del agente, frente a una entrada de arranque automático (siempre activa) o un servicio (exige administrador).'
+Decisiones: 'Parte de [[Sesión mouse pad para controlar el escritorio del destino]]. El usuario aceptó el 2026-10-01 la tarea programada visible y gestionable desde el panel del agente, frente a una entrada de arranque automático (siempre activa) o un servicio (exige administrador). Experimento del 2026-10-01: la tarea programada solo interactiva, creada y lanzada por SSH, arranca en la sesión del usuario (también de escritorio remoto) y mueve el cursor. El diseño queda propuesto en [[ADR-0016 Sesión mouse pad y ayudante de escritorio en Windows]], pendiente de que el usuario la acepte.'
 Bloqueada: []
 Fecha de creación: 2026-10-01T18:25:00+02:00
-Última modificación: 2026-10-01T18:25:00+02:00
+Última modificación: 2026-10-01T19:20:00+02:00
 ---
 
 # Mouse pad en destinos Windows
@@ -31,7 +31,10 @@ falta un proceso dentro de la sesión interactiva del usuario.
 
 1. **ADR** del mouse pad: tipo de sesión, protocolo de entrada, ayudante de
    escritorio, seguridad y si el tipo se ofrece en escritorio. Se escribe y se
-   acepta antes de tocar código.
+   acepta antes de tocar código. Propuesta en
+   [[ADR-0016 Sesión mouse pad y ayudante de escritorio en Windows]], que es
+   la fuente de verdad del diseño; los puntos siguientes son el resumen
+   inicial.
 2. **Ayudante por tarea programada**: el agente registra una tarea del propio
    usuario con inicio de sesión interactivo ("ejecutar solo cuando el usuario
    haya iniciado sesión", sin guardar contraseña) y la lanza. La tarea arranca
@@ -51,15 +54,43 @@ falta un proceso dentro de la sesión interactiva del usuario.
    ayudante está corriendo, y permite quitarla. `--stop` también para el
    ayudante.
 
-## Por comprobar al empezar
+## Experimento (2026-10-01)
 
-- Que un usuario estándar puede registrar y lanzar la tarea desde una sesión
-  SSH: `schtasks` o la API COM del Programador de tareas, y con qué tipo de
-  inicio de sesión. Conviene un experimento corto, como
-  [[Experimento supervivencia de procesos en Win32-OpenSSH]], con la cuenta
-  estándar de pruebas.
-- Qué pasa sin nadie con la sesión iniciada, con la sesión bloqueada, con una
-  sesión de escritorio remoto desconectada y con varios usuarios conectados.
+Sonda desechable en Go (fuera del repositorio) que registra su sesión, la
+sesión de consola, la ventana en primer plano y si `SendInput` mueve el
+cursor. Ejecutada contra el sshd del PC de pruebas (Windows 10 22H2,
+Win32-OpenSSH 10.0p2) con el usuario conectado al PC por escritorio remoto.
+
+| Prueba | Resultado |
+|---|---|
+| Sonda lanzada directamente por SSH | Sesión 0. `GetCursorPos` falla ("requiere una estación de ventana interactiva") y `SendInput` devuelve 0. ❌ |
+| Tarea creada por SSH con `schtasks /create ... /sc once /it` y lanzada con `schtasks /run` | Modo "Solo interactivo". Arranca en la sesión de escritorio remoto del usuario (no en la de consola) y mueve el cursor. ✅ |
+| La misma tarea creada desde XML (`schtasks /xml`) | ✅, sin las restricciones de batería ni el límite de 72 h que pone `schtasks` por defecto. El XML tiene que ir en UTF-16: en UTF-8 da "no se pudo cambiar la codificación". |
+| Binario con el subsistema gráfico (`-H windowsgui`) con stdin y stdout redirigidos dentro de la sesión SSH | Lee, escribe y devuelve su código de salida. ✅ |
+
+Más hallazgos:
+
+- `SendInput` con movimiento relativo aplica la aceleración del puntero de
+  Windows: 120 px pedidos movieron 167. De ahí la posición absoluta de la ADR.
+- No hay que fijarse en la sesión de consola (`WTSGetActiveConsoleSessionId`):
+  con escritorio remoto, la sesión del usuario es otra.
+- La sesión SSH de un administrador lleva integridad alta. La tarea con
+  `LeastPrivilege` arranca sin elevar.
+- Que un usuario estándar puede crear la tarea por SSH ya se vio el
+  2026-09-23 ([[Experimento supervivencia de procesos en Win32-OpenSSH]],
+  M3). Queda repetirlo con XML y con la cuenta estándar de pruebas durante la
+  implementación.
+- Limpieza: tarea `titan-mousepad-probe` borrada. La clave desechable sigue
+  autorizada para las pruebas por SSH de esta tarea; se quita al terminarla.
+
+## Por comprobar durante la implementación
+
+- Qué pasa con la sesión bloqueada, con una sesión de escritorio remoto
+  desconectada y sin nadie con la sesión iniciada (este último debe dar
+  `E_NO_DESKTOP`).
+- Que el front, el daemon, ConPTY y el desacople siguen funcionando con el
+  binario en el subsistema gráfico (tests de `agent/` y prueba de punta a
+  punta).
 
 ## Límites conocidos
 

@@ -1,11 +1,11 @@
 ---
 Nombre: 'Sesión mouse pad para controlar el escritorio del destino'
-Estado: 'Planificando'
+Estado: 'En curso'
 Resumen: 'Tarea paraguas de un tipo de sesión nuevo, "mouse pad": el móvil hace de touchpad y de teclado del PC al que se conecta, reutilizando la conexión SSH y el agente titan-agent (transporte exec, instalación por SO y arquitectura, encuentro loopback con token). Lo nuevo es inyectar ratón y teclado en el escritorio del destino, que depende del sistema; por eso se divide en tres subtareas: Windows primero (la base común y el caso sencillo), después Linux X11 y Linux Wayland, que se abordan solo si hace falta. Antes de implementar hace falta una ADR que fije el tipo de sesión, el protocolo de entrada y el ayudante de escritorio de Windows.'
 Decisiones: 'Decisiones del usuario del 2026-10-01: destinos sobre todo Windows, con soporte deseado para Linux X11 y Wayland; ratón y teclado; en Windows se acepta una tarea programada visible y gestionable desde el panel del agente para lanzar el ayudante en el escritorio del usuario; se empieza por Windows. Reutiliza [[ADR-0008 Diseño del agente de resiliencia nivel 3]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. Los cierres explícitos siguen [[ADR-0014 Sesiones del agente sin caducidad]].'
 Bloqueada: []
 Fecha de creación: 2026-10-01T18:25:00+02:00
-Última modificación: 2026-10-01T18:25:00+02:00
+Última modificación: 2026-10-01T18:45:00+02:00
 ---
 
 # Sesión mouse pad para controlar el escritorio del destino
