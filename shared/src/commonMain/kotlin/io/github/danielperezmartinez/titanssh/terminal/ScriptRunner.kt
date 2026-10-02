@@ -62,6 +62,11 @@ enum class RunStatus {
  *   sentinel and the line endings follow [shell]'s syntax ([ShellSyntax]), so a
  *   Windows destination (`cmd.exe`, PowerShell) runs them too. Script bodies
  *   are sent as written: they must already be in that shell's language.
+ * - **Scripts with secrets** (any [SessionScript.secretRefs]): their env vars
+ *   and body are never typed at the prompt. The shell reads them with echo
+ *   off and runs them ([ShellSyntax.hiddenInput]), so they reach neither the
+ *   screen, the scrollback, the agent's buffer nor the shell's history. On
+ *   `cmd.exe`, which cannot do that, such a script is [RunStatus.SKIPPED].
  *
  * The sentinel lines never reach the user: the tab erases every terminal line
  * carrying a sentinel token, or blanks it in place on a Windows console (see
@@ -143,6 +148,15 @@ class ScriptRunner(
     private suspend fun execute(script: SessionScript, seen: StateFlow<String>, last: Boolean): ScriptOutcome {
         val behavior = script.behavior
 
+        // A script with secrets is only sent without echo, which cmd.exe cannot do.
+        val hidden = script.secretRefs.isNotEmpty()
+        if (hidden && !ShellSyntax.supportsHiddenInput(shell)) {
+            return ScriptOutcome(
+                script.id, RunStatus.SKIPPED,
+                detail = "Scripts with secrets need PowerShell or a POSIX shell; cmd.exe would show them",
+            )
+        }
+
         // Resolve the secrets this script needs; a missing one skips the script
         // (respecting ABORT via the caller) rather than sending a broken command.
         val secrets = mutableMapOf<String, String>()
@@ -177,29 +191,58 @@ class ScriptRunner(
             append(render(script.body, secrets))
         }
 
+        val timeout = timeoutMs(behavior.timeoutSeconds)
+        if (!hidden) {
+            io.send(ShellSyntax.lines(shell, block))
+        } else if (!sendHidden(block, timeout, seen)) {
+            return ScriptOutcome(script.id, RunStatus.TIMED_OUT, detail = "The shell did not turn echo off")
+        }
+
         // The sentinel only gates the next unit. After the last one it would
         // just print noise, and a script that starts another shell (`pwsh`
         // from `cmd.exe`) would get it in the wrong syntax and time out.
-        if (!behavior.waitForCompletion || last) {
-            io.send(ShellSyntax.lines(shell, block))
-            return ScriptOutcome(script.id, RunStatus.SENT)
-        }
-        return awaitCommand(script.id, block, timeoutMs(behavior.timeoutSeconds), seen)
+        if (!behavior.waitForCompletion || last) return ScriptOutcome(script.id, RunStatus.SENT)
+        return awaitSentinel(script.id, timeout, seen)
     }
 
     /**
-     * Sends [command], then a sentinel line carrying `$?`, and waits for that
-     * sentinel to echo back so the next command runs only once this one returned.
+     * Sends [block] so the shell neither echoes it nor keeps it in its history
+     * ([ShellSyntax.hiddenInput]): first the line that turns echo off, then the
+     * block, only once the shell confirms. Returns false, having sent nothing
+     * of [block], if the confirmation does not arrive within [timeoutMs].
      */
+    private suspend fun sendHidden(block: String, timeoutMs: Long, seen: StateFlow<String>): Boolean {
+        val token = "__TITAN_${randomToken()}__"
+        io.send(ShellSyntax.lines(shell, ShellSyntax.hiddenInput(shell, token)))
+        val ready = ShellSyntax.hiddenInputReadyPattern(token)
+        withTimeoutOrNull(timeoutMs) { seen.first { ready.containsMatchIn(it) } } ?: return false
+        io.send(ShellSyntax.hiddenInputBlock(shell, token, block))
+        return true
+    }
+
+    /** Sends [command], then awaits it like [awaitSentinel]. */
     private suspend fun awaitCommand(
         id: String,
         command: String,
         timeoutMs: Long,
         seen: StateFlow<String>,
     ): ScriptOutcome {
-        val token = "__TITAN_${randomToken()}__"
         io.send(ShellSyntax.lines(shell, command))
-        // A separate line so the status reflects `command`, not the sentinel
+        return awaitSentinel(id, timeoutMs, seen)
+    }
+
+    /**
+     * Sends a sentinel line carrying `$?` of the command before it, and waits
+     * for that sentinel to echo back so the next command runs only once that
+     * one returned.
+     */
+    private suspend fun awaitSentinel(
+        id: String,
+        timeoutMs: Long,
+        seen: StateFlow<String>,
+    ): ScriptOutcome {
+        val token = "__TITAN_${randomToken()}__"
+        // A separate line so the status reflects the command, not the sentinel
         // itself. The echoed sentinel line can't match the pattern (its tokens
         // aren't adjacent to a number), only its actual output can.
         io.send(ShellSyntax.lines(shell, ShellSyntax.sentinel(shell, token)))

@@ -13,6 +13,7 @@ import io.github.danielperezmartinez.titanssh.secret.SecretRef
 import io.github.danielperezmartinez.titanssh.secret.SecretStore
 import io.github.danielperezmartinez.titanssh.ssh.SshEndpoint
 import io.github.danielperezmartinez.titanssh.ssh.SshShell
+import kotlin.io.encoding.Base64
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -40,22 +41,40 @@ class WindowsShellAutomationTest {
         private val exitFor: (String) -> Int = { 0 },
     ) : SshShell {
         val sent = mutableListOf<String>()
+
+        /** Blocks a PowerShell read through [ShellSyntax.hiddenInput], decoded. */
+        val hiddenBlocks = mutableListOf<String>()
         private var last = ""
+        private var readingHidden = false
         private val sentinel = when (shell) {
             RemoteShell.CMD -> Regex("""^echo (__TITAN_[0-9a-f]+__):%errorlevel%:\1$""")
             RemoteShell.POWERSHELL -> Regex("""Write-Output \('(__TITAN_[0-9a-f]+__)' \+ ':' .* '\1'\)$""")
             RemoteShell.POSIX -> error("not a Windows shell")
         }
+        private val hidden = Regex("""^\${'$'}__titanB = .*Write-Output \('(__TITAN_[0-9a-f]+__)' \+ ':hidden'\).* # \1$""")
         override val output: Flow<ByteArray> = MutableSharedFlow()
         override suspend fun send(data: ByteArray) {
             val text = data.decodeToString()
             sent += text
+            if (readingHidden) {
+                check(text.endsWith(".")) { "hidden block not ended by '.': $text" }
+                last = Base64.decode(text.removeSuffix(".")).decodeToString()
+                hiddenBlocks += last
+                readingHidden = false
+                return
+            }
             val m = sentinel.find(text.removeSuffix("\r"))
-            if (m != null) {
-                val token = m.groupValues[1]
-                out.emit("$token:${exitFor(last)}:$token\r\n")
-            } else {
-                last = text.trim()
+            val h = hidden.find(text.removeSuffix("\r"))
+            when {
+                m != null -> {
+                    val token = m.groupValues[1]
+                    out.emit("$token:${exitFor(last)}:$token\r\n")
+                }
+                h != null -> {
+                    readingHidden = true
+                    out.emit("${h.groupValues[1]}:hidden\r\n")
+                }
+                else -> last = text.trim()
             }
         }
         override suspend fun resize(columns: Int, rows: Int) {}
@@ -110,10 +129,51 @@ class WindowsShellAutomationTest {
         val outcomes = ScriptRunner(io(fake, out, RemoteShell.CMD), { null }, shell = RemoteShell.CMD)
             .run(listOf(script), initialDirectory = "D:\\work\\")
 
-        assertEquals(listOf("cd /d \"D:\\work\\\"", "set \"MODE=dev\"\rgit status\rdir"), fake.commands())
+        assertEquals(listOf("cd /d \"D:\\work\\\"", "set MODE=dev\rgit status\rdir"), fake.commands())
         assertEquals(listOf(RunStatus.COMPLETED, RunStatus.SENT), outcomes.map { it.status })
         assertFalse(fake.sent.any { '\n' in it }, "a Windows console only takes \\r as Enter: ${fake.sent}")
         assertTrue(fake.sent.all { it.endsWith("\r") })
+    }
+
+    @Test
+    fun cmd_takes_env_values_literally() {
+        assertEquals(
+            "set K=a^&b^|c^<d^>e^\"f^(g^)h^^i^%PATH^%j!k",
+            ShellSyntax.export(RemoteShell.CMD, "K", "a&b|c<d>e\"f(g)h^i%PATH%j!k"),
+        )
+    }
+
+    @Test
+    fun cmd_skips_scripts_with_secrets() = runTest {
+        val out = newOut()
+        val fake = FakeWindowsShell(out, RemoteShell.CMD)
+        val scripts = listOf(
+            SessionScript(id = "a", label = "a", phase = ScriptPhase.ON_SHELL_START, body = "login \${t}", secretRefs = listOf("t")),
+            SessionScript(id = "b", label = "b", phase = ScriptPhase.ON_SHELL_START, body = "dir"),
+        )
+
+        val outcomes = ScriptRunner(io(fake, out, RemoteShell.CMD), { "s3cret" }, shell = RemoteShell.CMD)
+            .run(scripts, initialDirectory = null)
+
+        assertEquals(listOf(RunStatus.SKIPPED, RunStatus.SENT), outcomes.map { it.status })
+        assertEquals(listOf("dir\r"), fake.sent)
+    }
+
+    @Test
+    fun powershell_reads_scripts_with_secrets_without_echo() = runTest {
+        val out = newOut()
+        val fake = FakeWindowsShell(out, RemoteShell.POWERSHELL)
+        val script = SessionScript(
+            id = "a", label = "a", phase = ScriptPhase.ON_SHELL_START, body = "Connect \${t}\nGet-Location",
+            envVars = mapOf("TOKEN" to "\${t}"), secretRefs = listOf("t"),
+        )
+
+        val outcomes = ScriptRunner(io(fake, out, RemoteShell.POWERSHELL), { "s'3ñ" }, shell = RemoteShell.POWERSHELL)
+            .run(listOf(script, SessionScript(id = "b", label = "b", phase = ScriptPhase.ON_SHELL_START, body = "dir")), null)
+
+        assertEquals(listOf("\$env:TOKEN = 's''3ñ'\nConnect s'3ñ\nGet-Location"), fake.hiddenBlocks)
+        assertFalse(fake.sent.first().contains("3ñ"))
+        assertEquals(listOf(RunStatus.COMPLETED, RunStatus.SENT), outcomes.map { it.status })
     }
 
     @Test

@@ -70,11 +70,24 @@ object TerminalKeys {
     /**
      * Encodes pasted [text]: line breaks become the CR that Enter sends, and the
      * whole text is framed as a bracketed paste when the remote enabled it, so a
-     * shell does not run each pasted line as it arrives.
+     * shell does not run each pasted line as it arrives. The text goes through
+     * [pastedText] first.
      */
     fun paste(text: String, bracketed: Boolean): ByteArray {
-        val body = text.replace("\r\n", "\r").replace('\n', '\r')
+        val body = pastedText(text).replace("\r\n", "\r").replace('\n', '\r')
         return (if (bracketed) "\u001B[200~$body\u001B[201~" else body).encodeToByteArray()
+    }
+
+    /**
+     * Pasted [text] reduced to what a paste is meant to carry: printable
+     * characters, tabs and line breaks. Every other C0 control, DEL and the C1
+     * controls are dropped, so pasted text reaches the remote as plain data.
+     */
+    fun pastedText(text: String): String = buildString(text.length) {
+        for (ch in text) {
+            val control = ch < ' ' || ch in '\u007F'..'\u009F'
+            if (!control || ch == '\t' || ch == '\n' || ch == '\r') append(ch)
+        }
     }
 
     private fun csi(tail: String): ByteArray = ("[" + tail).encodeToByteArray()

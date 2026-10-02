@@ -43,8 +43,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  * a Windows destination gets `cmd.exe` or PowerShell syntax and never the
  * multiplexer (tmux/screen are Unix-only).
  *
- * Secrets are read from the [SecretStore] only at run time and passed straight
- * into the command; they are never written back to the config (ADR-0001).
+ * Secrets are read from the [SecretStore] only at run time and never written
+ * back to the config (ADR-0001). A script that uses them is read by the shell
+ * without echo ([ScriptRunner]).
  *
  * Before sending anything it waits for the shell to be ready (its first output,
  * i.e. the prompt): a remote PTY drops input written before the shell starts

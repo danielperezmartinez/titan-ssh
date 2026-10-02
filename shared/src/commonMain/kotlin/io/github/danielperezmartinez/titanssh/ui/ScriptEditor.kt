@@ -204,6 +204,13 @@ internal fun ScriptDataFields(
     TitanTextField("Variables de entorno (KEY=valor por línea)", envText, onEnvText, singleLine = false, placeholder = "NODE_ENV=production")
     Gap()
     TitanTextField("Secretos a inyectar (refs, coma)", secretRefs.joinToString(", "), { v -> onSecretRefs(v.split(",").map { it.trim() }.filter { it.isNotEmpty() }) }, placeholder = "casa.token")
+    if (secretRefs.isNotEmpty()) {
+        Spacer(Modifier.height(TitanDimens.SpaceXs))
+        Caption(
+            "Un script con secretos se envía sin eco: no se ve en la terminal ni queda en el historial del shell. " +
+                "En cmd.exe no se ejecuta; usa PowerShell como shell del destino.",
+        )
+    }
 }
 
 /** Renders a [ScriptPhase] as the Spanish label shared across the session UI. */

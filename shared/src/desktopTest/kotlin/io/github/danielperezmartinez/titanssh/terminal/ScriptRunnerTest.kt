@@ -39,20 +39,40 @@ class ScriptRunnerTest {
      */
     private class FakeShell(
         private val out: MutableSharedFlow<String>,
+        /** Whether it confirms a [ShellSyntax.hiddenInput] line, as a shell that turned echo off would. */
+        private val hidesInput: Boolean = true,
         private val exitFor: (String) -> Int = { 0 },
     ) : SshShell {
         val sent = mutableListOf<String>()
+
+        /** Blocks read through [ShellSyntax.hiddenInput], decoded. */
+        val hiddenBlocks = mutableListOf<String>()
         private var last = ""
+        private var hiddenToken: String? = null
         override val output: Flow<ByteArray> = MutableSharedFlow()
         override suspend fun send(data: ByteArray) {
             val text = data.decodeToString()
             sent += text
-            val m = SENTINEL.find(text)
-            if (m != null) {
-                val token = m.groupValues[1]
-                out.emit("$token:${exitFor(last)}:$token\n")
-            } else {
-                last = text.trim()
+            hiddenToken?.let { token ->
+                val lines = text.split('\n').dropLast(1)
+                check(lines.last() == token) { "hidden block not ended by its token: $text" }
+                last = decodePrintfB(lines.dropLast(1).joinToString(""))
+                hiddenBlocks += last
+                hiddenToken = null
+                return
+            }
+            val sentinel = SENTINEL.find(text)
+            val hidden = HIDDEN.find(text)
+            when {
+                sentinel != null -> {
+                    val token = sentinel.groupValues[1]
+                    out.emit("$token:${exitFor(last)}:$token\n")
+                }
+                hidden != null -> if (hidesInput) {
+                    hiddenToken = hidden.groupValues[1]
+                    out.emit("${hidden.groupValues[1]}:hidden\n")
+                }
+                else -> last = text.trim()
             }
         }
         override suspend fun resize(columns: Int, rows: Int) {}
@@ -63,6 +83,21 @@ class ScriptRunnerTest {
 
         companion object {
             val SENTINEL = Regex("""'(__TITAN_[0-9a-f]+__)' "\$\?" '\1'""")
+            val HIDDEN = Regex("""^stty -echo && \{ printf '%s:%s\\n' '(__TITAN_[0-9a-f]+__)' 'hidden'""")
+
+            /** What `printf '%b'` prints for the escapes [ShellSyntax.hiddenInputBlock] uses. */
+            fun decodePrintfB(s: String): String = buildString {
+                var i = 0
+                while (i < s.length) {
+                    if (s[i] != '\\') { append(s[i++]); continue }
+                    when (s[i + 1]) {
+                        '\\' -> { append('\\'); i += 2 }
+                        'n' -> { append('\n'); i += 2 }
+                        '0' -> { append(s.substring(i + 2, i + 5).toInt(8).toChar()); i += 5 }
+                        else -> error("unexpected escape in ${s.substring(i)}")
+                    }
+                }
+            }
         }
     }
 
@@ -126,9 +161,67 @@ class ScriptRunnerTest {
             initialDirectory = null,
         )
 
-        val log = fake.log()
-        assertTrue(log.contains("deploy s3cret to \${HOME}"), "secret substituted, shell var left alone: $log")
-        assertFalse(log.contains("\${token}"))
+        assertEquals(listOf("deploy s3cret to \${HOME}"), fake.hiddenBlocks, "secret substituted, shell var left alone")
+        assertFalse(fake.log().contains("\${token}"))
+    }
+
+    @Test
+    fun script_with_secrets_is_read_by_the_shell_without_echo() = runTest {
+        val out = newOut()
+        val fake = FakeShell(out, exitFor = { if (it.contains("s3cret")) 3 else 0 })
+        val runner = ScriptRunner(ShellIo(fake, out), { ref -> if (ref == "token") "s3cret" else null })
+
+        val outcomes = runner.run(
+            scripts = listOf(
+                script(
+                    "a", "login\n  --key \${token}",
+                    behavior = ScriptBehavior(waitForCompletion = true),
+                    envVars = mapOf("API" to "\${token}"), secretRefs = listOf("token"),
+                ),
+                script("b", "next"),
+            ),
+            initialDirectory = null,
+        )
+
+        // Typed at the prompt: the line that turns echo off, then the block once
+        // the shell confirmed, then the sentinel. Only the block holds the secret.
+        assertTrue(fake.sent[0].startsWith("stty -echo && "))
+        assertFalse(fake.sent[0].contains("s3cret"))
+        assertEquals(listOf("export API='s3cret'\nlogin\n  --key s3cret"), fake.hiddenBlocks)
+        assertTrue(fake.sent[2].startsWith("printf "))
+        assertEquals(listOf(RunStatus.FAILED, RunStatus.SENT), outcomes.map { it.status })
+        assertEquals(3, outcomes.first().exitCode)
+        assertEquals("next\n", fake.sent.last())
+    }
+
+    @Test
+    fun script_with_secrets_waits_for_the_shell_before_sending_them() = runTest {
+        val out = newOut()
+        val fake = FakeShell(out, hidesInput = false)
+        val runner = ScriptRunner(ShellIo(fake, out), { "s3cret" })
+
+        val outcomes = runner.run(
+            scripts = listOf(script("a", "use \${x}", behavior = ScriptBehavior(timeoutSeconds = 2), secretRefs = listOf("x"))),
+            initialDirectory = null,
+        )
+
+        assertEquals(RunStatus.TIMED_OUT, outcomes.single().status)
+        assertEquals(1, fake.sent.size)
+        assertFalse(fake.log().contains("s3cret"))
+    }
+
+    @Test
+    fun hidden_block_lines_carry_only_printable_text() {
+        val token = "__TITAN_0123456789abcdef__"
+        val block = "a\\b\tc\u001b[0m\u0003\u007f\n" + "x".repeat(700) + "😀".repeat(300) + "ñ"
+        val lines = ShellSyntax.hiddenInputBlock(RemoteShell.POSIX, token, block).split('\n').dropLast(1)
+
+        assertEquals(token, lines.last())
+        val body = lines.dropLast(1)
+        assertTrue(body.all { it.length <= 512 }, "short lines")
+        assertTrue(body.all { line -> line.none { it < ' ' || it == '\u007f' } }, "no control characters")
+        assertTrue(body.none { it.first().isLowSurrogate() }, "no surrogate pair split")
+        assertEquals(block, FakeShell.decodePrintfB(body.joinToString("")))
     }
 
     @Test
@@ -417,6 +510,8 @@ class ScriptRunnerTest {
         StartScriptAutomation(FakeSecretStore(mapOf("token" to "s3cret".encodeToByteArray())))
             .runOnDemand(ShellIo(fake, out), script)
 
-        assertEquals(listOf("deploy s3cret\n"), fake.sent, "one fire-and-forget send, no printf sentinel")
+        assertEquals(listOf("deploy s3cret"), fake.hiddenBlocks)
+        assertEquals(2, fake.sent.size, "the hidden-input line and its block, no printf sentinel: ${fake.sent}")
+        assertTrue(fake.sent.none { it.startsWith("printf ") })
     }
 }

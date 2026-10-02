@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-10-02T15:00:00+02:00
+Última modificación: 2026-10-02T15:30:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -228,6 +228,8 @@ sensibles **no** tienen tarea: se siguen en su aviso privado de GitHub (regla
     van con la misma pre-release.
   - 2026-10-02: `SEC-2026-06` corregido en `main` sin subir, junto con S4;
     va con la misma pre-release.
+  - 2026-10-02: `SEC-2026-04` y `05` corregidos en `main` sin subir; van
+    con la misma pre-release.
 - [ ] **S3b. Retirar el preámbulo anterior del agente** (en `0.1.0-beta.12`,
   como muy tarde en `0.1.0-beta.13`)
   - [[Retirar el preámbulo anterior del agente]]
@@ -843,3 +845,11 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
 - 2026-10-02 — Nueva tarea aparcada,
   [[Permitir algoritmos SSH antiguos en un host concreto]] (`Planificando`),
   a petición del usuario.
+- 2026-10-02 — **S3 avanza**: `SEC-2026-04` y `05` corregidos, integrados
+  en `main` sin subir; van con la próxima pre-release. Por decisión del
+  usuario, en `cmd.exe` los scripts con secretos no se ejecutan (el editor
+  lo avisa). Verificado con tests, con bash, zsh, dash, ash y `pwsh` 7
+  reales en contenedores desechables, en el emulador (niveles 1 y 3 contra
+  `titan-test-sshd`) y en el Windows de desarrollo con `cmd.exe` y
+  PowerShell 5.1 sobre ConPTY. Siguiente en S3: `SEC-2026-07`, `08` y
+  `11` … `13`.

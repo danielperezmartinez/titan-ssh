@@ -720,7 +720,9 @@ internal fun SoftKeyboardCapture(
             if (text.length > anchor.length) {
                 // Multi-line field, so the IME shows a real return key (↵): a
                 // newline in the added text is an Enter, and the keyboard stays up.
-                val added = text.substring(anchor.length)
+                // Text longer than a key press may come from the IME clipboard,
+                // so it is filtered like any other paste.
+                val added = TerminalKeys.pastedText(text.substring(anchor.length))
                 val buf = StringBuilder()
                 added.forEach { ch ->
                     if (ch == '\n' || ch == '\r') {
