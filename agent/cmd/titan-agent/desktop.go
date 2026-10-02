@@ -95,6 +95,7 @@ type desktopHelper struct {
 	injMu    sync.Mutex // one injector for every connection
 	stopping atomic.Bool
 	conns    sync.WaitGroup
+	slots    handshakeSlots
 }
 
 func startDesktop(dir string, inj inject.Injector, session int) (*desktopHelper, error) {
@@ -129,7 +130,7 @@ func startDesktop(dir string, inj inject.Injector, session int) (*desktopHelper,
 		lock.Close()
 		return nil, err
 	}
-	return &desktopHelper{dir: dir, lock: lock, ln: ln, token: token, record: st, inj: inj}, nil
+	return &desktopHelper{dir: dir, lock: lock, ln: ln, token: token, record: st, inj: inj, slots: newHandshakeSlots()}, nil
 }
 
 // maintain puts desktop.json back if it goes missing or is overwritten, like
@@ -151,7 +152,8 @@ func (h *desktopHelper) maintain(quit <-chan struct{}) {
 
 // serve accepts connections until a stop request closes the listener. An
 // input connection lives as long as its client: a mouse pad may sit idle for
-// hours.
+// hours. As in the daemon, a connection that arrives while maxHandshakes
+// others are still in their handshake is closed at once.
 func (h *desktopHelper) serve() {
 	for {
 		conn, err := h.ln.Accept()
@@ -160,6 +162,10 @@ func (h *desktopHelper) serve() {
 		}
 		if err != nil {
 			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		if !h.slots.take() {
+			conn.Close()
 			continue
 		}
 		h.conns.Add(1)
@@ -172,6 +178,7 @@ func (h *desktopHelper) serve() {
 					legacyDesktopMagic:        legacyDesktopAck,
 					legacyDesktopControlMagic: legacyDesktopControlAck,
 				})
+			h.slots.release()
 			if err != nil {
 				return
 			}
@@ -381,7 +388,7 @@ type desktopReport struct {
 
 // queryDesktop reports the helper as it is now.
 func queryDesktop(stateDir string) desktopReport {
-	r := desktopReport{Task: taskExists(), State: stateStopped}
+	r := desktopReport{Task: taskExists(stateDir), State: stateStopped}
 	st, err := readStateFile(stateDir, desktopStateName)
 	if err == nil {
 		if reply, err := desktopRequest(st, desktopOpStatus); err == nil {
@@ -418,7 +425,7 @@ func removeDesktop(stateDir string) error {
 	if held, err := lockNamedHeld(stateDir, desktopLockName); err == nil && held {
 		return errors.New("the desktop helper holds its lock but does not answer")
 	}
-	if err := taskDelete(); err != nil {
+	if err := taskDelete(stateDir); err != nil {
 		return err
 	}
 	_ = removeIfExists(filepath.Join(stateDir, desktopStateName))

@@ -97,7 +97,7 @@ func Serve(conn io.ReadWriter, inj Injector, mu *sync.Mutex) error {
 		}
 	}()
 
-	dec := &protocol.Decoder{}
+	dec := &protocol.Decoder{Max: protocol.MaxInputPayload}
 	buf := make([]byte, 16*1024)
 	for {
 		n, rerr := conn.Read(buf)

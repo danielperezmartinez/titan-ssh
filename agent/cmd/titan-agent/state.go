@@ -46,8 +46,9 @@ func (s agentState) token() ([]byte, error) {
 }
 
 // writeState publishes st atomically: a private temp file in the same dir
-// (created O_EXCL, 0600), synced, then renamed over agent.json. A reader sees
-// the old record or the new one, never a torn one.
+// (created O_EXCL, 0600, or with a private ACL on Windows), synced, then
+// renamed over agent.json. A reader sees the old record or the new one, never
+// a torn one.
 func writeState(dir string, st agentState) error {
 	return writeStateFile(dir, stateFileName, st)
 }
@@ -59,7 +60,7 @@ func writeStateFile(dir, name string, st agentState) error {
 	if err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(dir, ".agent-*.json")
+	tmp, err := createPrivateTemp(dir, ".agent-*.json")
 	if err != nil {
 		return err
 	}

@@ -88,14 +88,14 @@ func startTestDaemon(t *testing.T, dir string) *daemon {
 func shortTimeouts(t *testing.T) {
 	t.Helper()
 	oldWait, oldPoll, oldGap, oldHello, oldDial := spawnWait, pollInterval, respawnGap, helloTimeout, dialTimeout
-	oldSample := cpuSample
+	oldShake, oldSample := handshakeTimeout, cpuSample
 	spawnWait, pollInterval, respawnGap = 2*time.Second, 10*time.Millisecond, 200*time.Millisecond
 	// Room for the handshake's round trips on a loaded machine (-race).
-	helloTimeout, dialTimeout = 500*time.Millisecond, time.Second
+	helloTimeout, handshakeTimeout, dialTimeout = 500*time.Millisecond, 500*time.Millisecond, time.Second
 	cpuSample = 10 * time.Millisecond
 	t.Cleanup(func() {
 		spawnWait, pollInterval, respawnGap = oldWait, oldPoll, oldGap
-		helloTimeout, dialTimeout = oldHello, oldDial
+		helloTimeout, handshakeTimeout, dialTimeout = oldHello, oldShake, oldDial
 		cpuSample = oldSample
 	})
 }
@@ -186,6 +186,74 @@ func TestDaemonClosesUnauthenticatedConnections(t *testing.T) {
 				t.Fatalf("the daemon must not answer an unauthenticated peer, got %q", got)
 			}
 		})
+	}
+}
+
+func TestDaemonBoundsConnectionsInTheirHandshake(t *testing.T) {
+	shortTimeouts(t)
+	handshakeTimeout = 10 * time.Second // the silent ones must outlast the test
+	dir := testStateDir(t)
+	d := startTestDaemon(t, dir)
+	st, err := readState(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	live, err := dialDaemon(st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer live.Close()
+	helloConn(t, live, "s1")
+
+	waitSlots := func(n int) {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for len(d.slots) != n {
+			if time.Now().After(deadline) {
+				t.Fatalf("%d connections in their handshake, want %d", len(d.slots), n)
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	var silent []net.Conn
+	defer func() {
+		for _, c := range silent {
+			c.Close()
+		}
+	}()
+	for range maxHandshakes {
+		c, err := net.Dial("tcp", d.ln.Addr().String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		silent = append(silent, c)
+	}
+	waitSlots(maxHandshakes)
+
+	extra, err := net.Dial("tcp", d.ln.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer extra.Close()
+	_ = extra.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_, err = io.ReadAll(extra)
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		t.Fatal("a connection past the limit must be closed at once")
+	}
+
+	for _, c := range silent {
+		c.Close()
+	}
+	silent = nil
+	waitSlots(0)
+	conn, err := dialDaemon(st)
+	if err != nil {
+		t.Fatalf("the daemon must accept again once the slots free up: %v", err)
+	}
+	defer conn.Close()
+	if f := helloConn(t, conn, "s1"); f.Created {
+		t.Fatal("the session opened before the flood must have survived it")
 	}
 }
 
@@ -283,7 +351,7 @@ func TestDialOrSpawnReportsAnOlderDaemon(t *testing.T) {
 // at most, whatever it answers, and the front still ends up on a daemon.
 func TestDialOrSpawnOnlyTalksToItsDaemon(t *testing.T) {
 	answers := map[string]func(net.Conn, []byte){
-		"closes":                func(net.Conn, []byte) {},
+		"closes":                 func(net.Conn, []byte) {},
 		"acks like an older one": func(c net.Conn, _ []byte) { _, _ = c.Write([]byte(legacyPreambleAck)) },
 		"sends a made-up proof":  func(c net.Conn, _ []byte) { _, _ = c.Write(bytes.Repeat([]byte{1}, nonceLen+proofLen)) },
 		"echoes the nonce back": func(c net.Conn, pre []byte) {

@@ -270,6 +270,8 @@ func decodePayload(t Type, payload []byte) (Frame, error) {
 // Decoder reassembles frames from an arbitrarily chunked byte stream. It is not
 // safe for concurrent use; drive it from a single reader goroutine.
 type Decoder struct {
+	// Max bounds a frame's payload; 0 means MaxPayload.
+	Max int
 	buf []byte
 }
 
@@ -279,12 +281,16 @@ func (d *Decoder) Feed(chunk []byte) ([]Frame, error) {
 	if len(chunk) == 0 {
 		return nil, nil
 	}
+	limit := d.Max
+	if limit <= 0 {
+		limit = MaxPayload
+	}
 	d.buf = append(d.buf, chunk...)
 	var frames []Frame
 	off := 0
 	for len(d.buf)-off >= headerSize {
 		length := int(binary.BigEndian.Uint32(d.buf[off+1 : off+5]))
-		if length < 0 || length > MaxPayload {
+		if length < 0 || length > limit {
 			return frames, fmt.Errorf("%w: %d", ErrFrameTooLarge, length)
 		}
 		if len(d.buf)-off-headerSize < length {

@@ -46,8 +46,8 @@ func (r *recordingInjector) count() int {
 func fakeDesktopTask(t *testing.T) (deleted *bool) {
 	oldExists, oldDelete := taskExists, taskDelete
 	deleted = new(bool)
-	taskExists = func() bool { return !*deleted }
-	taskDelete = func() error { *deleted = true; return nil }
+	taskExists = func(string) bool { return !*deleted }
+	taskDelete = func(string) error { *deleted = true; return nil }
 	t.Cleanup(func() { taskExists, taskDelete = oldExists, oldDelete })
 	return deleted
 }

@@ -1,10 +1,13 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
+
+	"golang.org/x/sys/windows"
 )
 
 // defaultStateDir is %LOCALAPPDATA%\titan-ssh (not os.UserCacheDir, which is
@@ -20,15 +23,20 @@ func defaultStateDir() (string, error) {
 	return filepath.Join(home, "AppData", "Local", stateDirName), nil
 }
 
-// ensureStateDir creates dir if missing and refuses anything but a real
-// directory in its place (a file, or a symlink or junction pointing elsewhere).
-// Ownership is not checked: the default path lives in the user's profile,
-// whose ACL already keeps other standard users out and which a new directory
-// inherits. An owner check would also need care, because an elevated
-// administrator's files are owned by the Administrators group, not the user.
+// ensureStateDir creates dir if missing, private to the user (acl_windows.go),
+// and refuses to use it unless it is a real directory (not a file, nor a
+// symlink or junction pointing elsewhere) that only the user, SYSTEM and
+// Administrators can reach. As on Unix, a dir someone else can read or write
+// would let them take the token, or plant a state file that points the front
+// at their own listener. The daemon, the front and every other mode call it
+// before touching the state files.
 func ensureStateDir(dir string) error {
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	dir = filepath.Clean(dir)
+	if err := os.MkdirAll(filepath.Dir(dir), 0o700); err != nil {
 		return err
+	}
+	if err := createPrivateDir(dir); err != nil && !errors.Is(err, windows.ERROR_ALREADY_EXISTS) {
+		return &os.PathError{Op: "mkdir", Path: dir, Err: err}
 	}
 	fi, err := os.Lstat(dir)
 	if err != nil {
@@ -40,5 +48,5 @@ func ensureStateDir(dir string) error {
 	if a, ok := fi.Sys().(*syscall.Win32FileAttributeData); ok && a.FileAttributes&syscall.FILE_ATTRIBUTE_REPARSE_POINT != 0 {
 		return fmt.Errorf("state dir %s is a symlink or junction", dir)
 	}
-	return nil
+	return checkPrivateDir(dir)
 }

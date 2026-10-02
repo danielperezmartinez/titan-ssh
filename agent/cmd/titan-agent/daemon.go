@@ -19,8 +19,9 @@ import (
 // time (ADR-0014). A var so tests can shorten it.
 var maintainInterval = 5 * time.Second
 
-// helloTimeout bounds how long a fresh connection may stay silent before its
-// preamble, and then before its opening HELLO. A var so tests can shorten it.
+// helloTimeout bounds how long a session connection may stay silent after the
+// preamble (handshakeTimeout) before its opening HELLO. A var so tests can
+// shorten it.
 var helloTimeout = 10 * time.Second
 
 // runDaemon is the --daemon mode: it becomes the user's only daemon, publishes
@@ -105,6 +106,7 @@ type daemon struct {
 	stopping atomic.Bool
 	reg      *session.Registry
 	conns    sync.WaitGroup // connection goroutines started by serve
+	slots    handshakeSlots
 }
 
 // startDaemon takes the single-instance lock, listens on a random loopback
@@ -152,11 +154,13 @@ func startDaemon(dir string, bufCap int, newPty session.PtyFactory) (*daemon, er
 		record:  st,
 		started: time.Now(),
 		reg:     session.NewRegistry(newPty, bufCap),
+		slots:   newHandshakeSlots(),
 	}, nil
 }
 
 // serve accepts connections until the listener closes. Each one must pass the
-// preamble before it reaches serveConn; a failed one is closed without a word.
+// preamble before it reaches serveConn; a failed one is closed without a word,
+// and so is one that arrives while maxHandshakes others are still in theirs.
 func (d *daemon) serve() error {
 	for {
 		conn, err := d.ln.Accept()
@@ -169,10 +173,15 @@ func (d *daemon) serve() error {
 			time.Sleep(100 * time.Millisecond)
 			continue
 		}
+		if !d.slots.take() {
+			conn.Close()
+			continue
+		}
 		d.conns.Add(1)
 		go func() {
 			defer d.conns.Done()
 			control, err := acceptPreamble(conn, d.token)
+			d.slots.release()
 			if err != nil {
 				conn.Close()
 				return

@@ -77,4 +77,21 @@ class MousepadMotionTest {
         // A character with no key of its own still goes out, as text.
         assertEquals(listOf(AgentFrame.Text("ñ")), MousepadTyping.typed("ñ", InputKeys.MOD_CTRL))
     }
+
+    @Test
+    fun long_text_is_split_into_frames_the_agent_accepts() {
+        // ASCII, two-byte, three-byte and four-byte (a surrogate pair) characters.
+        val text = "añ€😀".repeat(1000)
+        val frames = MousepadTyping.typed(text, modifiers = 0)
+        assertTrue(frames.size > 1)
+        val chunks = frames.map { (it as AgentFrame.Text).text }
+        assertEquals(text, chunks.joinToString(""))
+        for (c in chunks) {
+            assertTrue(c.encodeToByteArray().size <= AgentProtocol.MAX_INPUT_PAYLOAD, "a chunk of ${c.length} chars is too long")
+            assertTrue(!c.first().isLowSurrogate() && !c.last().isHighSurrogate(), "a chunk splits a surrogate pair")
+        }
+        assertEquals(listOf("ab", "c"), MousepadTyping.textChunks("abc", maxBytes = 2))
+        assertEquals(listOf("a", "😀"), MousepadTyping.textChunks("a😀", maxBytes = 4))
+        assertEquals(listOf(AgentFrame.Text("")), MousepadTyping.typed("", modifiers = 0))
+    }
 }

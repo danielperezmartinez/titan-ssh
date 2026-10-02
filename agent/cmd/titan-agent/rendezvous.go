@@ -63,6 +63,35 @@ const (
 // shorten it.
 var dialTimeout = 3 * time.Second
 
+// handshakeTimeout bounds the listening side of the handshake. The front gives
+// up after dialTimeout, so waiting longer than that serves nobody. A var so
+// tests can shorten it.
+var handshakeTimeout = 3 * time.Second
+
+// maxHandshakes bounds the connections a listener holds before they have
+// proved they know the token. Any local account can connect to the port; past
+// this many, a new connection is closed at once, so a flood of silent ones
+// costs a bounded number of descriptors and goroutines and never the live
+// sessions. A real front takes a few milliseconds to get through.
+const maxHandshakes = 32
+
+// handshakeSlots counts a listener's connections still in their handshake.
+type handshakeSlots chan struct{}
+
+func newHandshakeSlots() handshakeSlots { return make(handshakeSlots, maxHandshakes) }
+
+// take reserves a slot, or reports false when all of them are in use.
+func (s handshakeSlots) take() bool {
+	select {
+	case s <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s handshakeSlots) release() { <-s }
+
 // errRejected reports that something listens on the published port but did
 // not prove it holds the token: a stale state file whose port now belongs to
 // someone else, a daemon holding another token, or one that predates this
@@ -190,10 +219,10 @@ func acceptPreamble(conn net.Conn, token []byte) (control bool, err error) {
 // acceptMagics is the listening side of the handshake for any of magics, and
 // of the first handshake for any of the legacy ones (each with its ack). It
 // returns the magic the connection opened with. The whole handshake must
-// complete within helloTimeout, so a silent connection cannot pin a
+// complete within handshakeTimeout, so a silent connection cannot pin a
 // goroutine, and the peer's proof (or token) is compared in constant time.
 func acceptMagics(conn net.Conn, token []byte, magics []string, legacy map[string]string) (string, error) {
-	_ = conn.SetDeadline(time.Now().Add(helloTimeout))
+	_ = conn.SetDeadline(time.Now().Add(handshakeTimeout))
 	pre := make([]byte, magicLen+nonceLen)
 	if _, err := io.ReadFull(conn, pre); err != nil {
 		return "", err

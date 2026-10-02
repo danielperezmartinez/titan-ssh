@@ -98,13 +98,42 @@ object MousepadTyping {
     /**
      * [text] as typed with the sticky [modifiers] (InputKeys `MOD_*`): plain
      * text without them, and shortcuts (Ctrl+C) with them, for the characters
-     * that have a key. The rest still goes as text.
+     * that have a key. The rest still goes as text. Text longer than a TEXT
+     * frame may carry ([AgentProtocol.MAX_INPUT_PAYLOAD] bytes of UTF-8) is
+     * split into several, between characters.
      */
     fun typed(text: String, modifiers: Int): List<AgentFrame> {
-        if (modifiers == 0) return listOf(AgentFrame.Text(text))
+        if (modifiers == 0) return textChunks(text).map { AgentFrame.Text(it) }
         return text.map { c ->
             InputKeys.forChar(c)?.let { AgentFrame.Key(it, modifiers) } ?: AgentFrame.Text(c.toString())
         }
+    }
+
+    /** [text] in pieces of at most [maxBytes] bytes of UTF-8, none splitting a surrogate pair. */
+    internal fun textChunks(text: String, maxBytes: Int = AgentProtocol.MAX_INPUT_PAYLOAD): List<String> {
+        val chunks = mutableListOf<String>()
+        var start = 0
+        var bytes = 0
+        var i = 0
+        while (i < text.length) {
+            val pair = text[i].isHighSurrogate() && i + 1 < text.length && text[i + 1].isLowSurrogate()
+            val units = if (pair) 2 else 1
+            val size = when {
+                pair -> 4
+                text[i].code < 0x80 -> 1
+                text[i].code < 0x800 -> 2
+                else -> 3 // a lone surrogate encodes as U+FFFD, 3 bytes too
+            }
+            if (bytes + size > maxBytes) {
+                chunks += text.substring(start, i)
+                start = i
+                bytes = 0
+            }
+            bytes += size
+            i += units
+        }
+        if (start < text.length || chunks.isEmpty()) chunks += text.substring(start)
+        return chunks
     }
 }
 

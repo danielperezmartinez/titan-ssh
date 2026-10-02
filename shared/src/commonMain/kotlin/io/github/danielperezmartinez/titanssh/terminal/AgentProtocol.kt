@@ -32,6 +32,13 @@ object AgentProtocol {
     /** Hard cap on a single frame's payload, to bound memory on malformed input. */
     const val MAX_PAYLOAD: Int = 16 * 1024 * 1024
 
+    /**
+     * The agent's cap on a frame's payload on an input connection (mirror of
+     * `protocol.MaxInputPayload`); it drops the connection past it. Longer text
+     * goes as several TEXT frames.
+     */
+    const val MAX_INPUT_PAYLOAD: Int = 4096
+
     /** One-byte wire code per frame type. */
     enum class Type(val code: Int) {
         HELLO(1),

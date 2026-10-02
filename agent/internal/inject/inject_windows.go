@@ -250,12 +250,27 @@ func (w *windowsInjector) Scroll(dx, dy int) error {
 	return send(in)
 }
 
+// textBatch is about how many key events Text hands SendInput at a time; a
+// batch ends between characters, never inside one.
+const textBatch = 256
+
 // Text types each character as a Unicode key event, so it does not depend on
 // the keyboard layout. Line breaks and tabs go as the Enter and Tab keys,
-// which applications handle better than the characters.
+// which applications handle better than the characters. The events go out in
+// batches of textBatch, so a long text never needs one large allocation.
 func (w *windowsInjector) Text(s string) error {
-	var in []keyInput
+	in := make([]keyInput, 0, textBatch)
+	flush := func() error {
+		err := send(in)
+		in = in[:0]
+		return err
+	}
 	for _, r := range s {
+		if len(in) >= textBatch {
+			if err := flush(); err != nil {
+				return err
+			}
+		}
 		switch r {
 		case '\r':
 			continue

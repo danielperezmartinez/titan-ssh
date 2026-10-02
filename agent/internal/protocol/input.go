@@ -19,6 +19,11 @@ package protocol
 // Keys are this protocol's own catalogue, not Windows virtual keys or X11
 // keysyms, so each injector translates them.
 
+// MaxInputPayload bounds a frame's payload on an input connection, in place of
+// MaxPayload. Only TEXT gets near it: a client sends longer text as several
+// TEXT frames, split between characters.
+const MaxInputPayload = 4096
+
 // Pointer buttons.
 const (
 	ButtonLeft   uint8 = 1

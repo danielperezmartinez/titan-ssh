@@ -3,6 +3,7 @@ package protocol
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"testing"
 )
 
@@ -55,6 +56,22 @@ func TestShortInputPayloadsAreRejected(t *testing.T) {
 	}
 	if _, err := (&Decoder{}).Feed([]byte{byte(TypePointerButton), 0, 0, 0, 1, 1}); err == nil {
 		t.Error("a 1-byte POINTER_BUTTON decoded without error")
+	}
+}
+
+func TestDecoderMaxBoundsPayload(t *testing.T) {
+	dec := &Decoder{Max: MaxInputPayload}
+	at := Encode(Frame{Type: TypeText, Bytes: bytes.Repeat([]byte("a"), MaxInputPayload)})
+	if frames, err := dec.Feed(at); err != nil || len(frames) != 1 {
+		t.Fatalf("a TEXT of exactly the limit = %d frames, %v", len(frames), err)
+	}
+	// The header alone is enough to refuse it, before the payload arrives.
+	over := Encode(Frame{Type: TypeText, Bytes: bytes.Repeat([]byte("a"), MaxInputPayload+1)})
+	if _, err := (&Decoder{Max: MaxInputPayload}).Feed(over[:headerSize]); !errors.Is(err, ErrFrameTooLarge) {
+		t.Fatalf("a TEXT over the limit: err = %v, want ErrFrameTooLarge", err)
+	}
+	if frames, err := (&Decoder{}).Feed(over); err != nil || len(frames) != 1 {
+		t.Fatalf("without Max the same frame = %d frames, %v", len(frames), err)
 	}
 }
 
