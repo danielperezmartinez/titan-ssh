@@ -18,11 +18,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
-import net.schmizz.sshj.DefaultConfig
 import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.common.Buffer
 import net.schmizz.sshj.common.KeyType
-import net.schmizz.keepalive.KeepAliveProvider
 import net.schmizz.sshj.connection.channel.direct.Session
 import net.schmizz.sshj.sftp.OpenMode
 import net.schmizz.sshj.sftp.SFTPClient
@@ -65,10 +63,7 @@ internal class SshjConnector : SshConnector {
         keepAliveSeconds: Int,
         through: SSHClient?,
     ): SSHClient {
-        val config = DefaultConfig().apply {
-            if (keepAliveSeconds > 0) keepAliveProvider = KeepAliveProvider.KEEP_ALIVE
-        }
-        val ssh = SSHClient(config)
+        val ssh = SSHClient(sshjConfig(keepAlive = keepAliveSeconds > 0))
         // Without it an unreachable host takes the OS SYN timeout (about 2 min on
         // Linux and Android), stalling the reconnect loop past the network's return.
         ssh.connectTimeout = CONNECT_TIMEOUT_MILLIS
@@ -85,6 +80,14 @@ internal class SshjConnector : SshConnector {
             rejectedHostKey(e)?.let {
                 throw SshHostKeyRejected(
                     "Host key for ${endpoint.host}:${endpoint.port} was rejected (${it.fingerprintSha256})",
+                    e,
+                )
+            }
+            unnegotiatedAlgorithm(e)?.let {
+                throw SshNoCommonAlgorithm(
+                    endpoint.host,
+                    it,
+                    "No $it algorithm in common with ${endpoint.host}:${endpoint.port}",
                     e,
                 )
             }

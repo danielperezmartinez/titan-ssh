@@ -7,12 +7,14 @@ import io.github.danielperezmartinez.titanssh.config.Session
 import io.github.danielperezmartinez.titanssh.config.TerminalAppearance
 import io.github.danielperezmartinez.titanssh.ssh.HostKeyVerifier
 import io.github.danielperezmartinez.titanssh.ssh.InMemoryKnownHostsStore
+import io.github.danielperezmartinez.titanssh.ssh.SshAlgorithmKind
 import io.github.danielperezmartinez.titanssh.ssh.SshConnectFailed
 import io.github.danielperezmartinez.titanssh.ssh.SshConnectionState
 import io.github.danielperezmartinez.titanssh.ssh.SshConnector
 import io.github.danielperezmartinez.titanssh.ssh.SshCredentials
 import io.github.danielperezmartinez.titanssh.ssh.SshEndpoint
 import io.github.danielperezmartinez.titanssh.ssh.SshHop
+import io.github.danielperezmartinez.titanssh.ssh.SshNoCommonAlgorithm
 import io.github.danielperezmartinez.titanssh.ssh.SshSession
 import io.github.danielperezmartinez.titanssh.ssh.SshShell
 import kotlin.test.Test
@@ -384,6 +386,34 @@ class SessionTabReconnectTest {
 
         assertEquals(TabPhase.FAILED, tab.status.value.phase)
         assertEquals(1, connector.calls, "the very first connection is not auto-retried")
+
+        tab.close()
+    }
+
+    @Test
+    fun a_host_without_common_algorithms_fails_without_retrying() = runTest {
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + Job())
+        val s1 = FakeSession()
+        val connector = FakeConnector(
+            listOf(
+                Result.success(s1),
+                Result.failure(SshNoCommonAlgorithm("x", SshAlgorithmKind.CIPHER, "no cipher")),
+                Result.success(FakeSession()),
+            ),
+        )
+        val tab = newTab(scope, connector)
+
+        tab.start()
+        advanceUntilIdle()
+        s1.drop()
+        advanceUntilIdle()
+
+        assertEquals(TabPhase.FAILED, tab.status.value.phase)
+        assertEquals(
+            "x solo ofrece algoritmos de cifrado que titan-ssh no admite por antiguos o inseguros",
+            tab.status.value.detail,
+        )
+        assertEquals(2, connector.calls, "retrying cannot help, so it stops")
 
         tab.close()
     }

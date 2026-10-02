@@ -256,6 +256,16 @@ sealed class SshException(message: String, cause: Throwable? = null) :
 class SshConnectFailed(message: String, cause: Throwable? = null) :
     SshException(message, cause)
 
+/** A kind of algorithm the two ends of an SSH connection negotiate. */
+enum class SshAlgorithmKind { KEY_EXCHANGE, HOST_KEY, CIPHER, MAC, COMPRESSION }
+
+/**
+ * [host] offers no algorithm of [kind] that the engine accepts. Unlike
+ * [SshConnectFailed], trying again cannot help.
+ */
+class SshNoCommonAlgorithm(val host: String, val kind: SshAlgorithmKind, message: String, cause: Throwable? = null) :
+    SshException(message, cause)
+
 /** The host key verifier declined the server's key (possible MITM). */
 class SshHostKeyRejected(message: String, cause: Throwable? = null) :
     SshException(message, cause)

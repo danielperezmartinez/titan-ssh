@@ -13,6 +13,7 @@ import io.github.danielperezmartinez.titanssh.ssh.HostKeyVerifier
 import io.github.danielperezmartinez.titanssh.ssh.KnownHostEntry
 import io.github.danielperezmartinez.titanssh.ssh.KnownHostsStore
 import io.github.danielperezmartinez.titanssh.ssh.KnownHostsVerifier
+import io.github.danielperezmartinez.titanssh.ssh.SshAlgorithmKind
 import io.github.danielperezmartinez.titanssh.ssh.SshAuthFailed
 import io.github.danielperezmartinez.titanssh.ssh.SshConnectFailed
 import io.github.danielperezmartinez.titanssh.ssh.SshConnectionState
@@ -21,6 +22,7 @@ import io.github.danielperezmartinez.titanssh.ssh.SshCredentials
 import io.github.danielperezmartinez.titanssh.ssh.SshException
 import io.github.danielperezmartinez.titanssh.ssh.SshHop
 import io.github.danielperezmartinez.titanssh.ssh.SshHostKeyRejected
+import io.github.danielperezmartinez.titanssh.ssh.SshNoCommonAlgorithm
 import io.github.danielperezmartinez.titanssh.ssh.SshSession
 import io.github.danielperezmartinez.titanssh.ssh.SshShell
 import io.github.danielperezmartinez.titanssh.ssh.toKnownHostEntry
@@ -49,6 +51,18 @@ internal fun hostKeyRejectedDetail(why: HostKeyRejection?): String = when (why) 
     is HostKeyRejection.Changed -> "La clave del host ha cambiado: conexión bloqueada"
     is HostKeyRejection.NotTrusted -> "Host sin clave de confianza: la política STRICT no acepta claves nuevas"
     is HostKeyRejection.Declined, null -> "Clave de host rechazada"
+}
+
+/** Status detail for a host that offers no algorithm of some kind that titan-ssh accepts. */
+internal fun noCommonAlgorithmDetail(e: SshNoCommonAlgorithm): String {
+    val kind = when (e.kind) {
+        SshAlgorithmKind.KEY_EXCHANGE -> "intercambio de claves"
+        SshAlgorithmKind.HOST_KEY -> "clave de host"
+        SshAlgorithmKind.CIPHER -> "cifrado"
+        SshAlgorithmKind.MAC -> "integridad (MAC)"
+        SshAlgorithmKind.COMPRESSION -> "compresión"
+    }
+    return "${e.host} solo ofrece algoritmos de $kind que titan-ssh no admite por antiguos o inseguros"
 }
 
 /** Lifecycle phase of one terminal tab, surfaced in the tab strip. */
@@ -513,6 +527,9 @@ class SessionTab(
             return AttemptResult.FATAL
         } catch (e: SshAuthFailed) {
             _status.value = TabStatus(TabPhase.FAILED, e.message ?: "Autenticación rechazada")
+            return AttemptResult.FATAL
+        } catch (e: SshNoCommonAlgorithm) {
+            _status.value = TabStatus(TabPhase.FAILED, noCommonAlgorithmDetail(e))
             return AttemptResult.FATAL
         } catch (e: SshException) {
             lastFailure = e.message ?: "Fallo de conexión"
