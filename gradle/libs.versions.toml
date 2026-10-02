@@ -9,9 +9,8 @@ android-targetSdk = "37"
 javaKeyring = "1.0.4"
 kotlinxCoroutines = "1.10.2"
 kotlinxSerialization = "1.8.1"
-sshj = "0.39.0"
-eddsa = "0.3.0"
-bouncycastle = "1.78.1"
+sshj = "0.41.1"
+bouncycastle = "1.86"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activityCompose" }
@@ -23,13 +22,14 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 # Desktop SecretStore backend (ADR-0001): Windows Credential Store (DPAPI-backed)
 # and Linux Secret Service via a single maintained JNA wrapper.
 java-keyring = { module = "com.github.javakeyring:java-keyring", version.ref = "javaKeyring" }
-# SSH client (ADR-0004): pure-Java, BouncyCastle optional since 0.39.0. Lives in
-# the jvmShared source set. eddsa provides ed25519 (preferred key, ADR-0005).
+# SSH client (ADR-0004): pure-Java. Lives in the jvmShared source set. Since
+# 0.40 ed25519 (preferred key, ADR-0005) goes through the JCE, no extra library.
 sshj = { module = "com.hierynomus:sshj", version.ref = "sshj" }
-eddsa = { module = "net.i2p.crypto:eddsa", version.ref = "eddsa" }
 # Full BouncyCastle: Android ships a stripped "BC" provider; sshj needs the real
-# one for the algorithms a modern OpenSSH server negotiates (ADR-0004).
+# one for the algorithms a modern OpenSSH server negotiates (ADR-0004). Both are
+# pinned above the versions sshj brings in transitively.
 bouncycastle-prov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
+bouncycastle-pkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bouncycastle" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

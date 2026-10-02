@@ -172,17 +172,16 @@ kotlin {
             dependsOn(getByName("commonMain"))
             dependencies {
                 implementation(libs.sshj)
-                implementation(libs.eddsa)
+                // sshj pulls BouncyCastle in on both targets; pin it to the
+                // version in the catalog. Android also needs it as the full "BC"
+                // provider, since its bundled one is stripped down. ADR-0004.
+                implementation(libs.bouncycastle.prov)
+                implementation(libs.bouncycastle.pkix)
             }
         }
 
         getByName("androidMain") {
             dependsOn(jvmSharedMain)
-            dependencies {
-                // Full BouncyCastle so sshj can negotiate with modern OpenSSH on
-                // Android (its bundled "BC" provider is stripped down). ADR-0004.
-                implementation(libs.bouncycastle.prov)
-            }
         }
 
         // Desktop SecretStore backend (ADR-0001). Android uses the platform

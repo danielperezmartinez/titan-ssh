@@ -5,9 +5,8 @@
 -dontobfuscate
 
 # BouncyCastle registers its algorithms as class names looked up by
-# reflection (provider SPI tables), and so does the eddsa provider.
+# reflection (provider SPI tables).
 -keep class org.bouncycastle.** { *; }
--keep class net.i2p.crypto.eddsa.** { *; }
 
 # sshj: algorithm factories, key-file formats and the transport are selected
 # at runtime from name lists.

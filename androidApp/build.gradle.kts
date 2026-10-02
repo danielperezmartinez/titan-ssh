@@ -66,6 +66,8 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            // The same Bouncy Castle licence ships in each of its jars.
+            pickFirsts += "/META-INF/LICENSE.md"
         }
     }
 }

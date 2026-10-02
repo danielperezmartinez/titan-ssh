@@ -38,9 +38,10 @@ class SshjIntegrationTest {
             return null
         }
         val port = System.getenv("TITAN_SSH_TEST_PORT")?.toIntOrNull() ?: 22
-        val passphrase = System.getenv("TITAN_SSH_TEST_PASSPHRASE")?.toCharArray()
+        val passphrase = System.getenv("TITAN_SSH_TEST_PASSPHRASE")
+        // A fresh array per connection: sshj blanks the passphrase once it is used.
         return Params(host, port, user) {
-            SshCredentials.PrivateKey(File(keyPath).readText().toCharArray(), passphrase)
+            SshCredentials.PrivateKey(File(keyPath).readText().toCharArray(), passphrase?.toCharArray())
         }
     }
 

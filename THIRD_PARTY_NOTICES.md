@@ -6,7 +6,7 @@ todos con licencias compatibles con la GPLv3. Cada uno conserva su licencia
 original; los textos completos acompañan a cada artefacto (POM de Maven,
 `LICENSE` del módulo Go o el fichero indicado).
 
-Inventario revisado el 2026-09-24 sobre los classpaths de ejecución
+Inventario revisado el 2026-09-24 (y el 2026-10-02 para sshj y Bouncy Castle) sobre los classpaths de ejecución
 `:desktopApp` (`runtimeClasspath`) y `:androidApp` (`releaseRuntimeClasspath`),
 y el 2026-09-27 sobre `agent/go.sum`. Ninguna dependencia Apache-2.0 incluye un
 fichero `NOTICE` que haya que reproducir.
@@ -22,10 +22,9 @@ fichero `NOTICE` que haya que reproducir.
 | AndroidX (Activity, Compose, Lifecycle, Core y dependencias) | varias | Apache-2.0 | Android |
 | Guava `listenablefuture` | 1.0 | Apache-2.0 | Android |
 | JetBrains `annotations`, JSpecify | varias | Apache-2.0 | Todas las plataformas |
-| sshj (`com.hierynomus:sshj`) | 0.39.0 | Apache-2.0 | Todas las plataformas |
+| sshj (`com.hierynomus:sshj`) | 0.41.1 | Apache-2.0 | Todas las plataformas |
 | asn-one (`com.hierynomus:asn-one`) | 0.6.0 | Apache-2.0 | Todas las plataformas |
-| EdDSA-Java (`net.i2p.crypto:eddsa`) | 0.3.0 | CC0-1.0 | Todas las plataformas |
-| Bouncy Castle (`bcprov`, `bcpkix`, `bcutil`) | 1.78.1 | Bouncy Castle Licence (MIT) | Todas las plataformas |
+| Bouncy Castle (`bcprov`, `bcpkix`, `bcutil`) | 1.86 | Bouncy Castle Licence (MIT) | Todas las plataformas |
 | SLF4J API | 2.0.x | MIT | Todas las plataformas |
 | java-keyring (`com.github.javakeyring`) | 1.0.4 | BSD-3-Clause | Escritorio |
 | JNA y JNA Platform | 5.13.0 | Apache-2.0 (doble licencia con LGPL-2.1-or-later; se usa bajo Apache-2.0) | Escritorio |
