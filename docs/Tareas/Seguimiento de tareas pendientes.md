@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-10-02T14:30:00+02:00
+Última modificación: 2026-10-02T15:00:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -269,6 +269,10 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
     que ya actualizan solos.
 
 ### Aparcada
+
+- [[Permitir algoritmos SSH antiguos en un host concreto]] (`Planificando`):
+  el usuario la deja preparada el 2026-10-02 por si algún equipo suyo solo
+  habla algoritmos antiguos. No bloquea nada.
 
 - [[Desbloqueo del destino Windows con un servicio de sistema]]
   (`Planificando`): el usuario lo aparca el 2026-10-01. Para que el mouse pad
@@ -836,3 +840,6 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
 - 2026-10-02 — Nueva tarea S6,
   [[Intercambio de claves post-cuántico en el motor SSH]], a petición del
   usuario.
+- 2026-10-02 — Nueva tarea aparcada,
+  [[Permitir algoritmos SSH antiguos en un host concreto]] (`Planificando`),
+  a petición del usuario.
