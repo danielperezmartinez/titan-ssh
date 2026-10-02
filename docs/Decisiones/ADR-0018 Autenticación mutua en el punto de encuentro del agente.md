@@ -89,6 +89,8 @@ con un secreto compartido.
 - Negativas / compromisos:
   - Al actualizar, un daemon de la versión anterior que siga en marcha hay que
     detenerlo una vez desde el panel, y se cierran sus sesiones.
-  - El preámbulo anterior sigue en el lado que escucha. Se podrá retirar
-    cuando ninguna versión que se use lo necesite.
+  - El preámbulo anterior sigue durante la transición: se retira en
+    `0.1.0-beta.12` o, como muy tarde, en `0.1.0-beta.13`, con
+    [[Retirar el preámbulo anterior del agente]]. El build raíz no deja
+    generar versiones posteriores a `beta.12` mientras siga en el código.
   - El handshake añade media ida y vuelta en loopback.
