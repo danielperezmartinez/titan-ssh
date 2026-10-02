@@ -1,11 +1,11 @@
 ---
 Nombre: 'Actualizar sshj y BouncyCastle y retirar EdDSA-Java'
-Estado: 'En curso'
+Estado: 'Hecha'
 Resumen: 'Las librerías criptográficas del cliente se han quedado atrás: sshj 0.39.0 (la última es 0.41.1, con RFC 8308 y preferencia por la firma RSA más fuerte), BouncyCastle 1.78.1 en bcprov y bcpkix (seis CVE públicos corregidos entre 1.79 y 1.85; la última es 1.86) y net.i2p.crypto:eddsa 0.3.0, abandonada desde 2019 y con el CVE-2020-36843 sin arreglo (maleabilidad de firmas Ed25519). Hay que actualizarlas y, si sshj lo permite, dejar de depender de EdDSA-Java.'
 Decisiones: ''
 Bloqueada: []
 Fecha de creación: 2026-10-01T18:11:30+02:00
-Última modificación: 2026-10-02T13:30:00+02:00
+Última modificación: 2026-10-02T14:00:00+02:00
 ---
 
 # Actualizar sshj y BouncyCastle y retirar EdDSA-Java
@@ -92,5 +92,5 @@ avisos.
 
 ## Resultado
 
-sshj 0.41.1, Bouncy Castle 1.86 y sin EdDSA-Java. Pendiente de integrar en
-`main`.
+sshj 0.41.1, Bouncy Castle 1.86 y sin EdDSA-Java. Integrado en `main` el
+2026-10-02, sin subir: va con la próxima pre-release.

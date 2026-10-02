@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-10-02T09:32:00+02:00
+Última modificación: 2026-10-02T14:00:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -226,13 +226,16 @@ sensibles **no** tienen tarea: se siguen en su aviso privado de GitHub (regla
     van con la próxima pre-release.
   - 2026-10-02: `SEC-2026-03` y `09` corregidos en `main` sin subir;
     van con la misma pre-release.
+  - 2026-10-02: `SEC-2026-06` corregido en `main` sin subir, junto con S4;
+    va con la misma pre-release.
 - [ ] **S3b. Retirar el preámbulo anterior del agente** (en `0.1.0-beta.12`,
   como muy tarde en `0.1.0-beta.13`)
   - [[Retirar el preámbulo anterior del agente]]
   - El build raíz no deja generar `beta.13` ni posteriores mientras siga.
-- [ ] **S4. Dependencias criptográficas**
-  - [[Actualizar sshj y BouncyCastle y retirar EdDSA-Java]]
-  - Puede ir junto a S3 si un arreglo toca la configuración de sshj.
+- [x] **S4. Dependencias criptográficas**
+  - [[Actualizar sshj y BouncyCastle y retirar EdDSA-Java]] (`Hecha` el 2026-10-02)
+  - Hecha junto a S3: sshj 0.41.1, Bouncy Castle 1.86 y sin EdDSA-Java, en
+    `main` sin subir; va con la próxima pre-release.
 - [ ] **S5. Cadena de suministro** 👤 (activar los avisos de Dependabot)
   - [[Endurecer la cadena de suministro]]
 - Aparcada hasta que el usuario decida:
@@ -821,3 +824,8 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   verificados en local (tests, prueba real contra contenedores y emulador),
   integrados en `main` sin subir; van con la próxima pre-release.
   Siguiente: el resto de S3 (`SEC-2026-04` … `06`).
+- 2026-10-02 — **S4 hecha y S3 avanza**: sshj 0.41.1, Bouncy Castle 1.86 y
+  sin EdDSA-Java, y `SEC-2026-06` corregido, verificados en local (tests,
+  contenedores, `ssh-audit -c` y emulador con las APK de debug y de release
+  con R8), integrados en `main` sin subir; van con la próxima pre-release.
+  Siguiente en S3: `SEC-2026-04` y `05`.
