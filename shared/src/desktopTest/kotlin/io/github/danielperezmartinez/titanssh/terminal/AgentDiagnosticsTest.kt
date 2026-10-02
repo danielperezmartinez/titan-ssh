@@ -79,7 +79,8 @@ class AgentDiagnosticsTest {
     @Test
     fun describes_every_code_in_spanish_with_the_code() {
         val codes = listOf(
-            "E_STATE_DIR", "E_LOCK", "E_DAEMON_START", "E_AUTH", "E_JOB_NO_BREAKAWAY", "E_NO_CONPTY", "E_PTY",
+            "E_STATE_DIR", "E_LOCK", "E_DAEMON_START", "E_AUTH", "E_AGENT_OUTDATED", "E_JOB_NO_BREAKAWAY",
+            "E_NO_CONPTY", "E_PTY",
             "E_UNSUPPORTED_TARGET", "E_NO_BINARY", "E_UPLOAD", "E_CHECKSUM", "E_NOEXEC", "E_AGENT_EXIT",
         )
         for (code in codes) {

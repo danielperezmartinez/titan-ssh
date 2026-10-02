@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -146,6 +149,79 @@ func TestInputFrontReportsWhyTheHelperFailed(t *testing.T) {
 	}
 }
 
+// A helper of an older version speaks only the first handshake: the front
+// stops it over that one and launches the current version, and never sends it
+// input.
+func TestInputFrontReplacesAnOlderHelper(t *testing.T) {
+	fastDesktopWaits(t)
+	dir := testStateDir(t)
+	lock, err := lockNamed(dir, desktopLockName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	token := bytes.Repeat([]byte{9}, tokenLen)
+	st := validState()
+	st.Agent, st.Port, st.Token = "0.1.0-beta.10", ln.Addr().(*net.TCPAddr).Port, strings.Repeat("09", tokenLen)
+	if err := writeStateFile(dir, desktopStateName, st); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var magics []string
+	stopped := make(chan struct{})
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			pre := make([]byte, magicLen+tokenLen)
+			if _, err := io.ReadFull(c, pre); err == nil {
+				mu.Lock()
+				magics = append(magics, string(pre[:magicLen]))
+				mu.Unlock()
+				if string(pre[:magicLen]) == legacyDesktopControlMagic && bytes.Equal(pre[magicLen:], token) {
+					_, _ = c.Write([]byte(legacyDesktopControlAck))
+					line, _ := bufio.NewReader(c).ReadBytes('\n')
+					if strings.Contains(string(line), desktopOpStop) {
+						writeDesktopReply(c, desktopReply{})
+						c.Close()
+						ln.Close()
+						lock.Close()
+						close(stopped)
+						return
+					}
+				}
+			}
+			c.Close()
+		}
+	}()
+	t.Cleanup(func() { ln.Close(); lock.Close() })
+
+	conn, err := connectDesktop(dir, func() error {
+		startTestHelper(t, dir, &recordingInjector{})
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn.Close()
+	<-stopped
+	mu.Lock()
+	defer mu.Unlock()
+	for _, m := range magics {
+		if m == legacyDesktopMagic {
+			t.Fatal("input must not go to the older helper")
+		}
+	}
+	if got, err := readStateFile(dir, desktopStateName); err != nil || got.Agent != version {
+		t.Fatalf("desktop.json = %+v, %v; want version %s", got, err, version)
+	}
+}
+
 func TestInputFrontReplacesAHelperOfAnotherVersion(t *testing.T) {
 	fastDesktopWaits(t)
 	dir := testStateDir(t)
@@ -222,12 +298,12 @@ func TestHelperRejectsAWrongToken(t *testing.T) {
 		t.Fatal(err)
 	}
 	st.Token = strings.Repeat("00", tokenLen)
-	if _, err := dialWith(st, desktopMagic, desktopAck); !errors.Is(err, errRejected) {
+	if _, err := dialWith(st, desktopMagic); !errors.Is(err, errRejected) {
 		t.Fatalf("dial with a wrong token: err = %v, want errRejected", err)
 	}
 	// The daemon's magic is no key to the helper either.
 	st, _ = readStateFile(dir, desktopStateName)
-	if _, err := dialWith(st, preambleMagic, preambleAck); !errors.Is(err, errRejected) {
+	if _, err := dialWith(st, preambleMagic); !errors.Is(err, errRejected) {
 		t.Fatalf("dial with the daemon's magic: err = %v, want errRejected", err)
 	}
 }

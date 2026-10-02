@@ -273,9 +273,9 @@ func sessionFrom(in session.Info, w sampleWindow) sessionReport {
 	return r
 }
 
-// errLegacy reports a daemon that answers sessions but not control requests:
-// it predates them.
-var errLegacy = errors.New("the running daemon predates control requests")
+// errLegacy reports a daemon of an older version: it holds the lock and
+// answers the first handshake (rendezvous.go) but not the current one.
+var errLegacy = errors.New("the running daemon is an older version")
 
 // request sends one control request to the daemon published in stateDir. It
 // returns fs.ErrNotExist when no state file exists, errLegacy for an older
@@ -287,34 +287,74 @@ func request(stateDir string, req controlRequest) (controlReply, agentState, err
 		return reply, st, err
 	}
 	conn, err := dialControl(st)
-	if errors.Is(err, errRejected) {
-		// The control magic was refused. If a session preamble is accepted,
-		// the daemon is alive and simply older.
-		if c, derr := dialDaemon(st); derr == nil {
-			c.Close()
-			return reply, st, errLegacy
-		}
+	if errors.Is(err, errRejected) && legacyAllowed(stateDir, lockFileName) && answersLegacy(st) {
+		return reply, st, errLegacy
 	}
 	if err != nil {
 		return reply, st, err
 	}
 	defer conn.Close()
+	reply, err = exchange(conn, req)
+	return reply, st, err
+}
+
+// answersLegacy reports whether the daemon st describes accepts the first
+// handshake, for a control connection or, before those existed, a session.
+func answersLegacy(st agentState) bool {
+	for _, m := range [][2]string{{legacyControlMagic, legacyControlAck}, {legacyPreambleMagic, legacyPreambleAck}} {
+		if conn, err := dialLegacy(st, m[0], m[1]); err == nil {
+			conn.Close()
+			return true
+		}
+	}
+	return false
+}
+
+// stopLegacyDaemon stops the older daemon st describes, for --stop once
+// request has reported errLegacy. It asks for an orderly stop if the daemon
+// takes control requests, and kills its PID otherwise, both only while the
+// lock is still held.
+func stopLegacyDaemon(stateDir string, st agentState) error {
+	if !legacyAllowed(stateDir, lockFileName) {
+		return nil // it exited meanwhile
+	}
+	if conn, err := dialLegacy(st, legacyControlMagic, legacyControlAck); err == nil {
+		defer conn.Close()
+		_, err := exchange(conn, controlRequest{Op: opStop})
+		return err
+	}
+	conn, err := dialLegacy(st, legacyPreambleMagic, legacyPreambleAck)
+	if err != nil {
+		return errors.New("the older daemon no longer answers")
+	}
+	conn.Close()
+	p, err := os.FindProcess(st.PID)
+	if err != nil {
+		return err
+	}
+	return p.Kill()
+}
+
+// exchange sends req on an authenticated control connection and reads the
+// reply.
+func exchange(conn net.Conn, req controlRequest) (controlReply, error) {
+	var reply controlReply
 	_ = conn.SetDeadline(time.Now().Add(controlTimeout))
 	data, _ := json.Marshal(req)
 	if _, err := conn.Write(append(data, '\n')); err != nil {
-		return reply, st, err
+		return reply, err
 	}
 	line, err := bufio.NewReader(conn).ReadBytes('\n')
 	if err != nil {
-		return reply, st, fmt.Errorf("no reply from the daemon: %w", err)
+		return reply, fmt.Errorf("no reply from the daemon: %w", err)
 	}
 	if err := json.Unmarshal(line, &reply); err != nil {
-		return reply, st, fmt.Errorf("unreadable reply from the daemon: %w", err)
+		return reply, fmt.Errorf("unreadable reply from the daemon: %w", err)
 	}
 	if reply.Error != "" {
-		return reply, st, errors.New(reply.Error)
+		return reply, errors.New(reply.Error)
 	}
-	return reply, st, nil
+	return reply, nil
 }
 
 // controlTimeout bounds a control request once connected: a status snapshot
@@ -419,7 +459,7 @@ func printDaemonStatus(w io.Writer, st statusReport) {
 		fmt.Fprintln(w, "titan-agent: no daemon is running")
 		return
 	case stateLegacy:
-		fmt.Fprintf(w, "titan-agent %s (PID %d) is running but is too old to report its sessions\n", st.Agent, st.PID)
+		fmt.Fprintf(w, "titan-agent %s (PID %d) is running, an older version that this one does not connect to\n", st.Agent, st.PID)
 		fmt.Fprintln(w, "stop it with --stop; the next connection starts the current version")
 		return
 	case stateUnreachable:

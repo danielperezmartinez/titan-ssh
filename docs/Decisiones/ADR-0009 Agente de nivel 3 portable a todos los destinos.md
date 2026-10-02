@@ -8,10 +8,14 @@ Consecuencias: 'Nivel 3 en Windows, macOS, BSD y cualquier Linux, sin depender d
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-09-23T20:55:00+02:00
-Última modificación: 2026-09-23T22:10:00+02:00
+Última modificación: 2026-10-02T01:38:01+02:00
 ---
 
 # ADR-0009 · Agente de nivel 3 portable a todos los destinos
+
+> **Nota (2026-10-02)**: el preámbulo del punto 2 lo sustituye
+> [[ADR-0018 Autenticación mutua en el punto de encuentro del agente]]: el
+> front y el daemon se autentican en los dos sentidos sin enviar el token.
 
 > **Estado: Aceptada (2026-09-23).** El punto 5 (desacople en Windows) se
 > resolvió con el experimento

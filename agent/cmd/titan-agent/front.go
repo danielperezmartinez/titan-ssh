@@ -90,10 +90,18 @@ func dialOrSpawn(stateDir string, spawn func() error) (net.Conn, error) {
 }
 
 // frontGiveUp classifies the last failure once spawnWait is over. A live daemon
-// (the lock is held) that refuses the token, or whose state file cannot be
-// read, is an authentication problem; anything else means no daemon came up.
+// (the lock is held) of another version that does not complete the handshake
+// is an older one, which this front does not open sessions on; one of this
+// version that does not, or whose state file cannot be read, is an
+// authentication problem; anything else means no daemon came up.
 func frontGiveUp(stateDir string, last error) error {
 	held, _ := lockHeld(stateDir)
+	if held && errors.Is(last, errRejected) {
+		if st, err := readState(stateDir); err == nil && st.Agent != version {
+			return withCode(codeAgentOutdated, fmt.Errorf(
+				"titan-agent %s is running and does not speak the handshake of %s: stop it to start this one", st.Agent, version))
+		}
+	}
 	if held && !errors.Is(last, fs.ErrNotExist) && !isNetError(last) {
 		return withCode(codeAuth, last)
 	}
@@ -130,36 +138,31 @@ func spawnDaemon(stateDir string) error {
 
 // stopDaemon is --stop: it ends the user's daemon, if one runs, and removes its
 // state file. It asks the daemon for an orderly stop, which closes every
-// session before exiting. A daemon that predates control requests is killed
-// instead, after authenticating against the published state, which proves
-// that record is the live daemon's, so the PID it kills is the daemon and never
-// a recycled one.
+// session before exiting. A daemon of an older version gets the same request
+// over the first handshake, and one that predates control requests is killed
+// instead, once it answers that handshake while it holds the lock: that is
+// what shows the record is the live daemon's, so the PID it kills is the
+// daemon and never a recycled one.
 func stopDaemon(stateDir string) error {
 	if err := ensureStateDir(stateDir); err != nil {
 		return withCode(codeStateDir, err)
 	}
 	stateFile := filepath.Join(stateDir, stateFileName)
-	if _, _, err := request(stateDir, controlRequest{Op: opStop}); err == nil {
+	_, st, err := request(stateDir, controlRequest{Op: opStop})
+	if err == nil {
 		if err := waitLockFree(stateDir, stopWait); err != nil {
 			return err
 		}
 		return removeIfExists(stateFile)
 	}
-	if st, err := readState(stateDir); err == nil {
-		if conn, err := dialDaemon(st); err == nil {
-			conn.Close()
-			p, err := os.FindProcess(st.PID)
-			if err != nil {
-				return err
-			}
-			if err := p.Kill(); err != nil {
-				return err
-			}
-			if err := waitLockFree(stateDir, 5*time.Second); err != nil {
-				return err
-			}
-			return removeIfExists(stateFile)
+	if errors.Is(err, errLegacy) {
+		if err := stopLegacyDaemon(stateDir, st); err != nil {
+			return err
 		}
+		if err := waitLockFree(stateDir, stopWait); err != nil {
+			return err
+		}
+		return removeIfExists(stateFile)
 	}
 	held, err := lockHeld(stateDir)
 	if err != nil {

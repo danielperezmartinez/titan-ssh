@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -88,7 +90,8 @@ func shortTimeouts(t *testing.T) {
 	oldWait, oldPoll, oldGap, oldHello, oldDial := spawnWait, pollInterval, respawnGap, helloTimeout, dialTimeout
 	oldSample := cpuSample
 	spawnWait, pollInterval, respawnGap = 2*time.Second, 10*time.Millisecond, 200*time.Millisecond
-	helloTimeout, dialTimeout = 200*time.Millisecond, time.Second
+	// Room for the handshake's round trips on a loaded machine (-race).
+	helloTimeout, dialTimeout = 500*time.Millisecond, time.Second
 	cpuSample = 10 * time.Millisecond
 	t.Cleanup(func() {
 		spawnWait, pollInterval, respawnGap = oldWait, oldPoll, oldGap
@@ -156,7 +159,7 @@ func TestDaemonClosesUnauthenticatedConnections(t *testing.T) {
 		name     string
 		preamble []byte
 	}{
-		{name: "wrong token", preamble: append([]byte(preambleMagic), bad...)},
+		{name: "wrong token", preamble: append([]byte(legacyPreambleMagic), bad...)},
 		{name: "wrong magic", preamble: append([]byte("NOTTITAN"), good...)},
 		{name: "silent", preamble: nil},
 		{name: "a HELLO frame instead", preamble: protocol.Encode(protocol.Frame{Type: protocol.TypeHello, SessionID: "x", Cols: 80, Rows: 24})},
@@ -256,12 +259,180 @@ func TestDialOrSpawnReportsRejectedToken(t *testing.T) {
 		}
 	}()
 	st := validState()
-	st.Port = ln.Addr().(*net.TCPAddr).Port
+	st.Agent, st.Port = version, ln.Addr().(*net.TCPAddr).Port
 	if err := writeState(dir, st); err != nil {
 		t.Fatal(err)
 	}
 	_, err = dialOrSpawn(dir, func() error { t.Error("must not launch while a daemon holds the lock"); return nil })
 	assertCode(t, err, codeAuth)
+}
+
+func TestDialOrSpawnReportsAnOlderDaemon(t *testing.T) {
+	shortTimeouts(t)
+	spawnWait = 500 * time.Millisecond
+	dir := testStateDir(t)
+	older := fakeOlderDaemon(t, dir, "0.1.0-beta.10", true)
+	_, err := dialOrSpawn(dir, func() error { t.Error("must not launch while a daemon holds the lock"); return nil })
+	assertCode(t, err, codeAgentOutdated)
+	if older.tokenSeen() {
+		t.Fatal("a session must not be opened with the older handshake")
+	}
+}
+
+// A listener that is not the daemon gets the opening bytes of the handshake
+// at most, whatever it answers, and the front still ends up on a daemon.
+func TestDialOrSpawnOnlyTalksToItsDaemon(t *testing.T) {
+	answers := map[string]func(net.Conn, []byte){
+		"closes":                func(net.Conn, []byte) {},
+		"acks like an older one": func(c net.Conn, _ []byte) { _, _ = c.Write([]byte(legacyPreambleAck)) },
+		"sends a made-up proof":  func(c net.Conn, _ []byte) { _, _ = c.Write(bytes.Repeat([]byte{1}, nonceLen+proofLen)) },
+		"echoes the nonce back": func(c net.Conn, pre []byte) {
+			_, _ = c.Write(append(append([]byte{}, pre[magicLen:]...), pre[magicLen:]...))
+		},
+	}
+	for name, answer := range answers {
+		t.Run(name, func(t *testing.T) {
+			shortTimeouts(t)
+			dir := testStateDir(t)
+			other := newRecordingListener(t, answer)
+			stale := validState()
+			stale.Port = other.port()
+			if err := writeState(dir, stale); err != nil {
+				t.Fatal(err)
+			}
+
+			conn, err := dialOrSpawn(dir, func() error { startTestDaemon(t, dir); return nil })
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer conn.Close()
+			helloConn(t, conn, "s1")
+			if _, err := conn.Write([]byte("typed after the attach")); err != nil {
+				t.Fatal(err)
+			}
+			for _, got := range other.received() {
+				if len(got) > magicLen+nonceLen {
+					t.Fatalf("the listener got %d bytes on one connection: %q", len(got), got)
+				}
+				if bytes.Contains(got, mustToken(t, stale)) {
+					t.Fatal("the listener got the token")
+				}
+			}
+		})
+	}
+}
+
+func TestDaemonClosesAConnectionWithAWrongProof(t *testing.T) {
+	shortTimeouts(t)
+	dir := testStateDir(t)
+	d := startTestDaemon(t, dir)
+	conn, err := net.Dial("tcp", d.ln.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+	if _, err := conn.Write(append([]byte(preambleMagic), make([]byte, nonceLen)...)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := io.ReadFull(conn, make([]byte, nonceLen+proofLen)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.Write(make([]byte, proofLen)); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = conn.Write(protocol.Encode(protocol.Frame{Type: protocol.TypeHello, SessionID: "x", Cols: 80, Rows: 24}))
+	got, err := io.ReadAll(conn)
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		t.Fatal("the daemon must close the connection, not leave it open")
+	}
+	if len(got) != 0 {
+		t.Fatalf("the daemon must not serve a peer without the token, got %q", got)
+	}
+}
+
+func TestBothEndsCheckTheHandshake(t *testing.T) {
+	token := bytes.Repeat([]byte{3}, tokenLen)
+	other := bytes.Repeat([]byte{4}, tokenLen)
+	nf, nd := bytes.Repeat([]byte{5}, nonceLen), bytes.Repeat([]byte{6}, nonceLen)
+	base := handshakeProof(token, roleServer, preambleMagic, nf, nd)
+	for name, p := range map[string][]byte{
+		"role":   handshakeProof(token, roleClient, preambleMagic, nf, nd),
+		"token":  handshakeProof(other, roleServer, preambleMagic, nf, nd),
+		"magic":  handshakeProof(token, roleServer, controlMagic, nf, nd),
+		"nonces": handshakeProof(token, roleServer, preambleMagic, nd, nf),
+	} {
+		if bytes.Equal(p, base) {
+			t.Errorf("a proof with another %s must differ", name)
+		}
+	}
+	if len(base) != proofLen || len(preambleMagic) != magicLen || len(legacyPreambleMagic) != magicLen || nonceLen != tokenLen {
+		t.Fatal("both handshakes must open with the same number of bytes")
+	}
+}
+
+// recordingListener accepts connections on loopback, reads the opening bytes
+// of each, answers with its func and records everything each one sent.
+type recordingListener struct {
+	ln   net.Listener
+	mu   sync.Mutex
+	got  [][]byte
+	done sync.WaitGroup
+}
+
+func newRecordingListener(t *testing.T, answer func(net.Conn, []byte)) *recordingListener {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &recordingListener{ln: ln}
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			r.done.Add(1)
+			go func() {
+				defer r.done.Done()
+				defer c.Close()
+				_ = c.SetDeadline(time.Now().Add(2 * time.Second))
+				pre := make([]byte, magicLen+nonceLen)
+				n, _ := io.ReadFull(c, pre)
+				if n == len(pre) {
+					answer(c, pre)
+				}
+				rest, _ := io.ReadAll(c)
+				r.mu.Lock()
+				r.got = append(r.got, append(pre[:n], rest...))
+				r.mu.Unlock()
+			}()
+		}
+	}()
+	t.Cleanup(func() { ln.Close(); r.done.Wait() })
+	return r
+}
+
+func (r *recordingListener) port() int { return r.ln.Addr().(*net.TCPAddr).Port }
+
+// received waits for the open connections to end and returns what each sent.
+func (r *recordingListener) received() [][]byte {
+	r.ln.Close()
+	r.done.Wait()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.got
+}
+
+func mustToken(t *testing.T, st agentState) []byte {
+	t.Helper()
+	token, err := st.token()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return token
 }
 
 func TestRunFrontRejectsUnusableStateDir(t *testing.T) {

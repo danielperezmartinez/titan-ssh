@@ -9,6 +9,9 @@ const (
 	codeLock        = "E_LOCK"         // the OS refuses the single-instance lock (e.g. NFS)
 	codeDaemonStart = "E_DAEMON_START" // no daemon answered within spawnWait
 	codeAuth        = "E_AUTH"         // the state file is unreadable or the token is refused
+	// The running daemon is an older version that does not speak this
+	// front's handshake: it has to be stopped (--stop) for this one to start.
+	codeAgentOutdated = "E_AGENT_OUTDATED"
 
 	// Windows: the SSH session's job kills its processes on close and does not
 	// let the daemon leave it.

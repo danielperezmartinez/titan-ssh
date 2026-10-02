@@ -166,14 +166,16 @@ func (h *desktopHelper) serve() {
 		go func() {
 			defer h.conns.Done()
 			defer conn.Close()
-			magic, err := acceptMagics(conn, h.token, map[string]string{
-				desktopMagic:        desktopAck,
-				desktopControlMagic: desktopControlAck,
-			})
+			magic, err := acceptMagics(conn, h.token,
+				[]string{desktopMagic, desktopControlMagic},
+				map[string]string{
+					legacyDesktopMagic:        legacyDesktopAck,
+					legacyDesktopControlMagic: legacyDesktopControlAck,
+				})
 			if err != nil {
 				return
 			}
-			if magic == desktopControlMagic {
+			if magic == desktopControlMagic || magic == legacyDesktopControlMagic {
 				h.serveControl(conn)
 				return
 			}
@@ -219,12 +221,33 @@ func (h *desktopHelper) close() {
 
 // desktopRequest sends one control request to the helper st describes.
 func desktopRequest(st agentState, op string) (desktopReply, error) {
-	var reply desktopReply
-	conn, err := dialWith(st, desktopControlMagic, desktopControlAck)
+	conn, err := dialWith(st, desktopControlMagic)
 	if err != nil {
-		return reply, err
+		return desktopReply{}, err
 	}
 	defer conn.Close()
+	return desktopExchange(conn, op)
+}
+
+// stopLegacyDesktop stops a helper of an older version, which answers only
+// the first handshake (rendezvous.go), while it holds its lock.
+func stopLegacyDesktop(stateDir string, st agentState) error {
+	if !legacyAllowed(stateDir, desktopLockName) {
+		return nil
+	}
+	conn, err := dialLegacy(st, legacyDesktopControlMagic, legacyDesktopControlAck)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	_, err = desktopExchange(conn, desktopOpStop)
+	return err
+}
+
+// desktopExchange sends op on an authenticated desktop control connection
+// and reads the reply.
+func desktopExchange(conn net.Conn, op string) (desktopReply, error) {
+	var reply desktopReply
 	_ = conn.SetDeadline(time.Now().Add(controlTimeout))
 	data, _ := json.Marshal(controlRequest{Op: op})
 	if _, err := conn.Write(append(data, '\n')); err != nil {
@@ -266,12 +289,18 @@ func connectDesktop(stateDir string, launch func() error) (net.Conn, error) {
 	var launchedAt time.Time
 	for {
 		if st, err := readStateFile(stateDir, desktopStateName); err == nil {
-			if conn, err := dialWith(st, desktopMagic, desktopAck); err == nil {
-				if st.Agent == version {
-					return conn, nil
-				}
+			conn, err := dialWith(st, desktopMagic)
+			switch {
+			case err == nil && st.Agent == version:
+				return conn, nil
+			case err == nil:
 				conn.Close()
 				if _, err := desktopRequest(st, desktopOpStop); err == nil {
+					_ = waitNamedLockFree(stateDir, desktopLockName, 5*time.Second)
+				}
+			case errors.Is(err, errRejected) && st.Agent != version:
+				// A helper of an older version: replace it as well.
+				if stopLegacyDesktop(stateDir, st) == nil {
 					_ = waitNamedLockFree(stateDir, desktopLockName, 5*time.Second)
 				}
 			}
@@ -376,7 +405,11 @@ func removeDesktop(stateDir string) error {
 		return withCode(codeStateDir, err)
 	}
 	if st, err := readStateFile(stateDir, desktopStateName); err == nil {
-		if _, err := desktopRequest(st, desktopOpStop); err == nil {
+		_, err := desktopRequest(st, desktopOpStop)
+		if errors.Is(err, errRejected) {
+			err = stopLegacyDesktop(stateDir, st)
+		}
+		if err == nil {
 			if err := waitNamedLockFree(stateDir, desktopLockName, 5*time.Second); err != nil {
 				return err
 			}

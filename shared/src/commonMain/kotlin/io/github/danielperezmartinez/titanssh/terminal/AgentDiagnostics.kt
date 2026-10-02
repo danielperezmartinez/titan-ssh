@@ -64,6 +64,9 @@ object AgentDiagnostics {
     /** The state file is unreadable, or the daemon refused its token. */
     const val E_AUTH = "E_AUTH"
 
+    /** An agent of an older version runs on the destination; it has to be stopped for this one to start. */
+    const val E_AGENT_OUTDATED = "E_AGENT_OUTDATED"
+
     /** Windows: the SSH session's job kills its processes and will not let the daemon out. */
     const val E_JOB_NO_BREAKAWAY = "E_JOB_NO_BREAKAWAY"
 
@@ -258,6 +261,10 @@ object AgentDiagnostics {
                 "no se pudo autenticar con el agente del destino" to
                     "Abre la sesión de nuevo en unos segundos. Si se repite, detén el agente desde su " +
                     "panel (Ver el agente del destino). No borres agent.json: el agente lo necesita."
+            E_AGENT_OUTDATED ->
+                "en el destino sigue en marcha un agente de una versión anterior" to
+                    "Actualízalo desde su panel (Ver el agente del destino): se cierran sus sesiones " +
+                    "y la próxima conexión arranca la versión actual."
             E_JOB_NO_BREAKAWAY ->
                 "el servidor SSH de Windows cierra todos los procesos al acabar la sesión" to
                     "Actualiza el OpenSSH del destino (funciona con OpenSSH_for_Windows 10.0p2)."

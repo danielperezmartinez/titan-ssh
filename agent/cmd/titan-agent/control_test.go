@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -154,9 +156,30 @@ func TestStatusWithLockButNoStateIsUnreachable(t *testing.T) {
 	}
 }
 
-// fakeLegacyDaemon accepts only the session preamble, as agents before the
-// control connection did, and publishes itself as version v.
+// fakeLegacyDaemon accepts only the first session handshake, as agents before
+// the control connection did, and publishes itself as version v.
 func fakeLegacyDaemon(t *testing.T, dir, v string) {
+	fakeOlderDaemon(t, dir, v, false)
+}
+
+// olderDaemon stands for a daemon of an older version: it speaks only the
+// first handshake (rendezvous.go), and with control it takes a stop request,
+// which releases its lock.
+type olderDaemon struct {
+	token   []byte
+	lock    *os.File
+	mu      sync.Mutex
+	seen    bool // some connection carried the token
+	stopped chan struct{}
+}
+
+func (o *olderDaemon) tokenSeen() bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.seen
+}
+
+func fakeOlderDaemon(t *testing.T, dir, v string, control bool) *olderDaemon {
 	t.Helper()
 	lock, err := lockDaemon(dir)
 	if err != nil {
@@ -166,28 +189,88 @@ func fakeLegacyDaemon(t *testing.T, dir, v string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	token := bytes.Repeat([]byte{7}, tokenLen)
+	o := &olderDaemon{token: bytes.Repeat([]byte{7}, tokenLen), lock: lock, stopped: make(chan struct{})}
 	st := validState()
 	st.Agent, st.Port, st.PID = v, ln.Addr().(*net.TCPAddr).Port, 424242
 	st.Token = strings.Repeat("07", tokenLen)
 	if err := writeState(dir, st); err != nil {
 		t.Fatal(err)
 	}
+	var stopOnce sync.Once
+	stop := func() { stopOnce.Do(func() { ln.Close(); lock.Close(); close(o.stopped) }) }
 	go func() {
 		for {
 			conn, err := ln.Accept()
 			if err != nil {
 				return
 			}
-			pre := make([]byte, len(preambleMagic)+tokenLen)
-			if _, err := io.ReadFull(conn, pre); err == nil &&
-				string(pre[:len(preambleMagic)]) == preambleMagic && bytes.Equal(pre[len(preambleMagic):], token) {
-				_, _ = conn.Write([]byte(preambleAck))
+			pre := make([]byte, magicLen+tokenLen)
+			_, err = io.ReadFull(conn, pre)
+			magic, rest := string(pre[:magicLen]), pre[magicLen:]
+			if err == nil && bytes.Equal(rest, o.token) {
+				o.mu.Lock()
+				o.seen = true
+				o.mu.Unlock()
+				switch {
+				case magic == legacyPreambleMagic:
+					_, _ = conn.Write([]byte(legacyPreambleAck))
+				case magic == legacyControlMagic && control:
+					_, _ = conn.Write([]byte(legacyControlAck))
+					line, _ := bufio.NewReader(conn).ReadBytes('\n')
+					var req controlRequest
+					if json.Unmarshal(line, &req) == nil && req.Op == opStop {
+						writeReply(conn, controlReply{})
+						conn.Close()
+						stop()
+						return
+					}
+				}
 			}
 			conn.Close()
 		}
 	}()
-	t.Cleanup(func() { ln.Close(); lock.Close() })
+	t.Cleanup(stop)
+	return o
+}
+
+func TestStopEndsAnOlderDaemon(t *testing.T) {
+	shortTimeouts(t)
+	dir := testStateDir(t)
+	older := fakeOlderDaemon(t, dir, "0.1.0-beta.10", true)
+	if rep, err := queryStatus(dir); err != nil || rep.State != stateLegacy || rep.Agent != "0.1.0-beta.10" {
+		t.Fatalf("status = %+v, %v", rep, err)
+	}
+	if err := stopDaemon(dir); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-older.stopped:
+	default:
+		t.Fatal("the older daemon was not asked to stop")
+	}
+	if _, err := os.Stat(filepath.Join(dir, stateFileName)); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("the state file should be gone, got %v", err)
+	}
+}
+
+// Without its lock, a record is never dialed with the first handshake: what
+// listens on its port is not the daemon that wrote it.
+func TestARecordWithoutItsLockIsNotDialedTheOldWay(t *testing.T) {
+	shortTimeouts(t)
+	dir := testStateDir(t)
+	older := fakeOlderDaemon(t, dir, "0.1.0-beta.10", true)
+	// Only the lock goes: the listener stays, as a port someone took over.
+	older.lock.Close()
+
+	if rep, err := queryStatus(dir); err != nil || rep.State != stateStopped {
+		t.Fatalf("status = %+v, %v", rep, err)
+	}
+	if err := stopDaemon(dir); err != nil {
+		t.Fatal(err)
+	}
+	if older.tokenSeen() {
+		t.Fatal("the token went to a listener whose lock is free")
+	}
 }
 
 func TestStatusOfAnOlderDaemonIsLegacy(t *testing.T) {
