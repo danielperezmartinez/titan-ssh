@@ -1,5 +1,6 @@
 package io.github.danielperezmartinez.titanssh.ssh
 
+import io.github.danielperezmartinez.titanssh.config.PrivateFiles
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
@@ -34,7 +35,7 @@ class FileKnownHostsStore(private val file: File) : KnownHostsStore {
     override suspend fun add(entry: KnownHostEntry) = withContext(Dispatchers.IO) {
         mutex.withLock {
             file.parentFile?.mkdirs()
-            file.appendText(formatLine(entry) + "\n")
+            PrivateFiles.appendText(file, formatLine(entry) + "\n")
         }
     }
 
@@ -52,7 +53,7 @@ class FileKnownHostsStore(private val file: File) : KnownHostsStore {
             file.parentFile?.mkdirs()
             // Written aside and moved over, so a crash never leaves a half file.
             val next = File(file.parentFile, file.name + ".new")
-            next.writeText((kept + formatLine(entry)).joinToString("\n", postfix = "\n"))
+            PrivateFiles.writeText(next, (kept + formatLine(entry)).joinToString("\n", postfix = "\n"))
             Files.move(next.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
             Unit
         }

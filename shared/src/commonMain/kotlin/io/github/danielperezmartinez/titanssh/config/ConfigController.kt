@@ -194,6 +194,12 @@ class ConfigController(
     fun setDefaultAppearance(appearance: TerminalAppearance) = mutate { cfg ->
         cfg.copy(defaultAppearance = appearance)
     }
+
+    // --- App settings --------------------------------------------------------
+
+    fun setAllowScreenCapture(allowed: Boolean) = mutate { cfg ->
+        cfg.copy(settings = cfg.settings.copy(allowScreenCapture = allowed))
+    }
 }
 
 /** Replaces the first item matching [match] with [item], or appends it. */

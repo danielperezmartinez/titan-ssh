@@ -339,6 +339,17 @@ data class Session(
     val mousepad: MousepadSettings = MousepadSettings(),
 )
 
+/** App-wide options, not tied to a host or a session (Configuración → Ajustes). */
+@Serializable
+data class AppSettings(
+    /**
+     * Lets the system and other apps capture the app's screen: screenshots,
+     * screen recordings and the recents thumbnail. Off by default. Only some
+     * platforms can enforce it ([isScreenCaptureControlSupported]).
+     */
+    val allowScreenCapture: Boolean = false,
+)
+
 /**
  * Root of the persisted configuration. One JSON document holds the whole
  * "Configuración" area. [version] lets future migrations detect the shape.
@@ -355,6 +366,8 @@ data class TitanConfig(
     /** The script library (ADR-0013). */
     val scripts: List<LibraryScript> = emptyList(),
     val defaultAppearance: TerminalAppearance = TerminalAppearance(),
+    /** A field with a default: older documents read with the default settings. */
+    val settings: AppSettings = AppSettings(),
 ) {
     /** The groups of [scope]'s list. */
     fun groups(scope: GroupScope): List<Group> = when (scope) {

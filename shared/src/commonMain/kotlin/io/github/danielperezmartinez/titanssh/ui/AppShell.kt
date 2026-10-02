@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -20,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import io.github.danielperezmartinez.titanssh.ScreenCapturePolicy
 import io.github.danielperezmartinez.titanssh.config.ConfigController
 import io.github.danielperezmartinez.titanssh.config.createConfigStore
 import io.github.danielperezmartinez.titanssh.secret.SecretProvisioner
@@ -58,6 +60,7 @@ fun AppShell() {
     TitanTheme {
         val scope = rememberCoroutineScope()
         val controller = remember { ConfigController(createConfigStore(), scope) }
+        ScreenCaptureSetting(controller)
         // One SecretStore instance backs both the read side (resolving credentials
         // at connect time) and the write side (provisioning them from the editor).
         val secretStore = remember { createSecretStore() }
@@ -187,6 +190,16 @@ fun AppShell() {
             }
         }
     }
+}
+
+/**
+ * Applies Ajustes → screen capture to the window. Its own scope, so a config
+ * change recomposes only this and not the whole shell.
+ */
+@Composable
+private fun ScreenCaptureSetting(controller: ConfigController) {
+    val config by controller.state.collectAsState()
+    ScreenCapturePolicy(config.settings.allowScreenCapture)
 }
 
 /**

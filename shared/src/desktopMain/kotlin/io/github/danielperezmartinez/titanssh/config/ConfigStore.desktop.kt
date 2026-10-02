@@ -10,7 +10,13 @@ import java.io.File
 actual fun createConfigStore(): ConfigStore =
     JsonFileConfigStore(desktopConfigDirectory())
 
-internal fun desktopConfigDirectory(): File {
+/**
+ * The per-user `titan-ssh` folder holding the config, `known_hosts` and the
+ * agents file. Made owner-only the first time it is resolved ([PrivateFiles]).
+ */
+internal fun desktopConfigDirectory(): File = configDirectory
+
+private val configDirectory: File by lazy {
     val os = System.getProperty("os.name").orEmpty().lowercase()
     val base: File = if (os.contains("win")) {
         System.getenv("APPDATA")?.takeIf { it.isNotBlank() }?.let(::File)
@@ -19,5 +25,5 @@ internal fun desktopConfigDirectory(): File {
         System.getenv("XDG_CONFIG_HOME")?.takeIf { it.isNotBlank() }?.let(::File)
             ?: File(System.getProperty("user.home"), ".config")
     }
-    return File(base, "titan-ssh")
+    File(base, "titan-ssh").also(PrivateFiles::secureDirectory)
 }

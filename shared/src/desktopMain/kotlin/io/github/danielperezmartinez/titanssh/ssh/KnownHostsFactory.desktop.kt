@@ -1,5 +1,6 @@
 package io.github.danielperezmartinez.titanssh.ssh
 
+import io.github.danielperezmartinez.titanssh.config.desktopConfigDirectory
 import java.io.File
 
 /**
@@ -8,16 +9,4 @@ import java.io.File
  * `$XDG_CONFIG_HOME` or `~/.config`), in the `titan-ssh` subfolder.
  */
 actual fun createKnownHostsStore(): KnownHostsStore =
-    FileKnownHostsStore(File(desktopKnownHostsDirectory(), "known_hosts"))
-
-private fun desktopKnownHostsDirectory(): File {
-    val os = System.getProperty("os.name").orEmpty().lowercase()
-    val base: File = if (os.contains("win")) {
-        System.getenv("APPDATA")?.takeIf { it.isNotBlank() }?.let(::File)
-            ?: File(System.getProperty("user.home"), "AppData/Roaming")
-    } else {
-        System.getenv("XDG_CONFIG_HOME")?.takeIf { it.isNotBlank() }?.let(::File)
-            ?: File(System.getProperty("user.home"), ".config")
-    }
-    return File(base, "titan-ssh")
-}
+    FileKnownHostsStore(File(desktopConfigDirectory(), "known_hosts"))

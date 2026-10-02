@@ -2,6 +2,7 @@ package io.github.danielperezmartinez.titanssh.android
 
 import android.graphics.Color
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -33,6 +34,9 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
+        // Out of screenshots and the recents thumbnail from the first frame;
+        // ScreenCapturePolicy clears it once the config allows capture.
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         setContent {
             // Real product UI: the two-area shell (Configuración / Sesiones).
             // The hardware-signer manual test (HardwareSignerTestScreen) stays in

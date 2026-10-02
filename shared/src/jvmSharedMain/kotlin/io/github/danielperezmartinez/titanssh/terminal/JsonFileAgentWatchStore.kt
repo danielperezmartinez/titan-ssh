@@ -1,5 +1,6 @@
 package io.github.danielperezmartinez.titanssh.terminal
 
+import io.github.danielperezmartinez.titanssh.config.PrivateFiles
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -22,7 +23,7 @@ class JsonFileAgentWatchStore(private val file: File) : AgentWatchStore {
     override suspend fun save(state: AgentWatchState) = withContext(Dispatchers.IO) {
         file.parentFile?.mkdirs()
         val tmp = File(file.parentFile, "${file.name}.tmp")
-        tmp.writeText(JSON.encodeToString(AgentWatchState.serializer(), state), Charsets.UTF_8)
+        PrivateFiles.writeText(tmp, JSON.encodeToString(AgentWatchState.serializer(), state))
         if (!tmp.renameTo(file)) {
             file.delete()
             if (!tmp.renameTo(file)) {

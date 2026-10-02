@@ -67,6 +67,7 @@ class JsonFileConfigStoreTest {
             ),
         ),
         defaultAppearance = TerminalAppearance(fontFamily = "JetBrains Mono", fontSize = 13, colorTheme = "ansi"),
+        settings = AppSettings(allowScreenCapture = true),
     )
 
     @Test
@@ -87,6 +88,19 @@ class JsonFileConfigStoreTest {
         val dir = tempDir()
         try {
             assertEquals(TitanConfig(), JsonFileConfigStore(dir).load())
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun document_without_settings_loads_the_default_settings() = runBlocking {
+        val dir = tempDir()
+        try {
+            File(dir, JsonFileConfigStore.CONFIG_FILE).writeText("""{"version": ${TitanConfig.CURRENT_VERSION}}""")
+            val loaded = JsonFileConfigStore(dir).load()
+            assertEquals(AppSettings(), loaded.settings)
+            assertEquals(false, loaded.settings.allowScreenCapture)
         } finally {
             dir.deleteRecursively()
         }

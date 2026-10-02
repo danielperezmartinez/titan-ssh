@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,6 +34,7 @@ import io.github.danielperezmartinez.titanssh.config.Session
 import io.github.danielperezmartinez.titanssh.config.LibraryScript
 import io.github.danielperezmartinez.titanssh.config.TitanConfig
 import io.github.danielperezmartinez.titanssh.config.sessionsUsing
+import io.github.danielperezmartinez.titanssh.isScreenCaptureControlSupported
 import io.github.danielperezmartinez.titanssh.secret.SecretProvisioner
 import io.github.danielperezmartinez.titanssh.terminal.AgentHost
 import io.github.danielperezmartinez.titanssh.theme.TitanColors
@@ -42,7 +44,12 @@ private enum class ConfigTab(val label: String) {
     HOSTS("Hosts"),
     SESSIONS("Sesiones"),
     SCRIPTS("Scripts"),
+    SETTINGS("Ajustes"),
 }
+
+/** The tabs this platform shows: Ajustes only where it has an option to offer. */
+private val configTabs: List<ConfigTab> =
+    ConfigTab.entries.filter { it != ConfigTab.SETTINGS || isScreenCaptureControlSupported() }
 
 private sealed interface Editor {
     /** [groupId]: the group a new host starts in. */
@@ -119,6 +126,7 @@ fun ConfigArea(
                     ConfigTab.SCRIPTS -> LibraryScriptList(config, onNew = { editor = Editor.LibraryScriptEdit(null) }) {
                         editor = Editor.LibraryScriptEdit(it.id)
                     }
+                    ConfigTab.SETTINGS -> SettingsList(controller, config)
                 }
             }
         }
@@ -135,7 +143,7 @@ private fun SubTabBar(current: ConfigTab, onSelect: (ConfigTab) -> Unit) {
             .horizontalScroll(rememberScrollState())
             .padding(horizontal = TitanDimens.SpaceSm),
     ) {
-        ConfigTab.entries.forEach { entry ->
+        configTabs.forEach { entry ->
             val selected = entry == current
             Box(
                 Modifier
@@ -357,5 +365,21 @@ private fun LibraryScriptList(config: TitanConfig, onNew: () -> Unit, onOpen: (L
             ListRow(marker = "[>]", title = script.name, subtitle = subtitle, onClick = { onOpen(script) }, markerColor = TitanColors.Mute)
             Hairline()
         }
+    }
+}
+
+/** App-wide options. Shown only where the platform has any ([configTabs]). */
+@Composable
+private fun SettingsList(controller: ConfigController, config: TitanConfig) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bodyPadding())) {
+        SectionHeader("Privacidad")
+        TitanCheck(
+            label = "Permitir capturas de pantalla",
+            checked = config.settings.allowScreenCapture,
+        ) { controller.setAllowScreenCapture(it) }
+        Caption(
+            "Desactivado, la app no sale en capturas ni grabaciones de pantalla, y la vista " +
+                "de apps recientes no muestra su contenido.",
+        )
     }
 }

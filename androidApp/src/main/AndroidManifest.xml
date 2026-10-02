@@ -6,7 +6,11 @@
     <!-- Reconnect tabs as soon as the network comes back. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- No backup or device transfer: see res/xml/data_extraction_rules.xml. -->
     <application
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:label="titan-ssh"

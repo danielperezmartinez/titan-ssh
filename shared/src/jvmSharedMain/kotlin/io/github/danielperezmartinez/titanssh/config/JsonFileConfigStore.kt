@@ -29,7 +29,7 @@ class JsonFileConfigStore(private val directory: File) : ConfigStore {
             val version = ConfigMigration.versionOf(document)
             if (version < TitanConfig.CURRENT_VERSION) {
                 val backup = File(directory, "$CONFIG_FILE.v$version.bak")
-                if (!backup.exists()) file.copyTo(backup)
+                if (!backup.exists()) PrivateFiles.copy(file, backup)
             }
             JSON.decodeFromJsonElement(TitanConfig.serializer(), ConfigMigration.migrate(document))
         } catch (e: Exception) {
@@ -42,7 +42,7 @@ class JsonFileConfigStore(private val directory: File) : ConfigStore {
         val text = JSON.encodeToString(TitanConfig.serializer(), config)
         val tmp = File(directory, "$CONFIG_FILE.tmp")
         try {
-            tmp.writeText(text, Charsets.UTF_8)
+            PrivateFiles.writeText(tmp, text)
             if (!tmp.renameTo(file)) {
                 // renameTo can fail if the target exists on some filesystems.
                 file.delete()
