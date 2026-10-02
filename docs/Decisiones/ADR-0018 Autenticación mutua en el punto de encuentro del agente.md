@@ -8,7 +8,7 @@ Consecuencias: 'El token ya no cruza el socket y los bytes del cliente solo lleg
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-10-02T01:38:01+02:00
-Última modificación: 2026-10-02T01:38:01+02:00
+Última modificación: 2026-10-02T19:32:17+02:00
 ---
 
 # ADR-0018 · Autenticación mutua en el punto de encuentro del agente
@@ -47,7 +47,8 @@ con un secreto compartido.
   - El front no envía nada después de su prueba hasta haber comprobado la del
     daemon. Si no cuadra, cierra.
   - El daemon cierra sin decir nada si la prueba del front no cuadra, y todo
-    el handshake tiene el límite de tiempo de siempre (`helloTimeout`).
+    el handshake tiene un límite de tiempo (`handshakeTimeout`, en
+    `rendezvous.go`).
 - **Marcas nuevas** (`…2`) para las cuatro conexiones: `TTNAGNT2` (sesión),
   `TTNACTL2` (control), `TTNADSK2` (entrada del ayudante) y `TTNADCT2`
   (control del ayudante). Abren con los mismos 40 bytes que el preámbulo

@@ -5,7 +5,7 @@ Resumen: 'Subtarea 1 del mouse pad: controlar ratón y teclado de un destino Win
 Decisiones: 'Parte de [[Sesión mouse pad para controlar el escritorio del destino]]. El usuario aceptó el 2026-10-01 la tarea programada visible y gestionable desde el panel del agente, frente a una entrada de arranque automático (siempre activa) o un servicio (exige administrador). Experimento del 2026-10-01: la tarea programada solo interactiva, creada y lanzada por SSH, arranca en la sesión del usuario (también de escritorio remoto) y mueve el cursor. El diseño es [[ADR-0016 Sesión mouse pad y ayudante de escritorio en Windows]], aceptada por el usuario el 2026-10-01: cerrar la pestaña no para el ayudante (solo cerrar la sesión de Windows o quitarlo desde el panel), y, por [[ADR-0017 Ayudante de escritorio con una copia gráfica del agente]] (aceptada el 2026-10-01), el binario sigue siendo de consola y el ayudante usa una copia gráfica (con el subsistema gráfico PowerShell perdía el código de salida). El desbloqueo de la pantalla de bloqueo queda aparcado en [[Desbloqueo del destino Windows con un servicio de sistema]].'
 Bloqueada: []
 Fecha de creación: 2026-10-01T18:25:00+02:00
-Última modificación: 2026-10-01T21:43:04+02:00
+Última modificación: 2026-10-02T19:32:17+02:00
 ---
 
 # Mouse pad en destinos Windows
@@ -172,6 +172,11 @@ Hecho el 2026-10-01, en el PC de pruebas (Windows 10 22H2, Win32-OpenSSH
 - **Pendiente del usuario**: los gestos de dos dedos (scroll y clic derecho),
   que `adb` no simula; el teclado del móvil; el PC bloqueado; y la prueba en
   el Pixel.
+- 2026-10-02, con el agente de SEC-2026-11 a SEC-2026-13: en el emulador el
+  mouse pad conecta, mueve el puntero y escribe en el Bloc de notas, y la
+  sesión de nivel 3 contra este PC sigue funcionando. Un texto largo de golpe
+  pierde caracteres (también antes): va en
+  [[Texto largo del mouse pad que pierde caracteres en Windows]].
 
 ## Resultado
 

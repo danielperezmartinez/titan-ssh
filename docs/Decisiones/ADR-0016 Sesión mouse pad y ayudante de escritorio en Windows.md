@@ -8,7 +8,7 @@ Consecuencias: 'Reutiliza la conexión SSH, la instalación del agente y el encu
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-10-01T19:20:00+02:00
-Última modificación: 2026-10-01T19:45:00+02:00
+Última modificación: 2026-10-02T19:32:17+02:00
 ---
 
 # ADR-0016 · Sesión mouse pad y ayudante de escritorio en Windows
@@ -16,8 +16,12 @@ Fecha de creación: 2026-10-01T19:20:00+02:00
 > **Nota (2026-10-01)**: el punto **Sin consola** lo sustituye
 > [[ADR-0017 Ayudante de escritorio con una copia gráfica del agente]]. Con
 > el subsistema gráfico, PowerShell no recoge el código de salida del agente.
-> En la implementación, la tarea se llama `titan-ssh-desktop-<usuario>`: los
-> nombres de las tareas son comunes a todos los usuarios del PC.
+> En la implementación, la tarea se llama
+> `titan-ssh-desktop-<usuario>-<parte aleatoria>`: los nombres de las tareas
+> son comunes a todos los usuarios del PC. El nombre se elige al primer uso y
+> se guarda en `desktop-task.txt`, en el directorio de estado; `--remove-desktop`
+> lo olvida. Tras registrarla, el front comprueba que la tarea se ejecuta con
+> la cuenta del usuario antes de lanzarla (nota del 2026-10-02).
 
 ## Contexto
 
