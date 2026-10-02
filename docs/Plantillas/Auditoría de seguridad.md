@@ -28,9 +28,11 @@ resultado: OK, hallazgo o no ejecutado (y por qué).>
 
 ## Hallazgos privados
 
-| Referencia | Severidad | Aviso | Estado |
-| --- | --- | --- | --- |
-| SEC-AAAA-NN | Alta · Media · Baja | GHSA-… (o "por crear") | Abierto · Corregido en vX.Y.Z · Publicado |
+| Referencia | Severidad | Aviso |
+| --- | --- | --- |
+| [[SEC-AAAA-NN]] | Alta · Media · Baja | GHSA-… (o "por crear") |
+
+El estado de cada hallazgo se sigue en su nota de `Hallazgos privados/`.
 
 ## Hallazgos públicos
 

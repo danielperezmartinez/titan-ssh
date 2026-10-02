@@ -3,6 +3,8 @@ filters:
     - file.inFolder("Auditorías de seguridad")
     - file.ext == "md"
     - Estado != null
+    - not:
+        - file.inFolder("Auditorías de seguridad/Hallazgos privados")
 formulas:
   created_display: note["Fecha de creación"].format("DD-MM-YYYY HH:mm")
   updated_display: note["Última modificación"].format("DD-MM-YYYY HH:mm")

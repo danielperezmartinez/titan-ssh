@@ -65,6 +65,10 @@ Gestión de trabajos como notas con estado en `Tareas/`, indexadas por
   deba aparecer en el trabajo habitual → `Archivada`.
 - Antes de crear una tarea, buscar en TODAS (incluidas `Hecha` y `Archivada`)
   para no duplicar.
+- Una tarea nueva es solo su nota en `Tareas/` (desde `Plantillas/Tarea.md`) y
+  se sigue en `Tareas/Tareas.base`. No se añade a ninguna nota de hoja de ruta:
+  [[Seguimiento de tareas pendientes]] es una lista cerrada con las tareas que
+  ya contiene, nacida para el despliegue, y no recoge tareas nuevas.
 
 ### ADR (decisiones de arquitectura)
 
@@ -116,11 +120,13 @@ nota-índice en `Catálogo técnico.md`.
 
 ### Auditorías de seguridad
 
-_Versión del sistema: 1._
+_Versión del sistema: 2._
 
 Revisiones de seguridad manuales, una nota por auditoría en
 `Auditorías de seguridad/`, indexadas por
-`Auditorías de seguridad/Auditorías de seguridad.base`. La nota-índice
+`Auditorías de seguridad/Auditorías de seguridad.base`, y una nota opaca por
+hallazgo sensible en `Auditorías de seguridad/Hallazgos privados/`, indexadas
+por `Auditorías de seguridad/Hallazgos privados.base`. La nota-índice
 `Auditorías de seguridad.md` es la fuente de verdad del procedimiento: niveles,
 herramientas, checklist y cómo trabajar con los avisos privados.
 
@@ -135,11 +141,15 @@ herramientas, checklist y cómo trabajar con los avisos privados.
   están todos corregidos.
 - **Hallazgos sensibles**: solo como referencia opaca `SEC-AAAA-NN`; su
   contenido vive en el aviso privado (regla 5, "Vulnerabilidades y hallazgos
-  de seguridad"). **Hallazgos no sensibles**: una tarea enlazada desde
+  de seguridad"). Cada uno tiene una nota `SEC-AAAA-NN` en
+  `Hallazgos privados/` con solo severidad, estado, el `GHSA-…`, la auditoría
+  que lo encontró y la versión que lo corrige; nunca un título ni una
+  descripción. `Estado` ∈ `Abierto` · `Corregido` · `Publicado` ·
+  `Descartado`. **Hallazgos no sensibles**: una tarea enlazada desde
   `Hallazgos públicos`.
 - Una auditoría cerrada no se reescribe: el seguimiento de cada hallazgo vive
-  en su aviso o en su tarea. Solo se actualiza la fila de un hallazgo cuando su
-  aviso se publica.
+  en su nota de `Hallazgos privados/` (estado) y en su aviso (detalle), o en su
+  tarea. La tabla de hallazgos de una auditoría cerrada es la foto del cierre.
 - Antes de crear una auditoría se revisa si hay otra `En curso` y se continúa
   esa.
 
@@ -289,14 +299,15 @@ el repositorio es explicar cómo atacar a quien usa la versión publicada.
   añaden al checklist cuando su aviso se publica.
 - **En la bóveda** solo se anota una referencia opaca: `SEC-AAAA-NN`
   (correlativo por año, no se reutiliza), severidad, estado y el ID `GHSA-…`
-  del aviso. Nunca un título descriptivo.
+  del aviso, en su nota de `Auditorías de seguridad/Hallazgos privados/`.
+  Nunca un título descriptivo.
 - **El arreglo** se prepara en local, sin subirlo hasta que se suba junto con
   el tag de la versión que lo publica, y con mensajes de commit neutros que no
   expliquen el fallo. El procedimiento detallado está en la nota-índice
   `Auditorías de seguridad.md`, en "Corregir un hallazgo privado".
 - **Al publicar el arreglo** se publica el aviso (con CVE si procede). A partir
-  de ahí la bóveda ya puede enlazarlo y describirlo, y la auditoría que lo
-  encontró se actualiza.
+  de ahí la bóveda ya puede enlazarlo y describirlo, y su nota de hallazgo
+  pasa a `Publicado`.
 - **Lo no sensible** (endurecimiento general, CVE públicos de dependencias cuyas
   versiones ya están a la vista, piezas de infraestructura que faltan) se
   gestiona con tareas normales.

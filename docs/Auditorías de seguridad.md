@@ -5,9 +5,11 @@ así que la seguridad es un pilar del producto (ver [[README]], "Propósito del
 proyecto"). Este sistema fija **cómo** se revisa, de forma manual, que la app
 sigue cumpliendo lo que promete. Las auditorías se hacen **solo cuando el
 usuario las pide**, sin calendario. Cada una deja una nota en
-`Auditorías de seguridad/`.
+`Auditorías de seguridad/`, y cada hallazgo sensible una nota opaca en
+`Auditorías de seguridad/Hallazgos privados/`.
 
-[[Auditorías de seguridad/Auditorías de seguridad.base|Abrir la vista de auditorías]]
+- [[Auditorías de seguridad/Auditorías de seguridad.base|Abrir la vista de auditorías]]
+- [[Auditorías de seguridad/Hallazgos privados.base|Abrir la vista de hallazgos privados]]
 
 > **Repositorio público.** Esta nota y las de cada auditoría son públicas. Los
 > hallazgos sensibles van solo a avisos privados de GitHub (regla 5 del
@@ -40,18 +42,20 @@ Momentos en que conviene pedirla (son sugerencias, no obligaciones):
    (ver "Trabajar con los avisos privados") para no duplicar ninguno. Si un
    hallazgo ya tiene aviso, se amplía ese aviso.
 4. Clasificar cada hallazgo con el criterio de la regla 5:
-   - **Sensible** → aviso privado en borrador (ver abajo). En la nota solo va
-     la fila `SEC-AAAA-NN` con severidad, estado y el `GHSA-…`.
-   - **No sensible** → tarea normal, enlazada desde `Hallazgos públicos` y
-     colocada en [[Seguimiento de tareas pendientes]].
+   - **Sensible** → aviso privado en borrador (ver abajo) y una nota
+     `SEC-AAAA-NN` desde `Plantillas/Hallazgo privado.md` (ver "Seguimiento
+     de los hallazgos privados"). En la nota de la auditoría solo va la fila
+     `[[SEC-AAAA-NN]]` con severidad y el `GHSA-…`.
+   - **No sensible** → tarea normal del sistema de Tareas, enlazada desde
+     `Hallazgos públicos`.
 5. Severidad:
    - **Alta**: un tercero puede suplantar al servidor, leer credenciales o
      sesiones, o ejecutar órdenes.
    - **Media**: fuga de datos, o ejecución que necesita una condición poco
      habitual.
    - **Baja**: endurecimiento, o información de poco valor.
-6. Comprobar también los avisos ya existentes cuyo arreglo se haya publicado,
-   y proponer al usuario publicarlos.
+6. Comprobar también los hallazgos en `Corregido` cuyo arreglo ya esté en una
+   versión publicada, y proponer al usuario publicar sus avisos.
 7. Cerrar la nota cuando cada hallazgo tenga destino.
 
 ## Trabajar con los avisos privados
@@ -86,6 +90,36 @@ mano en *Security* → *Advisories* → *New draft security advisory*.
 Ningún agente **publica** ni **cierra** un aviso sin que el usuario lo pida en
 esa sesión.
 
+## Seguimiento de los hallazgos privados
+
+Cada hallazgo sensible tiene una nota `SEC-AAAA-NN` en
+`Auditorías de seguridad/Hallazgos privados/`, creada desde
+`Plantillas/Hallazgo privado.md` en el momento de dar de alta su aviso. La
+vista [[Auditorías de seguridad/Hallazgos privados.base|Hallazgos privados]]
+las reúne, así que se ve de un vistazo qué falta por corregir y qué falta por
+publicar. Es la única fuente del **estado** de cada hallazgo; el **detalle**
+sigue solo en su aviso.
+
+Como la nota es pública, solo lleva:
+
+- `Severidad` ∈ `Alta` · `Media` · `Baja`.
+- `Estado`:
+  - `Abierto`: sin arreglo.
+  - `Corregido`: arreglo hecho y verificado en local, o ya en una versión
+    publicada, pero con el aviso aún en borrador.
+  - `Publicado`: aviso publicado. A partir de aquí la nota ya puede enlazar
+    y describir el aviso.
+  - `Descartado`: el usuario decide que no es una vulnerabilidad y cierra el
+    aviso.
+- `Aviso`: el `GHSA-…`.
+- `Auditoría`: wikilink a la auditoría que lo encontró.
+- `Versión del arreglo`: el tag que lo publica (`''` hasta entonces).
+
+En el cuerpo, un registro con fecha de cada cambio de estado, con frases
+neutras que no expliquen el fallo (p. ej. "corregido en `main` sin subir; va
+con la próxima pre-release"). Si una auditoría posterior lo confirma o lo
+amplía, se anota aquí con un enlace a esa auditoría, y el detalle va al aviso.
+
 ## Corregir un hallazgo privado
 
 1. Leer su aviso con el token. Es la única fuente del detalle.
@@ -97,11 +131,12 @@ esa sesión.
    expliquen el fallo (p. ej. "Harden host key checks"). Los tests que lo
    cubren no llevan nombres que lo describan.
 4. Verificar como cualquier otro cambio: tests y prueba en el emulador (regla
-   4, paso 0).
-5. Publicar la versión cuando el usuario lo pida (regla 4). Después, si el
-   usuario lo aprueba, publicar el aviso con
-   `patched_versions` = esa versión, actualizar su fila en la auditoría y
-   añadir aquí su comprobación de regresión.
+   4, paso 0). Pasar su nota de hallazgo a `Corregido`, con una línea en su
+   registro.
+5. Publicar la versión cuando el usuario lo pida (regla 4) y anotar el tag en
+   `Versión del arreglo`. Después, si el usuario lo aprueba, publicar el aviso
+   con `patched_versions` = esa versión, pasar su nota a `Publicado` y añadir
+   aquí su comprobación de regresión.
 
 ## Modelo de amenazas resumido
 

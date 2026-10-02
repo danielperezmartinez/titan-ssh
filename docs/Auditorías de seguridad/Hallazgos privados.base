@@ -1,0 +1,99 @@
+filters:
+  and:
+    - file.inFolder("Auditorías de seguridad/Hallazgos privados")
+    - file.ext == "md"
+    - Estado != null
+formulas:
+  severity_rank: if(Severidad == "Alta", 1, if(Severidad == "Media", 2, 3))
+  created_display: note["Fecha de creación"].format("DD-MM-YYYY HH:mm")
+  updated_display: note["Última modificación"].format("DD-MM-YYYY HH:mm")
+properties:
+  file.name:
+    displayName: Hallazgo
+  Severidad:
+    displayName: Severidad
+  Estado:
+    displayName: Estado
+  Aviso:
+    displayName: Aviso
+  Auditoría:
+    displayName: Auditoría
+  Versión del arreglo:
+    displayName: Versión del arreglo
+  formula.created_display:
+    displayName: Creada
+  formula.updated_display:
+    displayName: Modificada
+views:
+  - type: table
+    name: Todo
+    order:
+      - file.name
+      - Severidad
+      - Estado
+      - Aviso
+      - Auditoría
+      - Versión del arreglo
+      - formula.updated_display
+    sort:
+      - property: file.name
+        direction: ASC
+  - type: table
+    name: Abiertos
+    filters:
+      and:
+        - Estado == "Abierto"
+    order:
+      - file.name
+      - Severidad
+      - Aviso
+      - Auditoría
+      - formula.updated_display
+    sort:
+      - property: formula.severity_rank
+        direction: ASC
+      - property: file.name
+        direction: ASC
+  - type: table
+    name: Corregidos sin publicar
+    filters:
+      and:
+        - Estado == "Corregido"
+    order:
+      - file.name
+      - Severidad
+      - Aviso
+      - Versión del arreglo
+      - formula.updated_display
+    sort:
+      - property: formula.severity_rank
+        direction: ASC
+      - property: file.name
+        direction: ASC
+  - type: table
+    name: Publicados
+    filters:
+      and:
+        - Estado == "Publicado"
+    order:
+      - file.name
+      - Severidad
+      - Aviso
+      - Versión del arreglo
+      - Auditoría
+    sort:
+      - property: file.name
+        direction: DESC
+  - type: table
+    name: Descartados
+    filters:
+      and:
+        - Estado == "Descartado"
+    order:
+      - file.name
+      - Severidad
+      - Aviso
+      - Auditoría
+    sort:
+      - property: file.name
+        direction: DESC

@@ -1,14 +1,21 @@
 ---
 Nombre: 'Seguimiento de tareas pendientes'
 Estado: 'En curso'
-Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenadas por prioridad, para irlas completando una a una en sesiones sucesivas nombrando esta nota. Indica qué tareas conviene hacer juntas en la misma sesión y qué pasos necesitan una acción del usuario. Orden: primero lo que hay que hacer con el árbol de trabajo limpio y antes de publicar (cambio de identificador y licencia); después la base de release hasta la primera pre-release con Obtainium, que sustituye a pasar la APK a mano; los canales propios del usuario (AUR, winget); el hueco funcional de scripts sobre el agente; el nivel 3 portable; los scripts reutilizables y los túneles; y al final los canales públicos (Flathub, IzzyOnDroid), la firma de SignPath y el aviso de versión. Google Play queda aparcado.'
+Resumen: 'Hoja de ruta del despliegue y la distribución, con una lista cerrada de tareas ordenadas por prioridad para irlas completando una a una en sesiones sucesivas nombrando esta nota. Solo cubre las tareas que ya contiene: las tareas nuevas se crean y se siguen en el sistema de Tareas (Tareas.base), sin añadirlas aquí. Indica qué tareas conviene hacer juntas en la misma sesión y qué pasos necesitan una acción del usuario. Orden: primero lo que hay que hacer con el árbol de trabajo limpio y antes de publicar (cambio de identificador y licencia); después la base de release hasta la primera pre-release con Obtainium, que sustituye a pasar la APK a mano; los canales propios del usuario (AUR, winget); el hueco funcional de scripts sobre el agente; el nivel 3 portable; los scripts reutilizables y los túneles; y al final los canales públicos (Flathub, IzzyOnDroid), la firma de SignPath y el aviso de versión. Google Play queda aparcado.'
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-10-02T15:30:00+02:00
+Última modificación: 2026-10-02T18:41:21+02:00
 ---
 
 # Seguimiento de tareas pendientes
+
+> **Lista cerrada.** Esta nota nació como hoja de ruta del despliegue y solo
+> ordena las tareas que ya contiene. **No se le añaden tareas nuevas**: una
+> tarea nueva se crea como nota en `Tareas/` según el sistema de Tareas del
+> [[README]] y se sigue en [[Tareas/Tareas.base|el panel de tareas]]. Los
+> hallazgos privados de seguridad se siguen en
+> [[Auditorías de seguridad/Hallazgos privados.base|su propio panel]].
 
 ## Cómo usar esta nota
 
@@ -21,8 +28,8 @@ En cada sesión, cuando el usuario nombre esta tarea:
    `Hecha`.
 3. Al terminar, marcar aquí la casilla, añadir una línea en el **Registro** y
    actualizar `Última modificación`.
-4. Si aparece una tarea nueva, o una cambia de alcance o de bloqueo, colocarla
-   en el orden que corresponda.
+4. Si una tarea de esta nota cambia de alcance o de bloqueo, recolocarla en el
+   orden que corresponda. Las tareas nuevas no se añaden (ver arriba).
 
 **Fuente de verdad**: la propiedad `Estado` de cada tarea. Las casillas de esta
 nota son solo el progreso de la hoja de ruta; si no coinciden, manda la tarea.
@@ -203,8 +210,9 @@ mismo commit).
 Sale de la [[Auditoría 2026-10-01 Completa]] (sistema
 [[Auditorías de seguridad]]). Va antes de la fase 5: no conviene llevar la app
 a usuarios ajenos con hallazgos de severidad alta abiertos. Los hallazgos
-sensibles **no** tienen tarea: se siguen en su aviso privado de GitHub (regla
-5 del [[README]]).
+sensibles **no** tienen tarea: su estado se sigue en
+[[Auditorías de seguridad/Hallazgos privados.base|el panel de hallazgos privados]]
+y su detalle en el aviso privado de GitHub (regla 5 del [[README]]).
 
 - [ ] **S1. Canal privado y avisos** 👤 (el usuario activa el aviso privado de
   vulnerabilidades y da de alta los borradores)
@@ -222,14 +230,9 @@ sensibles **no** tienen tarea: se siguen en su aviso privado de GitHub (regla
   - Según "Corregir un hallazgo privado" en [[Auditorías de seguridad]]:
     trabajo local sin subir, mensajes neutros, y subida junto con el tag de la
     pre-release. Al publicarla se publica el aviso, si el usuario lo aprueba.
-  - 2026-10-02: `SEC-2026-01`, `02` y `10` corregidos en `main` sin subir;
-    van con la próxima pre-release.
-  - 2026-10-02: `SEC-2026-03` y `09` corregidos en `main` sin subir;
-    van con la misma pre-release.
-  - 2026-10-02: `SEC-2026-06` corregido en `main` sin subir, junto con S4;
-    va con la misma pre-release.
-  - 2026-10-02: `SEC-2026-04` y `05` corregidos en `main` sin subir; van
-    con la misma pre-release.
+  - El avance de cada hallazgo (`Abierto`, `Corregido`, `Publicado`) está en
+    [[Auditorías de seguridad/Hallazgos privados.base|el panel de hallazgos privados]];
+    este paso se marca cuando no quede ninguno en `Abierto`.
 - [ ] **S3b. Retirar el preámbulo anterior del agente** (en `0.1.0-beta.12`,
   como muy tarde en `0.1.0-beta.13`)
   - [[Retirar el preámbulo anterior del agente]]
@@ -853,3 +856,9 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   `titan-test-sshd`) y en el Windows de desarrollo con `cmd.exe` y
   PowerShell 5.1 sobre ConPTY. Siguiente en S3: `SEC-2026-07`, `08` y
   `11` … `13`.
+- 2026-10-02 — Por decisión del usuario, esta nota pasa a ser una **lista
+  cerrada**: solo ordena las tareas que ya contiene, y las tareas nuevas se
+  crean y se siguen solo en el sistema de Tareas. El estado de los hallazgos
+  privados sale de S3 a su propio panel,
+  [[Auditorías de seguridad/Hallazgos privados.base]], con una nota opaca por
+  `SEC-2026-NN` (sistema de auditorías, versión 2).

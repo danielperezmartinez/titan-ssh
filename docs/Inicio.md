@@ -26,6 +26,8 @@ reglas del proyecto.
 
 [[Auditorías de seguridad|Abrir la nota-índice de las auditorías de seguridad]]
 
+[[Auditorías de seguridad/Hallazgos privados.base|Abrir el panel de hallazgos privados]]
+
 ## Próximos sistemas
 
 - Ningún sistema adicional pendiente por ahora. Para añadir uno nuevo, reinvoca
