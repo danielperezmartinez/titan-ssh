@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-10-02T14:00:00+02:00
+Última modificación: 2026-10-02T14:30:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -238,6 +238,10 @@ sensibles **no** tienen tarea: se siguen en su aviso privado de GitHub (regla
     `main` sin subir; va con la próxima pre-release.
 - [ ] **S5. Cadena de suministro** 👤 (activar los avisos de Dependabot)
   - [[Endurecer la cadena de suministro]]
+- [ ] **S6. Intercambio de claves post-cuántico** (sin prisa)
+  - [[Intercambio de claves post-cuántico en el motor SSH]]
+  - Petición del usuario (2026-10-02). Protege a futuro, no corrige un fallo
+    actual, así que no bloquea la distribución pública.
 - Aparcada hasta que el usuario decida:
   [[Pedir desbloqueo o biometría para usar las credenciales]] (`Planificando`).
 
@@ -829,3 +833,6 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   contenedores, `ssh-audit -c` y emulador con las APK de debug y de release
   con R8), integrados en `main` sin subir; van con la próxima pre-release.
   Siguiente en S3: `SEC-2026-04` y `05`.
+- 2026-10-02 — Nueva tarea S6,
+  [[Intercambio de claves post-cuántico en el motor SSH]], a petición del
+  usuario.
