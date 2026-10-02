@@ -220,7 +220,10 @@ interface SshConnector {
      * @param hostKeyVerifier trust decision for the server's host key.
      * @param keepAliveSeconds interval for transport keepalives; the heartbeat
      *   that lets resiliency detect a drop. `0` disables it.
-     * @throws SshHostKeyRejected if [hostKeyVerifier] declines the host key.
+     * @param via jump hosts (ProxyJump), first hop first. When not empty the
+     *   connection to [endpoint] runs inside a `direct-tcpip` channel of the
+     *   last hop, and is never opened directly: a hop that fails fails it.
+     * @throws SshHostKeyRejected if a verifier declines a host key.
      * @throws SshAuthFailed if authentication is rejected.
      * @throws SshConnectFailed if the transport cannot be established.
      */
@@ -229,8 +232,21 @@ interface SshConnector {
         credentials: SshCredentials,
         hostKeyVerifier: HostKeyVerifier,
         keepAliveSeconds: Int = 15,
+        via: List<SshHop> = emptyList(),
     ): SshSession
 }
+
+/**
+ * A jump host (ProxyJump) the connection passes through on its way to the
+ * destination. It is a full SSH connection of its own: its own credentials,
+ * host key verification and keepalive.
+ */
+class SshHop(
+    val endpoint: SshEndpoint,
+    val credentials: SshCredentials,
+    val hostKeyVerifier: HostKeyVerifier,
+    val keepAliveSeconds: Int,
+)
 
 /** Base type for SSH engine failures. */
 sealed class SshException(message: String, cause: Throwable? = null) :

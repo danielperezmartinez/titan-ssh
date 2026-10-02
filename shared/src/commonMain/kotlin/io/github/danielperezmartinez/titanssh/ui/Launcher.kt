@@ -124,6 +124,9 @@ internal fun Launcher(
                 val subtitle = if (resolved != null) {
                     (if (mousepad) "mouse pad · " else "") +
                         "${resolved.endpoint.username}@${resolved.endpoint.host}:${resolved.endpoint.port}"
+                } else if (config.hosts.any { it.id == session.hostId }) {
+                    // The host is there, so its ProxyJump chain is what fails.
+                    "ProxyJump sin resolver — revisa el bastión del host"
                 } else {
                     "host no encontrado — revisa la configuración"
                 }

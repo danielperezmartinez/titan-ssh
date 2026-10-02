@@ -13,6 +13,7 @@ import io.github.danielperezmartinez.titanssh.ssh.SshConnectionState
 import io.github.danielperezmartinez.titanssh.ssh.SshConnector
 import io.github.danielperezmartinez.titanssh.ssh.SshCredentials
 import io.github.danielperezmartinez.titanssh.ssh.SshEndpoint
+import io.github.danielperezmartinez.titanssh.ssh.SshHop
 import io.github.danielperezmartinez.titanssh.ssh.SshExecChannel
 import io.github.danielperezmartinez.titanssh.ssh.SshSession
 import io.github.danielperezmartinez.titanssh.ssh.SshShell
@@ -81,6 +82,7 @@ class SessionTabAgentDegradeTest {
             credentials: SshCredentials,
             hostKeyVerifier: HostKeyVerifier,
             keepAliveSeconds: Int,
+            via: List<SshHop>,
         ): SshSession = plan.removeFirstOrNull() ?: throw SshConnectFailed("no more sessions")
     }
 
@@ -98,7 +100,7 @@ class SessionTabAgentDegradeTest {
             endpoint = SshEndpoint("x", 22, "u"),
             auth = host.auth,
             appearance = TerminalAppearance(),
-            proxyJump = null,
+            jumps = emptyList(),
         )
     }
 

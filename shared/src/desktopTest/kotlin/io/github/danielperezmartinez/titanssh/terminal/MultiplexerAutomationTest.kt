@@ -99,7 +99,7 @@ class MultiplexerAutomationTest {
         endpoint = SshEndpoint("x", 22, "u"),
         auth = HostAuth.Password("r"),
         appearance = TerminalAppearance(),
-        proxyJump = null,
+        jumps = emptyList(),
     )
 
     private fun automation() = StartScriptAutomation(EmptySecretStore(), multiplexerSettleMillis = 0)

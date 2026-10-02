@@ -33,8 +33,7 @@ class AgentManager(
     val busy: StateFlow<Set<String>> = _busy.asStateFlow()
 
     /** The agent of [resolved]'s destination user. */
-    fun hostOf(resolved: ResolvedConnection) =
-        AgentHost(resolved.endpoint, resolved.auth, resolved.host.keepAliveSeconds)
+    fun hostOf(resolved: ResolvedConnection) = AgentHost.of(resolved)
 
     private val _previews = MutableStateFlow<Map<String, Map<String, AgentPreview>>>(emptyMap())
 

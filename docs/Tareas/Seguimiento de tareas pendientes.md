@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta viva con todas las tareas abiertas del proyecto, ordenada
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-10-02T08:53:55+02:00
+Última modificación: 2026-10-02T09:32:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -224,6 +224,8 @@ sensibles **no** tienen tarea: se siguen en su aviso privado de GitHub (regla
     pre-release. Al publicarla se publica el aviso, si el usuario lo aprueba.
   - 2026-10-02: `SEC-2026-01`, `02` y `10` corregidos en `main` sin subir;
     van con la próxima pre-release.
+  - 2026-10-02: `SEC-2026-03` y `09` corregidos en `main` sin subir;
+    van con la misma pre-release.
 - [ ] **S3b. Retirar el preámbulo anterior del agente** (en `0.1.0-beta.12`,
   como muy tarde en `0.1.0-beta.13`)
   - [[Retirar el preámbulo anterior del agente]]
@@ -815,3 +817,7 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   nueva tarea S3b, [[Retirar el preámbulo anterior del agente]], que el build
   raíz exige antes de `0.1.0-beta.13`. Siguiente: el resto de S3 (los de
   severidad media, `SEC-2026-03` … `06`).
+- 2026-10-02 — **S3 avanza**: `SEC-2026-03` y `09` corregidos juntos y
+  verificados en local (tests, prueba real contra contenedores y emulador),
+  integrados en `main` sin subir; van con la próxima pre-release.
+  Siguiente: el resto de S3 (`SEC-2026-04` … `06`).

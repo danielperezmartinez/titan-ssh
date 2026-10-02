@@ -28,6 +28,7 @@ import io.github.danielperezmartinez.titanssh.config.HostAuth
 import io.github.danielperezmartinez.titanssh.config.HostKeyPolicy
 import io.github.danielperezmartinez.titanssh.config.Ids
 import io.github.danielperezmartinez.titanssh.config.TerminalAppearance
+import io.github.danielperezmartinez.titanssh.config.canJumpThrough
 import io.github.danielperezmartinez.titanssh.secret.SecretProvisioner
 import io.github.danielperezmartinez.titanssh.secret.SecretRef
 import io.github.danielperezmartinez.titanssh.secret.SshKeyType
@@ -319,7 +320,8 @@ fun HostEditor(
             Gap()
             TitanTextField("Keepalive (segundos)", keepAlive, { keepAlive = it.filter(Char::isDigit) })
             Gap()
-            val jumpOptions = config.hosts.filter { it.id != hostId }
+            // A host that jumps through this one would make the chain loop.
+            val jumpOptions = config.hosts.filter { config.canJumpThrough(hostId, it) }
             TitanDropdown(
                 "ProxyJump (bastión, opcional)",
                 options = jumpOptions,

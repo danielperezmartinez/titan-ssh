@@ -2,6 +2,7 @@ package io.github.danielperezmartinez.titanssh.terminal
 
 import io.github.danielperezmartinez.titanssh.config.Tunnel
 import io.github.danielperezmartinez.titanssh.config.TunnelType
+import io.github.danielperezmartinez.titanssh.config.listensOnNetwork
 import io.github.danielperezmartinez.titanssh.ssh.ForwardFailure
 import io.github.danielperezmartinez.titanssh.ssh.ForwardProblem
 import io.github.danielperezmartinez.titanssh.ssh.PortForward
@@ -87,6 +88,10 @@ internal class SessionTunnels(tunnels: List<Tunnel>) {
     /** Opens [tunnel] on [session] and records the outcome. Call with [lock] held. */
     private suspend fun tryOpen(session: SshSession, tunnel: Tunnel) {
         retryable -= tunnel.id
+        if (tunnel.listensOnNetwork && !tunnel.allowFromNetwork) {
+            set(tunnel.id, TunnelState.FAILED, "escucha en ${tunnel.listenHost} sin permitir el acceso desde la red: edita el túnel")
+            return
+        }
         val forward = tunnel.toPortForward()
         if (forward == null) {
             set(tunnel.id, TunnelState.FAILED, "falta el destino")

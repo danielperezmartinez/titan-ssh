@@ -56,7 +56,7 @@ class AgentDiagnosticsIntegrationTest {
         val host = Host(id = "h", alias = "h", hostname = endpoint.host, username = endpoint.username, auth = HostAuth.Password("r"))
         return ResolvedConnection(
             session = Session(id = "diag_${System.currentTimeMillis()}", name = "diag", hostId = "h", resilienceLevel = ResilienceLevel.AGENT),
-            host = host, endpoint = endpoint, auth = host.auth, appearance = TerminalAppearance(), proxyJump = null,
+            host = host, endpoint = endpoint, auth = host.auth, appearance = TerminalAppearance(), jumps = emptyList(),
         )
     }
 

@@ -115,7 +115,28 @@ data class Tunnel(
     /** Destination host/port for LOCAL/REMOTE; ignored for DYNAMIC_SOCKS. */
     val destinationHost: String? = null,
     val destinationPort: Int? = null,
+    /**
+     * The user confirmed that this tunnel [listensOnNetwork]. Without it such a
+     * tunnel is not opened.
+     */
+    val allowFromNetwork: Boolean = false,
 )
+
+/**
+ * Whether other devices can reach this tunnel: a local or SOCKS tunnel whose
+ * listen address is not loopback. A remote forward listens on the server,
+ * where its `GatewayPorts` decides.
+ */
+val Tunnel.listensOnNetwork: Boolean
+    get() = type != TunnelType.REMOTE && !isLoopbackAddress(listenHost)
+
+/** Whether [host] is a loopback address; blank counts, as tunnels then listen on `127.0.0.1`. */
+internal fun isLoopbackAddress(host: String): Boolean {
+    val h = host.trim().removePrefix("[").removeSuffix("]").lowercase()
+    if (h.isEmpty() || h == "localhost" || h == "::1" || h == "0:0:0:0:0:0:0:1") return true
+    val octets = h.split('.').map { it.toIntOrNull() }
+    return octets.size == 4 && octets.all { it != null && it in 0..255 } && octets[0] == 127
+}
 
 /** Phase in which a [SessionScript] runs. */
 enum class ScriptPhase {

@@ -38,7 +38,7 @@ class ConfigModelTest {
         assertEquals("h1.example.net", resolved.endpoint.host)
         assertEquals(2222, resolved.endpoint.port)
         assertEquals("deploy", resolved.endpoint.username)
-        assertNull(resolved.proxyJump)
+        assertEquals(emptyList(), resolved.jumps)
     }
 
     @Test
@@ -60,7 +60,62 @@ class ConfigModelTest {
         val s = Session(id = "s1", name = "sess", hostId = "h1")
         val cfg = TitanConfig(hosts = listOf(bastion, h), sessions = listOf(s))
 
-        assertEquals("bastion", cfg.resolve(s).proxyJump?.id)
+        assertEquals(listOf("bastion"), cfg.resolve(s).jumps.map { it.id })
+    }
+
+    @Test
+    fun resolve_orders_a_jump_chain_first_hop_first() {
+        val outer = host("outer")
+        val inner = host("inner", proxy = "outer")
+        val h = host("h1", proxy = "inner")
+        val s = Session(id = "s1", name = "sess", hostId = "h1")
+        val cfg = TitanConfig(hosts = listOf(h, inner, outer), sessions = listOf(s))
+
+        assertEquals(listOf("outer", "inner"), cfg.resolve(s).jumps.map { it.id })
+    }
+
+    @Test
+    fun resolve_throws_for_unknown_jump_host() {
+        val h = host("h1", proxy = "ghost")
+        val s = Session(id = "s1", name = "sess", hostId = "h1")
+        val cfg = TitanConfig(hosts = listOf(h), sessions = listOf(s))
+
+        assertFailsWith<ConfigResolutionException> { cfg.resolve(s) }
+    }
+
+    @Test
+    fun resolve_throws_for_a_jump_loop() {
+        val a = host("a", proxy = "b")
+        val b = host("b", proxy = "a")
+        val h = host("h1", proxy = "a")
+        val s = Session(id = "s1", name = "sess", hostId = "h1")
+        val cfg = TitanConfig(hosts = listOf(h, a, b), sessions = listOf(s))
+
+        assertFailsWith<ConfigResolutionException> { cfg.resolve(s) }
+    }
+
+    @Test
+    fun local_and_socks_tunnels_listen_on_the_network_beyond_loopback() {
+        fun t(type: TunnelType, listen: String) = Tunnel("t", type, listenHost = listen, listenPort = 1080)
+        for (loopback in listOf("127.0.0.1", "127.10.0.1", "localhost", "::1", "[::1]", "", " ")) {
+            assertEquals(false, t(TunnelType.DYNAMIC_SOCKS, loopback).listensOnNetwork, loopback)
+        }
+        for (network in listOf("0.0.0.0", "::", "192.168.1.20", "127.0.0.256", "my-pc", "*")) {
+            assertEquals(true, t(TunnelType.DYNAMIC_SOCKS, network).listensOnNetwork, network)
+            assertEquals(true, t(TunnelType.LOCAL, network).listensOnNetwork, network)
+        }
+        assertEquals(false, t(TunnelType.REMOTE, "0.0.0.0").listensOnNetwork, "a remote forward listens on the server")
+    }
+
+    @Test
+    fun jump_options_leave_out_the_host_and_those_that_jump_through_it() {
+        val h = host("h1")
+        val via = host("via", proxy = "h1")
+        val other = host("other")
+        val cfg = TitanConfig(hosts = listOf(h, via, other))
+
+        assertEquals(listOf("other"), cfg.hosts.filter { cfg.canJumpThrough("h1", it) }.map { it.id })
+        assertEquals(listOf("h1", "via", "other"), cfg.hosts.filter { cfg.canJumpThrough(null, it) }.map { it.id })
     }
 
     @Test

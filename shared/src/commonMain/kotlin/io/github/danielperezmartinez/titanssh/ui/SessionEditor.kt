@@ -353,7 +353,11 @@ private fun SessionForm(
                     ListRow(
                         marker = if (tunnel.enabled) "[>]" else "[ ]",
                         title = tunnel.label.ifBlank { tunnelSummary(tunnel) },
-                        subtitle = tunnelSummary(tunnel) + if (tunnel.enabled) "" else "  ·  deshabilitado",
+                        subtitle = listOfNotNull(
+                            tunnelSummary(tunnel),
+                            tunnelExposure(tunnel),
+                            "deshabilitado".takeUnless { tunnel.enabled },
+                        ).joinToString("  ·  "),
                         onClick = { onOpenTunnel(tunnel.id) },
                         markerColor = if (tunnel.enabled) TitanColors.Body else TitanColors.Stone,
                         trailing = {

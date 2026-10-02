@@ -62,9 +62,9 @@ internal fun rememberAppNow(): Long {
  * each host's default user and each session's resolved user.
  */
 internal fun TitanConfig.agentHosts(): Map<String, AgentHost> {
-    val byHost = hosts.map { AgentHost.of(it) }
+    val byHost = hosts.mapNotNull { AgentHost.of(it, this) }
     val bySession = sessions.mapNotNull { s ->
-        runCatching { resolve(s) }.getOrNull()?.let { AgentHost(it.endpoint, it.auth, it.host.keepAliveSeconds) }
+        runCatching { resolve(s) }.getOrNull()?.let { AgentHost.of(it) }
     }
     return (byHost + bySession).associateBy { it.key.id }
 }

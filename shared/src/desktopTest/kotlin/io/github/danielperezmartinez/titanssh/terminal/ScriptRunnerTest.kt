@@ -254,7 +254,7 @@ class ScriptRunnerTest {
             endpoint = SshEndpoint("x", 22, "u"),
             auth = HostAuth.Password("r"),
             appearance = TerminalAppearance(),
-            proxyJump = null,
+            jumps = emptyList(),
         )
 
         // The automation waits for the shell's first output (its prompt) before
@@ -272,7 +272,7 @@ class ScriptRunnerTest {
         endpoint = SshEndpoint("x", 22, "u"),
         auth = HostAuth.Password("r"),
         appearance = TerminalAppearance(),
-        proxyJump = null,
+        jumps = emptyList(),
     )
 
     @Test

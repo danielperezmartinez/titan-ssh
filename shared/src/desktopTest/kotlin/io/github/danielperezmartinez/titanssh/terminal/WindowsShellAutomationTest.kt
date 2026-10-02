@@ -84,7 +84,7 @@ class WindowsShellAutomationTest {
         endpoint = SshEndpoint("x", 22, "u"),
         auth = HostAuth.Password("r"),
         appearance = TerminalAppearance(),
-        proxyJump = null,
+        jumps = emptyList(),
     )
 
     @Test

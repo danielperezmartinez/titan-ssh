@@ -38,7 +38,33 @@ internal class SshjConnector : SshConnector {
         credentials: SshCredentials,
         hostKeyVerifier: HostKeyVerifier,
         keepAliveSeconds: Int,
+        via: List<SshHop>,
     ): SshSession = withContext(Dispatchers.IO) {
+        // Each hop is reached through the one before it; the destination through
+        // the last. Whatever fails closes the hops already open.
+        val hops = mutableListOf<SSHClient>()
+        try {
+            for (hop in via) {
+                hops += open(hop.endpoint, hop.credentials, hop.hostKeyVerifier, hop.keepAliveSeconds, hops.lastOrNull())
+            }
+            SshjSession(open(endpoint, credentials, hostKeyVerifier, keepAliveSeconds, hops.lastOrNull()), hops)
+        } catch (e: Throwable) {
+            hops.asReversed().forEach { runCatching { it.disconnect() } }
+            throw e
+        }
+    }
+
+    /**
+     * Connects and authenticates one SSH client to [endpoint]: directly, or
+     * inside a `direct-tcpip` channel of [through] when it is a jump host's.
+     */
+    private fun open(
+        endpoint: SshEndpoint,
+        credentials: SshCredentials,
+        hostKeyVerifier: HostKeyVerifier,
+        keepAliveSeconds: Int,
+        through: SSHClient?,
+    ): SSHClient {
         val config = DefaultConfig().apply {
             if (keepAliveSeconds > 0) keepAliveProvider = KeepAliveProvider.KEEP_ALIVE
         }
@@ -46,34 +72,14 @@ internal class SshjConnector : SshConnector {
         // Without it an unreachable host takes the OS SYN timeout (about 2 min on
         // Linux and Android), stalling the reconnect loop past the network's return.
         ssh.connectTimeout = CONNECT_TIMEOUT_MILLIS
-        ssh.addHostKeyVerifier(
-            object : net.schmizz.sshj.transport.verification.HostKeyVerifier {
-                override fun verify(hostname: String, port: Int, key: PublicKey): Boolean {
-                    val blob = Buffer.PlainBuffer().putPublicKey(key).compactData
-                    val info = HostKeyInfo(
-                        host = hostname,
-                        port = port,
-                        keyType = KeyType.fromKey(key).toString(),
-                        fingerprintSha256 = sshFingerprintSha256(blob),
-                        publicKeyBase64 = Base64.getEncoder().encodeToString(blob),
-                    )
-                    if (!runBlocking { hostKeyVerifier.verify(info) }) {
-                        throw HostKeyRejectedSignal(info)
-                    }
-                    return true
-                }
-
-                // sshj puts these first in its host key proposal, so a host keeps
-                // presenting the key that was trusted for it.
-                override fun findExistingAlgorithms(hostname: String, port: Int): List<String> =
-                    runBlocking { hostKeyVerifier.knownKeyTypes(hostname, port) }
-                        .flatMap(::hostKeyAlgorithmsFor)
-                        .distinct()
-            },
-        )
+        ssh.addHostKeyVerifier(sshjVerifier(hostKeyVerifier))
 
         try {
-            ssh.connect(endpoint.host, endpoint.port)
+            if (through == null) {
+                ssh.connect(endpoint.host, endpoint.port)
+            } else {
+                ssh.connectVia(through.newDirectConnection(endpoint.host, endpoint.port))
+            }
         } catch (e: Throwable) {
             runCatching { ssh.disconnect() }
             rejectedHostKey(e)?.let {
@@ -82,7 +88,8 @@ internal class SshjConnector : SshConnector {
                     e,
                 )
             }
-            throw SshConnectFailed("Could not connect to ${endpoint.host}:${endpoint.port}", e)
+            val how = if (through == null) "" else " through the jump host"
+            throw SshConnectFailed("Could not connect to ${endpoint.host}:${endpoint.port}$how", e)
         }
 
         if (keepAliveSeconds > 0) {
@@ -101,9 +108,34 @@ internal class SshjConnector : SshConnector {
             runCatching { ssh.disconnect() }
             throw SshAuthFailed("Authentication failed for ${endpoint.username}@${endpoint.host}", e)
         }
-
-        SshjSession(ssh)
+        return ssh
     }
+
+    /** Adapts [verifier] to sshj, keyed by the host and port being connected. */
+    private fun sshjVerifier(verifier: HostKeyVerifier) =
+        object : net.schmizz.sshj.transport.verification.HostKeyVerifier {
+            override fun verify(hostname: String, port: Int, key: PublicKey): Boolean {
+                val blob = Buffer.PlainBuffer().putPublicKey(key).compactData
+                val info = HostKeyInfo(
+                    host = hostname,
+                    port = port,
+                    keyType = KeyType.fromKey(key).toString(),
+                    fingerprintSha256 = sshFingerprintSha256(blob),
+                    publicKeyBase64 = Base64.getEncoder().encodeToString(blob),
+                )
+                if (!runBlocking { verifier.verify(info) }) {
+                    throw HostKeyRejectedSignal(info)
+                }
+                return true
+            }
+
+            // sshj puts these first in its host key proposal, so a host keeps
+            // presenting the key that was trusted for it.
+            override fun findExistingAlgorithms(hostname: String, port: Int): List<String> =
+                runBlocking { verifier.knownKeyTypes(hostname, port) }
+                    .flatMap(::hostKeyAlgorithmsFor)
+                    .distinct()
+        }
 
     private fun authenticate(ssh: SSHClient, username: String, credentials: SshCredentials) {
         when (credentials) {
@@ -174,8 +206,14 @@ private const val CONNECT_TIMEOUT_MILLIS = 15_000
 /** Internal marker thrown from the verifier so [SshjConnector] can map it precisely. */
 private class HostKeyRejectedSignal(val info: HostKeyInfo) : RuntimeException()
 
-/** Live sshj session. */
-internal class SshjSession(private val ssh: SSHClient) : SshSession {
+/**
+ * Live sshj session on [ssh], reached through the jump host connections in
+ * [hops] (first hop first; empty when direct), which it owns.
+ */
+internal class SshjSession(
+    private val ssh: SSHClient,
+    private val hops: List<SSHClient> = emptyList(),
+) : SshSession {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _state = MutableStateFlow(SshConnectionState.CONNECTED)
@@ -183,9 +221,9 @@ internal class SshjSession(private val ssh: SSHClient) : SshSession {
 
     init {
         // Watch for the transport dropping (keepalive failure / peer close) so
-        // resiliency level 1 can react.
+        // resiliency level 1 can react. A jump host dropping takes it down too.
         scope.launch {
-            while (isActive && ssh.isConnected) {
+            while (isActive && ssh.isConnected && hops.all { it.isConnected }) {
                 delay(POLL_MILLIS)
             }
             _state.compareAndSet(SshConnectionState.CONNECTED, SshConnectionState.DISCONNECTED)
@@ -220,6 +258,7 @@ internal class SshjSession(private val ssh: SSHClient) : SshSession {
         _state.value = SshConnectionState.DISCONNECTED
         scope.cancel()
         runCatching { ssh.disconnect() }
+        hops.asReversed().forEach { runCatching { it.disconnect() } }
         Unit
     }
 

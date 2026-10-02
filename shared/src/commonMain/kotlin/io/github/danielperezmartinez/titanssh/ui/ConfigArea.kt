@@ -300,7 +300,9 @@ private fun HostList(
             expandedContent = onOpenAgent?.let { open ->
                 {
                     ListRow(marker = "[~]", title = "Editar", onClick = { onOpen(host) })
-                    ListRow(marker = "[@]", title = "Ver el agente del destino", onClick = { open(AgentHost.of(host)) })
+                    AgentHost.of(host, config)?.let { agent ->
+                        ListRow(marker = "[@]", title = "Ver el agente del destino", onClick = { open(agent) })
+                    }
                 }
             },
         )

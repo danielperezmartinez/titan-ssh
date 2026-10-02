@@ -70,7 +70,7 @@ class SessionManager(
             id = tabId,
             resolved = resolved,
             connector = connector,
-            credentials = { credentialResolver.resolve(resolved.auth) },
+            credentials = credentialResolver::resolve,
             knownHostsStore = knownHostsStore,
             scope = scope,
             automation = automation,

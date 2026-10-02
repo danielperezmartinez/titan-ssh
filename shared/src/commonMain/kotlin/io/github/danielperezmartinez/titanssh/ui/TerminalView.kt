@@ -64,6 +64,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.danielperezmartinez.titanssh.config.SessionScript
+import io.github.danielperezmartinez.titanssh.config.listensOnNetwork
 import io.github.danielperezmartinez.titanssh.terminal.AccessoryKey
 import io.github.danielperezmartinez.titanssh.terminal.AgentDiagnostics
 import io.github.danielperezmartinez.titanssh.terminal.ChangedHostKey
@@ -408,12 +409,14 @@ private fun StatusStrip(
         if (tunnels.isNotEmpty()) {
             val active = tunnels.count { it.state == TunnelState.ACTIVE }
             val trouble = tunnels.any { it.state == TunnelState.FAILED || it.detail != null }
+            // Other devices can reach one of the open tunnels.
+            val exposed = tunnels.any { it.state == TunnelState.ACTIVE && it.tunnel.listensOnNetwork }
             Text(
-                "[=] túneles $active/${tunnels.size}",
+                "[=] túneles $active/${tunnels.size}" + if (exposed) " · abiertos a la red" else "",
                 style = MaterialTheme.typography.labelSmall,
                 color = when {
                     tunnelsOpen -> TitanColors.Accent
-                    trouble -> TitanColors.Warning
+                    trouble || exposed -> TitanColors.Warning
                     else -> TitanColors.Body
                 },
                 modifier = Modifier.clickable(onClick = onToggleTunnels).padding(horizontal = TitanDimens.SpaceXs),
@@ -522,7 +525,12 @@ private fun TunnelsPanel(tunnels: List<TunnelStatus>) {
             ListRow(
                 marker = marker,
                 title = t.label.ifBlank { tunnelSummary(t) },
-                subtitle = listOfNotNull(tunnelSummary(t), state, status.detail).joinToString("  ·  "),
+                subtitle = listOfNotNull(
+                    tunnelSummary(t),
+                    state,
+                    tunnelExposure(t).takeIf { status.state == TunnelState.ACTIVE },
+                    status.detail,
+                ).joinToString("  ·  "),
                 markerColor = color,
             )
         }

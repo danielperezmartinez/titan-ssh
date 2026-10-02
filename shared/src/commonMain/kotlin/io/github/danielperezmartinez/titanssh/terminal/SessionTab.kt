@@ -1,10 +1,12 @@
 package io.github.danielperezmartinez.titanssh.terminal
 
+import io.github.danielperezmartinez.titanssh.config.HostAuth
 import io.github.danielperezmartinez.titanssh.config.HostKeyPolicy
 import io.github.danielperezmartinez.titanssh.config.ResilienceLevel
 import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
 import io.github.danielperezmartinez.titanssh.config.SessionScript
 import io.github.danielperezmartinez.titanssh.config.SessionType
+import io.github.danielperezmartinez.titanssh.config.jumpEndpoint
 import io.github.danielperezmartinez.titanssh.ssh.HostKeyInfo
 import io.github.danielperezmartinez.titanssh.ssh.HostKeyRejection
 import io.github.danielperezmartinez.titanssh.ssh.HostKeyVerifier
@@ -17,6 +19,7 @@ import io.github.danielperezmartinez.titanssh.ssh.SshConnectionState
 import io.github.danielperezmartinez.titanssh.ssh.SshConnector
 import io.github.danielperezmartinez.titanssh.ssh.SshCredentials
 import io.github.danielperezmartinez.titanssh.ssh.SshException
+import io.github.danielperezmartinez.titanssh.ssh.SshHop
 import io.github.danielperezmartinez.titanssh.ssh.SshHostKeyRejected
 import io.github.danielperezmartinez.titanssh.ssh.SshSession
 import io.github.danielperezmartinez.titanssh.ssh.SshShell
@@ -114,6 +117,10 @@ data class ChangedHostKey(val presented: HostKeyInfo, val stored: List<KnownHost
  * reason. Trust-on-first-use prompts surface through [pendingHostKey], and a
  * key that differs from the trusted ones through [changedHostKey].
  *
+ * A host with ProxyJump connects through its [ResolvedConnection.jumps], never
+ * directly; each jump host's key goes through the same checks under its own
+ * policy, and a refused one names it in [status].
+ *
  * ## Resilience level 1 ([[Resiliencia de sesión ante microcortes de red]])
  * Once a session has been live, a network micro-cut does not close the tab: the
  * [TerminalEmulator] (screen + scrollback) is kept as-is, [status] shows
@@ -144,7 +151,8 @@ class SessionTab(
     val id: String,
     val resolved: ResolvedConnection,
     private val connector: SshConnector,
-    private val credentials: suspend () -> SshCredentials,
+    /** Fresh credentials for an auth: the destination's, and each jump host's. */
+    private val credentials: suspend (HostAuth) -> SshCredentials,
     private val knownHostsStore: KnownHostsStore,
     private val scope: CoroutineScope,
     columns: Int = 80,
@@ -417,34 +425,21 @@ class SessionTab(
         // First contact asks the user inside the SSH handshake, and the prompt can
         // outlive it: sshj's key exchange (or the server's login grace time) runs
         // out meanwhile and sshj interrupts the verifier. So the answer lives here,
-        // not in the verifier, and a key trusted late connects again.
-        val prompted = CompletableDeferred<HostKeyInfo>()
-        val answer = CompletableDeferred<Boolean>()
-        val verified = CompletableDeferred<Unit>()
-        val rejection = CompletableDeferred<HostKeyRejection>()
+        // not in the verifier, and a key trusted late connects again. Each jump
+        // host is checked like the destination, under its own policy.
         _changedHostKey.value = null
-        val knownHosts = KnownHostsVerifier(
-            store = knownHostsStore,
-            acceptNewHosts = resolved.host.hostKeyPolicy == HostKeyPolicy.TOFU,
-            onRejected = { rejection.complete(it) },
-        ) { info ->
-            prompted.complete(info)
-            promptHostKey(info, answer)
+        var lastPrompted: HostTrust? = null
+        val jumpTrusts = resolved.jumps.map { jump ->
+            HostTrust(jump.hostKeyPolicy, jumpHost = jump.alias.ifBlank { jump.hostname }) { lastPrompted = it }
         }
-        val verifier = object : HostKeyVerifier {
-            override suspend fun verify(info: HostKeyInfo): Boolean =
-                try {
-                    knownHosts.verify(info)
-                } finally {
-                    verified.complete(Unit)
-                }
-
-            override suspend fun knownKeyTypes(host: String, port: Int): List<String> =
-                knownHosts.knownKeyTypes(host, port)
-        }
-        val creds = try {
-            credentials()
+        val trust = HostTrust(resolved.host.hostKeyPolicy, jumpHost = null) { lastPrompted = it }
+        val trusts = jumpTrusts + trust
+        val creds = mutableListOf<SshCredentials>()
+        try {
+            resolved.jumps.forEach { creds += credentials(it.auth) }
+            creds += credentials(resolved.auth)
         } catch (e: Exception) {
+            creds.forEach { it.wipe() }
             _status.value = TabStatus(TabPhase.FAILED, e.message ?: "Could not read credentials")
             return AttemptResult.FATAL
         }
@@ -453,16 +448,20 @@ class SessionTab(
             opened = try {
                 connector.connect(
                     endpoint = resolved.endpoint,
-                    credentials = creds,
-                    hostKeyVerifier = verifier,
+                    credentials = creds.last(),
+                    hostKeyVerifier = trust.verifier,
                     keepAliveSeconds = resolved.host.keepAliveSeconds,
+                    via = resolved.jumps.mapIndexed { i, jump ->
+                        SshHop(jump.jumpEndpoint, creds[i], jumpTrusts[i].verifier, jump.keepAliveSeconds)
+                    },
                 )
             } catch (e: SshConnectFailed) {
-                if (!prompted.isCompleted) throw e
+                // Hosts are checked in order: only the last one asked can still be waiting.
+                val pending = lastPrompted ?: throw e
                 // The prompt is still up: the user's answer decides.
-                if (!answer.await()) throw SshHostKeyRejected("Host key rejected after the attempt timed out", e)
-                verified.await() // let an uninterrupted verifier finish saving it
-                knownHostsStore.trust(prompted.await())
+                if (!pending.answer.await()) throw SshHostKeyRejected("Host key rejected after the attempt timed out", e)
+                pending.verified.await() // let an uninterrupted verifier finish saving it
+                knownHostsStore.trust(pending.prompted.await())
                 return AttemptResult.TRUSTED_LATE
             }
             session = opened
@@ -506,9 +505,11 @@ class SessionTab(
             // up; a drop takes it down (keepalive/heartbeat, ADR-0004).
             return if (droppedWithin(opened)) AttemptResult.DROPPED else AttemptResult.CLEAN_EXIT
         } catch (e: SshHostKeyRejected) {
-            val why = if (rejection.isCompleted) rejection.await() else null
+            val refused = trusts.firstOrNull { it.rejection.isCompleted }
+            val why = refused?.rejection?.await()
             if (why is HostKeyRejection.Changed) _changedHostKey.value = ChangedHostKey(why.presented, why.stored)
-            _status.value = TabStatus(TabPhase.FAILED, hostKeyRejectedDetail(why))
+            val detail = hostKeyRejectedDetail(why)
+            _status.value = TabStatus(TabPhase.FAILED, refused?.jumpHost?.let { "Bastión $it: $detail" } ?: detail)
             return AttemptResult.FATAL
         } catch (e: SshAuthFailed) {
             _status.value = TabStatus(TabPhase.FAILED, e.message ?: "Autenticación rechazada")
@@ -520,7 +521,7 @@ class SessionTab(
             lastFailure = e.message ?: "Error inesperado"
             return AttemptResult.ESTABLISH_FAILED
         } finally {
-            creds.wipe()
+            creds.forEach { it.wipe() }
             automationJob?.cancel()
             tunnelRetryJob?.cancel()
             sessionTunnels.close()
@@ -804,6 +805,43 @@ class SessionTab(
     private fun conceal(shell: RemoteShell): Boolean =
         if (shell == RemoteShell.POSIX) emulator.eraseLinesMatching(AUTOMATION_LINE)
         else emulator.blankLinesMatching(CONSOLE_AUTOMATION_LINE, UNFINISHED_MARKER)
+
+    /**
+     * The host key checks of one host in an attempt: the destination, or the
+     * jump host [jumpHost] (its name). [onPrompt] is told when it asks the user.
+     */
+    private inner class HostTrust(
+        policy: HostKeyPolicy,
+        val jumpHost: String?,
+        onPrompt: (HostTrust) -> Unit,
+    ) {
+        val prompted = CompletableDeferred<HostKeyInfo>()
+        val answer = CompletableDeferred<Boolean>()
+        val verified = CompletableDeferred<Unit>()
+        val rejection = CompletableDeferred<HostKeyRejection>()
+
+        private val knownHosts = KnownHostsVerifier(
+            store = knownHostsStore,
+            acceptNewHosts = policy == HostKeyPolicy.TOFU,
+            onRejected = { rejection.complete(it) },
+        ) { info ->
+            prompted.complete(info)
+            onPrompt(this)
+            promptHostKey(info, answer)
+        }
+
+        val verifier = object : HostKeyVerifier {
+            override suspend fun verify(info: HostKeyInfo): Boolean =
+                try {
+                    knownHosts.verify(info)
+                } finally {
+                    verified.complete(Unit)
+                }
+
+            override suspend fun knownKeyTypes(host: String, port: Int): List<String> =
+                knownHosts.knownKeyTypes(host, port)
+        }
+    }
 
     /**
      * Shows [info] for the user to trust and waits for [answer]. The prompt stays

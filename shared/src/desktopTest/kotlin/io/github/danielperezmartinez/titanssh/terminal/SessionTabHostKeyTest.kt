@@ -15,6 +15,7 @@ import io.github.danielperezmartinez.titanssh.ssh.SshConnectionState
 import io.github.danielperezmartinez.titanssh.ssh.SshConnector
 import io.github.danielperezmartinez.titanssh.ssh.SshCredentials
 import io.github.danielperezmartinez.titanssh.ssh.SshEndpoint
+import io.github.danielperezmartinez.titanssh.ssh.SshHop
 import io.github.danielperezmartinez.titanssh.ssh.SshHostKeyRejected
 import io.github.danielperezmartinez.titanssh.ssh.SshSession
 import io.github.danielperezmartinez.titanssh.ssh.SshShell
@@ -74,6 +75,7 @@ class SessionTabHostKeyTest {
             credentials: SshCredentials,
             hostKeyVerifier: HostKeyVerifier,
             keepAliveSeconds: Int,
+            via: List<SshHop>,
         ): SshSession {
             calls++
             val check = scope.async { hostKeyVerifier.verify(KEY) }
@@ -98,7 +100,7 @@ class SessionTabHostKeyTest {
             endpoint = SshEndpoint("x", 22, "u"),
             auth = host.auth,
             appearance = TerminalAppearance(),
-            proxyJump = null,
+            jumps = emptyList(),
         )
     }
 

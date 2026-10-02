@@ -15,6 +15,7 @@ import io.github.danielperezmartinez.titanssh.ssh.InMemoryKnownHostsStore
 import io.github.danielperezmartinez.titanssh.ssh.SshConnector
 import io.github.danielperezmartinez.titanssh.ssh.SshCredentials
 import io.github.danielperezmartinez.titanssh.ssh.SshEndpoint
+import io.github.danielperezmartinez.titanssh.ssh.SshHop
 import io.github.danielperezmartinez.titanssh.ssh.SshSession
 import io.github.danielperezmartinez.titanssh.ssh.createSshConnector
 import java.io.File
@@ -77,7 +78,7 @@ class SessionTabIntegrationTest {
                 endpoint = SshEndpoint(p.host, p.port, p.user),
                 auth = host.auth,
                 appearance = TerminalAppearance(),
-                proxyJump = null,
+                jumps = emptyList(),
             )
 
             val tab = SessionTab(
@@ -156,7 +157,7 @@ class SessionTabIntegrationTest {
                 endpoint = SshEndpoint(p.host, p.port, p.user),
                 auth = host.auth,
                 appearance = TerminalAppearance(),
-                proxyJump = null,
+                jumps = emptyList(),
             )
             val store = InMemoryKnownHostsStore()
             // Counts attempts, to prove the first one really died meanwhile.
@@ -168,6 +169,7 @@ class SessionTabIntegrationTest {
                     credentials: SshCredentials,
                     hostKeyVerifier: HostKeyVerifier,
                     keepAliveSeconds: Int,
+                    via: List<SshHop>,
                 ): SshSession {
                     attempts++
                     return real.connect(endpoint, credentials, hostKeyVerifier, keepAliveSeconds)
@@ -261,7 +263,7 @@ class SessionTabIntegrationTest {
                 endpoint = SshEndpoint(p.host, p.port, p.user),
                 auth = host.auth,
                 appearance = TerminalAppearance(),
-                proxyJump = null,
+                jumps = emptyList(),
             )
 
             val tab = SessionTab(

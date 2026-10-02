@@ -8,7 +8,7 @@ import io.github.danielperezmartinez.titanssh.ssh.SshEndpoint
 /**
  * A session resolved against its host into what the SSH engine consumes: the
  * endpoint, the (still reference-only) auth, the effective appearance and the
- * optional ProxyJump host. Materializing the actual [SshCredentials] from the
+ * ProxyJump [jumps]. Materializing the actual [SshCredentials] from the
  * SecretStore happens at connect time (the terminal task), not here.
  */
 data class ResolvedConnection(
@@ -17,7 +17,8 @@ data class ResolvedConnection(
     val endpoint: SshEndpoint,
     val auth: HostAuth,
     val appearance: TerminalAppearance,
-    val proxyJump: Host?,
+    /** The jump hosts to go through, first hop first (see [jumpChain]); empty when direct. */
+    val jumps: List<Host>,
 )
 
 /** Raised when a session references a host that no longer exists. */
@@ -43,10 +44,50 @@ fun TitanConfig.resolve(session: Session): ResolvedConnection {
     val appearance = defaultAppearance
         .mergedWith(host.appearance)
         .mergedWith(session.appearance)
-    val proxyJump = host.proxyJumpHostId?.let { id -> hosts.firstOrNull { it.id == id } }
     val effective = session.copy(scripts = effectiveScripts(session))
-    return ResolvedConnection(effective, host, endpoint, host.auth, appearance, proxyJump)
+    return ResolvedConnection(effective, host, endpoint, host.auth, appearance, jumpChain(host))
 }
+
+/**
+ * The jump hosts to reach [host] through, first hop first: its ProxyJump host,
+ * preceded by that host's own ProxyJump, and so on. Throws
+ * [ConfigResolutionException] when a jump host is missing or the chain loops,
+ * so a configured jump is never skipped.
+ */
+fun TitanConfig.jumpChain(host: Host): List<Host> {
+    val chain = ArrayDeque<Host>()
+    val seen = mutableSetOf(host.id)
+    var next = host.proxyJumpHostId
+    while (next != null) {
+        val jump = hosts.firstOrNull { it.id == next }
+            ?: throw ConfigResolutionException("Host '${host.label}' jumps through a host that no longer exists")
+        if (!seen.add(jump.id)) {
+            throw ConfigResolutionException("The ProxyJump of host '${host.label}' loops through '${jump.label}'")
+        }
+        chain.addFirst(jump)
+        next = jump.proxyJumpHostId
+    }
+    return chain.toList()
+}
+
+/**
+ * Whether [candidate] can be the ProxyJump of host [hostId] (null for a host
+ * not saved yet): it is not that host and does not jump through it.
+ */
+fun TitanConfig.canJumpThrough(hostId: String?, candidate: Host): Boolean {
+    val seen = mutableSetOf<String>()
+    var next: Host? = candidate
+    while (next != null && seen.add(next.id)) {
+        if (next.id == hostId) return false
+        next = next.proxyJumpHostId?.let { id -> hosts.firstOrNull { it.id == id } }
+    }
+    return true
+}
+
+/** Where to connect to [Host] as a jump host: its own address, port and user. */
+val Host.jumpEndpoint: SshEndpoint get() = SshEndpoint(hostname, port, username)
+
+private val Host.label: String get() = alias.ifBlank { hostname }
 
 /**
  * The scripts of [session] as they run (ADR-0013): each library reference is

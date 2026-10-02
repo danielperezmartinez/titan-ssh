@@ -12,6 +12,7 @@ import io.github.danielperezmartinez.titanssh.ssh.SshConnectionState
 import io.github.danielperezmartinez.titanssh.ssh.SshConnector
 import io.github.danielperezmartinez.titanssh.ssh.SshCredentials
 import io.github.danielperezmartinez.titanssh.ssh.SshEndpoint
+import io.github.danielperezmartinez.titanssh.ssh.SshHop
 import io.github.danielperezmartinez.titanssh.ssh.SshSession
 import io.github.danielperezmartinez.titanssh.ssh.SshShell
 import kotlin.test.Test
@@ -81,6 +82,7 @@ class SessionTabReconnectTest {
             credentials: SshCredentials,
             hostKeyVerifier: HostKeyVerifier,
             keepAliveSeconds: Int,
+            via: List<SshHop>,
         ): SshSession {
             calls++
             if (down) throw SshConnectFailed("network down")
@@ -97,7 +99,7 @@ class SessionTabReconnectTest {
             endpoint = SshEndpoint("x", 22, "u"),
             auth = host.auth,
             appearance = TerminalAppearance(),
-            proxyJump = null,
+            jumps = emptyList(),
         )
     }
 

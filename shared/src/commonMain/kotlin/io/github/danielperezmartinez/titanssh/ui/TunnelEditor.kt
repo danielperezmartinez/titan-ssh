@@ -18,6 +18,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import io.github.danielperezmartinez.titanssh.config.Tunnel
 import io.github.danielperezmartinez.titanssh.config.TunnelType
+import io.github.danielperezmartinez.titanssh.config.listensOnNetwork
+import io.github.danielperezmartinez.titanssh.theme.TitanColors
 import io.github.danielperezmartinez.titanssh.theme.TitanDimens
 
 /**
@@ -41,13 +43,18 @@ fun TunnelEditor(
 ) {
     var draft by remember(tunnel.id) { mutableStateOf(tunnel) }
 
+    // Listening beyond loopback needs the user's explicit consent.
+    val exposed = draft.listensOnNetwork
     val canSave = draft.listenPort in 1..65535 &&
-        (draft.type == TunnelType.DYNAMIC_SOCKS || (draft.destinationPort?.let { it in 1..65535 } ?: false))
+        (draft.type == TunnelType.DYNAMIC_SOCKS || (draft.destinationPort?.let { it in 1..65535 } ?: false)) &&
+        (!exposed || draft.allowFromNetwork)
 
     EditorScaffold(
         title = if (isNew) "Nuevo túnel" else "Editar túnel",
         onBack = onBack,
-        onSave = { onSave(draft) },
+        // A tunnel brought back to loopback forgets the consent, so exposing it
+        // again asks again.
+        onSave = { onSave(if (exposed) draft else draft.copy(allowFromNetwork = false)) },
         canSave = canSave,
         onDelete = if (isNew) null else onDelete,
         deleteQuestion = "¿Eliminar el túnel?",
@@ -70,6 +77,19 @@ fun TunnelEditor(
                 Box(Modifier.weight(1f)) { TitanTextField("Host", draft.listenHost, { draft = draft.copy(listenHost = it) }) }
                 Box(Modifier.weight(1f)) { TitanTextField("Puerto", draft.listenPort.toString(), { v -> draft = draft.copy(listenPort = v.filter(Char::isDigit).toIntOrNull() ?: 0) }) }
             }
+            if (exposed) {
+                Gap()
+                Caption(networkWarning(draft), color = if (draft.type == TunnelType.DYNAMIC_SOCKS) TitanColors.Danger else TitanColors.Warning)
+                TitanCheck("Permitir conexiones desde otros equipos", draft.allowFromNetwork) {
+                    draft = draft.copy(allowFromNetwork = it)
+                }
+            } else if (draft.type != TunnelType.REMOTE) {
+                Gap()
+                Caption(
+                    "Solo se puede usar desde este equipo, pero cualquier programa o app que se ejecute en él " +
+                        "puede conectarse al puerto.",
+                )
+            }
 
             if (draft.type != TunnelType.DYNAMIC_SOCKS) {
                 SectionHeader("Destino")
@@ -83,11 +103,25 @@ fun TunnelEditor(
     }
 }
 
+/** What a tunnel that [listensOnNetwork] lets other devices do. */
+private fun networkWarning(t: Tunnel): String = when (t.type) {
+    TunnelType.DYNAMIC_SOCKS ->
+        "Escucha en ${t.listenHost}: cualquier equipo que llegue a esa dirección (por ejemplo, en la misma wifi) " +
+            "podrá usar este proxy SOCKS, que no pide contraseña, para entrar en la red del servidor en tu nombre. " +
+            "Úsalo solo en una red de confianza."
+    else ->
+        "Escucha en ${t.listenHost}: cualquier equipo que llegue a esa dirección (por ejemplo, en la misma wifi) " +
+            "podrá usar el túnel y llegar a ${t.destinationHost ?: "su destino"} a través de tu sesión SSH."
+}
+
 /** One-line summary of a [Tunnel] used in the session editor's tunnel list. */
 internal fun tunnelSummary(t: Tunnel): String = when (t.type) {
     TunnelType.DYNAMIC_SOCKS -> "socks ${t.listenHost}:${t.listenPort}"
     else -> "${t.listenHost}:${t.listenPort} → ${t.destinationHost ?: "?"}:${t.destinationPort ?: "?"}"
 }
+
+/** The note a tunnel list shows for a tunnel that [listensOnNetwork]; null otherwise. */
+internal fun tunnelExposure(t: Tunnel): String? = if (t.listensOnNetwork) "abierto a la red" else null
 
 @Composable
 private fun Gap() {

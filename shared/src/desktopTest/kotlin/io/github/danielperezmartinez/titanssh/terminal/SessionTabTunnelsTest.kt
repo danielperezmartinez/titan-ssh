@@ -17,6 +17,7 @@ import io.github.danielperezmartinez.titanssh.ssh.SshConnectionState
 import io.github.danielperezmartinez.titanssh.ssh.SshConnector
 import io.github.danielperezmartinez.titanssh.ssh.SshCredentials
 import io.github.danielperezmartinez.titanssh.ssh.SshEndpoint
+import io.github.danielperezmartinez.titanssh.ssh.SshHop
 import io.github.danielperezmartinez.titanssh.ssh.SshForward
 import io.github.danielperezmartinez.titanssh.ssh.SshForwardFailed
 import io.github.danielperezmartinez.titanssh.ssh.SshSession
@@ -85,6 +86,7 @@ class SessionTabTunnelsTest {
             credentials: SshCredentials,
             hostKeyVerifier: HostKeyVerifier,
             keepAliveSeconds: Int,
+            via: List<SshHop>,
         ): SshSession = plan.removeFirstOrNull() ?: throw SshConnectFailed("no more sessions")
     }
 
@@ -101,7 +103,7 @@ class SessionTabTunnelsTest {
             endpoint = SshEndpoint("x", 22, "u"),
             auth = host.auth,
             appearance = TerminalAppearance(),
-            proxyJump = null,
+            jumps = emptyList(),
         )
         return SessionTab(
             id = "tab",
@@ -160,6 +162,27 @@ class SessionTabTunnelsTest {
         session.forwards.single().onProblem(ForwardProblem(ForwardProblem.Kind.UNREACHABLE, "10.0.0.9:22"))
         assertEquals(TunnelState.ACTIVE, tab.stateOf("t2").state)
         assertEquals("el servidor no pudo conectar con 10.0.0.9:22", tab.stateOf("t2").detail)
+        tab.close()
+    }
+
+    @Test
+    fun a_tunnel_listening_on_the_network_opens_only_when_allowed() = runTest {
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + Job())
+        val session = FakeSession()
+        val lan = socks.copy(id = "t5", listenHost = "0.0.0.0")
+        val allowed = local.copy(id = "t6", listenHost = "192.168.1.20", allowFromNetwork = true)
+        val tab = newTab(scope, FakeConnector(listOf(session)), listOf(lan, allowed))
+
+        tab.start()
+        advanceUntilIdle()
+        assertEquals(TabPhase.CONNECTED, tab.status.value.phase)
+        assertEquals(TunnelState.FAILED, tab.stateOf("t5").state)
+        assertEquals(
+            "escucha en 0.0.0.0 sin permitir el acceso desde la red: edita el túnel",
+            tab.stateOf("t5").detail,
+        )
+        assertEquals(TunnelState.ACTIVE, tab.stateOf("t6").state)
+        assertEquals(listOf(PortForward.Local("192.168.1.20", 15432, "db", 5432)), session.forwards.map { it.forward })
         tab.close()
     }
 

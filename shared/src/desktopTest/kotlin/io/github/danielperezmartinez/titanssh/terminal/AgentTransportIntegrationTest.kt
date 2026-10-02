@@ -157,7 +157,7 @@ class AgentTransportIntegrationTest {
         )
         val resolved = ResolvedConnection(
             session = session, host = host, endpoint = endpoint, auth = host.auth,
-            appearance = TerminalAppearance(), proxyJump = null,
+            appearance = TerminalAppearance(), jumps = emptyList(),
         )
 
         runBlocking {
