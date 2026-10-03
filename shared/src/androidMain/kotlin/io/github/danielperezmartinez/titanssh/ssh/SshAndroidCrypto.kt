@@ -25,6 +25,9 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider
  *    (the documented way to sign with a hardware key). `setRegisterBouncyCastle(false)`
  *    keeps sshj's provider name unset while BC stays available in the JCE list.
  *
+ * 3. **Ed25519 keys from BouncyCastle** ([Ed25519KeysProvider]): Conscrypt's
+ *    own Ed25519 keys, from Android 16, are not recognised by sshj.
+ *
  * Call [install] once on startup, before opening any connection. Android-only:
  * on desktop the JDK providers already handle everything.
  */
@@ -36,5 +39,8 @@ object SshAndroidCrypto {
         }
         // Keep BC available (above) but unforced, so hardware-key signing works.
         SecurityUtils.setRegisterBouncyCastle(false)
+        // Ed25519 keys from BC, not from Conscrypt (Android 16+), or sshj
+        // cannot recognise an ed25519 host key.
+        Ed25519KeysProvider.install()
     }
 }

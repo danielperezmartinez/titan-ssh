@@ -1,11 +1,11 @@
 ---
 Nombre: 'Detalle del fallo de conexión en la franja de la pestaña'
-Estado: 'En curso'
+Estado: 'Hecha'
 Resumen: 'Cuando una pestaña no conecta, la franja de estado solo dice el mensaje corto (por ejemplo "Could not connect to <host>:22"), que cubre cualquier fallo antes de la autenticación y esconde la causa real (timeout, conexión rechazada, sin ruta, error del intercambio de claves). La franja se queda como está, y al pulsar su texto se despliega debajo un panel con la causa técnica, como se despliegan los scripts y los túneles.'
 Decisiones: 'Pedida por el usuario el 2026-10-03, al no poder conectar el Pixel a un destino Windows con v0.1.0-beta.11 sin más pista que "Could not connect". El usuario no quiere el detalle en la propia franja: solo al pulsarla, en un panel desplegable como el de scripts.'
 Bloqueada: []
 Fecha de creación: 2026-10-03T08:35:00+02:00
-Última modificación: 2026-10-03T08:47:00+02:00
+Última modificación: 2026-10-03T09:32:00+02:00
 ---
 
 # Detalle del fallo de conexión en la franja de la pestaña
@@ -47,6 +47,8 @@ protocolo que hay debajo) se pierde.
   pulsarla se despliega `ConnectException: failed to connect to … ECONNREFUSED
   (Connection refused)` y su `ErrnoException`. Se pliega al pulsar otra vez, y
   abrir los túneles la cierra.
+- Publicado en v0.1.0-beta.12. El usuario lo usó en el Pixel el 2026-10-03 y el
+  panel mostró la causa real del fallo ([[Claves ed25519 en Android 16 con Conscrypt]]).
 - La franja del mouse pad solo se ha compilado: no se ha provocado un fallo en
   una sesión mouse pad.
 
