@@ -1,11 +1,11 @@
 ---
 Nombre: 'Retirar el preámbulo anterior del agente'
 Estado: 'Pendiente'
-Resumen: 'Quitar del agente el handshake anterior del punto de encuentro (marcas TTNAGNT1, TTNACTL1, TTNADSK1 y TTNADCT1), que ADR-0018 conserva solo durante la transición. Va en 0.1.0-beta.12 y, como muy tarde, en 0.1.0-beta.13: el build raíz se niega a generar beta.13 o posterior mientras rendezvous.go contenga legacyPreambleMagic.'
-Decisiones: 'Acordado con el usuario el 2026-10-02: la versión que publica ADR-0018 (prevista 0.1.0-beta.11) conserva el preámbulo anterior para la transición; la siguiente, o como mucho la otra, lo quita del todo. El recordatorio es doble: esta tarea en el seguimiento y la comprobación del build raíz (legacyHandshakeLastVersionCode = 0.1.0-beta.12).'
+Resumen: 'Quitar del agente el handshake anterior del punto de encuentro (marcas TTNAGNT1, TTNACTL1, TTNADSK1 y TTNADCT1), que ADR-0018 conserva solo durante la transición. Va, como muy tarde, en 0.1.0-beta.14: el build raíz se niega a generar beta.14 o posterior mientras rendezvous.go contenga legacyPreambleMagic.'
+Decisiones: 'Acordado con el usuario el 2026-10-02: la versión que publica ADR-0018 (prevista 0.1.0-beta.11) conserva el preámbulo anterior para la transición; la siguiente, o como mucho la otra, lo quita del todo. El recordatorio es doble: esta tarea en el seguimiento y la comprobación del build raíz (legacyHandshakeLastVersionCode). El 2026-10-03 el usuario amplió el plazo una beta (último con el preámbulo: 0.1.0-beta.13): en Android 16, beta.11 y beta.12 no conectaban con hosts ed25519 ([[Claves ed25519 en Android 16 con Conscrypt]]), así que no pudo actualizar los agentes desde ellas y se habrían quedado huérfanos.'
 Bloqueada: []
 Fecha de creación: 2026-10-02T08:53:55+02:00
-Última modificación: 2026-10-02T08:53:55+02:00
+Última modificación: 2026-10-03T09:39:52+02:00
 ---
 
 # Retirar el preámbulo anterior del agente
@@ -25,7 +25,7 @@ Pasadas esas versiones ya no hace falta y solo es código y superficie de más.
 Esta tarea lo quita.
 
 **No se puede olvidar**: el `build.gradle.kts` raíz falla con cualquier
-versión posterior a `0.1.0-beta.12` (`legacyHandshakeLastVersionCode`) si
+versión posterior a `0.1.0-beta.13` (`legacyHandshakeLastVersionCode`) si
 `agent/cmd/titan-agent/rendezvous.go` contiene todavía `legacyPreambleMagic`.
 
 ## Criterios de finalización

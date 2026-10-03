@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta del despliegue y la distribución, con una lista cerrada 
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-10-02T18:41:21+02:00
+Última modificación: 2026-10-03T09:39:57+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -233,10 +233,10 @@ y su detalle en el aviso privado de GitHub (regla 5 del [[README]]).
   - El avance de cada hallazgo (`Abierto`, `Corregido`, `Publicado`) está en
     [[Auditorías de seguridad/Hallazgos privados.base|el panel de hallazgos privados]];
     este paso se marca cuando no quede ninguno en `Abierto`.
-- [ ] **S3b. Retirar el preámbulo anterior del agente** (en `0.1.0-beta.12`,
-  como muy tarde en `0.1.0-beta.13`)
+- [ ] **S3b. Retirar el preámbulo anterior del agente** (como muy tarde en
+  `0.1.0-beta.14`; plazo ampliado una beta el 2026-10-03)
   - [[Retirar el preámbulo anterior del agente]]
-  - El build raíz no deja generar `beta.13` ni posteriores mientras siga.
+  - El build raíz no deja generar `beta.14` ni posteriores mientras siga.
 - [x] **S4. Dependencias criptográficas**
   - [[Actualizar sshj y BouncyCastle y retirar EdDSA-Java]] (`Hecha` el 2026-10-02)
   - Hecha junto a S3: sshj 0.41.1, Bouncy Castle 1.86 y sin EdDSA-Java, en

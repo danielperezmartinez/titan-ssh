@@ -8,10 +8,17 @@ Consecuencias: 'El token ya no cruza el socket y los bytes del cliente solo lleg
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-10-02T01:38:01+02:00
-Última modificación: 2026-10-02T19:32:17+02:00
+Última modificación: 2026-10-03T09:40:07+02:00
 ---
 
 # ADR-0018 · Autenticación mutua en el punto de encuentro del agente
+
+> **Nota del 2026-10-03:** el plazo para retirar el preámbulo anterior se
+> amplía una beta, con la decisión intacta: lo conserva hasta `0.1.0-beta.13`
+> y el build raíz no deja generar `beta.14` ni posteriores mientras siga. En
+> Android 16, `beta.11` y `beta.12` no conectaban con hosts ed25519
+> ([[Claves ed25519 en Android 16 con Conscrypt]]), así que los agentes no se
+> pudieron actualizar desde ellas.
 
 Sustituye en parte a
 [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]: solo el
