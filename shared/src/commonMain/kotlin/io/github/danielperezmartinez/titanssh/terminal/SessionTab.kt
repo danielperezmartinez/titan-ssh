@@ -68,8 +68,31 @@ internal fun noCommonAlgorithmDetail(e: SshNoCommonAlgorithm): String {
 /** Lifecycle phase of one terminal tab, surfaced in the tab strip. */
 enum class TabPhase { CONNECTING, CONNECTED, RECONNECTING, DISCONNECTED, FAILED }
 
-/** A tab's status: its [phase] and an optional human [detail] (e.g. a failure reason). */
-data class TabStatus(val phase: TabPhase, val detail: String? = null)
+/**
+ * A tab's status: its [phase], an optional human [detail] (e.g. a failure
+ * reason) and, behind it, the technical [cause] the strip unfolds on demand.
+ */
+data class TabStatus(val phase: TabPhase, val detail: String? = null, val cause: String? = null)
+
+/**
+ * The technical reasons under [e], one `Type: message` line per cause, for the
+ * strip's detail panel; null when there are none. [e] itself is left out unless
+ * [includeSelf]: its message is usually the strip's detail already.
+ */
+internal fun failureCause(e: Throwable, includeSelf: Boolean = false): String? {
+    val lines = mutableListOf<String>()
+    val seen = mutableSetOf<Throwable>()
+    var next: Throwable? = if (includeSelf) e else e.cause
+    while (next != null && seen.add(next) && lines.size < MAX_CAUSES) {
+        val line = (next::class.simpleName ?: "Error") + (next.message?.let { ": $it" } ?: "")
+        if (line !in lines) lines += line
+        next = next.cause
+    }
+    return lines.joinToString("\n").ifEmpty { null }
+}
+
+/** How deep [failureCause] follows a chain of causes. */
+private const val MAX_CAUSES = 6
 
 /** The resilience level a tab really runs at, which can be below the session's setting. */
 enum class EffectiveLevel { BASE, MULTIPLEXER, AGENT }
@@ -316,6 +339,13 @@ class SessionTab(
     /** Reason of the last establish failure, surfaced if the tab gives up. */
     private var lastFailure: String? = null
 
+    /** The technical cause behind [lastFailure] ([failureCause]). */
+    private var lastFailureCause: String? = null
+
+    /** [lastFailure] and its cause, for the detail panel while reconnecting or once given up. */
+    private fun lastFailureDetail(): String? =
+        listOfNotNull(lastFailure, lastFailureCause).joinToString("\n").ifEmpty { null }
+
     /** Why one connection attempt ended (drives the reconnect loop). */
     private enum class AttemptResult {
         /** The shell ended while the transport was still up: the user exited. */
@@ -383,10 +413,10 @@ class SessionTab(
                 val since = downSince ?: timeSource.markNow().also { downSince = it }
                 reconnect.giveUpReason(attempt, since.elapsedNow())?.let { reason ->
                     gaveUp = true
-                    _status.value = TabStatus(TabPhase.DISCONNECTED, reason)
+                    _status.value = TabStatus(TabPhase.DISCONNECTED, reason, lastFailureDetail())
                     return
                 }
-                _status.value = TabStatus(TabPhase.RECONNECTING, reconnect.progress(attempt))
+                _status.value = TabStatus(TabPhase.RECONNECTING, reconnect.progress(attempt), lastFailureDetail())
                 awaitBackoff(reconnect.backoffMillis(attempt))
                 if (closed) return
             } else {
@@ -409,7 +439,7 @@ class SessionTab(
                 AttemptResult.TRUSTED_LATE -> now = true
                 AttemptResult.ESTABLISH_FAILED -> {
                     if (!everConnected) {
-                        _status.value = TabStatus(TabPhase.FAILED, lastFailure ?: "Fallo de conexión")
+                        _status.value = TabStatus(TabPhase.FAILED, lastFailure ?: "Fallo de conexión", lastFailureCause)
                         return
                     }
                     // A reconnect attempt could not reach the host yet; keep the
@@ -428,6 +458,8 @@ class SessionTab(
     /** The shell or agent PTY is live: later connections are reconnects. */
     private fun markConnected() {
         everConnected = true
+        lastFailure = null
+        lastFailureCause = null
         _status.value = TabStatus(TabPhase.CONNECTED)
     }
 
@@ -454,7 +486,7 @@ class SessionTab(
             creds += credentials(resolved.auth)
         } catch (e: Exception) {
             creds.forEach { it.wipe() }
-            _status.value = TabStatus(TabPhase.FAILED, e.message ?: "Could not read credentials")
+            _status.value = TabStatus(TabPhase.FAILED, e.message ?: "Could not read credentials", failureCause(e))
             return AttemptResult.FATAL
         }
         var opened: SshSession? = null
@@ -526,16 +558,19 @@ class SessionTab(
             _status.value = TabStatus(TabPhase.FAILED, refused?.jumpHost?.let { "Bastión $it: $detail" } ?: detail)
             return AttemptResult.FATAL
         } catch (e: SshAuthFailed) {
-            _status.value = TabStatus(TabPhase.FAILED, e.message ?: "Autenticación rechazada")
+            _status.value = TabStatus(TabPhase.FAILED, e.message ?: "Autenticación rechazada", failureCause(e))
             return AttemptResult.FATAL
         } catch (e: SshNoCommonAlgorithm) {
-            _status.value = TabStatus(TabPhase.FAILED, noCommonAlgorithmDetail(e))
+            _status.value = TabStatus(TabPhase.FAILED, noCommonAlgorithmDetail(e), failureCause(e))
             return AttemptResult.FATAL
         } catch (e: SshException) {
             lastFailure = e.message ?: "Fallo de conexión"
+            lastFailureCause = failureCause(e)
             return AttemptResult.ESTABLISH_FAILED
         } catch (e: Exception) {
             lastFailure = e.message ?: "Error inesperado"
+            // Not one of ours: its own type is part of the story.
+            lastFailureCause = failureCause(e, includeSelf = true)
             return AttemptResult.ESTABLISH_FAILED
         } finally {
             creds.forEach { it.wipe() }

@@ -196,18 +196,26 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier, scripts: List<S
 
         var scriptsOpen by remember(tab.id) { mutableStateOf(false) }
         var tunnelsOpen by remember(tab.id) { mutableStateOf(false) }
+        var causeOpen by remember(tab.id) { mutableStateOf(false) }
         val canRunScripts = scripts.isNotEmpty() && status.phase == TabPhase.CONNECTED
+        val cause = status.cause
         StatusStrip(
             status,
             resilience,
             onEnableLinger = { scope.launch { tab.enableLinger() } },
             onReconnect = { tab.reconnectNow() },
+            causeOpen = causeOpen && cause != null,
+            onToggleCause = if (cause != null) ({ causeOpen = !causeOpen; scriptsOpen = false; tunnelsOpen = false }) else null,
             scriptsOpen = scriptsOpen && canRunScripts,
-            onToggleScripts = if (canRunScripts) ({ scriptsOpen = !scriptsOpen; tunnelsOpen = false }) else null,
+            onToggleScripts = if (canRunScripts) ({ scriptsOpen = !scriptsOpen; tunnelsOpen = false; causeOpen = false }) else null,
             tunnels = tunnels,
             tunnelsOpen = tunnelsOpen,
-            onToggleTunnels = { tunnelsOpen = !tunnelsOpen; scriptsOpen = false },
+            onToggleTunnels = { tunnelsOpen = !tunnelsOpen; scriptsOpen = false; causeOpen = false },
         )
+        if (causeOpen && cause != null) {
+            StatusDetailPanel(cause)
+            Hairline()
+        }
         if (scriptsOpen && canRunScripts) {
             ScriptsMenu(scripts) { script ->
                 tab.runScript(script)
@@ -361,7 +369,8 @@ private fun codePointToString(codePoint: Int): String =
  * ([[Diagnóstico cuando el nivel 3 no está disponible]]): why the tab degraded,
  * or the systemd warning with its fix. The notice can be dismissed; a new issue
  * shows again. While the tab reconnects, or once it is down, "reconectar" tries
- * again at once in the same tab.
+ * again at once in the same tab. When the status has a technical cause behind
+ * it, tapping its text unfolds it ([onToggleCause]); the text itself stays short.
  */
 @Composable
 private fun StatusStrip(
@@ -369,6 +378,8 @@ private fun StatusStrip(
     resilience: ResilienceStatus,
     onEnableLinger: () -> Unit,
     onReconnect: () -> Unit,
+    causeOpen: Boolean,
+    onToggleCause: (() -> Unit)?,
     scriptsOpen: Boolean,
     onToggleScripts: (() -> Unit)?,
     tunnels: List<TunnelStatus>,
@@ -395,8 +406,10 @@ private fun StatusStrip(
         Text(
             (status.detail ?: label) + (level?.let { " · $it" } ?: ""),
             style = MaterialTheme.typography.labelSmall,
-            color = TitanColors.Mute,
-            modifier = Modifier.weight(1f),
+            color = if (causeOpen) TitanColors.Accent else TitanColors.Mute,
+            modifier = Modifier
+                .weight(1f)
+                .then(if (onToggleCause != null) Modifier.clickable(onClick = onToggleCause) else Modifier),
         )
         if (status.phase == TabPhase.RECONNECTING || status.phase == TabPhase.DISCONNECTED || status.phase == TabPhase.FAILED) {
             Text(

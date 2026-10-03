@@ -148,8 +148,20 @@ fun MousepadView(tab: SessionTab, modifier: Modifier = Modifier) {
             ChangedHostKeyBar(changed, onReplace = { scope.launch { tab.replaceHostKey() } })
             Hairline()
         }
-        MousepadStatusStrip(status, pad, onReconnect = { tab.reconnectNow() })
+        var causeOpen by remember(tab.id) { mutableStateOf(false) }
+        val cause = status.cause
+        MousepadStatusStrip(
+            status,
+            pad,
+            onReconnect = { tab.reconnectNow() },
+            causeOpen = causeOpen && cause != null,
+            onToggleCause = if (cause != null) ({ causeOpen = !causeOpen }) else null,
+        )
         Hairline()
+        if (causeOpen && cause != null) {
+            StatusDetailPanel(cause)
+            Hairline()
+        }
 
         Box(
             Modifier
@@ -330,9 +342,18 @@ private fun averageChange(changes: List<PointerInputChange>): Offset {
     return sum / changes.size.toFloat()
 }
 
-/** The phase, and a warning while the desktop is out of reach. */
+/**
+ * The phase, and a warning while the desktop is out of reach. Tapping the text
+ * unfolds the technical cause behind it, when there is one ([onToggleCause]).
+ */
 @Composable
-private fun MousepadStatusStrip(status: TabStatus, pad: MousepadStatus, onReconnect: () -> Unit) {
+private fun MousepadStatusStrip(
+    status: TabStatus,
+    pad: MousepadStatus,
+    onReconnect: () -> Unit,
+    causeOpen: Boolean,
+    onToggleCause: (() -> Unit)?,
+) {
     val (marker, color, label) = when {
         status.phase == TabPhase.CONNECTED && pad.blocked -> Triple("[!]", TitanColors.Warning, "Escritorio bloqueado")
         status.phase == TabPhase.CONNECTED -> Triple("[+]", TitanColors.Success, "Conectado al escritorio")
@@ -353,9 +374,11 @@ private fun MousepadStatusStrip(status: TabStatus, pad: MousepadStatus, onReconn
         Text(
             if (status.phase == TabPhase.CONNECTED) label else status.detail ?: label,
             style = MaterialTheme.typography.labelSmall,
-            color = TitanColors.Mute,
+            color = if (causeOpen) TitanColors.Accent else TitanColors.Mute,
             maxLines = 1,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .then(if (onToggleCause != null) Modifier.clickable(onClick = onToggleCause) else Modifier),
         )
         if (status.phase == TabPhase.RECONNECTING || status.phase == TabPhase.DISCONNECTED || status.phase == TabPhase.FAILED) {
             Text(

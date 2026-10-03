@@ -21,10 +21,14 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -89,6 +93,29 @@ fun Caption(text: String, modifier: Modifier = Modifier, color: Color = TitanCol
         color = color,
         modifier = modifier,
     )
+}
+
+/**
+ * The panel a tab's status strip unfolds under itself to show the technical
+ * [detail] behind its short status (one cause per line), like the scripts and
+ * tunnels panels. The text can be selected to copy it into a bug report. The
+ * caller puts the [Hairline] under it.
+ */
+@Composable
+fun StatusDetailPanel(detail: String) {
+    SelectionContainer {
+        Text(
+            detail,
+            style = MaterialTheme.typography.labelSmall,
+            color = TitanColors.Mute,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 240.dp)
+                .background(TitanColors.Canvas)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = TitanDimens.SpaceMd, vertical = TitanDimens.SpaceXs),
+        )
+    }
 }
 
 /**

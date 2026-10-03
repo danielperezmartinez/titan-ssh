@@ -417,4 +417,73 @@ class SessionTabReconnectTest {
 
         tab.close()
     }
+
+    @Test
+    fun a_failed_first_connection_keeps_its_cause_out_of_the_short_detail() = runTest {
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + Job())
+        val timeout = java.net.SocketTimeoutException("connect timed out")
+        val connector = FakeConnector(listOf(Result.failure(SshConnectFailed("Could not connect to x:22", timeout))))
+        val tab = newTab(scope, connector)
+
+        tab.start()
+        advanceUntilIdle()
+
+        assertEquals(TabPhase.FAILED, tab.status.value.phase)
+        assertEquals("Could not connect to x:22", tab.status.value.detail)
+        assertEquals("SocketTimeoutException: connect timed out", tab.status.value.cause)
+
+        tab.close()
+    }
+
+    @Test
+    fun giving_up_shows_why_the_last_attempt_failed() = runTest {
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + Job())
+        val s1 = FakeSession()
+        val refused = java.net.ConnectException("Connection refused")
+        val connector = FakeConnector(
+            listOf(Result.success(s1)) +
+                List(fastPolicy.maxAttempts!!) { Result.failure(SshConnectFailed("Could not connect to x:22", refused)) },
+        )
+        val tab = newTab(scope, connector)
+
+        tab.start()
+        advanceUntilIdle()
+        s1.drop()
+        advanceUntilIdle()
+
+        assertEquals(TabPhase.DISCONNECTED, tab.status.value.phase)
+        assertEquals("Could not connect to x:22\nConnectException: Connection refused", tab.status.value.cause)
+
+        tab.close()
+    }
+
+    @Test
+    fun a_connection_that_comes_back_forgets_the_old_cause() = runTest {
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + Job())
+        val s1 = FakeSession()
+        val s2 = FakeSession()
+        val connector = FakeConnector(
+            listOf(
+                Result.success(s1),
+                Result.failure(SshConnectFailed("Could not connect to x:22", java.net.ConnectException("refused"))),
+                Result.success(s2),
+            ),
+        )
+        val tab = newTab(scope, connector)
+
+        tab.start()
+        advanceUntilIdle()
+        s1.drop()
+        advanceUntilIdle()
+        assertEquals(TabPhase.CONNECTED, tab.status.value.phase)
+
+        s2.drop()
+        connector.down = true
+        advanceUntilIdle()
+
+        assertEquals(TabPhase.DISCONNECTED, tab.status.value.phase)
+        assertEquals("network down", tab.status.value.cause, "only the attempts after the last connection count")
+
+        tab.close()
+    }
 }
