@@ -25,14 +25,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import io.github.danielperezmartinez.titanssh.config.ConfigController
 import io.github.danielperezmartinez.titanssh.config.Group
 import io.github.danielperezmartinez.titanssh.config.GroupScope
 import io.github.danielperezmartinez.titanssh.config.GroupTree
 import io.github.danielperezmartinez.titanssh.config.Host
+import io.github.danielperezmartinez.titanssh.config.ResilienceLevel
 import io.github.danielperezmartinez.titanssh.config.Session
+import io.github.danielperezmartinez.titanssh.config.SessionType
 import io.github.danielperezmartinez.titanssh.config.LibraryScript
 import io.github.danielperezmartinez.titanssh.config.TitanConfig
+import io.github.danielperezmartinez.titanssh.config.resolve
 import io.github.danielperezmartinez.titanssh.config.sessionsUsing
 import io.github.danielperezmartinez.titanssh.isScreenCaptureControlSupported
 import io.github.danielperezmartinez.titanssh.secret.SecretProvisioner
@@ -120,10 +124,13 @@ fun ConfigArea(
                         controller,
                         config,
                         onNew = { groupId -> editor = Editor.SessionEdit(null, groupId) },
+                        onDeleteSession = onDeleteSession,
+                        isSessionLive = isSessionLive,
+                        onOpenAgent = onOpenAgent,
                     ) {
                         editor = Editor.SessionEdit(it.id)
                     }
-                    ConfigTab.SCRIPTS -> LibraryScriptList(config, onNew = { editor = Editor.LibraryScriptEdit(null) }) {
+                    ConfigTab.SCRIPTS -> LibraryScriptList(controller, config, onNew = { editor = Editor.LibraryScriptEdit(null) }) {
                         editor = Editor.LibraryScriptEdit(it.id)
                     }
                     ConfigTab.SETTINGS -> SettingsList(controller, config)
@@ -181,11 +188,33 @@ private fun NewRow(label: String, onClick: () -> Unit) {
 }
 
 /**
+ * What a list hands each entry row so that only one row of the list shows its
+ * actions at a time, and the delete of the open row asks first ([EntryActions]).
+ */
+private class EntryRow(
+    val expanded: Boolean,
+    val toggle: () -> Unit,
+    val close: () -> Unit,
+    val confirmingDelete: Boolean,
+    val onConfirmingDelete: (Boolean) -> Unit,
+)
+
+/**
+ * Marker colour of an entry row: danger for a real error, accent while its
+ * actions are open, [idle] otherwise.
+ */
+private fun EntryRow.markerColor(idle: Color, broken: Boolean = false) = when {
+    broken -> TitanColors.Danger
+    expanded -> TitanColors.Accent
+    else -> idle
+}
+
+/**
  * A list of hosts or sessions shown in the folders of [scope]'s groups, with
  * the rows to create an entry and a group at the top. A folder folds or unfolds
  * with a tap and remembers it; its marker or a long press opens its actions
- * ([GroupActions]). One row of the list shows its actions at a time: [entry]
- * gets the open row's key and a way to change it (`"i:<id>"` for an entry).
+ * ([GroupActions]). One row of the list, folder or entry, shows its actions at
+ * a time; [entry] gets its row's state ([EntryRow]).
  */
 @Composable
 private fun <T> GroupedConfigList(
@@ -201,14 +230,16 @@ private fun <T> GroupedConfigList(
     countSingular: String,
     countPlural: String,
     onNew: (groupId: String?) -> Unit,
-    entry: @Composable (T, openKey: String?, setOpenKey: (String?) -> Unit) -> Unit,
+    entry: @Composable (T, EntryRow) -> Unit,
 ) {
     var openKey by remember { mutableStateOf<String?>(null) }
     var step by remember { mutableStateOf<GroupStep?>(null) }
+    var confirmingDelete by remember { mutableStateOf(false) }
     var creatingGroup by remember { mutableStateOf(false) }
     val setOpenKey: (String?) -> Unit = { key ->
         openKey = key
         step = null
+        confirmingDelete = false
     }
     val tree = GroupTree(groups)
     LazyColumn(Modifier.fillMaxSize(), contentPadding = bodyPadding()) {
@@ -261,15 +292,28 @@ private fun <T> GroupedConfigList(
                     },
                 )
             },
-            item = { value -> entry(value, openKey, setOpenKey) },
+            item = { value ->
+                val key = "i:${idOf(value)}"
+                val expanded = openKey == key
+                entry(
+                    value,
+                    EntryRow(
+                        expanded = expanded,
+                        toggle = { setOpenKey(if (expanded) null else key) },
+                        close = { setOpenKey(null) },
+                        confirmingDelete = expanded && confirmingDelete,
+                        onConfirmingDelete = { confirmingDelete = it },
+                    ),
+                )
+            },
         )
     }
 }
 
 /**
  * The hosts, in the folders of the hosts groups. Tapping one edits it; its
- * marker or a long press opens its actions: edit and, with [onOpenAgent], see
- * the agent of its default user.
+ * marker or a long press opens its actions ([EntryActions]): edit, duplicate,
+ * with [onOpenAgent] see the agent of its default user, and delete.
  */
 @Composable
 private fun HostList(
@@ -292,24 +336,35 @@ private fun HostList(
         countSingular = "host",
         countPlural = "hosts",
         onNew = onNew,
-    ) { host, openKey, setOpenKey ->
-        val key = "i:${host.id}"
-        val expanded = openKey == key
-        val toggle = { setOpenKey(if (expanded) null else key) }
+    ) { host, row ->
         ListRow(
             marker = host.marker,
-            markerColor = if (expanded) TitanColors.Accent else TitanColors.Body,
+            markerColor = row.markerColor(TitanColors.Body),
             title = host.alias.ifBlank { host.hostname },
             subtitle = "${host.username}@${host.hostname}:${host.port}",
             onClick = { onOpen(host) },
-            onLongClick = onOpenAgent?.let { toggle },
-            onMarkerClick = onOpenAgent?.let { toggle },
-            expanded = expanded,
-            expandedContent = onOpenAgent?.let { open ->
-                {
-                    ListRow(marker = "[~]", title = "Editar", onClick = { onOpen(host) })
-                    AgentHost.of(host, config)?.let { agent ->
-                        ListRow(marker = "[@]", title = "Ver el agente del destino", onClick = { open(agent) })
+            onLongClick = row.toggle,
+            onMarkerClick = row.toggle,
+            expanded = row.expanded,
+            expandedContent = {
+                EntryActions(
+                    onEdit = { onOpen(host) },
+                    onDuplicate = {
+                        controller.duplicateHost(host.id)
+                        row.close()
+                    },
+                    confirmingDelete = row.confirmingDelete,
+                    onConfirmingDelete = row.onConfirmingDelete,
+                    onDelete = {
+                        controller.deleteHost(host.id)
+                        row.close()
+                    },
+                    deleteQuestion = "¿Eliminar el host?",
+                    deleteSubtitle = hostDeleteWarning(config, host.id),
+                ) {
+                    val agent = AgentHost.of(host, config)
+                    if (onOpenAgent != null && agent != null) {
+                        ListRow(marker = "[@]", title = "Ver el agente del destino", onClick = { onOpenAgent(agent) })
                     }
                 }
             },
@@ -317,12 +372,20 @@ private fun HostList(
     }
 }
 
-/** The sessions, in the folders of the sessions groups. Tapping one edits it. */
+/**
+ * The sessions, in the folders of the sessions groups. Tapping one edits it;
+ * its marker or a long press opens the same actions as in the launcher
+ * ([EntryActions]): edit, duplicate, see its agent (level 3) and delete, which
+ * also terminates it on its destination ([onDeleteSession]).
+ */
 @Composable
 private fun SessionList(
     controller: ConfigController,
     config: TitanConfig,
     onNew: (groupId: String?) -> Unit,
+    onDeleteSession: (Session) -> Unit,
+    isSessionLive: (Session) -> Boolean,
+    onOpenAgent: ((AgentHost) -> Unit)?,
     onOpen: (Session) -> Unit,
 ) {
     GroupedConfigList(
@@ -338,31 +401,116 @@ private fun SessionList(
         countSingular = "sesión",
         countPlural = "sesiones",
         onNew = onNew,
-    ) { session, _, _ ->
+    ) { session, row ->
         val host = config.hosts.firstOrNull { it.id == session.hostId }
         val hostLabel = host?.alias?.ifBlank { host.hostname } ?: "host desconocido"
         val scripts = session.scripts.size
         val subtitle = "$hostLabel  ·  ${scripts} script(s)  ·  ${session.resilienceLevel.name.lowercase()}"
-        // Neutral marker for a saved session; danger only flags the real error
-        // state of a dangling host reference.
-        val markerColor = if (host == null) TitanColors.Danger else TitanColors.Body
-        ListRow(marker = if (host == null) "[x]" else session.marker, title = session.name, subtitle = subtitle, onClick = { onOpen(session) }, markerColor = markerColor)
+        // A mouse pad keeps nothing alive in the agent's daemon.
+        val agent = runCatching { config.resolve(session) }.getOrNull()
+            ?.takeIf { session.type != SessionType.MOUSEPAD && session.resilienceLevel == ResilienceLevel.AGENT }
+            ?.let { AgentHost.of(it) }
+        // Only asked while the row is open: it reads the agent's last report.
+        val live = row.expanded && isSessionLive(session)
+        ListRow(
+            // Neutral marker for a saved session; danger only flags the real
+            // error state of a dangling host reference.
+            marker = if (host == null) "[x]" else session.marker,
+            markerColor = row.markerColor(TitanColors.Body, broken = host == null),
+            title = session.name,
+            subtitle = subtitle,
+            onClick = { onOpen(session) },
+            onLongClick = row.toggle,
+            onMarkerClick = row.toggle,
+            expanded = row.expanded,
+            expandedContent = {
+                EntryActions(
+                    onEdit = { onOpen(session) },
+                    onDuplicate = {
+                        controller.duplicateSession(session.id)
+                        row.close()
+                    },
+                    confirmingDelete = row.confirmingDelete,
+                    onConfirmingDelete = row.onConfirmingDelete,
+                    onDelete = {
+                        onDeleteSession(session)
+                        row.close()
+                    },
+                    deleteQuestion = "¿Eliminar la sesión?",
+                    deleteSubtitle = if (live) "Sigue viva en el destino" else null,
+                    deleteConfirmLabel = if (live) "[x] Eliminar y terminarla" else "[x] Sí",
+                ) {
+                    if (onOpenAgent != null && agent != null) {
+                        ListRow(marker = "[@]", title = "Ver el agente del destino", onClick = { onOpenAgent(agent) })
+                    }
+                }
+            },
+        )
     }
 }
 
+/**
+ * The script library. Tapping a script edits it; its marker or a long press
+ * opens its actions ([EntryActions]): edit, duplicate and delete. One script
+ * shows its actions at a time.
+ */
 @Composable
-private fun LibraryScriptList(config: TitanConfig, onNew: () -> Unit, onOpen: (LibraryScript) -> Unit) {
+private fun LibraryScriptList(
+    controller: ConfigController,
+    config: TitanConfig,
+    onNew: () -> Unit,
+    onOpen: (LibraryScript) -> Unit,
+) {
+    var openId by remember { mutableStateOf<String?>(null) }
+    var confirmingDelete by remember { mutableStateOf(false) }
+    val setOpenId: (String?) -> Unit = {
+        openId = it
+        confirmingDelete = false
+    }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = bodyPadding()) {
         item { NewRow("Nuevo script", onNew) }
         item { Hairline() }
         if (config.scripts.isEmpty()) {
             item { EmptyState("Biblioteca de scripts vacía. Úsalos desde cualquier sesión.") }
         }
-        items(config.scripts) { script ->
+        items(config.scripts, key = { it.id }) { script ->
             val uses = config.sessionsUsing(script.id).size
             val subtitle = script.body.lineSequence().firstOrNull().orEmpty().take(60) +
                 if (uses > 0) "  ·  en $uses sesión(es)" else ""
-            ListRow(marker = "[>]", title = script.name, subtitle = subtitle, onClick = { onOpen(script) }, markerColor = TitanColors.Mute)
+            val row = EntryRow(
+                expanded = openId == script.id,
+                toggle = { setOpenId(if (openId == script.id) null else script.id) },
+                close = { setOpenId(null) },
+                confirmingDelete = openId == script.id && confirmingDelete,
+                onConfirmingDelete = { confirmingDelete = it },
+            )
+            ListRow(
+                marker = "[>]",
+                markerColor = row.markerColor(TitanColors.Mute),
+                title = script.name,
+                subtitle = subtitle,
+                onClick = { onOpen(script) },
+                onLongClick = row.toggle,
+                onMarkerClick = row.toggle,
+                expanded = row.expanded,
+                expandedContent = {
+                    EntryActions(
+                        onEdit = { onOpen(script) },
+                        onDuplicate = {
+                            controller.duplicateLibraryScript(script.id)
+                            row.close()
+                        },
+                        confirmingDelete = row.confirmingDelete,
+                        onConfirmingDelete = row.onConfirmingDelete,
+                        onDelete = {
+                            controller.deleteLibraryScript(script.id)
+                            row.close()
+                        },
+                        deleteQuestion = "¿Eliminar el script?",
+                        deleteSubtitle = libraryScriptDeleteWarning(uses),
+                    )
+                },
+            )
             Hairline()
         }
     }

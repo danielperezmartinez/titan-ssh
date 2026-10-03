@@ -69,11 +69,7 @@ fun LibraryScriptEditor(controller: ConfigController, libraryScriptId: String?, 
         canSave = canSave,
         onDelete = existing?.let { { delete() } },
         deleteQuestion = "¿Eliminar el script?",
-        deleteSubtitle = when (usedBy.size) {
-            0 -> null
-            1 -> "Lo usa 1 sesión: se queda con una copia propia"
-            else -> "Lo usan ${usedBy.size} sesiones: cada una se queda con una copia propia"
-        },
+        deleteSubtitle = libraryScriptDeleteWarning(usedBy.size),
     ) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bodyPadding())) {
             if (usedBy.isNotEmpty()) {
@@ -95,4 +91,14 @@ fun LibraryScriptEditor(controller: ConfigController, libraryScriptId: String?, 
             Spacer(Modifier.height(TitanDimens.SpaceSection))
         }
     }
+}
+
+/**
+ * What deleting a library script used by [uses] sessions means, for its delete
+ * confirmation; `null` when no session uses it.
+ */
+internal fun libraryScriptDeleteWarning(uses: Int): String? = when (uses) {
+    0 -> null
+    1 -> "Lo usa 1 sesión: se queda con una copia propia"
+    else -> "Lo usan $uses sesiones: cada una se queda con una copia propia"
 }

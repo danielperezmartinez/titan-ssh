@@ -189,6 +189,44 @@ class ConfigModelTest {
     }
 
     @Test
+    fun controller_duplicate_host_keeps_its_credentials_and_group() {
+        val h = host("h1", groupId = "g1")
+        val unnamed = host("h2").copy(alias = "")
+        val controller = ConfigController(FakeConfigStore(TitanConfig(hosts = listOf(h, unnamed))), CoroutineScope(Dispatchers.Unconfined))
+
+        val copy = controller.duplicateHost("h1")
+        val unnamedCopy = controller.duplicateHost("h2")
+
+        assertNotNull(copy)
+        assertTrue(copy.id != "h1")
+        assertEquals("alias-h1 (copia)", copy.alias)
+        assertEquals(h.auth, copy.auth)
+        assertEquals("g1", copy.groupId)
+        assertEquals("h2.example.net (copia)", unnamedCopy?.alias)
+        assertNull(controller.duplicateHost("gone"))
+        assertEquals(4, controller.state.value.hosts.size)
+    }
+
+    @Test
+    fun controller_duplicate_library_script_leaves_sessions_on_the_original() {
+        val s = Session(id = "s1", name = "s", hostId = "h1", scripts = listOf(SessionScript(id = "r", label = "", libraryScriptId = "lib1")))
+        val controller = ConfigController(
+            FakeConfigStore(TitanConfig(sessions = listOf(s), scripts = listOf(restart))),
+            CoroutineScope(Dispatchers.Unconfined),
+        )
+
+        val copy = controller.duplicateLibraryScript("lib1")
+
+        assertNotNull(copy)
+        assertTrue(copy.id != "lib1")
+        assertEquals("restart (copia)", copy.name)
+        assertEquals(restart.body, copy.body)
+        val cfg = controller.state.value
+        assertEquals(listOf("s1"), cfg.sessionsUsing("lib1").map { it.id })
+        assertTrue(cfg.sessionsUsing(copy.id).isEmpty())
+    }
+
+    @Test
     fun controller_delete_host_clears_proxy_reference() {
         val bastion = host("bastion")
         val h = host("h1", proxy = "bastion")

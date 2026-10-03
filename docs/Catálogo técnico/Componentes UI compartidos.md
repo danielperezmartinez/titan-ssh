@@ -7,8 +7,8 @@ Estado: "Vigente"
 Ámbito: "Aplicación"
 Fuente: "shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/ui/Components.kt"
 Entrada pública: "io.github.danielperezmartinez.titanssh.ui"
-Resumen: "Biblioteca de primitivas Compose dark-first, reutilizables en cualquier pantalla: TitanTextField, TitanDropdown (genérico), TitanButton (ButtonKind PRIMARY/SECONDARY/DANGER), TitanCheck, TitanSegmented (genérico; sus opciones saltan de línea si no caben), ListRow (fila configurable por zonas: fila con pulsar y mantener pulsada, marcador y zona derecha, cada una solo si se le da acción; puede desplegar debajo acciones contextuales hechas con más ListRow y llevar una tercera línea opcional, note, en su propio color, p. ej. un estado en warning), ConfirmRow (confirmación en línea; sus botones bajan bajo la pregunta si no cabe en una línea a su lado), StatusDetailPanel (panel que despliega bajo la franja de una pestaña el detalle técnico de su estado, seleccionable para copiarlo), EmptyState, GlyphButton, Hairline, SectionHeader, Caption, EditorScaffold (su botón de borrar siempre pide confirmación en la propia barra) y bodyPadding(). Construidas al lenguaje visual (mono, marcadores ASCII, superficies planas con hairline 1px, radios 4px/0px), evitando el chrome de Material (elevación, tarjetas redondeadas, labels animados) que competiría con la identidad de terminal. Se apoyan en los tokens de TitanColors/TitanDimens."
-Última modificación: 2026-10-03T08:46:47+02:00
+Resumen: "Biblioteca de primitivas Compose dark-first, reutilizables en cualquier pantalla: TitanTextField, TitanDropdown (genérico), TitanButton (ButtonKind PRIMARY/SECONDARY/DANGER), TitanCheck, TitanSegmented (genérico; sus opciones saltan de línea si no caben), ListRow (fila configurable por zonas: fila con pulsar y mantener pulsada, marcador y zona derecha, cada una solo si se le da acción; puede desplegar debajo acciones contextuales hechas con más ListRow y llevar una tercera línea opcional, note, en su propio color, p. ej. un estado en warning), ConfirmRow (confirmación en línea; sus botones bajan bajo la pregunta si no cabe en una línea a su lado), EntryActions (las acciones contextuales de una entrada guardada: Editar, Duplicar, extras propios y Eliminar con confirmación; las usan la lanzadera y las listas de Configuración), StatusDetailPanel (panel que despliega bajo la franja de una pestaña el detalle técnico de su estado, seleccionable para copiarlo), EmptyState, GlyphButton, Hairline, SectionHeader, Caption, EditorScaffold (su botón de borrar siempre pide confirmación en la propia barra) y bodyPadding(). Construidas al lenguaje visual (mono, marcadores ASCII, superficies planas con hairline 1px, radios 4px/0px), evitando el chrome de Material (elevación, tarjetas redondeadas, labels animados) que competiría con la identidad de terminal. Se apoyan en los tokens de TitanColors/TitanDimens."
+Última modificación: 2026-10-03T09:20:00+02:00
 ---
 
 # Componentes UI compartidos
@@ -66,6 +66,11 @@ Reglas de uso:
   debajo, alineados a la derecha, para que la pregunta no se estreche.
 - Colores: `danger` solo para errores reales y acciones destructivas; nunca
   como adorno.
+- Las acciones de una entrada guardada (host, sesión, script) se montan con
+  `EntryActions` dentro de `expandedContent`: `[~] Editar`, `[+] Duplicar`,
+  lo propio de esa entrada (`extra`) y `[x] Eliminar`, que se confirma con un
+  `ConfirmRow`. La lista lleva el estado de la confirmación, igual que el de
+  la fila abierta. No se repiten esas filas a mano.
 
 Ejemplo (lanzadera de Sesiones, `SessionsArea.kt`, función `Launcher`):
 

@@ -468,6 +468,50 @@ fun ListRow(
 }
 
 /**
+ * The contextual actions of a saved entry (a host, a session, a library
+ * script), for a [ListRow]'s `expandedContent`: `[~] Editar`, `[+] Duplicar`,
+ * then [extra] (what only that kind of entry offers) and `[x] Eliminar`. Delete
+ * never happens on a tap: with [confirmingDelete] its row turns into a
+ * [ConfirmRow] with [deleteQuestion], [deleteSubtitle] and [deleteConfirmLabel],
+ * and [onDelete] only runs on confirming. The list owns [confirmingDelete], as
+ * it owns which row is open.
+ */
+@Composable
+fun EntryActions(
+    onEdit: () -> Unit,
+    onDuplicate: () -> Unit,
+    confirmingDelete: Boolean,
+    onConfirmingDelete: (Boolean) -> Unit,
+    onDelete: () -> Unit,
+    deleteQuestion: String,
+    deleteSubtitle: String? = null,
+    deleteConfirmLabel: String = "[x] Sí",
+    extra: @Composable () -> Unit = {},
+) {
+    ListRow(marker = "[~]", title = "Editar", onClick = onEdit)
+    ListRow(marker = "[+]", title = "Duplicar", onClick = onDuplicate)
+    extra()
+    if (confirmingDelete) {
+        ConfirmRow(
+            question = deleteQuestion,
+            subtitle = deleteSubtitle,
+            confirmLabel = deleteConfirmLabel,
+            marker = "[x]",
+            markerColor = TitanColors.Danger,
+            onConfirm = onDelete,
+            onCancel = { onConfirmingDelete(false) },
+        )
+    } else {
+        ListRow(
+            marker = "[x]",
+            title = "Eliminar",
+            markerColor = TitanColors.Danger,
+            onClick = { onConfirmingDelete(true) },
+        )
+    }
+}
+
+/**
  * An inline confirmation laid out like a [ListRow]: the [question] with a
  * confirm and a cancel button, for a step that must not happen on a single tap
  * (e.g. deleting). Shown in place of the row that asked for it; no dialog.

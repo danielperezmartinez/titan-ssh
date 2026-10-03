@@ -28,6 +28,7 @@ import io.github.danielperezmartinez.titanssh.config.HostAuth
 import io.github.danielperezmartinez.titanssh.config.HostKeyPolicy
 import io.github.danielperezmartinez.titanssh.config.Ids
 import io.github.danielperezmartinez.titanssh.config.TerminalAppearance
+import io.github.danielperezmartinez.titanssh.config.TitanConfig
 import io.github.danielperezmartinez.titanssh.config.canJumpThrough
 import io.github.danielperezmartinez.titanssh.secret.SecretProvisioner
 import io.github.danielperezmartinez.titanssh.secret.SecretRef
@@ -184,15 +185,6 @@ fun HostEditor(
         onDone()
     }
 
-    // What deleting the host leaves behind: its sessions lose their host and
-    // the hosts that jump through it go direct.
-    val usingSessions = existing?.let { h -> config.sessions.count { it.hostId == h.id } } ?: 0
-    val jumpingHosts = existing?.let { h -> config.hosts.count { it.proxyJumpHostId == h.id } } ?: 0
-    val deleteSubtitle = listOfNotNull(
-        usingSessions.takeIf { it > 0 }?.let { if (it == 1) "1 sesión se queda sin host" else "$it sesiones se quedan sin host" },
-        jumpingHosts.takeIf { it > 0 }?.let { if (it == 1) "1 host deja de saltar por él" else "$it hosts dejan de saltar por él" },
-    ).joinToString(" · ").ifEmpty { null }
-
     EditorScaffold(
         title = if (existing == null) "Nuevo host" else "Editar host",
         onBack = onDone,
@@ -200,7 +192,7 @@ fun HostEditor(
         canSave = canSave,
         onDelete = existing?.let { { controller.deleteHost(it.id); onDone() } },
         deleteQuestion = "¿Eliminar el host?",
-        deleteSubtitle = deleteSubtitle,
+        deleteSubtitle = existing?.let { hostDeleteWarning(config, it.id) },
     ) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bodyPadding())) {
             TitanTextField("Alias", alias, { alias = it }, placeholder = "servidor de casa")
@@ -342,6 +334,20 @@ fun HostEditor(
             Spacer(Modifier.height(TitanDimens.SpaceSection))
         }
     }
+}
+
+/**
+ * What deleting host [hostId] leaves behind, for its delete confirmation: its
+ * sessions lose their host and the hosts that jump through it go direct.
+ * `null` when nothing depends on it.
+ */
+internal fun hostDeleteWarning(config: TitanConfig, hostId: String): String? {
+    val usingSessions = config.sessions.count { it.hostId == hostId }
+    val jumpingHosts = config.hosts.count { it.proxyJumpHostId == hostId }
+    return listOfNotNull(
+        usingSessions.takeIf { it > 0 }?.let { if (it == 1) "1 sesión se queda sin host" else "$it sesiones se quedan sin host" },
+        jumpingHosts.takeIf { it > 0 }?.let { if (it == 1) "1 host deja de saltar por él" else "$it hosts dejan de saltar por él" },
+    ).joinToString(" · ").ifEmpty { null }
 }
 
 /** Transient success/error line for a provisioning action (color = real state). */

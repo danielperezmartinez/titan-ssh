@@ -73,6 +73,22 @@ class ConfigController(
         )
     }
 
+    /**
+     * Creates a copy of [hostId] as a new host, with a fresh id and a "(copia)"
+     * suffix on its name. It keeps the same secret references, so both use the
+     * same stored credentials. Returns the new host, or `null` if the source is
+     * gone.
+     */
+    fun duplicateHost(hostId: String): Host? {
+        val source = _state.value.hosts.firstOrNull { it.id == hostId } ?: return null
+        val copy = source.copy(
+            id = Ids.host(),
+            alias = "${source.alias.ifBlank { source.hostname }} (copia)",
+        )
+        upsertHost(copy)
+        return copy
+    }
+
     // --- Sessions ------------------------------------------------------------
 
     fun upsertSession(session: Session) = mutate { cfg ->
@@ -164,6 +180,18 @@ class ConfigController(
 
     fun upsertLibraryScript(script: LibraryScript) = mutate { cfg ->
         cfg.copy(scripts = cfg.scripts.upsert(script) { it.id == script.id })
+    }
+
+    /**
+     * Creates a copy of [libraryScriptId] as a new library script, with a fresh
+     * id and a "(copia)" suffix. Sessions keep using the original. Returns the
+     * new script, or `null` if the source is gone.
+     */
+    fun duplicateLibraryScript(libraryScriptId: String): LibraryScript? {
+        val source = _state.value.scripts.firstOrNull { it.id == libraryScriptId } ?: return null
+        val copy = source.copy(id = Ids.libraryScript(), name = "${source.name} (copia)")
+        upsertLibraryScript(copy)
+        return copy
     }
 
     /**

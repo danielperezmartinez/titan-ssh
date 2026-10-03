@@ -168,67 +168,54 @@ internal fun Launcher(
                     },
                     expanded = expanded,
                     expandedContent = {
-                        ListRow(marker = "[~]", title = "Editar", onClick = { onEdit(session.id) })
-                        ListRow(
-                            marker = "[+]",
-                            title = "Duplicar",
-                            onClick = {
+                        EntryActions(
+                            onEdit = { onEdit(session.id) },
+                            onDuplicate = {
                                 controller.duplicateSession(session.id)
                                 expandedId = null
                             },
-                        )
-                        if (isAgent && resolved != null) {
-                            ListRow(
-                                marker = "[@]",
-                                title = "Ver el agente del destino",
-                                onClick = { onOpenAgent(agents.hostOf(resolved)) },
-                            )
-                        }
-                        if (live != null) {
-                            if (confirming == LauncherConfirm.TERMINATE) {
-                                ConfirmRow(
-                                    question = "¿Terminar en el destino?",
-                                    subtitle = "Se cierra lo que tenga en marcha",
-                                    confirmLabel = "[x] Sí",
-                                    marker = "[x]",
-                                    markerColor = TitanColors.Danger,
-                                    onConfirm = {
-                                        agents.terminate(session)
-                                        expandedId = null
-                                        confirming = null
-                                    },
-                                    onCancel = { confirming = null },
-                                )
-                            } else {
+                            confirmingDelete = confirming == LauncherConfirm.DELETE,
+                            onConfirmingDelete = { confirming = if (it) LauncherConfirm.DELETE else null },
+                            onDelete = {
+                                agents.delete(session)
+                                expandedId = null
+                                confirming = null
+                            },
+                            deleteQuestion = "¿Eliminar la sesión?",
+                            deleteSubtitle = if (live != null) "Sigue viva en el destino" else null,
+                            deleteConfirmLabel = if (live != null) "[x] Eliminar y terminarla" else "[x] Sí",
+                        ) {
+                            if (isAgent && resolved != null) {
                                 ListRow(
-                                    marker = "[x]",
-                                    title = "Terminar en el destino",
-                                    markerColor = TitanColors.Danger,
-                                    onClick = { confirming = LauncherConfirm.TERMINATE },
+                                    marker = "[@]",
+                                    title = "Ver el agente del destino",
+                                    onClick = { onOpenAgent(agents.hostOf(resolved)) },
                                 )
                             }
-                        }
-                        if (confirming == LauncherConfirm.DELETE) {
-                            ConfirmRow(
-                                question = "¿Eliminar la sesión?",
-                                subtitle = if (live != null) "Sigue viva en el destino" else null,
-                                confirmLabel = if (live != null) "[x] Eliminar y terminarla" else "[x] Sí",
-                                marker = "[x]",
-                                markerColor = TitanColors.Danger,
-                                onConfirm = {
-                                    agents.delete(session)
-                                    expandedId = null
-                                    confirming = null
-                                },
-                                onCancel = { confirming = null },
-                            )
-                        } else {
-                            ListRow(
-                                marker = "[x]",
-                                title = "Eliminar",
-                                markerColor = TitanColors.Danger,
-                                onClick = { confirming = LauncherConfirm.DELETE },
-                            )
+                            if (live != null) {
+                                if (confirming == LauncherConfirm.TERMINATE) {
+                                    ConfirmRow(
+                                        question = "¿Terminar en el destino?",
+                                        subtitle = "Se cierra lo que tenga en marcha",
+                                        confirmLabel = "[x] Sí",
+                                        marker = "[x]",
+                                        markerColor = TitanColors.Danger,
+                                        onConfirm = {
+                                            agents.terminate(session)
+                                            expandedId = null
+                                            confirming = null
+                                        },
+                                        onCancel = { confirming = null },
+                                    )
+                                } else {
+                                    ListRow(
+                                        marker = "[x]",
+                                        title = "Terminar en el destino",
+                                        markerColor = TitanColors.Danger,
+                                        onClick = { confirming = LauncherConfirm.TERMINATE },
+                                    )
+                                }
+                            }
                         }
                     },
                 )
