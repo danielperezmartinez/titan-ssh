@@ -254,6 +254,32 @@ object AgentInsights {
         return lines
     }
 
+    /**
+     * The programs started on the user's desktop with `--desktop-run`
+     * (ADR-0019), a line each, newest first: when, what and how it went.
+     * Dates are on the app's clock, as in [sessionDetails]. Long command
+     * lines are cut to [maxCommand] characters.
+     */
+    fun desktopRunLines(
+        obs: AgentObservation,
+        runs: List<AgentDesktopRun>,
+        maxCommand: Int = 80,
+        formatDateTime: (Long) -> String,
+    ): List<String> = runs.map { r ->
+        val command = (listOf(programName(r.program)) + r.args.map(::quoteArg)).joinToString(" ")
+        val shown = if (command.length > maxCommand) command.take(maxCommand - 1) + "…" else command
+        val outcome = when {
+            r.error != null -> "no se abrió: ${r.error}"
+            r.pid != null -> "PID ${r.pid}"
+            else -> "abierto"
+        }
+        "${formatDateTime(toAppClock(obs, r.timeMs))} · $shown · $outcome"
+    }
+
+    /** An argument as a person would type it: quoted when empty or with spaces. */
+    private fun quoteArg(arg: String): String =
+        if (arg.isEmpty() || arg.any { it.isWhitespace() }) "\"$arg\"" else arg
+
     /** "3 min", "5 h", "2 días": a duration as the UI shows it. */
     fun formatDuration(ms: Long): String {
         val minutes = ms / 60_000

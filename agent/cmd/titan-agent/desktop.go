@@ -93,6 +93,7 @@ type desktopHelper struct {
 	record   agentState
 	inj      inject.Injector
 	injMu    sync.Mutex // one injector for every connection
+	runLogMu sync.Mutex // one writer of desktop-run.log
 	stopping atomic.Bool
 	conns    sync.WaitGroup
 	slots    handshakeSlots
@@ -172,8 +173,9 @@ func (h *desktopHelper) serve() {
 		go func() {
 			defer h.conns.Done()
 			defer conn.Close()
+			// A run connection has no legacy variant (ADR-0019 §2).
 			magic, err := acceptMagics(conn, h.token,
-				[]string{desktopMagic, desktopControlMagic},
+				[]string{desktopMagic, desktopControlMagic, desktopRunMagic},
 				map[string]string{
 					legacyDesktopMagic:        legacyDesktopAck,
 					legacyDesktopControlMagic: legacyDesktopControlAck,
@@ -182,8 +184,12 @@ func (h *desktopHelper) serve() {
 			if err != nil {
 				return
 			}
-			if magic == desktopControlMagic || magic == legacyDesktopControlMagic {
+			switch magic {
+			case desktopControlMagic, legacyDesktopControlMagic:
 				h.serveControl(conn)
+				return
+			case desktopRunMagic:
+				h.serveRun(conn)
 				return
 			}
 			_ = inject.Serve(conn, h.inj, &h.injMu)
@@ -292,11 +298,16 @@ var (
 // helper of another agent version is stopped and replaced, so an upgrade
 // takes effect on the next connection. Errors carry their contract code.
 func connectDesktop(stateDir string, launch func() error) (net.Conn, error) {
+	return connectDesktopWith(stateDir, desktopMagic, launch)
+}
+
+// connectDesktopWith is connectDesktop for a connection of the kind magic.
+func connectDesktopWith(stateDir, magic string, launch func() error) (net.Conn, error) {
 	deadline := time.Now().Add(desktopWait)
 	var launchedAt time.Time
 	for {
 		if st, err := readStateFile(stateDir, desktopStateName); err == nil {
-			conn, err := dialWith(st, desktopMagic)
+			conn, err := dialWith(st, magic)
 			switch {
 			case err == nil && st.Agent == version:
 				return conn, nil
@@ -306,8 +317,13 @@ func connectDesktop(stateDir string, launch func() error) (net.Conn, error) {
 					_ = waitNamedLockFree(stateDir, desktopLockName, 5*time.Second)
 				}
 			case errors.Is(err, errRejected) && st.Agent != version:
-				// A helper of an older version: replace it as well.
-				if stopLegacyDesktop(stateDir, st) == nil {
+				// A helper of an older version, which may not know this kind
+				// of connection or even this handshake: replace it as well.
+				_, err := desktopRequest(st, desktopOpStop)
+				if errors.Is(err, errRejected) {
+					err = stopLegacyDesktop(stateDir, st)
+				}
+				if err == nil {
 					_ = waitNamedLockFree(stateDir, desktopLockName, 5*time.Second)
 				}
 			}
@@ -384,11 +400,13 @@ type desktopReport struct {
 	Agent   string `json:"agent,omitempty"`
 	PID     int    `json:"pid,omitempty"`
 	Session int    `json:"session,omitempty"`
+	// Runs are the last programs started with --desktop-run, newest first.
+	Runs []desktopRun `json:"runs,omitempty"`
 }
 
 // queryDesktop reports the helper as it is now.
 func queryDesktop(stateDir string) desktopReport {
-	r := desktopReport{Task: taskExists(stateDir), State: stateStopped}
+	r := desktopReport{Task: taskExists(stateDir), State: stateStopped, Runs: recentRuns(stateDir, desktopRunsReported)}
 	st, err := readStateFile(stateDir, desktopStateName)
 	if err == nil {
 		if reply, err := desktopRequest(st, desktopOpStatus); err == nil {
@@ -405,8 +423,9 @@ func queryDesktop(stateDir string) desktopReport {
 	return r
 }
 
-// removeDesktop is --remove-desktop: it stops the helper, deletes its task
-// and its executable copies. Nothing to remove is not an error.
+// removeDesktop is --remove-desktop: it stops the helper, deletes its task,
+// its executable copies and the record of its launches. Programs it started
+// keep running. Nothing to remove is not an error.
 func removeDesktop(stateDir string) error {
 	if err := ensureStateDir(stateDir); err != nil {
 		return withCode(codeStateDir, err)
@@ -430,6 +449,7 @@ func removeDesktop(stateDir string) error {
 	}
 	_ = removeIfExists(filepath.Join(stateDir, desktopStateName))
 	_ = removeIfExists(filepath.Join(stateDir, desktopErrorName))
+	_ = removeIfExists(filepath.Join(stateDir, desktopRunLogName))
 	removeDesktopCopies(stateDir, "")
 	return nil
 }

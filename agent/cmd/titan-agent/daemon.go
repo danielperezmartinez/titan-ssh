@@ -34,6 +34,11 @@ func runDaemon(stateDir string, bufCap int) error {
 	if err := ensureStateDir(stateDir); err != nil {
 		return withCode(codeStateDir, err)
 	}
+	// Every session shell inherits where the agent is, to reach it by name
+	// (--desktop-run, --status) although it is not on PATH.
+	if exe, err := os.Executable(); err == nil {
+		_ = os.Setenv(agentPathEnv, exe)
+	}
 	d, err := startDaemon(stateDir, bufCap, session.NewPty)
 	if errors.Is(err, errLocked) {
 		return nil // a live daemon serves this user; the front connects to it

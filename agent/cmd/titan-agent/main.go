@@ -25,6 +25,8 @@
 // client execs for it, and --desktop, the helper on the user's desktop that
 // the --input front starts (on Windows, through a scheduled task) and that
 // injects the input. --remove-desktop stops the helper and deletes its task.
+// --desktop-run asks the same helper to start a program on the user's desktop
+// (ADR-0019): `titan-agent --desktop-run [--cwd <dir>] <program> [args...]`.
 //
 // When the front cannot give the client a daemon connection it exits non-zero
 // with one stderr line, `TITAN_AGENT_ERROR <code> <message>` (see errors.go).
@@ -54,6 +56,8 @@ func main() {
 	input := flag.Bool("input", false, "connect a mouse pad session to the user's desktop helper")
 	desktop := flag.Bool("desktop", false, "run the desktop helper that injects mouse pad input")
 	removeDesk := flag.Bool("remove-desktop", false, "stop the desktop helper and delete its scheduled task, and exit")
+	desktopRun := flag.Bool("desktop-run", false, "start the program named after the flags on the user's desktop, print its PID, and exit")
+	cwd := flag.String("cwd", "", "with --desktop-run: the program's working directory (default: the current one)")
 	// Carried in the HELLO frame now; accepted for the documented exec command
 	// but not required by the front (the daemon reads the id from the protocol).
 	_ = flag.String("session", "", "stable session id (informational; id travels in HELLO)")
@@ -71,6 +75,7 @@ func main() {
 		daemon: *daemon, stop: *stop, status: *status, json: *asJSON,
 		closeID: *closeID, previewID: *previewID,
 		input: *input, desktop: *desktop, removeDesktop: *removeDesk,
+		desktopRun: *desktopRun, cwd: *cwd, args: flag.Args(),
 	}, *bufCap)
 	if err != nil {
 		var ae *agentError
@@ -89,6 +94,9 @@ type mode struct {
 	daemon, stop, status, json    bool
 	closeID, previewID            string
 	input, desktop, removeDesktop bool
+	desktopRun                    bool
+	cwd                           string
+	args                          []string // with desktopRun: the program and its arguments
 }
 
 func run(stateDir string, m mode, bufCap int) error {
@@ -144,6 +152,8 @@ func run(stateDir string, m mode, bufCap int) error {
 		return runDesktop(stateDir)
 	case m.removeDesktop:
 		return removeDesktop(stateDir)
+	case m.desktopRun:
+		return runDesktopProgram(stateDir, m.cwd, m.args)
 	default:
 		return runFront(stateDir)
 	}

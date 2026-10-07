@@ -55,8 +55,9 @@ data class AgentStatusReport(
 }
 
 /**
- * The desktop helper that injects a mouse pad's input on the user's desktop,
- * and the scheduled task that starts it (ADR-0016 §3). Mirrors `desktopReport`
+ * The desktop helper on the user's desktop, which injects a mouse pad's input
+ * (ADR-0016 §3) and starts the programs of `titan-agent --desktop-run`
+ * (ADR-0019), and the scheduled task that starts it. Mirrors `desktopReport`
  * in `agent/cmd/titan-agent/desktop.go`.
  */
 @Serializable
@@ -69,12 +70,32 @@ data class AgentDesktopReport(
     val pid: Int? = null,
     /** The Windows session it runs in. */
     val session: Int? = null,
+    /** The last programs it was asked to start, newest first; empty from agents that predate ADR-0019. */
+    val runs: List<AgentDesktopRun> = emptyList(),
 ) {
     val isRunning: Boolean get() = state == AgentStatusReport.STATE_RUNNING
 
     /** Something of the helper is left on the destination that the user can remove. */
-    val isPresent: Boolean get() = task || state != AgentStatusReport.STATE_STOPPED
+    val isPresent: Boolean get() = task || state != AgentStatusReport.STATE_STOPPED || runs.isNotEmpty()
 }
+
+/**
+ * One request to start a program on the user's desktop (ADR-0019), started
+ * or refused. Mirrors `desktopRun` in `agent/cmd/titan-agent/desktoprun.go`.
+ * [timeMs] is on the destination's clock.
+ */
+@Serializable
+data class AgentDesktopRun(
+    val timeMs: Long,
+    /** Absolute path of the program on the destination. */
+    val program: String,
+    val args: List<String> = emptyList(),
+    val dir: String? = null,
+    /** The started process; null when it was not started. */
+    val pid: Int? = null,
+    /** Why it was not started. */
+    val error: String? = null,
+)
 
 /** One session held by the daemon. */
 @Serializable

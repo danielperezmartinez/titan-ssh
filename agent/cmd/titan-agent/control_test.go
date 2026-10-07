@@ -355,6 +355,24 @@ func TestStatusJSONContract(t *testing.T) {
 	if want := `{"cols":80,"rows":24,"data":"aGk="}`; string(data) != want {
 		t.Fatalf("preview JSON contract changed:\n got %s\nwant %s", data, want)
 	}
+
+	// The desktop helper, with the launches of --desktop-run (ADR-0019).
+	data, err = json.Marshal(desktopReport{
+		Task: true, State: stateRunning, Agent: "1.0.0", PID: 7, Session: 1,
+		Runs: []desktopRun{
+			{TimeMs: 2000, Program: `C:\Windows\notepad.exe`, Args: []string{"a b"}, Dir: `C:\`, PID: 8},
+			{TimeMs: 1000, Program: `C:\x.exe`, Error: "refused"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want = `{"task":true,"state":"running","agent":"1.0.0","pid":7,"session":1,"runs":[` +
+		`{"timeMs":2000,"program":"C:\\Windows\\notepad.exe","args":["a b"],"dir":"C:\\","pid":8},` +
+		`{"timeMs":1000,"program":"C:\\x.exe","error":"refused"}]}`
+	if string(data) != want {
+		t.Fatalf("desktop JSON contract changed:\n got %s\nwant %s", data, want)
+	}
 }
 
 // The status reports the session's size, and --preview gives the end of its

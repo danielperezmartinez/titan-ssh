@@ -14,5 +14,9 @@ func launchDesktop(string) error {
 	return withCode(codeInputUnsupported, errors.New("the mouse pad only supports Windows destinations for now"))
 }
 
+func startProgram(runRequest) (int, error) {
+	return 0, errors.New("--desktop-run only supports Windows destinations for now")
+}
+
 func desktopTaskExists(string) bool  { return false }
 func deleteDesktopTask(string) error { return nil }

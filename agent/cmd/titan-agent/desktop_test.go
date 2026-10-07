@@ -254,6 +254,7 @@ func TestRemoveDesktopStopsTheHelperAndCleansUp(t *testing.T) {
 	deleted := fakeDesktopTask(t)
 	dir := testStateDir(t)
 	stopped := startTestHelper(t, dir, &recordingInjector{})
+	(&desktopHelper{dir: dir}).recordRun(desktopRun{TimeMs: 1, Program: "p", PID: 2})
 	copyPath := filepath.Join(dir, "desktop-0.0.1.exe")
 	if err := os.WriteFile(copyPath, []byte("MZ"), 0o600); err != nil {
 		t.Fatal(err)
@@ -271,7 +272,7 @@ func TestRemoveDesktopStopsTheHelperAndCleansUp(t *testing.T) {
 	if r := queryDesktop(dir); r.State != stateStopped || r.Task {
 		t.Fatalf("status after = %+v, want stopped with no task", r)
 	}
-	for _, name := range []string{desktopStateName, filepath.Base(copyPath)} {
+	for _, name := range []string{desktopStateName, desktopRunLogName, filepath.Base(copyPath)} {
 		if _, err := os.Stat(filepath.Join(dir, name)); !errors.Is(err, os.ErrNotExist) {
 			t.Errorf("%s still exists (%v)", name, err)
 		}

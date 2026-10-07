@@ -28,13 +28,15 @@ import (
 // the front, on the destination, knows it.
 //
 // Each kind of connection has its own magic, which the proofs cover: a session,
-// a control request (control.go), and the desktop helper's input and control
-// connections (desktop_windows.go), which have their own listener and token.
+// a control request (control.go), and the desktop helper's input, control and
+// run connections (desktop.go, desktoprun.go), which have their own listener
+// and token.
 const (
 	preambleMagic       = "TTNAGNT2"
 	controlMagic        = "TTNACTL2"
 	desktopMagic        = "TTNADSK2"
 	desktopControlMagic = "TTNADCT2"
+	desktopRunMagic     = "TTNADRN2"
 )
 
 // The first handshake sent the raw token and took a fixed ack back. Agents up

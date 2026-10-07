@@ -230,8 +230,17 @@ fun AgentPanel(
             if (desktop != null && desktop.isPresent) {
                 item {
                     Spacer(Modifier.height(TitanDimens.SpaceMd))
+                    val runLines = obs?.let { o ->
+                        AgentInsights.desktopRunLines(o, desktop.runs) { formatLocalDateTime(it, now) }
+                    }.orEmpty()
                     DesktopHelperRow(
                         desktop = desktop,
+                        runLines = runLines,
+                        expanded = expandedId == DESKTOP_ROW_ID,
+                        onToggle = {
+                            expandedId = if (expandedId == DESKTOP_ROW_ID) null else DESKTOP_ROW_ID
+                            confirming = null
+                        },
                         confirming = confirming == PanelConfirm.RemoveDesktop,
                         onAsk = { confirming = PanelConfirm.RemoveDesktop },
                         onConfirm = {
@@ -274,14 +283,21 @@ fun AgentPanel(
     }
 }
 
+/** [expandedId] of the desktop helper's row; session ids start with "titan-". */
+private const val DESKTOP_ROW_ID = "desktop-helper"
+
 /**
- * The mouse pad's desktop helper on a Windows destination and its scheduled
- * task (ADR-0016), with the way to remove both. The next mouse pad brings
- * them back.
+ * The desktop helper on a Windows destination and its scheduled task
+ * (ADR-0016), with the way to remove both. The next mouse pad or
+ * `--desktop-run` brings them back. Unfolded, it lists the programs started
+ * on the user's desktop ([runLines], ADR-0019).
  */
 @Composable
 private fun DesktopHelperRow(
     desktop: AgentDesktopReport,
+    runLines: List<String>,
+    expanded: Boolean,
+    onToggle: () -> Unit,
     confirming: Boolean,
     onAsk: () -> Unit,
     onConfirm: () -> Unit,
@@ -289,8 +305,9 @@ private fun DesktopHelperRow(
 ) {
     if (confirming) {
         ConfirmRow(
-            question = "¿Quitar el ayudante del mouse pad?",
-            subtitle = "Se cierran los mouse pad abiertos; el siguiente lo vuelve a instalar",
+            question = "¿Quitar el ayudante de escritorio?",
+            subtitle = "Se cierran los mouse pad abiertos y se borra la lista de programas abiertos " +
+                "(los programas siguen abiertos); el siguiente uso lo vuelve a instalar",
             confirmLabel = "[x] Sí",
             marker = "[x]",
             markerColor = TitanColors.Danger,
@@ -304,13 +321,33 @@ private fun DesktopHelperRow(
         AgentStatusReport.STATE_UNREACHABLE -> "no responde"
         else -> "parado"
     }
+    val runs = when (runLines.size) {
+        0 -> ""
+        1 -> " · 1 programa abierto en el escritorio"
+        else -> " · ${runLines.size} programas abiertos en el escritorio"
+    }
     ListRow(
         marker = if (desktop.isRunning) "[+]" else "[-]",
-        markerColor = if (desktop.isRunning) TitanColors.Success else TitanColors.Mute,
-        title = "Ayudante del mouse pad",
-        subtitle = state + if (desktop.task) " · tarea programada registrada" else "",
+        markerColor = if (expanded) TitanColors.Accent else if (desktop.isRunning) TitanColors.Success else TitanColors.Mute,
+        title = "Ayudante de escritorio",
+        subtitle = "mouse pad y programas abiertos desde el terminal · " + state +
+            (if (desktop.task) " · tarea programada registrada" else "") + runs,
+        onClick = onToggle,
+        onLongClick = onToggle,
+        onMarkerClick = onToggle,
         trailing = {
             TitanButton("[x] Quitar", onClick = onAsk, kind = ButtonKind.SECONDARY)
+        },
+        expanded = expanded,
+        expandedContent = {
+            Column(Modifier.fillMaxWidth().padding(vertical = TitanDimens.SpaceSm, horizontal = TitanDimens.SpaceXs)) {
+                if (runLines.isEmpty()) {
+                    Caption("No ha abierto ningún programa en el escritorio.")
+                } else {
+                    Caption("últimos programas abiertos con titan-agent --desktop-run", color = TitanColors.Body)
+                    runLines.forEach { Caption(it) }
+                }
+            }
         },
     )
 }

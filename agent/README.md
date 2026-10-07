@@ -32,9 +32,11 @@ agent/
 ├── go.mod / go.sum
 ├── cmd/titan-agent/
 │   ├── main.go            # modos: front (default) / --daemon / --status / --close-session / --stop
-│   │                      #        / --input / --desktop / --remove-desktop (mouse pad)
+│   │                      #        / --input / --desktop / --remove-desktop (mouse pad) / --desktop-run
 │   ├── daemon.go          # candado + listen TCP loopback + serve del protocolo por conexión
 │   ├── desktop.go         # mouse pad: ayudante de escritorio, front --input, estado y retirada
+│   ├── desktoprun.go      # --desktop-run: petición, validación y registro de los programas abiertos (ADR-0019)
+│   ├── desktoprun_windows.go # CreateProcess en el escritorio del usuario, sin elevar
 │   ├── desktop_windows.go # tarea programada (schtasks /xml) y copia gráfica del binario
 │   ├── desktoptask.go     # XML UTF-16 de la tarea y comillas de la línea de órdenes de Windows
 │   ├── pe.go              # copia del ejecutable con el subsistema PE gráfico (ADR-0017)
@@ -151,8 +153,9 @@ offsets ni replay. Cuando se cierra una conexión, `inject.Serve` suelta los
 botones y teclas que quedaran pulsados.
 
 - **Encuentro**: el mismo esquema que el daemon, con otros ficheros
-  (`desktop.lock`, `desktop.json`) y otras marcas (`TTNADSK1` para la
-  entrada, `TTNADCT1` para el control: `status` y `stop`).
+  (`desktop.lock`, `desktop.json`) y otras marcas (`TTNADSK2` para la
+  entrada, `TTNADCT2` para el control: `status` y `stop`; y `TTNADRN2` para
+  `--desktop-run`, más abajo).
 - **Windows**: si no responde ningún ayudante, el front escribe
   `desktop-<versión>.exe` en el directorio de estado. Es una copia de sí
   mismo con el subsistema PE gráfico, para que no abra una consola. Después
@@ -171,6 +174,34 @@ botones y teclas que quedaran pulsados.
   copias. `--status --json` lo incluye en `desktop`.
 - Fuera de Windows, `--input` termina con `E_INPUT_UNSUPPORTED` (X11 y
   Wayland tienen sus tareas).
+
+### Programas en el escritorio del usuario (ADR-0019)
+
+`titan-agent --desktop-run [--cwd <dir>] <programa> [argumentos…]` abre un
+programa en el escritorio del usuario desde una shell que no lo tiene (la
+sesión 0 de sshd en Windows) e imprime su PID. Cada shell de una sesión del
+agente tiene la ruta del binario en `TITAN_AGENT`; por ejemplo, en
+PowerShell: `& $env:TITAN_AGENT --desktop-run emulator -avd Pixel_9_Pro_XL`.
+
+- **Front**: resuelve el programa como la shell que llama (su `PATH`, nunca
+  el directorio actual por accidente) y usa su directorio actual si no se da
+  `--cwd`. Encuentra o arranca el ayudante igual que `--input`, y le manda una
+  línea JSON por una conexión `TTNADRN2`. Esa marca solo existe en el apretón
+  de manos con HMAC: no tiene variante antigua, y el canal de control no
+  acepta la orden.
+- **Ayudante**: valida la petición (programa y directorio absolutos y
+  existentes, sin NUL, sin `.bat` ni `.cmd`, que Windows pasaría a
+  `cmd.exe`) y lanza con `CreateProcess` y su propio token, que no está
+  elevado. No usa `ShellExecute` ni una shell, así que un programa que pide
+  administrador falla con un error y nunca aparece un aviso de UAC. Abre las
+  ventanas en modo normal y da una consola propia a los programas de
+  consola. Si su tarea corre en un job que lo permite, el programa sale de
+  él, así que quitar el ayudante no lo cierra.
+- **Registro**: cada petición, abierta o rechazada, va a `desktop-run.log`
+  en el directorio de estado (una línea JSON; se recorta a los 100 últimos
+  al pasar de 200). `--status --json` da los 10 últimos en `desktop.runs`, y
+  `--remove-desktop` borra el registro con todo lo demás.
+- Fuera de Windows termina con `E_INPUT_UNSUPPORTED`.
 
 ### Errores
 
