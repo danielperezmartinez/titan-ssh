@@ -39,6 +39,15 @@ class SshjConnectorTest {
     }
 
     @Test
+    fun sockets_turn_nagle_off() {
+        // sshj creates its socket unconnected, then connects it.
+        assertTrue(NoDelaySocketFactory.createSocket().use { it.tcpNoDelay })
+        ServerSocket(0).use { server ->
+            NoDelaySocketFactory.createSocket("127.0.0.1", server.localPort).use { assertTrue(it.tcpNoDelay) }
+        }
+    }
+
+    @Test
     fun connecting_to_a_closed_port_fails_as_connect_error() = runTest {
         // Reserve then release a port so nothing is listening on it.
         val deadPort = ServerSocket(0).use { it.localPort }

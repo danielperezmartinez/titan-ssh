@@ -1,9 +1,12 @@
 package io.github.danielperezmartinez.titanssh.ssh
 
+import java.net.InetAddress
+import java.net.Socket
 import java.security.MessageDigest
 import java.security.PublicKey
 import java.util.Base64
 import java.util.EnumSet
+import javax.net.SocketFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -64,6 +67,7 @@ internal class SshjConnector : SshConnector {
         through: SSHClient?,
     ): SSHClient {
         val ssh = SSHClient(sshjConfig(keepAlive = keepAliveSeconds > 0))
+        ssh.socketFactory = NoDelaySocketFactory
         // Without it an unreachable host takes the OS SYN timeout (about 2 min on
         // Linux and Android), stalling the reconnect loop past the network's return.
         ssh.connectTimeout = CONNECT_TIMEOUT_MILLIS
@@ -205,6 +209,30 @@ internal fun hostKeyAlgorithmsFor(keyType: String): List<String> =
 
 /** TCP connect timeout for every SSH connection. */
 private const val CONNECT_TIMEOUT_MILLIS = 15_000
+
+/**
+ * Sockets with `TCP_NODELAY`. sshj leaves Nagle on, and Nagle holds every small
+ * packet until the previous one is acknowledged: the mouse pad's moves and the
+ * terminal's keys then leave in bursts, one per round trip. A jump host's
+ * connection is the only one with a socket; the hops inside it ride on it.
+ */
+internal object NoDelaySocketFactory : SocketFactory() {
+    private val default = getDefault()
+
+    override fun createSocket(): Socket = Socket().noDelay()
+
+    override fun createSocket(host: String, port: Int): Socket = default.createSocket(host, port).noDelay()
+
+    override fun createSocket(host: String, port: Int, localHost: InetAddress, localPort: Int): Socket =
+        default.createSocket(host, port, localHost, localPort).noDelay()
+
+    override fun createSocket(host: InetAddress, port: Int): Socket = default.createSocket(host, port).noDelay()
+
+    override fun createSocket(address: InetAddress, port: Int, localAddress: InetAddress, localPort: Int): Socket =
+        default.createSocket(address, port, localAddress, localPort).noDelay()
+
+    private fun Socket.noDelay(): Socket = apply { tcpNoDelay = true }
+}
 
 /** Internal marker thrown from the verifier so [SshjConnector] can map it precisely. */
 private class HostKeyRejectedSignal(val info: HostKeyInfo) : RuntimeException()
