@@ -149,12 +149,13 @@ func TestInputFrontReportsWhyTheHelperFailed(t *testing.T) {
 	}
 }
 
-// A helper of an older version speaks only the first handshake: the front
-// stops it over that one and launches the current version, and never sends it
-// input.
-func TestInputFrontReplacesAnOlderHelper(t *testing.T) {
-	fastDesktopWaits(t)
-	dir := testStateDir(t)
+// fakeOlderHelper publishes a desktop helper of version v that holds its lock
+// and accepts the given connection kinds with the current handshake (none:
+// it only speaks the first one, as 0.1.0-beta.10 and older did). Over a
+// control connection it takes a stop request. It reports whether any
+// connection carried its raw token, and closes stopped once stopped.
+func fakeOlderHelper(t *testing.T, dir, v string, magics []string) (tokenSeen func() bool, stopped chan struct{}) {
+	t.Helper()
 	lock, err := lockNamed(dir, desktopLockName)
 	if err != nil {
 		t.Fatal(err)
@@ -165,60 +166,108 @@ func TestInputFrontReplacesAnOlderHelper(t *testing.T) {
 	}
 	token := bytes.Repeat([]byte{9}, tokenLen)
 	st := validState()
-	st.Agent, st.Port, st.Token = "0.1.0-beta.10", ln.Addr().(*net.TCPAddr).Port, strings.Repeat("09", tokenLen)
+	st.Agent, st.Port, st.PID, st.Token = v, ln.Addr().(*net.TCPAddr).Port, 434343, strings.Repeat("09", tokenLen)
 	if err := writeStateFile(dir, desktopStateName, st); err != nil {
 		t.Fatal(err)
 	}
 	var mu sync.Mutex
-	var magics []string
-	stopped := make(chan struct{})
+	seen := false
+	stopped = make(chan struct{})
+	var once sync.Once
+	stop := func() { once.Do(func() { ln.Close(); lock.Close(); close(stopped) }) }
 	go func() {
 		for {
 			c, err := ln.Accept()
 			if err != nil {
 				return
 			}
-			pre := make([]byte, magicLen+tokenLen)
-			if _, err := io.ReadFull(c, pre); err == nil {
+			pre := make([]byte, magicLen+nonceLen)
+			if _, err := io.ReadFull(c, pre); err != nil {
+				c.Close()
+				continue
+			}
+			if bytes.Equal(pre[magicLen:], token) {
 				mu.Lock()
-				magics = append(magics, string(pre[:magicLen]))
+				seen = true
 				mu.Unlock()
-				if string(pre[:magicLen]) == legacyDesktopControlMagic && bytes.Equal(pre[magicLen:], token) {
-					_, _ = c.Write([]byte(legacyDesktopControlAck))
-					line, _ := bufio.NewReader(c).ReadBytes('\n')
-					if strings.Contains(string(line), desktopOpStop) {
-						writeDesktopReply(c, desktopReply{})
-						c.Close()
-						ln.Close()
-						lock.Close()
-						close(stopped)
-						return
-					}
+			}
+			// Replay what was read into the current handshake.
+			magic, err := acceptMagics(&prefixedConn{Conn: c, prefix: pre}, token, magics)
+			if err == nil && magic == desktopControlMagic {
+				line, _ := bufio.NewReader(c).ReadBytes('\n')
+				if strings.Contains(string(line), desktopOpStop) {
+					writeDesktopReply(c, desktopReply{})
+					c.Close()
+					stop()
+					return
 				}
 			}
 			c.Close()
 		}
 	}()
-	t.Cleanup(func() { ln.Close(); lock.Close() })
+	t.Cleanup(stop)
+	return func() bool { mu.Lock(); defer mu.Unlock(); return seen }, stopped
+}
 
-	conn, err := connectDesktop(dir, func() error {
+// prefixedConn reads prefix before the rest of Conn.
+type prefixedConn struct {
+	net.Conn
+	prefix []byte
+}
+
+func (p *prefixedConn) Read(b []byte) (int, error) {
+	if len(p.prefix) > 0 {
+		n := copy(b, p.prefix)
+		p.prefix = p.prefix[n:]
+		return n, nil
+	}
+	return p.Conn.Read(b)
+}
+
+// A helper of 0.1.0-beta.10 or older only speaks the first handshake: the
+// front cannot stop it, says so at once instead of waiting for a desktop, and
+// never sends it the token.
+func TestInputFrontReportsAnOlderHelperThatDoesNotAnswer(t *testing.T) {
+	fastDesktopWaits(t)
+	dir := testStateDir(t)
+	tokenSeen, _ := fakeOlderHelper(t, dir, "0.1.0-beta.10", nil)
+	start := time.Now()
+	_, err := connectDesktop(dir, func() error { t.Error("launched a helper"); return nil })
+	var ae *agentError
+	if !errors.As(err, &ae) || ae.Code != codeNoDesktop || !strings.Contains(err.Error(), "by hand") || !strings.Contains(err.Error(), "434343") {
+		t.Fatalf("err = %v, want %s telling to end PID 434343 by hand", err, codeNoDesktop)
+	}
+	if time.Since(start) >= desktopWait {
+		t.Fatal("waited for a desktop instead of reporting the older helper")
+	}
+	if tokenSeen() {
+		t.Fatal("the token went to the older helper")
+	}
+}
+
+// A helper that speaks the current handshake but not --desktop-run (0.1.0-
+// beta.13) is stopped and replaced by the current version.
+func TestDesktopRunReplacesAHelperWithoutIt(t *testing.T) {
+	fastDesktopWaits(t)
+	dir := testStateDir(t)
+	fakeLaunch(t, 1, nil)
+	_, stopped := fakeOlderHelper(t, dir, "0.1.0-beta.13", []string{desktopMagic, desktopControlMagic})
+	launched := false
+	conn, err := connectDesktopWith(dir, desktopRunMagic, func() error {
+		launched = true
 		startTestHelper(t, dir, &recordingInjector{})
 		return nil
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	conn.Close()
+	defer conn.Close()
 	<-stopped
-	mu.Lock()
-	defer mu.Unlock()
-	for _, m := range magics {
-		if m == legacyDesktopMagic {
-			t.Fatal("input must not go to the older helper")
-		}
+	if !launched {
+		t.Fatal("the current version was not launched")
 	}
-	if got, err := readStateFile(dir, desktopStateName); err != nil || got.Agent != version {
-		t.Fatalf("desktop.json = %+v, %v; want version %s", got, err, version)
+	if _, err := runExchange(conn, runRequest{Program: testProgram(t, "tool.exe")}); err != nil {
+		t.Fatal(err)
 	}
 }
 

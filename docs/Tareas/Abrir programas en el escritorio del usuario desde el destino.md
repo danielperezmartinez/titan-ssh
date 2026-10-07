@@ -59,9 +59,14 @@ apretón de manos de
   (que pide administrador) se rechazaron sin aviso de UAC; tras
   `--remove-desktop` el Bloc de notas siguió abierto y la tarea de prueba
   desapareció. Limpieza hecha.
-- Pendiente: que el usuario vea el panel y lo pruebe con el emulador y la app
-  de escritorio. Requiere instalar el agente nuevo en el destino, lo que
-  reinicia el daemon y cierra sus sesiones.
+- Emulador (build de debug) contra el PC de desarrollo, tras abrir un Bloc
+  de notas con `--desktop-run` en su directorio de estado real: el panel
+  muestra "Ayudante de escritorio · … · 1 programa abierto en el escritorio"
+  y, desplegado, "notepad.exe · PID …". El ayudante del PC pasó a la versión
+  de desarrollo; el siguiente uso de una versión publicada lo sustituye.
+- Pendiente: que el usuario lo pruebe con la versión publicada (abrir el
+  emulador y la app de escritorio con `--desktop-run`). Actualizar el agente
+  del destino cierra sus sesiones.
 
 ## Plan
 

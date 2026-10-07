@@ -159,7 +159,8 @@ func TestDaemonClosesUnauthenticatedConnections(t *testing.T) {
 		name     string
 		preamble []byte
 	}{
-		{name: "wrong token", preamble: append([]byte(legacyPreambleMagic), bad...)},
+		{name: "wrong token", preamble: append([]byte(firstPreambleMagic), bad...)},
+		{name: "the first handshake with the right token", preamble: append([]byte(firstPreambleMagic), good...)},
 		{name: "wrong magic", preamble: append([]byte("NOTTITAN"), good...)},
 		{name: "silent", preamble: nil},
 		{name: "a HELLO frame instead", preamble: protocol.Encode(protocol.Frame{Type: protocol.TypeHello, SessionID: "x", Cols: 80, Rows: 24})},
@@ -339,7 +340,7 @@ func TestDialOrSpawnReportsAnOlderDaemon(t *testing.T) {
 	shortTimeouts(t)
 	spawnWait = 500 * time.Millisecond
 	dir := testStateDir(t)
-	older := fakeOlderDaemon(t, dir, "0.1.0-beta.10", true)
+	older := fakeOlderDaemon(t, dir, "0.1.0-beta.10")
 	_, err := dialOrSpawn(dir, func() error { t.Error("must not launch while a daemon holds the lock"); return nil })
 	assertCode(t, err, codeAgentOutdated)
 	if older.tokenSeen() {
@@ -352,7 +353,7 @@ func TestDialOrSpawnReportsAnOlderDaemon(t *testing.T) {
 func TestDialOrSpawnOnlyTalksToItsDaemon(t *testing.T) {
 	answers := map[string]func(net.Conn, []byte){
 		"closes":                 func(net.Conn, []byte) {},
-		"acks like an older one": func(c net.Conn, _ []byte) { _, _ = c.Write([]byte(legacyPreambleAck)) },
+		"acks like an older one": func(c net.Conn, _ []byte) { _, _ = c.Write([]byte(firstPreambleAck)) },
 		"sends a made-up proof":  func(c net.Conn, _ []byte) { _, _ = c.Write(bytes.Repeat([]byte{1}, nonceLen+proofLen)) },
 		"echoes the nonce back": func(c net.Conn, pre []byte) {
 			_, _ = c.Write(append(append([]byte{}, pre[magicLen:]...), pre[magicLen:]...))
@@ -435,8 +436,8 @@ func TestBothEndsCheckTheHandshake(t *testing.T) {
 			t.Errorf("a proof with another %s must differ", name)
 		}
 	}
-	if len(base) != proofLen || len(preambleMagic) != magicLen || len(legacyPreambleMagic) != magicLen || nonceLen != tokenLen {
-		t.Fatal("both handshakes must open with the same number of bytes")
+	if len(base) != proofLen || len(preambleMagic) != magicLen {
+		t.Fatal("the proof or the magic has the wrong length")
 	}
 }
 

@@ -8,10 +8,18 @@ Consecuencias: 'El token ya no cruza el socket y los bytes del cliente solo lleg
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-10-02T01:38:01+02:00
-Última modificación: 2026-10-03T09:40:07+02:00
+Última modificación: 2026-10-07T11:34:21+02:00
 ---
 
 # ADR-0018 · Autenticación mutua en el punto de encuentro del agente
+
+> **Nota del 2026-10-07:** el preámbulo anterior se retira en
+> `0.1.0-beta.14` ([[Retirar el preámbulo anterior del agente]]). El agente
+> ya no lo acepta ni lo usa: un daemon o ayudante de `0.1.0-beta.10` o
+> anterior que siga en marcha aparece como uno que no responde
+> (`unreachable`, o `E_AGENT_OUTDATED` / `E_NO_DESKTOP` con su PID), y el
+> usuario lo cierra a mano o reinicia el destino. El build raíz ya no lleva la
+> comprobación de `legacyHandshakeLastVersionCode`.
 
 > **Nota del 2026-10-03:** el plazo para retirar el preámbulo anterior se
 > amplía una beta, con la decisión intacta: lo conserva hasta `0.1.0-beta.13`

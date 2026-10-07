@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -144,8 +146,8 @@ func TestDesktopRunReportsALaunchFailure(t *testing.T) {
 	}
 }
 
-// The control channel, which still takes the first handshake, never starts
-// a program, and no first-handshake variant of the run connection exists.
+// The control channel never starts a program, and the helper takes no
+// connection that opens the old way, with the raw token, whatever the magic.
 func TestDesktopRunIsOnlyReachableOverItsOwnConnection(t *testing.T) {
 	fastDesktopWaits(t)
 	dir := testStateDir(t)
@@ -158,12 +160,22 @@ func TestDesktopRunIsOnlyReachableOverItsOwnConnection(t *testing.T) {
 	if _, err := desktopRequest(st, "run"); err == nil || !strings.Contains(err.Error(), "unknown op") {
 		t.Fatalf("control op run: err = %v, want unknown op", err)
 	}
-	// The raw token, as the first handshake sends it, under a would-be legacy
-	// run magic and under the run magic itself.
-	for _, magic := range []string{"TTNADRN1", desktopRunMagic} {
-		if conn, err := dialLegacy(st, magic, legacyDesktopControlAck); err == nil {
-			conn.Close()
-			t.Fatalf("first handshake with %s was accepted", magic)
+	token, err := st.token()
+	if err != nil {
+		t.Fatal(err)
+	}
+	program := testProgram(t, "tool.exe")
+	for _, magic := range []string{"TTNADSK1", "TTNADCT1", "TTNADRN1", desktopRunMagic} {
+		conn, err := dialLoopback(st.Port)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req, _ := json.Marshal(runRequest{Program: program})
+		_, _ = conn.Write(append(append([]byte(magic), token...), append(req, '\n')...))
+		reply, _ := io.ReadAll(conn)
+		conn.Close()
+		if strings.Contains(string(reply), `"pid"`) {
+			t.Fatalf("the raw token under %s started a program: %q", magic, reply)
 		}
 	}
 	if n := len(launched()); n != 0 {

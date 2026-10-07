@@ -99,7 +99,8 @@ func frontGiveUp(stateDir string, last error) error {
 	if held && errors.Is(last, errRejected) {
 		if st, err := readState(stateDir); err == nil && st.Agent != version {
 			return withCode(codeAgentOutdated, fmt.Errorf(
-				"titan-agent %s is running and does not speak the handshake of %s: stop it to start this one", st.Agent, version))
+				"titan-agent %s (PID %d) is running and does not speak the handshake of %s: end that process by hand, or restart the machine, to start this one",
+				st.Agent, st.PID, version))
 		}
 	}
 	if held && !errors.Is(last, fs.ErrNotExist) && !isNetError(last) {
@@ -138,11 +139,8 @@ func spawnDaemon(stateDir string) error {
 
 // stopDaemon is --stop: it ends the user's daemon, if one runs, and removes its
 // state file. It asks the daemon for an orderly stop, which closes every
-// session before exiting. A daemon of an older version gets the same request
-// over the first handshake, and one that predates control requests is killed
-// instead, once it answers that handshake while it holds the lock: that is
-// what shows the record is the live daemon's, so the PID it kills is the
-// daemon and never a recycled one.
+// session before exiting. A daemon that does not answer, such as one of
+// 0.1.0-beta.10 or older, is left alone: the user ends it by hand.
 func stopDaemon(stateDir string) error {
 	if err := ensureStateDir(stateDir); err != nil {
 		return withCode(codeStateDir, err)
@@ -155,21 +153,13 @@ func stopDaemon(stateDir string) error {
 		}
 		return removeIfExists(stateFile)
 	}
-	if errors.Is(err, errLegacy) {
-		if err := stopLegacyDaemon(stateDir, st); err != nil {
-			return err
-		}
-		if err := waitLockFree(stateDir, stopWait); err != nil {
-			return err
-		}
-		return removeIfExists(stateFile)
-	}
 	held, err := lockHeld(stateDir)
 	if err != nil {
 		return withCode(codeLock, err)
 	}
 	if held {
-		return errors.New("a daemon holds the lock but does not answer on its published port")
+		return fmt.Errorf("a daemon (titan-agent %s, PID %d by its last record) holds the lock but does not answer: end that process by hand, or restart the machine",
+			st.Agent, st.PID)
 	}
 	return removeIfExists(stateFile) // nothing running; drop a stale record
 }

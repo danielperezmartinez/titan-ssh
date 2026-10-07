@@ -88,21 +88,6 @@ if (titanVersion == DEV_VERSION) {
     extra["titanDebVersion"] = if (preKind.isEmpty()) "$major.$minor.$patch" else "$major.$minor.$patch~$preKind.$preNumber"
 }
 extra["titanRpmVersion"] = extra["titanDebVersion"]
-
-// The agent's first rendezvous handshake (ADR-0018) is kept only for the
-// transition: from 0.1.0-beta.14 on, no version may ship it. Remove it with
-// the task [[Retirar el preámbulo anterior del agente]]. One beta later than
-// planned: on Android 16 beta.11 and beta.12 could not connect to ed25519
-// hosts, so agents could not be updated from them.
-val legacyHandshakeLastVersionCode = 10_043 // 0.1.0-beta.13
-if ((extra["titanVersionCode"] as Int) > legacyHandshakeLastVersionCode &&
-    file("agent/cmd/titan-agent/rendezvous.go").readText().contains("legacyPreambleMagic")
-) {
-    throw GradleException(
-        "titanVersion '$titanVersion' still ships the agent's previous rendezvous handshake (ADR-0018): " +
-            "remove it first, see the task 'Retirar el preámbulo anterior del agente'",
-    )
-}
 extra["titanVersion"] = titanVersion
 // True for any real version (flag or tag): release-only requirements key off it.
 extra["titanIsRelease"] = titanVersion != DEV_VERSION

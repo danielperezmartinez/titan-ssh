@@ -66,7 +66,6 @@ var errNoSession = errors.New("no such session")
 const (
 	stateRunning     = "running"     // a daemon answered with its status
 	stateStopped     = "stopped"     // no daemon runs for this user
-	stateLegacy      = "legacy"      // a daemon runs but predates the control connection
 	stateUnreachable = "unreachable" // a daemon holds the lock but does not answer
 )
 
@@ -77,8 +76,8 @@ const (
 type statusReport struct {
 	Schema int    `json:"schema"`
 	State  string `json:"state"`
-	// The version of the daemon: from its reply, or from agent.json for a
-	// legacy daemon. CLI is this binary's version.
+	// The version of the daemon: from its reply, or from agent.json for one
+	// that does not answer. CLI is this binary's version.
 	Agent     string `json:"agent,omitempty"`
 	CLI       string `json:"cli"`
 	PID       int    `json:"pid,omitempty"`
@@ -273,13 +272,10 @@ func sessionFrom(in session.Info, w sampleWindow) sessionReport {
 	return r
 }
 
-// errLegacy reports a daemon of an older version: it holds the lock and
-// answers the first handshake (rendezvous.go) but not the current one.
-var errLegacy = errors.New("the running daemon is an older version")
-
 // request sends one control request to the daemon published in stateDir. It
-// returns fs.ErrNotExist when no state file exists, errLegacy for an older
-// daemon, and the dial error when nobody answers.
+// returns fs.ErrNotExist when no state file exists, and the dial error when
+// nobody answers (errRejected for a daemon that does not prove it holds the
+// token, such as one of 0.1.0-beta.10 or older).
 func request(stateDir string, req controlRequest) (controlReply, agentState, error) {
 	var reply controlReply
 	st, err := readState(stateDir)
@@ -287,52 +283,12 @@ func request(stateDir string, req controlRequest) (controlReply, agentState, err
 		return reply, st, err
 	}
 	conn, err := dialControl(st)
-	if errors.Is(err, errRejected) && legacyAllowed(stateDir, lockFileName) && answersLegacy(st) {
-		return reply, st, errLegacy
-	}
 	if err != nil {
 		return reply, st, err
 	}
 	defer conn.Close()
 	reply, err = exchange(conn, req)
 	return reply, st, err
-}
-
-// answersLegacy reports whether the daemon st describes accepts the first
-// handshake, for a control connection or, before those existed, a session.
-func answersLegacy(st agentState) bool {
-	for _, m := range [][2]string{{legacyControlMagic, legacyControlAck}, {legacyPreambleMagic, legacyPreambleAck}} {
-		if conn, err := dialLegacy(st, m[0], m[1]); err == nil {
-			conn.Close()
-			return true
-		}
-	}
-	return false
-}
-
-// stopLegacyDaemon stops the older daemon st describes, for --stop once
-// request has reported errLegacy. It asks for an orderly stop if the daemon
-// takes control requests, and kills its PID otherwise, both only while the
-// lock is still held.
-func stopLegacyDaemon(stateDir string, st agentState) error {
-	if !legacyAllowed(stateDir, lockFileName) {
-		return nil // it exited meanwhile
-	}
-	if conn, err := dialLegacy(st, legacyControlMagic, legacyControlAck); err == nil {
-		defer conn.Close()
-		_, err := exchange(conn, controlRequest{Op: opStop})
-		return err
-	}
-	conn, err := dialLegacy(st, legacyPreambleMagic, legacyPreambleAck)
-	if err != nil {
-		return errors.New("the older daemon no longer answers")
-	}
-	conn.Close()
-	p, err := os.FindProcess(st.PID)
-	if err != nil {
-		return err
-	}
-	return p.Kill()
 }
 
 // exchange sends req on an authenticated control connection and reads the
@@ -362,20 +318,16 @@ func exchange(conn net.Conn, req controlRequest) (controlReply, error) {
 var controlTimeout = 10 * time.Second
 
 // queryStatus is --status: the daemon's own report when it answers, otherwise
-// what can be told from the state dir (stopped, legacy or unreachable).
+// what can be told from the state dir (stopped or unreachable).
 func queryStatus(stateDir string) (statusReport, error) {
 	if err := ensureStateDir(stateDir); err != nil {
 		return statusReport{}, withCode(codeStateDir, err)
 	}
 	st := statusReport{Schema: statusSchema, CLI: version, NowMs: time.Now().UnixMilli(), Sessions: []sessionReport{}}
 	reply, rec, err := request(stateDir, controlRequest{Op: opStatus})
-	switch {
-	case err == nil && reply.Status != nil:
+	if err == nil && reply.Status != nil {
 		reply.Status.CLI = version
 		return *reply.Status, nil
-	case errors.Is(err, errLegacy):
-		st.State, st.Agent, st.PID = stateLegacy, rec.Agent, rec.PID
-		return st, nil
 	}
 	held, lerr := lockHeld(stateDir)
 	if lerr != nil {
@@ -402,9 +354,6 @@ func closeSession(stateDir, id string) (bool, error) {
 	reply, _, err := request(stateDir, controlRequest{Op: opClose, Session: id})
 	if err == nil {
 		return reply.Closed, nil
-	}
-	if errors.Is(err, errLegacy) {
-		return false, err
 	}
 	held, lerr := lockHeld(stateDir)
 	if lerr != nil {
@@ -458,15 +407,12 @@ func printDaemonStatus(w io.Writer, st statusReport) {
 	case stateStopped:
 		fmt.Fprintln(w, "titan-agent: no daemon is running")
 		return
-	case stateLegacy:
-		fmt.Fprintf(w, "titan-agent %s (PID %d) is running, an older version that this one does not connect to\n", st.Agent, st.PID)
-		fmt.Fprintln(w, "stop it with --stop; the next connection starts the current version")
-		return
 	case stateUnreachable:
 		fmt.Fprintln(w, "titan-agent: a daemon holds the lock but does not answer")
 		if st.PID > 0 {
 			fmt.Fprintf(w, "its last record says titan-agent %s, PID %d\n", st.Agent, st.PID)
 		}
+		fmt.Fprintln(w, "end that process by hand (or restart the machine); the next connection starts the current version")
 		return
 	}
 	fmt.Fprintf(w, "titan-agent %s · PID %d · %s/%s · up %s\n",

@@ -262,9 +262,9 @@ object AgentDiagnostics {
                     "Abre la sesión de nuevo en unos segundos. Si se repite, detén el agente desde su " +
                     "panel (Ver el agente del destino). No borres agent.json: el agente lo necesita."
             E_AGENT_OUTDATED ->
-                "en el destino sigue en marcha un agente de una versión anterior" to
-                    "Actualízalo desde su panel (Ver el agente del destino): se cierran sus sesiones " +
-                    "y la próxima conexión arranca la versión actual."
+                "en el destino sigue en marcha un agente muy antiguo, que esta versión ya no puede detener" to
+                    "Ciérralo a mano en el destino (es el proceso agent-<versión>-… del usuario; el error dice su PID) " +
+                    "o reinicia el destino: la próxima conexión arranca la versión actual."
             E_JOB_NO_BREAKAWAY ->
                 "el servidor SSH de Windows cierra todos los procesos al acabar la sesión" to
                     "Actualiza el OpenSSH del destino (funciona con OpenSSH_for_Windows 10.0p2)."

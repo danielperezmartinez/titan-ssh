@@ -4,7 +4,6 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/subtle"
 	"errors"
 	"io"
 	"net"
@@ -31,6 +30,10 @@ import (
 // a control request (control.go), and the desktop helper's input, control and
 // run connections (desktop.go, desktoprun.go), which have their own listener
 // and token.
+//
+// The first handshake, which sent the raw token (magics ending in 1), is gone
+// since 0.1.0-beta.14: an agent of 0.1.0-beta.10 or older still running is
+// reported as one that does not answer, and the user ends it by hand.
 const (
 	preambleMagic       = "TTNAGNT2"
 	controlMagic        = "TTNACTL2"
@@ -39,25 +42,9 @@ const (
 	desktopRunMagic     = "TTNADRN2"
 )
 
-// The first handshake sent the raw token and took a fixed ack back. Agents up
-// to 0.1.0-beta.10 speak only that one. Their daemons and helpers still accept
-// it, so a client that has not been updated keeps working; a current client
-// never opens a session with it, and only uses it to tell an older daemon or
-// helper apart and to stop it (see legacyAllowed).
-const (
-	legacyPreambleMagic       = "TTNAGNT1"
-	legacyPreambleAck         = "TTNAGOK1"
-	legacyControlMagic        = "TTNACTL1"
-	legacyControlAck          = "TTNACOK1"
-	legacyDesktopMagic        = "TTNADSK1"
-	legacyDesktopAck          = "TTNADOK1"
-	legacyDesktopControlMagic = "TTNADCT1"
-	legacyDesktopControlAck   = "TTNADCO1"
-)
-
 const (
 	magicLen = 8
-	nonceLen = 32 // the same length as the token, so both handshakes open with 40 bytes
+	nonceLen = 32 // the same length as the token, so the handshake opens with 40 bytes
 	proofLen = sha256.Size
 )
 
@@ -148,40 +135,6 @@ func dialWith(st agentState, magic string) (net.Conn, error) {
 	return conn, nil
 }
 
-// dialLegacy runs the first handshake, which sends the token: only for a peer
-// that legacyAllowed vouches for.
-func dialLegacy(st agentState, magic, wantAck string) (net.Conn, error) {
-	token, err := st.token()
-	if err != nil {
-		return nil, err
-	}
-	conn, err := dialLoopback(st.Port)
-	if err != nil {
-		return nil, err
-	}
-	ack := make([]byte, len(wantAck))
-	if _, err := conn.Write(append([]byte(magic), token...)); err != nil {
-		conn.Close()
-		return nil, errRejected
-	}
-	if _, err := io.ReadFull(conn, ack); err != nil || string(ack) != wantAck {
-		conn.Close()
-		return nil, errRejected
-	}
-	_ = conn.SetDeadline(time.Time{})
-	return conn, nil
-}
-
-// legacyAllowed reports whether the first handshake may be used against the
-// listener of the record called name, guarded by the lock called lock: only
-// while a live process of this user holds that lock, which is when the
-// record's port is still the one it listens on. A record left behind by a
-// process that died is never dialed that way.
-func legacyAllowed(dir, lock string) bool {
-	held, err := lockNamedHeld(dir, lock)
-	return err == nil && held
-}
-
 func dialLoopback(port int) (net.Conn, error) {
 	conn, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)), dialTimeout)
 	if err != nil {
@@ -212,49 +165,37 @@ func handshakeProof(token []byte, role, magic string, nonceF, nonceD []byte) []b
 // and reports whether it opens a control connection rather than a session. On
 // any error the caller closes the connection without a word.
 func acceptPreamble(conn net.Conn, token []byte) (control bool, err error) {
-	magic, err := acceptMagics(conn, token,
-		[]string{preambleMagic, controlMagic},
-		map[string]string{legacyPreambleMagic: legacyPreambleAck, legacyControlMagic: legacyControlAck})
-	return magic == controlMagic || magic == legacyControlMagic, err
+	magic, err := acceptMagics(conn, token, []string{preambleMagic, controlMagic})
+	return magic == controlMagic, err
 }
 
-// acceptMagics is the listening side of the handshake for any of magics, and
-// of the first handshake for any of the legacy ones (each with its ack). It
+// acceptMagics is the listening side of the handshake for any of magics. It
 // returns the magic the connection opened with. The whole handshake must
 // complete within handshakeTimeout, so a silent connection cannot pin a
-// goroutine, and the peer's proof (or token) is compared in constant time.
-func acceptMagics(conn net.Conn, token []byte, magics []string, legacy map[string]string) (string, error) {
+// goroutine, and the peer's proof is compared in constant time.
+func acceptMagics(conn net.Conn, token []byte, magics []string) (string, error) {
 	_ = conn.SetDeadline(time.Now().Add(handshakeTimeout))
 	pre := make([]byte, magicLen+nonceLen)
 	if _, err := io.ReadFull(conn, pre); err != nil {
 		return "", err
 	}
-	magic, rest := string(pre[:magicLen]), pre[magicLen:]
-	switch ack, isLegacy := legacy[magic]; {
-	case slices.Contains(magics, magic):
-		nonceD := make([]byte, nonceLen)
-		if _, err := rand.Read(nonceD); err != nil {
-			return "", err
-		}
-		reply := append(nonceD, handshakeProof(token, roleServer, magic, rest, nonceD)...)
-		if _, err := conn.Write(reply); err != nil {
-			return "", err
-		}
-		proof := make([]byte, proofLen)
-		if _, err := io.ReadFull(conn, proof); err != nil {
-			return "", err
-		}
-		if !hmac.Equal(proof, handshakeProof(token, roleClient, magic, rest, nonceD)) {
-			return "", errRejected
-		}
-	case isLegacy:
-		if subtle.ConstantTimeCompare(rest, token) != 1 {
-			return "", errRejected
-		}
-		if _, err := conn.Write([]byte(ack)); err != nil {
-			return "", err
-		}
-	default:
+	magic, nonceF := string(pre[:magicLen]), pre[magicLen:]
+	if !slices.Contains(magics, magic) {
+		return "", errRejected
+	}
+	nonceD := make([]byte, nonceLen)
+	if _, err := rand.Read(nonceD); err != nil {
+		return "", err
+	}
+	reply := append(nonceD, handshakeProof(token, roleServer, magic, nonceF, nonceD)...)
+	if _, err := conn.Write(reply); err != nil {
+		return "", err
+	}
+	proof := make([]byte, proofLen)
+	if _, err := io.ReadFull(conn, proof); err != nil {
+		return "", err
+	}
+	if !hmac.Equal(proof, handshakeProof(token, roleClient, magic, nonceF, nonceD)) {
 		return "", errRejected
 	}
 	_ = conn.SetDeadline(time.Time{})

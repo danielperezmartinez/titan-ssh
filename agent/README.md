@@ -91,11 +91,16 @@ id viaja en el `HELLO`) y reproduce desde el offset del cliente (ADR-0009 §2-3)
 - **Front y daemon se encuentran por TCP en `127.0.0.1`.** El daemon escucha en
   un puerto aleatorio, genera un token de 32 bytes y, ya escuchando, publica
   `{schema, agent, port, token, pid}` en `agent.json` (fichero temporal +
-  `rename`). El front lee el fichero, conecta y envía un preámbulo: la marca
-  `TTNAGNT1` y el token. El daemon lo compara en tiempo constante y responde
-  `TTNAGOK1`.
-  Sin preámbulo válido en 10 s cierra la conexión sin responder. El protocolo
-  cliente-agente no cambia: el token nunca sale del destino.
+  `rename`). El front lee el fichero, conecta y los dos extremos demuestran
+  que conocen el token sin enviarlo (ADR-0018): el front manda la marca
+  (`TTNAGNT2` para una sesión) y un nonce; el daemon, su nonce y un
+  HMAC-SHA256 del token sobre la marca y los dos nonces; el front lo comprueba
+  antes de enviar nada más y responde con su propio HMAC. Si el apretón no se
+  completa en 3 s, el daemon cierra la conexión sin responder. El protocolo
+  cliente-agente no cambia: el token nunca sale del destino. El apretón
+  anterior, que enviaba el token tal cual, se retiró en `0.1.0-beta.14`: un
+  agente de `0.1.0-beta.10` o anterior que siga en marcha aparece como uno
+  que no responde y hay que cerrarlo a mano.
 - Si no hay fichero, o nadie responde en su puerto, el front lanza un daemon
   (solo si el candado está libre) y vuelve a leer el fichero hasta 10 s.
 
@@ -121,13 +126,13 @@ Las sesiones **no caducan** (ADR-0014): una sesión solo termina cuando su shell
 sale o cuando el usuario la cierra, y el daemon no se cierra solo. Para verlo y
 cerrarlo, el mismo binario tiene órdenes que hablan con el daemon por un
 **canal de control**: el mismo encuentro loopback + token con otra marca de
-preámbulo (`TTNACTL1`, respuesta `TTNACOK1`), una línea JSON de petición y una
-de respuesta. El protocolo cliente-agente no cambia.
+preámbulo (`TTNACTL2`), una línea JSON de petición y una de respuesta. El
+protocolo cliente-agente no cambia.
 
 - `--status` muestra el daemon y sus sesiones; con `--json`, el informe que lee
-  la app (`schema` 1): `state` (`running`, `stopped`, `legacy` si el daemon es
-  anterior al canal de control, `unreachable` si tiene el candado y no
-  responde), versión del daemon y de la CLI, PID, sistema, hora de arranque,
+  la app (`schema` 1): `state` (`running`, `stopped` o `unreachable` si tiene
+  el candado y no responde, como un daemon de `0.1.0-beta.10` o anterior),
+  versión del daemon y de la CLI, PID, sistema, hora de arranque,
   memoria del daemon con todo lo que corre debajo y, por sesión, id, creación,
   último uso, desde cuándo no tiene cliente, clientes, historial en bytes y
   memoria de su shell con sus descendientes. Las horas son milisegundos Unix
