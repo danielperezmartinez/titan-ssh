@@ -1,11 +1,11 @@
 ---
 Nombre: 'Mouse pad fluido sin tirones'
-Estado: 'En curso'
-Resumen: 'El puntero del mouse pad avanzaba a pequeños trompicones. Medido con pktmon en el destino mientras el usuario lo usaba desde el Pixel: las tramas de movimiento (una cada ~8 ms) llegaban en ráfagas de 5-7 cada ~47 ms (el RTT de Tailscale) y a ratos 13-18 tras parones de 100-150 ms. Causa: sshj deja Nagle activo en el socket SSH, que retiene cada paquete pequeño hasta el ACK del anterior. Arreglo: SshjConnector abre el socket con TCP_NODELAY (también acelera las teclas de la terminal). Falta repetir la medida con el arreglo y la prueba del usuario.'
-Decisiones: ''
+Estado: 'Hecha'
+Resumen: 'El puntero del mouse pad avanzaba a pequeños trompicones. Medido con pktmon en el destino mientras el usuario lo usaba desde el Pixel: las tramas de movimiento (una cada ~8 ms) llegaban en ráfagas de 5-7 cada ~47 ms (el RTT de Tailscale) y a ratos 13-18 tras parones de 100-200 ms. Causa: sshj deja Nagle activo en el socket SSH, que retiene cada paquete pequeño hasta el ACK del anterior. Arreglo: SshjConnector abre el socket con TCP_NODELAY (también acelera las teclas de la terminal). Publicado en v0.1.0-beta.15: la misma captura da una trama por segmento cada ~8 ms (p99 45 ms frente a 221 ms) y el usuario confirma en el Pixel que va muy bien.'
+Decisiones: 'TCP_NODELAY en todos los sockets SSH, como hace OpenSSH en las sesiones interactivas. No había ninguna decisión ni aviso privado detrás de Nagle (revisado en el historial, la bóveda y los avisos); no cambia el cifrado ni lo que viaja, solo cuándo sale cada paquete.'
 Bloqueada: []
 Fecha de creación: 2026-10-07T21:05:00+02:00
-Última modificación: 2026-10-07T21:55:00+02:00
+Última modificación: 2026-10-08T00:10:00+02:00
 ---
 
 # Mouse pad fluido sin tirones
@@ -63,7 +63,27 @@ decenas de bytes por trama) → socket TCP → `sshd` del destino → `titan-age
   `:shared:desktopTest`: 332 de 333; el único fallo es
   `DesktopSecretStoreTest` (error 1312), ambiental al ejecutarse en la sesión 0
   de Windows. `:androidApp:assembleDebug` y `:desktopApp:compileKotlin` en
-  verde. Falta repetir la medida con el arreglo en el Pixel (beta.15).
+  verde.
+- **Publicado en `v0.1.0-beta.15`** (2026-10-07): workflow `Release` y CI de
+  `main` en verde, pre-release, `sha256sum -c SHA256SUMS` sin errores (19 de
+  19) y APK firmada con la clave de release (huella del `README.md`). El push
+  se hizo desde la sesión 0 con `titan-agent --desktop-run` (ADR-0019), que
+  lanzó `git push` en la sesión del usuario.
+- **Captura real con la beta.15** (2026-10-08, misma prueba: círculos con el
+  mouse pad desde el Pixel, `pktmon` en el destino). Tramos de movimiento de
+  la conexión del mouse pad, antes → después:
+
+  | | beta.14 | beta.15 |
+  |---|---|---|
+  | Tramas por segmento TCP | 6,2 | 1,0 |
+  | Hueco entre segmentos p50 | 50 ms | 8 ms |
+  | Hueco p90 | 111 ms | 11 ms |
+  | Hueco p99 | 221 ms | 45 ms |
+  | Segmentos con hueco > 20 ms | 95 % | 3 % |
+
+  Cada movimiento sale ya en su propio paquete al ritmo con que el móvil lo
+  genera (~8 ms). Los pocos huecos largos que quedan son de la red (Wi-Fi) o
+  de pausas del dedo, no de ráfagas.
 - **Seguridad**: no había ninguna decisión detrás de Nagle (ni en el historial,
   ni en la bóveda, ni en los avisos privados, revisados por el usuario); era el
   valor por defecto de Java, que sshj no cambia. `TCP_NODELAY` solo decide
@@ -73,4 +93,11 @@ decenas de bytes por trama) → socket TCP → `sshd` del destino → `titan-age
 
 ## Resultado
 
-<Se rellena al completar.>
+- `SshjConnector`: `NoDelaySocketFactory` abre el socket de cada conexión
+  SSH con `TCP_NODELAY` (sshj lo crea con `createSocket()` y luego lo
+  conecta); por ProxyJump, el primer salto es el único con socket. Test
+  `SshjConnectorTest.sockets_turn_nagle_off`.
+- Publicado en `v0.1.0-beta.15`. Medido con la misma captura antes y después
+  (tabla en **Verificación**), y el usuario confirma el 2026-10-08 en el Pixel
+  que el puntero va muy bien.
+- De paso, las teclas de la terminal tampoco esperan ya al ACK de la anterior.
