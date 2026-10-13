@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +33,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -65,12 +65,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.danielperezmartinez.titanssh.config.SessionScript
 import io.github.danielperezmartinez.titanssh.config.listensOnNetwork
-import io.github.danielperezmartinez.titanssh.terminal.AccessoryKey
 import io.github.danielperezmartinez.titanssh.terminal.AgentDiagnostics
 import io.github.danielperezmartinez.titanssh.terminal.ChangedHostKey
-import io.github.danielperezmartinez.titanssh.terminal.DefaultAccessoryKeys
 import io.github.danielperezmartinez.titanssh.terminal.EffectiveLevel
-import io.github.danielperezmartinez.titanssh.terminal.ModifierKind
+import io.github.danielperezmartinez.titanssh.terminal.KeyBarAction
+import io.github.danielperezmartinez.titanssh.terminal.KeyBarKey
 import io.github.danielperezmartinez.titanssh.terminal.ResilienceStatus
 import io.github.danielperezmartinez.titanssh.terminal.SessionTab
 import io.github.danielperezmartinez.titanssh.terminal.TabPhase
@@ -98,15 +97,22 @@ private const val RESIZE_SETTLE_MILLIS = 150L
 /**
  * Renders one [SessionTab]: the terminal grid, a status/host-key overlay, and
  * input. Keyboard input is captured on all platforms via key events (physical
- * keyboards and desktop); on Android an accessory key bar supplies the keys the
- * soft keyboard lacks (Esc, Tab, Ctrl, Alt, arrows, `| / - ~`) plus paste, and a
- * hidden capture field brings up the soft keyboard for text.
+ * keyboards and desktop); on Android the key bar ([KeyBarRow], the user's
+ * [keyBar]) supplies the keys the soft keyboard lacks, its `[*]` calls
+ * [onConfigureKeyBar], and a hidden capture field brings up the soft keyboard
+ * for text.
  *
  * [scripts] are the ones the user can launch by hand (ADR-0013): the status
  * strip opens a menu with them while the tab is connected.
  */
 @Composable
-fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier, scripts: List<SessionScript> = emptyList()) {
+fun TerminalView(
+    tab: SessionTab,
+    modifier: Modifier = Modifier,
+    scripts: List<SessionScript> = emptyList(),
+    keyBar: List<KeyBarKey> = emptyList(),
+    onConfigureKeyBar: () -> Unit = {},
+) {
     val status by tab.status.collectAsState()
     val resilience by tab.resilience.collectAsState()
     val tunnels by tab.tunnels.collectAsState()
@@ -118,9 +124,8 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier, scripts: List<S
     val monoFamily: FontFamily = MaterialTheme.typography.bodyMedium.fontFamily ?: FontFamily.Monospace
     val fontSize = (tab.resolved.appearance.fontSize ?: 13).sp
 
-    // Sticky modifiers driven by the accessory bar (applied to the next key).
-    var stickyCtrl by remember { mutableStateOf(false) }
-    var stickyAlt by remember { mutableStateOf(false) }
+    // Sticky modifiers (InputKeys.MOD_*) from the key bar, for the next key or character.
+    var sticky by remember { mutableIntStateOf(0) }
 
     val focusRequester = remember { FocusRequester() }
     // Android: the soft keyboard is raised by focusing the hidden capture field
@@ -138,16 +143,27 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier, scripts: List<S
         scope.launch { tab.sendBytes(out) }
     }
 
-    // Applies sticky Ctrl/Alt to a typed string, then clears them.
+    // Applies the sticky modifiers to a typed string, then clears them.
     fun sendTyped(textInput: String) {
-        val bytes = when {
-            stickyCtrl -> textInput.firstOrNull()?.let { TerminalKeys.ctrl(it) } ?: TerminalKeys.text(textInput)
-            stickyAlt -> TerminalKeys.alt(textInput)
-            else -> TerminalKeys.text(textInput)
-        }
-        stickyCtrl = false
-        stickyAlt = false
+        val bytes = TerminalKeys.typed(textInput, sticky)
+        sticky = 0
         send(bytes)
+    }
+
+    fun paste() {
+        clipboard.getText()?.text?.let { send(TerminalKeys.paste(it, tab.snapshot.value.bracketedPaste)) }
+    }
+
+    // A key bar key: a modifier toggles, the rest go out with the sticky ones.
+    fun pressKey(key: KeyBarKey) {
+        when (val action = key.action) {
+            is KeyBarAction.Modifier -> sticky = sticky xor action.mod
+            KeyBarAction.Paste -> paste()
+            else -> key.terminalBytes(sticky)?.let { bytes ->
+                sticky = 0
+                send(bytes)
+            }
+        }
     }
 
     // The grid is painted cell by cell (TerminalCanvas), so the column count only
@@ -285,21 +301,13 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier, scripts: List<S
                         keyboardController?.show()
                     }
                 },
-                stickyCtrl = stickyCtrl,
-                stickyAlt = stickyAlt,
-                onModifier = { kind ->
-                    when (kind) {
-                        ModifierKind.CTRL -> { stickyCtrl = !stickyCtrl; stickyAlt = false }
-                        ModifierKind.ALT -> { stickyAlt = !stickyAlt; stickyCtrl = false }
-                    }
-                },
-                onSend = { bytes -> send(bytes) },
+                keys = keyBar,
+                sticky = sticky,
+                onKey = { key -> pressKey(key) },
+                onConfigure = onConfigureKeyBar,
                 onText = { text -> sendTyped(text) },
                 onEnter = { send(TerminalKeys.special(TerminalKeys.SpecialKey.ENTER)) },
                 onBackspace = { send(TerminalKeys.special(TerminalKeys.SpecialKey.BACKSPACE)) },
-                onPaste = {
-                    clipboard.getText()?.text?.let { send(TerminalKeys.paste(it, tab.snapshot.value.bracketedPaste)) }
-                },
             )
         }
     }
@@ -632,80 +640,38 @@ internal fun ChangedHostKeyBar(changed: ChangedHostKey, onReplace: () -> Unit) {
 }
 
 /**
- * Android accessory bar: the shell keys the soft keyboard lacks, sticky Ctrl/Alt,
- * paste, plus a hidden capture field that raises the soft keyboard and forwards
- * typed characters (best-effort; verified path is physical keys + these buttons).
+ * Android input bar: the user's key bar ([KeyBarRow]) plus a hidden capture
+ * field that raises the soft keyboard and forwards typed characters
+ * (best-effort; verified path is physical keys + the bar's buttons).
  */
 @Composable
 private fun AndroidInputBar(
     keyboardFocus: FocusRequester,
     keyboardVisible: Boolean,
     onToggleKeyboard: () -> Unit,
-    stickyCtrl: Boolean,
-    stickyAlt: Boolean,
-    onModifier: (ModifierKind) -> Unit,
-    onSend: (ByteArray) -> Unit,
+    keys: List<KeyBarKey>,
+    sticky: Int,
+    onKey: (KeyBarKey) -> Unit,
+    onConfigure: () -> Unit,
     onText: (String) -> Unit,
     onEnter: () -> Unit,
     onBackspace: () -> Unit,
-    onPaste: () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().background(TitanColors.Canvas)) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = TitanDimens.SpaceXs, vertical = TitanDimens.SpaceXs),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // The keys scroll horizontally in the remaining width; the keyboard
-            // toggle is pinned on the right, outside the scroll, always visible.
-            Row(
-                Modifier
-                    .weight(1f)
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(TitanDimens.SpaceXs),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                DefaultAccessoryKeys.forEach { key ->
-                    when (key) {
-                        is AccessoryKey.Modifier -> {
-                            val active = when (key.kind) {
-                                ModifierKind.CTRL -> stickyCtrl
-                                ModifierKind.ALT -> stickyAlt
-                            }
-                            AccessoryButton(key.label, active) { onModifier(key.kind) }
-                        }
-                        is AccessoryKey.Send -> AccessoryButton(key.label, false) { onSend(key.bytes) }
-                    }
-                }
-                AccessoryButton("Pegar", false, onPaste)
-            }
-            Spacer(Modifier.width(TitanDimens.SpaceXs))
-            AccessoryButton("[kbd]", active = keyboardVisible, onClick = onToggleKeyboard)
-        }
+        KeyBarRow(
+            keys = keys,
+            inTerminal = true,
+            sticky = sticky,
+            onKey = onKey,
+            onConfigure = onConfigure,
+            keyboardVisible = keyboardVisible,
+            onToggleKeyboard = onToggleKeyboard,
+        )
         SoftKeyboardCapture(
             focusRequester = keyboardFocus,
             onText = onText,
             onEnter = onEnter,
             onBackspace = onBackspace,
-        )
-    }
-}
-
-
-@Composable
-internal fun AccessoryButton(label: String, active: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .background(if (active) TitanColors.Accent.copy(alpha = 0.15f) else TitanColors.Surface)
-            .clickable(onClick = onClick)
-            .padding(horizontal = TitanDimens.SpaceMd, vertical = TitanDimens.SpaceSm),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = if (active) TitanColors.Accent else TitanColors.Body,
         )
     }
 }

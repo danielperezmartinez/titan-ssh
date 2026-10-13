@@ -45,9 +45,11 @@ import io.github.danielperezmartinez.titanssh.theme.TitanTheme
 /**
  * Top-level screens. Sesiones is the home screen; Configuración and About open
  * from the header's `[*]` and `[i]` and go back to it. The agent panel opens
- * from the launcher or from Configuración → Hosts and goes back there.
+ * from the launcher or from Configuración → Hosts and goes back there. The key
+ * bar editor opens from the `[*]` of the bar above the keyboard and goes back
+ * to the open tab.
  */
-private enum class Screen { SESSIONS, CONFIG, ABOUT, AGENT }
+private enum class Screen { SESSIONS, CONFIG, ABOUT, AGENT, KEY_BAR }
 
 /**
  * Root of the titan-ssh UI: applies the theme and hosts the two agreed areas,
@@ -160,6 +162,10 @@ fun AppShell() {
                                 screen = Screen.CONFIG
                             },
                             openLauncher = backToLauncher,
+                            onConfigureKeyBar = {
+                                backToLauncher = false
+                                screen = Screen.KEY_BAR
+                            },
                         )
                         Screen.CONFIG -> ConfigArea(
                             controller,
@@ -172,6 +178,7 @@ fun AppShell() {
                             onOpenAgent = { openAgent(it, Screen.CONFIG) },
                         )
                         Screen.ABOUT -> AboutScreen(onBack = home)
+                        Screen.KEY_BAR -> KeyBarEditor(controller, onBack = home)
                         Screen.AGENT -> agentHost?.let { host ->
                             AgentPanel(
                                 agents = agents,

@@ -49,6 +49,8 @@ import io.github.danielperezmartinez.titanssh.config.onDemandScripts
 import io.github.danielperezmartinez.titanssh.config.resolve
 import io.github.danielperezmartinez.titanssh.terminal.AgentHost
 import io.github.danielperezmartinez.titanssh.terminal.AgentManager
+import io.github.danielperezmartinez.titanssh.terminal.KeyBar
+import io.github.danielperezmartinez.titanssh.terminal.KeyBarKey
 import io.github.danielperezmartinez.titanssh.terminal.SessionManager
 import io.github.danielperezmartinez.titanssh.terminal.SessionTab
 import io.github.danielperezmartinez.titanssh.terminal.TabPhase
@@ -72,8 +74,10 @@ fun SessionsArea(
     onOpenConfig: () -> Unit,
     onOpenAgent: (AgentHost) -> Unit,
     openLauncher: Boolean = false,
+    onConfigureKeyBar: () -> Unit = {},
 ) {
     val config by controller.state.collectAsState()
+    val keyBar = remember(config.settings.keyBar) { KeyBar.resolve(config.settings.keyBar) }
     val tabs by manager.tabs.collectAsState()
     val activeId by manager.activeId.collectAsState()
 
@@ -104,7 +108,7 @@ fun SessionsArea(
 
     if (fullscreen && isAndroidRuntime()) {
         Box(Modifier.fillMaxSize()) {
-            TabContent(active, Modifier.fillMaxSize(), scripts = config.menuScripts(active))
+            TabContent(active, Modifier.fillMaxSize(), scripts = config.menuScripts(active), keyBar, onConfigureKeyBar)
             GlyphButton(
                 "[v]",
                 onClick = { fullscreen = false },
@@ -132,20 +136,30 @@ fun SessionsArea(
         val secondary = if (splitEnabled && !isAndroidRuntime()) secondaryTab(tabs, active) else null
         if (secondary != null) {
             Row(Modifier.fillMaxSize()) {
-                TabContent(active, Modifier.weight(1f).fillMaxHeight(), scripts = config.menuScripts(active))
+                TabContent(active, Modifier.weight(1f).fillMaxHeight(), scripts = config.menuScripts(active), keyBar, onConfigureKeyBar)
                 Box(Modifier.width(TitanDimens.Hairline).fillMaxHeight().background(TitanColors.HairlineStrong))
-                TabContent(secondary, Modifier.weight(1f).fillMaxHeight(), scripts = config.menuScripts(secondary))
+                TabContent(secondary, Modifier.weight(1f).fillMaxHeight(), scripts = config.menuScripts(secondary), keyBar, onConfigureKeyBar)
             }
         } else {
-            TabContent(active, Modifier.fillMaxSize(), scripts = config.menuScripts(active))
+            TabContent(active, Modifier.fillMaxSize(), scripts = config.menuScripts(active), keyBar, onConfigureKeyBar)
         }
     }
 }
 
 /** A tab's pane: its terminal, or its mouse pad (ADR-0016). */
 @Composable
-private fun TabContent(tab: SessionTab, modifier: Modifier, scripts: List<SessionScript>) {
-    if (tab.isMousepad) MousepadView(tab, modifier) else TerminalView(tab, modifier, scripts = scripts)
+private fun TabContent(
+    tab: SessionTab,
+    modifier: Modifier,
+    scripts: List<SessionScript>,
+    keyBar: List<KeyBarKey>,
+    onConfigureKeyBar: () -> Unit,
+) {
+    if (tab.isMousepad) {
+        MousepadView(tab, modifier, keyBar = keyBar, onConfigureKeyBar = onConfigureKeyBar)
+    } else {
+        TerminalView(tab, modifier, scripts = scripts, keyBar = keyBar, onConfigureKeyBar = onConfigureKeyBar)
+    }
 }
 
 /**

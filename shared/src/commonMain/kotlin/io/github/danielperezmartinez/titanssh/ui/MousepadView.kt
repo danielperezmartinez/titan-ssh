@@ -6,8 +6,6 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,7 +19,6 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -55,6 +52,7 @@ import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -63,6 +61,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.danielperezmartinez.titanssh.terminal.AgentFrame
 import io.github.danielperezmartinez.titanssh.terminal.InputKeys
+import io.github.danielperezmartinez.titanssh.terminal.KeyBarAction
+import io.github.danielperezmartinez.titanssh.terminal.KeyBarKey
 import io.github.danielperezmartinez.titanssh.terminal.MousepadMotion
 import io.github.danielperezmartinez.titanssh.terminal.MousepadStatus
 import io.github.danielperezmartinez.titanssh.terminal.MousepadTyping
@@ -82,12 +82,19 @@ import io.github.danielperezmartinez.titanssh.theme.TitanDimens
  * - two fingers scroll, and a two-finger tap is a right click (three, middle);
  * - holding a finger still presses the left button, to drag until it lifts.
  *
- * Below it, buttons to hold as a mouse's, sticky Ctrl/Alt/Shift/Win, the keys a
- * phone keyboard lacks, and the system keyboard. Events go out through
- * [SessionTab.sendInput]; the strip on top says whether they reach the desktop.
+ * Below it, buttons to hold as a mouse's, the user's key bar ([KeyBarRow], the
+ * same [keyBar] as the terminal's: sticky Ctrl/Alt/Shift/Win and the keys a
+ * phone keyboard lacks; its `[*]` calls [onConfigureKeyBar]), and the system
+ * keyboard. Events go out through [SessionTab.sendInput]; the strip on top says
+ * whether they reach the desktop.
  */
 @Composable
-fun MousepadView(tab: SessionTab, modifier: Modifier = Modifier) {
+fun MousepadView(
+    tab: SessionTab,
+    modifier: Modifier = Modifier,
+    keyBar: List<KeyBarKey> = emptyList(),
+    onConfigureKeyBar: () -> Unit = {},
+) {
     val status by tab.status.collectAsState()
     val pad by tab.mousepad.collectAsState()
     val pendingHostKey by tab.pendingHostKey.collectAsState()
@@ -97,6 +104,7 @@ fun MousepadView(tab: SessionTab, modifier: Modifier = Modifier) {
     val density = LocalDensity.current
     val haptics = LocalHapticFeedback.current
     val keyboardController = LocalSoftwareKeyboardController.current
+    val clipboard = LocalClipboardManager.current
     val keyboardFocus = remember { FocusRequester() }
     val surfaceFocus = remember { FocusRequester() }
 
@@ -125,6 +133,15 @@ fun MousepadView(tab: SessionTab, modifier: Modifier = Modifier) {
         } else {
             sticky = sticky or mod
             winAlone = mod == InputKeys.MOD_META
+        }
+    }
+
+    // A key bar key: a modifier toggles, the rest go out with the sticky ones.
+    fun pressKey(key: KeyBarKey) {
+        when (val action = key.action) {
+            is KeyBarAction.Modifier -> toggleModifier(action.mod)
+            KeyBarAction.Paste -> clipboard.getText()?.text?.let { MousepadTyping.pasted(it).forEach(::send) }
+            else -> key.desktopFrames(consumeSticky())?.forEach(::send)
         }
     }
 
@@ -230,32 +247,22 @@ fun MousepadView(tab: SessionTab, modifier: Modifier = Modifier) {
         val ime = WindowInsets.ime
         val keyboardVisible by remember(ime, density) { derivedStateOf { ime.getBottom(density) > 0 } }
         Column(Modifier.fillMaxWidth().background(TitanColors.Canvas)) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = TitanDimens.SpaceXs, vertical = TitanDimens.SpaceXs),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(
-                    Modifier.weight(1f).horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(TitanDimens.SpaceXs),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    MODIFIERS.forEach { (label, mod) ->
-                        AccessoryButton(label, active = sticky and mod != 0) { toggleModifier(mod) }
+            KeyBarRow(
+                keys = keyBar,
+                inTerminal = false,
+                sticky = sticky,
+                onKey = { key -> pressKey(key) },
+                onConfigure = onConfigureKeyBar,
+                keyboardVisible = keyboardVisible,
+                onToggleKeyboard = if (isAndroidRuntime()) ({
+                    if (keyboardVisible) {
+                        keyboardController?.hide()
+                    } else {
+                        keyboardFocus.requestFocus()
+                        keyboardController?.show()
                     }
-                    KEYS.forEach { (label, key) -> AccessoryButton(label, active = false) { sendKey(key) } }
-                }
-                if (isAndroidRuntime()) {
-                    Spacer(Modifier.width(TitanDimens.SpaceXs))
-                    AccessoryButton("[kbd]", active = keyboardVisible) {
-                        if (keyboardVisible) {
-                            keyboardController?.hide()
-                        } else {
-                            keyboardFocus.requestFocus()
-                            keyboardController?.show()
-                        }
-                    }
-                }
-            }
+                }) else null,
+            )
             if (isAndroidRuntime()) {
                 SoftKeyboardCapture(
                     focusRequester = keyboardFocus,
@@ -436,36 +443,6 @@ private fun MouseButton(label: String, onDown: () -> Unit, onUp: () -> Unit, mod
         Text(label, style = MaterialTheme.typography.labelSmall, color = if (pressed) TitanColors.Accent else TitanColors.Body)
     }
 }
-
-private val MODIFIERS = listOf(
-    "Ctrl" to InputKeys.MOD_CTRL,
-    "Alt" to InputKeys.MOD_ALT,
-    "Mayús" to InputKeys.MOD_SHIFT,
-    "Win" to InputKeys.MOD_META,
-)
-
-private val KEYS = listOf(
-    "Esc" to InputKeys.ESCAPE,
-    "Tab" to InputKeys.TAB,
-    "←" to InputKeys.ARROW_LEFT,
-    "↑" to InputKeys.ARROW_UP,
-    "↓" to InputKeys.ARROW_DOWN,
-    "→" to InputKeys.ARROW_RIGHT,
-    "Supr" to InputKeys.DELETE,
-    "Inicio" to InputKeys.HOME,
-    "Fin" to InputKeys.END,
-    "RePág" to InputKeys.PAGE_UP,
-    "AvPág" to InputKeys.PAGE_DOWN,
-    "Menú" to InputKeys.CONTEXT_MENU,
-    "ImpPnt" to InputKeys.PRINT_SCREEN,
-) + (1..12).map { "F$it" to InputKeys.function(it) } + listOf(
-    "Vol-" to InputKeys.VOLUME_DOWN,
-    "Vol+" to InputKeys.VOLUME_UP,
-    "Silencio" to InputKeys.VOLUME_MUTE,
-    "Play/Pausa" to InputKeys.MEDIA_PLAY_PAUSE,
-    "Anterior" to InputKeys.MEDIA_PREVIOUS,
-    "Siguiente" to InputKeys.MEDIA_NEXT,
-)
 
 /**
  * A physical keyboard (on the desktop app, or plugged into the phone) typing

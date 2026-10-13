@@ -348,6 +348,12 @@ data class AppSettings(
      * platforms can enforce it ([isScreenCaptureControlSupported]).
      */
     val allowScreenCapture: Boolean = false,
+    /**
+     * The keys of the bar above the keyboard, by `KeyBarKey.id`, in order; the
+     * terminal and the mouse pad share it. Null until the user configures it,
+     * so they get the default bar of their build.
+     */
+    val keyBar: List<String>? = null,
 )
 
 /**
