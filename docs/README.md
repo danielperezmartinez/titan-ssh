@@ -204,6 +204,13 @@ herramientas, checklist y cómo trabajar con los avisos privados.
      de `tools/test-sshd/` (un contenedor que se conserva y solo se enciende
      y se apaga). Con eso el usuario decide si se publica, y
      la verificación "en dispositivo" de una tarea queda cubierta.
+     Varias sesiones comparten el emulador: cada worktree instala su propia
+     build de debug (sufijo de paquete automático) y **nadie maneja el
+     emulador sin tener el turno** de `tools/emulator-lock/` (ver su
+     `README.md`), que se suelta al terminar las capturas. Si está ocupado,
+     se avanza con lo que no necesite el emulador y, cuando no quede nada,
+     se espera el turno de la forma que permita el agente (en segundo plano
+     si puede).
   1. `main` con todo subido y el árbol limpio. Se revisa el diff según la
      regla 5.
   2. Versión: el siguiente `-beta.N` para el canal interno, o sin sufijo para

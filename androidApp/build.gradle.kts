@@ -15,6 +15,16 @@ fun signingValue(property: String, env: String): String? =
 
 val releaseKeystore = signingValue("titanKeystoreFile", "TITAN_KEYSTORE_FILE")
 
+// Debug builds from a linked git worktree get their own package and launcher
+// label, so parallel sessions install side by side on the shared emulator
+// instead of overwriting each other. The main working tree keeps the plain id.
+// -PtitanDevSuffix=<name> sets the suffix explicitly; -PtitanDevSuffix= turns it off.
+val devSuffix: String = ((findProperty("titanDevSuffix") as String?)
+    ?: rootDir.takeIf { File(it, ".git").isFile }?.name.orEmpty())
+    .lowercase()
+    .replace(Regex("[^a-z0-9_]"), "_")
+    .let { if (it.isNotEmpty() && !it[0].isLetter()) "w$it" else it }
+
 android {
     namespace = "io.github.danielperezmartinez.titanssh.android"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
@@ -26,6 +36,7 @@ android {
         // Single app version, resolved in the root build file (ADR-0011 §3).
         versionCode = rootProject.extra["titanVersionCode"] as Int
         versionName = rootProject.extra["titanVersion"] as String
+        manifestPlaceholders["appLabel"] = "titan-ssh"
     }
 
     signingConfigs {
@@ -40,6 +51,12 @@ android {
     }
 
     buildTypes {
+        debug {
+            if (devSuffix.isNotEmpty()) {
+                applicationIdSuffix = ".$devSuffix"
+                manifestPlaceholders["appLabel"] = "titan-ssh $devSuffix"
+            }
+        }
         release {
             // R8 is on: Compose on Android relies on it for acceptable runtime
             // performance. Crypto providers resolved by reflection are kept in
