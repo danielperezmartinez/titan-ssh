@@ -63,6 +63,12 @@ class TerminalEmulator(
     private val scrollback = ArrayDeque<TerminalRow>()
     private var scrollbackView: List<TerminalRow>? = null
 
+    /** Lines evicted from the top of the scrollback by its size cap (see [TerminalSnapshot.droppedLines]). */
+    private var droppedLines = 0L
+
+    /** Bumped whenever lines are rewritten rather than appended (see [TerminalSnapshot.layoutEpoch]). */
+    private var layoutEpoch = 0
+
     private var cursorRow = 0
     private var cursorCol = 0
 
@@ -381,7 +387,10 @@ class TerminalEmulator(
 
     private fun pushScrollback(row: TerminalRow) {
         scrollback.addLast(row)
-        while (scrollback.size > maxScrollback) scrollback.removeFirst()
+        while (scrollback.size > maxScrollback) {
+            scrollback.removeFirst()
+            droppedLines++
+        }
         scrollbackView = null
     }
 
@@ -517,6 +526,7 @@ class TerminalEmulator(
             3 -> { // the scrollback only (xterm)
                 scrollback.clear()
                 scrollbackView = null
+                layoutEpoch++
             }
         }
     }
@@ -716,6 +726,7 @@ class TerminalEmulator(
         for (r in 0 until top) scrollback.addLast(out[r])
         while (scrollback.size > maxScrollback) scrollback.removeFirst()
         scrollbackView = null
+        layoutEpoch++
         val next = Array(newRows) { r ->
             val source = out.getOrNull(top + r)
             if (source == null) blankLine(newCols) else Line(source.toTypedArray(), source.wrapped, source)
@@ -864,6 +875,7 @@ class TerminalEmulator(
         }
         val removedScreen = removeScreen.count { it }
         if (!removedAny && removedScreen == 0) return pendingOnCursor
+        layoutEpoch++
 
         if (removedAny || carried.size != carriedCount) {
             val head = scrollback.take(firstChecked)
@@ -927,6 +939,7 @@ class TerminalEmulator(
         screen = blankScreen(columns, rows)
         scrollback.clear()
         scrollbackView = null
+        layoutEpoch++
         scrollTop = 0
         scrollBottom = rows - 1
         cursorRow = 0
@@ -958,6 +971,8 @@ class TerminalEmulator(
         contentRows = maxOf(cursorRow, lastContentRow(screen)) + 1,
         applicationCursorKeys = applicationCursorKeys,
         bracketedPaste = bracketedPaste,
+        droppedLines = droppedLines,
+        layoutEpoch = layoutEpoch,
     )
 
     private companion object {

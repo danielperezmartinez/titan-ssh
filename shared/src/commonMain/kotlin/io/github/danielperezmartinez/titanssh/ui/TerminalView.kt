@@ -43,7 +43,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isAltPressed
@@ -53,10 +56,18 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.utf16CodePoint
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalTextToolbar
+import androidx.compose.ui.platform.TextToolbarStatus
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -76,6 +87,7 @@ import io.github.danielperezmartinez.titanssh.terminal.SessionTab
 import io.github.danielperezmartinez.titanssh.terminal.TabPhase
 import io.github.danielperezmartinez.titanssh.terminal.TerminalKeys
 import io.github.danielperezmartinez.titanssh.terminal.TerminalMultiplexer
+import io.github.danielperezmartinez.titanssh.terminal.TerminalText
 import io.github.danielperezmartinez.titanssh.terminal.TunnelState
 import io.github.danielperezmartinez.titanssh.terminal.TunnelStatus
 import io.github.danielperezmartinez.titanssh.terminal.isAndroidRuntime
@@ -83,6 +95,7 @@ import io.github.danielperezmartinez.titanssh.theme.TitanColors
 import io.github.danielperezmartinez.titanssh.theme.TitanDimens
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
@@ -99,8 +112,9 @@ private const val RESIZE_SETTLE_MILLIS = 150L
  * Renders one [SessionTab]: the terminal grid, a status/host-key overlay, and
  * input. Keyboard input is captured on all platforms via key events (physical
  * keyboards and desktop); on Android an accessory key bar supplies the keys the
- * soft keyboard lacks (Esc, Tab, Ctrl, Alt, arrows, `| / - ~`) plus paste, and a
- * hidden capture field brings up the soft keyboard for text.
+ * soft keyboard lacks (Esc, Tab, Ctrl, Alt, arrows, `| / - ~`) plus paste, a
+ * hidden capture field brings up the soft keyboard for text, and a long press
+ * selects text with the system's floating Copy/Paste toolbar.
  *
  * [scripts] are the ones the user can launch by hand (ADR-0013): the status
  * strip opens a menu with them while the tab is connected.
@@ -131,8 +145,21 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier, scripts: List<S
 
     val viewport = remember(tab.id) { TerminalViewport() }
 
+    // Android: touch selection with the system's floating Copy/Paste toolbar.
+    val density = LocalDensity.current
+    val selection = remember(tab.id, density) { TerminalSelection(handleRadius = with(density) { 10.dp.toPx() }) }
+    val textToolbar = LocalTextToolbar.current
+    val haptics = LocalHapticFeedback.current
+    val pane = remember { PaneCoordinates() }
+
+    fun hideMenu() {
+        if (textToolbar.status == TextToolbarStatus.Shown) textToolbar.hide()
+    }
+
     // Typing returns to the live screen; cursor keys follow the remote's DECCKM.
     fun send(bytes: ByteArray) {
+        selection.clear()
+        hideMenu()
         viewport.toBottom()
         val out = TerminalKeys.inCursorMode(bytes, tab.snapshot.value.applicationCursorKeys)
         scope.launch { tab.sendBytes(out) }
@@ -150,14 +177,94 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier, scripts: List<S
         send(bytes)
     }
 
+    fun pasteClipboard() {
+        clipboard.getText()?.text?.let { send(TerminalKeys.paste(it, tab.snapshot.value.bracketedPaste)) }
+    }
+
     // The grid is painted cell by cell (TerminalCanvas), so the column count only
     // depends on the monospace advance, measured once the bundled font is in.
-    val density = LocalDensity.current
     val textStyle = remember(monoFamily, fontSize) {
         TextStyle(fontFamily = monoFamily, fontSize = fontSize, color = TerminalFg)
     }
     val cell = rememberCellMetrics(textStyle)
     val paddingX = with(density) { TitanDimens.SpaceXs.toPx() }
+
+    /** The selection's area on the pane, in px; where its menu goes. */
+    fun selectionArea(): Rect? {
+        val snap = tab.snapshot.value
+        val size = viewport.paneSize
+        val g = terminalGeometry(snap, size.height.toFloat(), cell, paddingX, viewport.scrollBackPx) ?: return null
+        return selection.bounds(snap, g, size.width.toFloat(), size.height.toFloat())
+    }
+
+    /** Opens the floating toolbar over [area] (pane px): Copy with a selection, Paste and Select all always. */
+    fun showMenu(area: Rect) {
+        val coords = pane.coordinates?.takeIf { it.isAttached } ?: return
+        val inRoot = Rect(coords.localToRoot(area.topLeft), coords.localToRoot(area.bottomRight))
+        textToolbar.showMenu(
+            rect = inRoot,
+            onCopyRequested = if (selection.isActive) {
+                {
+                    selection.range()?.let { (from, to) ->
+                        clipboard.setText(AnnotatedString(TerminalText.text(tab.snapshot.value, from, to)))
+                    }
+                    selection.clear()
+                }
+            } else {
+                null
+            },
+            onPasteRequested = { pasteClipboard() },
+            onSelectAllRequested = {
+                val snap = tab.snapshot.value
+                TerminalText.all(snap)?.let { (from, to) ->
+                    selection.select(from, to, snap)
+                    // The toolbar closes after this callback returns: open it again afterwards.
+                    scope.launch { selectionArea()?.let { showMenu(it) } }
+                }
+            },
+        )
+    }
+
+    val touch = remember(tab.id) { TerminalTouchActions() }.apply {
+        onTap = {
+            if (selection.isActive || textToolbar.status == TextToolbarStatus.Shown) {
+                selection.clear()
+                hideMenu()
+            } else {
+                keyboardFocus.requestFocus()
+                keyboardController?.show()
+            }
+        }
+        onLongPress = { haptics.performHapticFeedback(HapticFeedbackType.LongPress) }
+        onSelecting = { hideMenu() }
+        onSelected = { selectionArea()?.let { showMenu(it) } }
+        onBlankLongPress = { at -> showMenu(Rect(at, at + Offset(1f, 1f))) }
+    }
+
+    // A selection made on lines the remote has since rewritten (a resize, a
+    // cleared scrollback, another screen) no longer points at its text. One that
+    // output or a scroll moves takes its open menu along, or closes it once the
+    // selection leaves the pane.
+    LaunchedEffect(tab.id, selection, cell, paddingX) {
+        var shownOver: Rect? = null
+        combine(tab.snapshot, snapshotFlow { viewport.scrollBackPx }) { snap, _ -> snap }.collect { snap ->
+            if (selection.isStale(snap)) {
+                selection.clear()
+                hideMenu()
+            }
+            if (!selection.isActive || textToolbar.status != TextToolbarStatus.Shown) {
+                shownOver = null
+                return@collect
+            }
+            val area = selectionArea()
+            if (area != null && area.height > 0f) {
+                if (shownOver != null && area != shownOver) showMenu(area)
+                shownOver = area
+            } else {
+                hideMenu()
+            }
+        }
+    }
 
     // Resize the grid (emulator + PTY) from the pane size, but only once it holds
     // still: the first size goes at once, later ones after RESIZE_SETTLE_MILLIS.
@@ -233,27 +340,39 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier, scripts: List<S
                 .weight(1f)
                 .fillMaxWidth()
                 .onSizeChanged { size -> viewport.paneSize = size }
+                .onGloballyPositioned { pane.coordinates = it }
                 .focusRequester(focusRequester)
                 .focusable()
                 .onPreviewKeyEvent { event -> handleKeyEvent(event, { send(it) }, { sendTyped(it) }) }
+                // Android: taps raise the keyboard and a long press selects. Ahead
+                // of the scrollable, so a selection drag can claim its events first.
+                .then(
+                    if (isAndroidRuntime()) {
+                        Modifier
+                            .terminalTouch(tab.snapshot, viewport, selection, cell, paddingX, touch)
+                            // What the tap does, for accessibility services (the clickable it replaces had it).
+                            .semantics { onClick { touch.onTap(); true } }
+                    } else {
+                        Modifier
+                    },
+                )
                 // Drag or wheel through the scrollback; new input returns to the bottom.
                 .scrollable(
                     orientation = Orientation.Vertical,
                     state = rememberScrollableState { delta -> viewport.scrollBy(delta) },
                 )
-                // No ripple: the touch only focuses/raises the keyboard; a Material
+                // Desktop: the click focuses the pane. No ripple: a Material
                 // indication would break the flat, chrome-free terminal aesthetic.
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                ) {
+                .then(
                     if (isAndroidRuntime()) {
-                        keyboardFocus.requestFocus()
-                        keyboardController?.show()
+                        Modifier
                     } else {
-                        focusRequester.requestFocus()
-                    }
-                },
+                        Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { focusRequester.requestFocus() }
+                    },
+                ),
         ) {
             TerminalCanvas(
                 snapshots = tab.snapshot,
@@ -263,6 +382,7 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier, scripts: List<S
                 paddingX = paddingX,
                 showCursor = status.phase == TabPhase.CONNECTED,
                 modifier = Modifier.fillMaxSize(),
+                selection = selection,
             )
         }
 
@@ -297,12 +417,15 @@ fun TerminalView(tab: SessionTab, modifier: Modifier = Modifier, scripts: List<S
                 onText = { text -> sendTyped(text) },
                 onEnter = { send(TerminalKeys.special(TerminalKeys.SpecialKey.ENTER)) },
                 onBackspace = { send(TerminalKeys.special(TerminalKeys.SpecialKey.BACKSPACE)) },
-                onPaste = {
-                    clipboard.getText()?.text?.let { send(TerminalKeys.paste(it, tab.snapshot.value.bracketedPaste)) }
-                },
+                onPaste = { pasteClipboard() },
             )
         }
     }
+}
+
+/** Where the terminal pane sits, to place the floating toolbar; kept out of state so layout never recomposes. */
+private class PaneCoordinates {
+    var coordinates: LayoutCoordinates? = null
 }
 
 /** Translates a Compose key event into terminal bytes. Returns true when handled. */

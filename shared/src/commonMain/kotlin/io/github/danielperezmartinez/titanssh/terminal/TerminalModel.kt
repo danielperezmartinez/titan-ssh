@@ -113,6 +113,18 @@ data class TerminalSnapshot(
     val applicationCursorKeys: Boolean = false,
     /** Pasted text must be wrapped in `ESC [200~` … `ESC [201~` (`CSI ?2004h`). */
     val bracketedPaste: Boolean = false,
+    /**
+     * Lines the scrollback's size cap has evicted from its top so far. Added to
+     * an index into scrollback + screen, it gives a line number that stays put
+     * while output scrolls, as long as [layoutEpoch] does not change.
+     */
+    val droppedLines: Long = 0,
+    /**
+     * Changes whenever lines are rewritten instead of appended (a resize
+     * re-flow, clearing the scrollback, concealed lines, a reset): line numbers
+     * taken in an older epoch may no longer point at the same text.
+     */
+    val layoutEpoch: Int = 0,
 ) {
     companion object {
         val Empty = TerminalSnapshot(emptyList(), emptyList(), 0, 0, 0, 0)

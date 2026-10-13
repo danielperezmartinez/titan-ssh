@@ -132,47 +132,77 @@ internal fun TerminalCanvas(
     paddingX: Float,
     showCursor: Boolean,
     modifier: Modifier = Modifier,
+    selection: TerminalSelection? = null,
 ) {
     val snapshotState = snapshots.collectAsState()
     val measurer = rememberTextMeasurer(cacheSize = 0)
     val painter = remember(measurer, style, cell) { TerminalPainter(measurer, style, cell) }
 
     // Scrolled back while output keeps coming: keep the same lines in view.
+    // Counting the lines the scrollback cap dropped keeps this working once the
+    // scrollback is full and stops growing.
     LaunchedEffect(snapshots, viewport, cell) {
-        var lastScrollback = -1
+        var lastEnd = -1L
         snapshots.collect { s ->
-            val grown = s.scrollback.size - lastScrollback
-            if (lastScrollback >= 0 && grown > 0 && viewport.scrollBackPx > 0f) {
+            val end = s.droppedLines + s.scrollback.size
+            val grown = end - lastEnd
+            if (lastEnd >= 0 && grown > 0 && viewport.scrollBackPx > 0f) {
                 viewport.scrollBackPx += grown * cell.height
             }
-            lastScrollback = s.scrollback.size
+            lastEnd = end
         }
     }
 
     Spacer(
         modifier.drawBehind {
             clipRect {
-                drawTerminal(snapshotState.value, painter, viewport, cell, paddingX, showCursor)
+                drawTerminal(snapshotState.value, painter, viewport, selection, cell, paddingX, showCursor)
             }
         },
     )
 }
 
-private fun DrawScope.drawTerminal(
+/**
+ * Where each line of a snapshot sits in a pane of a given height: the painter
+ * places rows with it and the touch handler turns a finger into a cell with it,
+ * so both agree even while the rows are placed ahead of a pending resize.
+ * Indexes are into scrollback + screen.
+ */
+internal class TerminalGeometry(
+    /** The line shown on the top row when not scrolled back. */
+    val first: Int,
+    /** Top of that line, in px. */
+    val y0: Float,
+    /** How far the content is pushed down into the scrollback, in px. */
+    val scroll: Float,
+    /** The largest scroll the content allows. */
+    val maxScroll: Float,
+    /** Lines in the document. */
+    val total: Int,
+    val cell: CellMetrics,
+    val paddingX: Float,
+) {
+    fun top(index: Int): Float = y0 + (index - first) * cell.height + scroll
+
+    fun indexAt(y: Float): Int = floor(first + (y - y0 - scroll) / cell.height).toInt()
+
+    fun columnAt(x: Float): Int = floor((x - paddingX) / cell.width).toInt()
+
+    fun x(column: Int): Float = paddingX + column * cell.width
+}
+
+internal fun terminalGeometry(
     snap: TerminalSnapshot,
-    painter: TerminalPainter,
-    viewport: TerminalViewport,
+    height: Float,
     cell: CellMetrics,
     paddingX: Float,
-    showCursor: Boolean,
-) {
+    scrollBackPx: Float,
+): TerminalGeometry? {
     val rowsOnScreen = snap.screen.size
-    if (rowsOnScreen == 0 || cell.height <= 0f) return
+    if (rowsOnScreen == 0 || cell.height <= 0f) return null
     val ch = cell.height
-    val cw = cell.width
     val scrollback = snap.scrollback.size
-    val total = scrollback + rowsOnScreen
-    val fit = floor(size.height / ch).toInt().coerceAtLeast(1)
+    val fit = floor(height / ch).toInt().coerceAtLeast(1)
 
     // The document line shown on the top row once the emulator has this height:
     // what the emulator's resize will do (it pulls lines back from the
@@ -187,35 +217,63 @@ private fun DrawScope.drawTerminal(
     // Content reaching the bottom row is glued to the bottom edge (it slides
     // with the keyboard); a short screen stays at the top.
     val bottomAligned = !snap.altScreen && scrollback + snap.contentRows - first >= fit
-    val y0 = if (bottomAligned) size.height - fit * ch else 0f
+    val y0 = if (bottomAligned) height - fit * ch else 0f
 
-    viewport.maxScrollBackPx = maxOf(0f, first * ch - y0)
-    val scroll = viewport.scrollBackPx.coerceIn(0f, viewport.maxScrollBackPx)
+    val maxScroll = maxOf(0f, first * ch - y0)
+    return TerminalGeometry(
+        first = first,
+        y0 = y0,
+        scroll = scrollBackPx.coerceIn(0f, maxScroll),
+        maxScroll = maxScroll,
+        total = scrollback + rowsOnScreen,
+        cell = cell,
+        paddingX = paddingX,
+    )
+}
 
-    val from = floor(first - (y0 + scroll) / ch).toInt().coerceAtLeast(0)
-    val to = ceil(first + (size.height - y0 - scroll) / ch).toInt().coerceAtMost(total - 1)
+private fun DrawScope.drawTerminal(
+    snap: TerminalSnapshot,
+    painter: TerminalPainter,
+    viewport: TerminalViewport,
+    selection: TerminalSelection?,
+    cell: CellMetrics,
+    paddingX: Float,
+    showCursor: Boolean,
+) {
+    val g = terminalGeometry(snap, size.height, cell, paddingX, viewport.scrollBackPx) ?: return
+    val ch = cell.height
+    val cw = cell.width
+    val scrollback = snap.scrollback.size
+    viewport.maxScrollBackPx = g.maxScroll
+
+    val from = floor(g.first - (g.y0 + g.scroll) / ch).toInt().coerceAtLeast(0)
+    val to = ceil(g.first + (size.height - g.y0 - g.scroll) / ch).toInt().coerceAtMost(g.total - 1)
 
     painter.beginFrame()
     for (j in from..to) {
         val row = if (j < scrollback) snap.scrollback[j] else snap.screen[j - scrollback]
-        val y = y0 + (j - first) * ch + scroll
-        painter.draw(this, row, paddingX, y)
+        painter.draw(this, row, paddingX, g.top(j))
     }
     painter.endFrame()
 
     if (showCursor && snap.cursorVisible) {
-        val j = scrollback + snap.cursorRow
-        val row = snap.screen.getOrNull(snap.cursorRow) ?: return
-        val col = snap.cursorColumn.coerceIn(0, maxOf(0, row.size - 1))
-        val under = row.getOrNull(col) ?: TerminalCell.Blank
-        val span = if (under.width == 2) 2 else 1
-        val x = paddingX + col * cw
-        val y = y0 + (j - first) * ch + scroll
-        drawRect(CursorColor, Offset(x, y), Size(cw * span, ch))
-        if (under.codePoint != ' '.code && under.width != 0) {
-            painter.drawGlyph(this, under, TerminalBgColor, x, y, span)
+        val row = snap.screen.getOrNull(snap.cursorRow)
+        if (row != null) {
+            val col = snap.cursorColumn.coerceIn(0, maxOf(0, row.size - 1))
+            val under = row.getOrNull(col) ?: TerminalCell.Blank
+            val span = if (under.width == 2) 2 else 1
+            val x = paddingX + col * cw
+            val y = g.top(scrollback + snap.cursorRow)
+            drawRect(CursorColor, Offset(x, y), Size(cw * span, ch))
+            if (under.codePoint != ' '.code && under.width != 0) {
+                painter.drawGlyph(this, under, TerminalBgColor, x, y, span)
+            }
         }
     }
+
+    // An overlay, never part of a row's cached paint: selecting draws a few
+    // rectangles and lays out nothing.
+    selection?.let { drawSelection(it, snap, g, from, to) }
 }
 
 /** What one row draws: background runs, one text layout for the grid-safe text, and the glyphs placed one by one. */
