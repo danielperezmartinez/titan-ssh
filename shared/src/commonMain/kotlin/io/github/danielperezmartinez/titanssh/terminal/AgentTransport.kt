@@ -36,7 +36,17 @@ class AgentTransport(
      * reader, so it must not wait for output: launch any follow-up work instead.
      */
     private val onAttached: suspend (fresh: Boolean) -> Unit = {},
+    /**
+     * Only a fresh PTY will do (a new parallel instance, ADR-0020): if the agent
+     * already holds the session, the run says goodbye before any of its output
+     * and reports [occupied] instead of attaching.
+     */
+    private val requireFresh: Boolean = false,
 ) {
+    /** Set when [requireFresh] found the session already alive; nothing was attached. */
+    var occupied: Boolean = false
+        private set
+
     /** Bytes fed to the emulator so far; survives reconnects when the tab reuses it. */
     var appliedOffset: Long = startOffset
         private set
@@ -103,6 +113,7 @@ class AgentTransport(
     private suspend fun handle(ch: SshExecChannel, frame: AgentFrame) {
         when (frame) {
             is AgentFrame.Data -> {
+                if (occupied) return
                 applyData(frame.offset, frame.bytes)
                 // The channel may close under a late DATA ([close], or a drop,
                 // which ends the output anyway). A lost ACK only means the agent
@@ -112,6 +123,13 @@ class AgentTransport(
             is AgentFrame.HelloOk -> {
                 attached = true
                 val fresh = frame.created ?: isFreshLegacy(frame)
+                if (requireFresh && !fresh) {
+                    // Someone else's live terminal: leave it as it is.
+                    occupied = true
+                    runCatching { sendFrame(ch, AgentFrame.Bye()) }
+                    runCatching { ch.close() }
+                    return
+                }
                 // A fresh PTY counts its bytes from 0, so an offset carried over
                 // from a session that is gone (the host rebooted, or the agent
                 // reaped it) would drop all of its output as already applied.
@@ -174,7 +192,8 @@ class AgentTransport(
         private const val STDERR_GRACE_MILLIS = 1_000L
 
         /**
-         * The agent-side id of saved session [id]: shell-safe (every shell) for
+         * The agent-side id of session instance [id] (the saved session's id, or
+         * a parallel instance's, [SessionInstances.id]): shell-safe (every shell) for
          * the `--session` flag, and what travels in HELLO and `--status`.
          */
         fun sanitizeId(id: String): String {

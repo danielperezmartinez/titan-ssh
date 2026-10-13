@@ -5,7 +5,7 @@ Resumen: 'Hoy el usuario no tiene una forma sencilla de saber si hay un agente d
 Decisiones: 'El usuario decide el 2026-09-29: el agente no se cierra solo; se quita el TTL de 30 minutos de las sesiones y en su lugar se avisa ([[ADR-0014 Sesiones del agente sin caducidad]], que sustituye el punto GC de [[ADR-0008 Diseño del agente de resiliencia nivel 3]]); el icono en la bandeja de Windows no se hace de momento; los avisos y las formas de cerrar quedan como se describen en la nota; la ubicación en la interfaz está en [[Estado y control del agente en la interfaz]]. Se apoya en el candado y el encuentro por loopback de [[titan-agent instancia única y directorio de estado]] y [[titan-agent punto de encuentro TCP loopback con token]], y en las acciones contextuales de [[Acciones contextuales en las filas de lista]].'
 Bloqueada: []
 Fecha de creación: 2026-09-29T21:00:00+02:00
-Última modificación: 2026-09-30T20:00:00+02:00
+Última modificación: 2026-10-13T10:10:00+02:00
 ---
 
 # Transparencia y control del agente en el destino
@@ -28,7 +28,9 @@ tiempo que pase.
 - Confirmado: un solo agente por usuario y destino, con una sesión del agente
   por sesión guardada. Abrir la misma sesión guardada en dos pestañas muestra
   la misma terminal en ambas; para dos terminales independientes se usan dos
-  sesiones guardadas.
+  sesiones guardadas. (Cambiado el 2026-10-13 por
+  [[ADR-0020 Sesiones paralelas de una misma sesión guardada]]: una sesión
+  guardada puede tener sesiones paralelas.)
 - Avisos y formas de cerrar: como se describen en los puntos 4 y 5 del plan.
 - Interfaz: lanzadera de Sesiones y panel propio del agente, según
   [[Estado y control del agente en la interfaz]]. Se descarta poner un menú

@@ -21,6 +21,7 @@ import io.github.danielperezmartinez.titanssh.config.ConfigController
 import io.github.danielperezmartinez.titanssh.config.GroupScope
 import io.github.danielperezmartinez.titanssh.config.Ids
 import io.github.danielperezmartinez.titanssh.config.MousepadSettings
+import io.github.danielperezmartinez.titanssh.config.ReopenMode
 import io.github.danielperezmartinez.titanssh.config.ResilienceLevel
 import io.github.danielperezmartinez.titanssh.config.Session
 import io.github.danielperezmartinez.titanssh.config.SessionScript
@@ -75,6 +76,7 @@ fun SessionEditor(
     var portOverride by remember { mutableStateOf(existing?.portOverride?.toString() ?: "") }
     var initialDirectory by remember { mutableStateOf(existing?.initialDirectory ?: "") }
     var resilience by remember { mutableStateOf(existing?.resilienceLevel ?: ResilienceLevel.BASE) }
+    var reopen by remember { mutableStateOf(existing?.reopen ?: ReopenMode.ASK) }
     var groupId by remember { mutableStateOf(if (existing != null) existing.groupId else initialGroupId) }
     var tags by remember { mutableStateOf(existing?.tags?.joinToString(", ") ?: "") }
     var marker by remember { mutableStateOf(existing?.marker ?: "[+]") }
@@ -150,6 +152,7 @@ fun SessionEditor(
             portOverride = portOverride, onPortOverride = { portOverride = it },
             initialDirectory = initialDirectory, onInitialDirectory = { initialDirectory = it },
             resilience = resilience, onResilience = { resilience = it },
+            reopen = reopen, onReopen = { reopen = it },
             groupId = groupId, onGroupId = { groupId = it },
             tags = tags, onTags = { tags = it },
             marker = marker, onMarker = { marker = it },
@@ -177,6 +180,7 @@ private fun SessionForm(
     portOverride: String, onPortOverride: (String) -> Unit,
     initialDirectory: String, onInitialDirectory: (String) -> Unit,
     resilience: ResilienceLevel, onResilience: (ResilienceLevel) -> Unit,
+    reopen: ReopenMode, onReopen: (ReopenMode) -> Unit,
     groupId: String?, onGroupId: (String?) -> Unit,
     tags: String, onTags: (String) -> Unit,
     marker: String, onMarker: (String) -> Unit,
@@ -203,6 +207,7 @@ private fun SessionForm(
                 portOverride = portOverride.toIntOrNull(),
                 initialDirectory = initialDirectory.ifBlank { null },
                 resilienceLevel = resilience,
+                reopen = reopen,
                 scripts = scripts,
                 tunnels = tunnels,
                 appearance = fontSize.toIntOrNull()?.let { TerminalAppearance(fontSize = it) },
@@ -282,6 +287,25 @@ private fun SessionForm(
                     ResilienceLevel.AGENT -> "agente"
                 }
             })
+            // Only levels 2 and 3 keep a terminal on the destination to come back to (ADR-0020).
+            if (resilience != ResilienceLevel.BASE) {
+                Gap()
+                TitanSegmented("Al abrirla de nuevo", ReopenMode.entries, reopen, onReopen, optionLabel = {
+                    when (it) {
+                        ReopenMode.ASK -> "preguntar"
+                        ReopenMode.ATTACH -> "reengancharse"
+                        ReopenMode.PARALLEL -> "paralela"
+                    }
+                })
+                Spacer(Modifier.height(TitanDimens.SpaceXs))
+                Caption(
+                    when (reopen) {
+                        ReopenMode.ASK -> "Si ya está abierta o viva en el destino, eliges entre volver a una de sus terminales o abrir otra nueva."
+                        ReopenMode.ATTACH -> "Vuelve siempre a la terminal principal, aunque ya esté abierta en otra pestaña."
+                        ReopenMode.PARALLEL -> "Si ya está abierta o viva en el destino, abre siempre otra terminal nueva (· 2, · 3…)."
+                    },
+                )
+            }
 
             SectionHeader("Scripts de inicio")
             Caption("Se ejecutan en orden al conectar, según su fase. Reordénalos con [^]/[v]. Los de fase bajo demanda se lanzan desde la pestaña.")

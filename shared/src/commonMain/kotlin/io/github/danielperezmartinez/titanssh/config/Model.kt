@@ -299,6 +299,22 @@ enum class SessionType {
     MOUSEPAD,
 }
 
+/**
+ * What launching a saved session does when it already has instances open in
+ * tabs or alive on its destination (ADR-0020). Only levels 2 and 3 keep
+ * anything on the destination to re-attach to.
+ */
+enum class ReopenMode {
+    /** Offer to re-attach to each instance or to open a new parallel one. */
+    ASK,
+
+    /** Re-attach to the principal instance, as before ADR-0020. */
+    ATTACH,
+
+    /** Always open a new parallel instance. */
+    PARALLEL,
+}
+
 /** How a mouse pad session moves the pointer and scrolls (ADR-0016 §1). */
 @Serializable
 data class MousepadSettings(
@@ -337,6 +353,8 @@ data class Session(
     /** A field with a default: documents written before it read as terminals. */
     val type: SessionType = SessionType.TERMINAL,
     val mousepad: MousepadSettings = MousepadSettings(),
+    /** What launching it again does while it has instances (ADR-0020). */
+    val reopen: ReopenMode = ReopenMode.ASK,
 )
 
 /** App-wide options, not tied to a host or a session (Configuración → Ajustes). */

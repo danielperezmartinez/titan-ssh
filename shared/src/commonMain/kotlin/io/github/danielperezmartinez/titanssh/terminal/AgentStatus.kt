@@ -100,7 +100,7 @@ data class AgentDesktopRun(
 /** One session held by the daemon. */
 @Serializable
 data class AgentSessionReport(
-    /** The agent-side id, `titan-<sanitized saved-session id>` ([AgentTransport.sanitizeId]). */
+    /** The agent-side id, `titan-<sanitized id of the session instance>` ([SessionInstances.agentId]). */
     val id: String,
     val createdMs: Long,
     val lastUsedMs: Long,

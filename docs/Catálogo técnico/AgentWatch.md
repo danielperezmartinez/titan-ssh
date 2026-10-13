@@ -8,7 +8,7 @@ Estado: 'Vigente'
 Fuente: 'shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/AgentWatch.kt'
 Entrada pública: 'io.github.danielperezmartinez.titanssh.terminal'
 Resumen: 'Lo que la app sabe de los agentes de sus destinos y cómo actúa sobre ellos. AgentWatch guarda por AgentKey (usuario@host:puerto, porque el agente es por usuario) la última observación (AgentStatusReport + hora de la app) y los cierres pendientes; lo persiste AgentWatchStore (agents.json junto a la config, JsonFileAgentWatchStore en jvmShared). sync(key, control) cierra los pendientes y registra el estado; un informe running que ya no lista un pendiente lo olvida. Es el AgentObserver de SessionTab: al atender el agente una pestaña, sincroniza por esa misma conexión. AgentInsights deriva los avisos (solo informan): memoria por encima de 1 GiB, sesión abandonada tras 24 h sin cliente (reloj del destino + tiempo desde la consulta), agente de otra versión, y formatea duraciones y tamaños en español; sessionDetails arma las líneas del detalle de una sesión para el panel, con las fechas pasadas al reloj de la app (toAppClock). AgentHostAccess abre una conexión corta sin pestaña, por la cadena ProxyJump del host (AgentHost.jumps; clave de host nueva rechazada, no preguntada, también la de un bastión), instala el agente y sincroniza. AgentManager reúne las acciones explícitas del usuario: refresh, terminate (cierra antes las pestañas de la sesión), delete (borra la sesión guardada y, si es de nivel 3, la termina), closeAgentSession y stopAgent, y refreshWithPreviews, que en la misma conexión pide la vista previa de cada sesión y la guarda solo en memoria (previews), porque es lo que mostraba la terminal; toda terminación pasa por los cierres pendientes, así que si el destino no responde se completa en la siguiente conexión.'
-Última modificación: 2026-10-02T09:31:00+02:00
+Última modificación: '2026-10-13T10:05:00+02:00'
 ---
 
 # AgentWatch
@@ -25,6 +25,12 @@ Nace de [[Transparencia y control del agente en el destino]]. Nada aquí cierra
 una sesión por su cuenta ([[ADR-0014 Sesiones del agente sin caducidad]]): solo
 las que el usuario termina o borra. La interfaz que lo muestra (lanzadera y
 panel del agente) está en [[Estado y control del agente en la interfaz]].
+
+Una sesión guardada puede tener varias sesiones en el agente, una por
+instancia ([[ADR-0020 Sesiones paralelas de una misma sesión guardada]]):
+`AgentInsights.instancesOf` las agrupa por instancia, `AgentManager.isLive`
+cuenta cualquiera, `terminate(session)` cierra todas las que la app conoce y
+`terminate(session, instance)` solo una. Ver [[SessionInstances]].
 
 Piezas relacionadas:
 

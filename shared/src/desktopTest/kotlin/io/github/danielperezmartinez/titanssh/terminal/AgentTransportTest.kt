@@ -133,6 +133,56 @@ class AgentTransportTest {
         job.join()
     }
 
+    @Test
+    fun a_new_parallel_instance_leaves_a_live_session_alone() = runBlocking {
+        val ch = FakeExec()
+        val outputs = mutableListOf<String>()
+        var attached = false
+        val transport = AgentTransport(
+            session = FakeSession(ch),
+            agentSessionId = "s-p2",
+            agent = AgentLaunch("agent", RemoteShell.POSIX),
+            onOutput = { outputs += it.decodeToString() },
+            initialColumns = 80,
+            initialRows = 24,
+            onAttached = { attached = true },
+            requireFresh = true,
+        )
+        val job = launch { transport.run() }
+        waitUntil { ch.sentFrames().any { it is AgentFrame.Hello } }
+        // The agent already holds titan-s-p2, and replays it.
+        ch.emit(AgentFrame.HelloOk(headOffset = 0, tailOffset = 5, created = false))
+        ch.emit(AgentFrame.Data(offset = 0, bytes = "busy$".encodeToByteArray()))
+        job.join()
+        assertTrue(transport.occupied)
+        assertFalse(attached, "someone else's terminal is not attached")
+        assertTrue(outputs.isEmpty(), "nothing of it reaches the emulator")
+        assertTrue(ch.sentFrames().any { it is AgentFrame.Bye })
+    }
+
+    @Test
+    fun a_new_parallel_instance_attaches_to_a_fresh_session() = runBlocking {
+        val ch = FakeExec()
+        val fresh = CompletableDeferred<Boolean>()
+        val transport = AgentTransport(
+            session = FakeSession(ch),
+            agentSessionId = "s-p2",
+            agent = AgentLaunch("agent", RemoteShell.POSIX),
+            onOutput = {},
+            initialColumns = 80,
+            initialRows = 24,
+            onAttached = { fresh.complete(it) },
+            requireFresh = true,
+        )
+        val job = launch { transport.run() }
+        waitUntil { ch.sentFrames().any { it is AgentFrame.Hello } }
+        ch.emit(AgentFrame.HelloOk(headOffset = 0, tailOffset = 0, created = true))
+        assertTrue(withTimeout(2_000) { fresh.await() })
+        assertFalse(transport.occupied)
+        ch.close()
+        job.join()
+    }
+
     /** Runs a transport through one HELLO_OK and returns what onAttached reported. */
     private suspend fun attach(
         helloOk: AgentFrame.HelloOk,

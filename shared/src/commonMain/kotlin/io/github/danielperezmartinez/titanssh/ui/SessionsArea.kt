@@ -49,6 +49,7 @@ import io.github.danielperezmartinez.titanssh.config.onDemandScripts
 import io.github.danielperezmartinez.titanssh.config.resolve
 import io.github.danielperezmartinez.titanssh.terminal.AgentHost
 import io.github.danielperezmartinez.titanssh.terminal.AgentManager
+import io.github.danielperezmartinez.titanssh.terminal.SessionInstances
 import io.github.danielperezmartinez.titanssh.terminal.SessionManager
 import io.github.danielperezmartinez.titanssh.terminal.SessionTab
 import io.github.danielperezmartinez.titanssh.terminal.TabPhase
@@ -76,6 +77,7 @@ fun SessionsArea(
     val config by controller.state.collectAsState()
     val tabs by manager.tabs.collectAsState()
     val activeId by manager.activeId.collectAsState()
+    val openInstances by manager.openInstances.collectAsState()
 
     // [openLauncher] brings the launcher back after editing a session from it,
     // even with tabs open.
@@ -87,10 +89,10 @@ fun SessionsArea(
         Launcher(
             controller = controller,
             agents = agents,
-            openSessionIds = tabs.map { it.resolved.session.id }.toSet(),
+            openInstances = openInstances,
             onOpenAgent = onOpenAgent,
-            onLaunch = { resolved ->
-                manager.open(resolved)
+            onLaunch = { resolved, instance, mustBeNew ->
+                manager.open(resolved, instance, mustBeNew)
                 showLauncher = false
             },
             onEdit = onEditSession,
@@ -334,8 +336,10 @@ private fun TabChip(
     ) {
         Text(marker, style = MaterialTheme.typography.labelSmall, color = markerColor)
         Spacer(Modifier.width(TitanDimens.SpaceXs))
+        // A new parallel tab can still move to another number when it connects.
+        val instance by tab.instance.number.collectAsState()
         Text(
-            tab.title,
+            SessionInstances.label(tab.resolved.session.name, instance),
             style = MaterialTheme.typography.bodyMedium,
             color = if (selected) TitanColors.Ink else TitanColors.Mute,
         )

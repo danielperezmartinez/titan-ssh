@@ -8,7 +8,7 @@ Estado: "Vigente"
 Fuente: "shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/SessionManager.kt"
 Entrada pública: "io.github.danielperezmartinez.titanssh.terminal"
 Resumen: "Dueño de las pestañas abiertas y del flujo de lanzamiento (config resuelta → motor → pestaña viva) que la lanzadera de Sesiones dejó pendiente. open(ResolvedConnection) crea un SessionTab, lo activa y conecta; activate/close/move(Left/Right) delegan el orden en el TabList puro. Expone tabs y activeId como StateFlow para la UI. Cada SessionTab gobierna una conexión + shell, alimenta un TerminalEmulator, expone status (TabPhase) y snapshot observables, resize real del PTY, TOFU inline (PendingHostKey) con la política known_hosts del host, conexión por la cadena ProxyJump del host (cada bastión con sus credenciales y su propia política known_hosts, y el nombre del bastión en el motivo si se rechaza su clave), una clave cambiada bloqueada hasta que el usuario la sustituye a propósito (changedHostKey, replaceHostKey), difunde un tee decodificado del output y ejecuta la automatización de arranque (ShellAutomation) en paralelo al pintado. Resiliencia nivel 1: ante un microcorte el SessionTab conserva el emulador (pantalla + scrollback), pasa a RECONNECTING y reconecta con backoff según ReconnectPolicy (plazo de 15 min desde el corte, backoff hasta 10 s), reabriendo un shell nuevo en el MISMO emulador y reejecutando la automatización (onReconnected); una salida limpia (transporte vivo) cierra la pestaña en vez de reconectar. reconnectNow() corta la espera o vuelve a conectar una pestaña caída o fallida sin perder el historial; SessionManager recibe networkRestored (aviso de red de Android) y llama a onNetworkRestored() en cada pestaña. Si la pregunta TOFU sigue abierta cuando el saludo SSH caduca, la pestaña espera la respuesta y, si se acepta, vuelve a conectar sola. Expone también resilience (ResilienceStatus): el nivel efectivo (EffectiveLevel: agente, tmux/screen o base) y el motivo si el nivel 3 no está disponible o el aviso de systemd, con enableLinger() para resolverlo (ver AgentDiagnostics). Expone tunnels (TunnelStatus por túnel activado: WAITING, ACTIVE o FAILED con motivo): los abre en cada conexión, en los tres niveles, los cierra al caer o al cerrar la pestaña, y reintenta los que fallan por puerto ocupado (aquí o en el servidor) mientras la conexión siga viva (SessionTunnels); un túnel que escucha fuera de loopback sin allowFromNetwork no se abre y queda FAILED con el motivo. closeTabsOf(sessionId) cierra todas las pestañas de una sesión guardada (antes de terminarla en el destino), y el agentObserver que recibe se pasa a cada SessionTab, que lo avisa con un AgentControl sobre su conexión cuando el agente la atiende (ver AgentWatch)."
-Última modificación: 2026-10-02T09:31:00+02:00
+Última modificación: '2026-10-13T10:05:00+02:00'
 ---
 
 # SessionManager
@@ -24,6 +24,12 @@ Contrato y colaboradores:
 - **Lanzamiento**: `open(resolved)` es el cable config → motor que faltaba desde
   [[Panel de gestión de hosts y sesiones]]; resuelve credenciales con
   [[CredentialResolver]] en tiempo de conexión y conecta vía [[SshConnector]].
+- **Instancias** ([[ADR-0020 Sesiones paralelas de una misma sesión guardada]]):
+  `open(resolved, instance, mustBeNew)` abre la principal (por defecto) o una
+  paralela; cada `SessionTab` lleva su `TabInstance`, cuyo id usan el agente y
+  tmux/screen. `openInstances` dice qué instancias de cada sesión guardada hay
+  en pestañas, y `closeTabsOf(sessionId, instance?)` cierra todas o una. Ver
+  [[SessionInstances]].
 - **Orden de pestañas**: delegado en el modelo puro [[TabList]].
 - **Estado por pestaña**: `TabPhase` (CONNECTING/CONNECTED/RECONNECTING/
   DISCONNECTED/FAILED). El `SessionTab` es su propio driver de reconexión

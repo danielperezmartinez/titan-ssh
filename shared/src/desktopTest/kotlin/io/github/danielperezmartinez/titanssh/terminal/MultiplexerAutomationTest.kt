@@ -39,6 +39,8 @@ class MultiplexerAutomationTest {
         private val out: MutableSharedFlow<String>,
         private val detectValue: String,
         private val existsValue: String,
+        /** When set, only these session names exist (and only by their exact name). */
+        private val existing: Set<String>? = null,
     ) : SshShell {
         val sent = mutableListOf<String>()
         override val output: Flow<ByteArray> = MutableSharedFlow()
@@ -50,6 +52,8 @@ class MultiplexerAutomationTest {
                 val inner = m.groupValues[2]
                 val value = when {
                     inner.contains("command -v tmux") -> detectValue
+                    existing != null && inner.contains("has-session") ->
+                        if (existing.any { inner.contains("'=$it'") }) "yes" else "no"
                     inner.contains("has-session") || inner.contains("screen -ls") -> existsValue
                     else -> "none"
                 }
@@ -186,5 +190,33 @@ class MultiplexerAutomationTest {
 
         assertFalse(fake.commands().any { it.startsWith("exec ") }, "BASE stays on a plain shell")
         assertTrue(fake.commands().any { it == "cd -- '/work'" })
+    }
+
+    @Test
+    fun a_new_parallel_instance_skips_the_numbers_already_alive() = runTest {
+        val out = newOut()
+        val fake = FakeShell(out, detectValue = "tmux", existsValue = "no", existing = setOf("titan-s", "titan-s-p2"))
+        out.tryEmit("$ ")
+        val instance = TabInstance("s", start = 2, mustBeNew = true)
+
+        automation().onShellReady(ShellIo(fake, out, instance = instance), resolved(session(ResilienceLevel.AUTO_MULTIPLEXER)))
+
+        assertTrue(fake.commands().any { it == "exec tmux new-session -A -s 'titan-s-p3'" }, "it opens · 3: ${fake.commands()}")
+        assertEquals(3, instance.number.value)
+        assertFalse(instance.mustBeNew, "later connections re-attach to it")
+        assertTrue(fake.log().contains("on-start"), "start scripts run in the new parallel session")
+    }
+
+    @Test
+    fun the_principal_is_not_taken_for_one_of_its_parallels() = runTest {
+        val out = newOut()
+        // Only a parallel is alive: the principal's own name must not match it.
+        val fake = FakeShell(out, detectValue = "tmux", existsValue = "no", existing = setOf("titan-s-p2"))
+        out.tryEmit("$ ")
+
+        automation().onShellReady(ShellIo(fake, out, instance = TabInstance("s")), resolved(session(ResilienceLevel.AUTO_MULTIPLEXER)))
+
+        assertTrue(fake.commands().any { it == "exec tmux new-session -A -s 'titan-s'" })
+        assertTrue(fake.log().contains("on-start"), "a fresh principal runs its start scripts")
     }
 }

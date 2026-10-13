@@ -158,8 +158,16 @@ class StartScriptAutomation(
         val kind = mux.detect()
         io.reportMultiplexer(kind)
         if (kind == TerminalMultiplexer.Kind.NONE) return null
-        val name = mux.sessionName(session.id)
-        val existed = mux.sessionExists(kind, name)
+        // The tab's instance (ADR-0020); a new parallel one skips the numbers
+        // already alive on the destination rather than joining them.
+        val instance = io.instance
+        var name = mux.sessionName(instance?.id ?: session.id)
+        var existed = mux.sessionExists(kind, name)
+        while (existed && instance != null && instance.mustBeNew && instance.skipTaken()) {
+            name = mux.sessionName(instance.id)
+            existed = mux.sessionExists(kind, name)
+        }
+        instance?.claimed()
         mux.enter(kind, name)
         return if (existed) TerminalMultiplexer.Attach.ATTACHED else TerminalMultiplexer.Attach.CREATED
     }

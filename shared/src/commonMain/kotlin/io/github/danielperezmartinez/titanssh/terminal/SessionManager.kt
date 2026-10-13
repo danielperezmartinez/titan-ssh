@@ -60,11 +60,25 @@ class SessionManager(
         }
     }
 
+    private val _openInstances = MutableStateFlow<Map<String, Set<Int>>>(emptyMap())
+
     /**
-     * Opens [resolved] in a new tab, makes it active and starts connecting.
-     * Opening the same saved session twice yields two independent tabs.
+     * The instances (ADR-0020) open in tabs, by saved session id. A new
+     * parallel tab can still move to another number when it connects.
      */
-    fun open(resolved: ResolvedConnection): SessionTab {
+    val openInstances: StateFlow<Map<String, Set<Int>>> = _openInstances.asStateFlow()
+
+    /**
+     * Opens [resolved] in a new tab, makes it active and starts connecting. The
+     * tab shows [instance] of the saved session on the destination; at levels 2
+     * and 3, two tabs of the same instance show the same terminal. A new
+     * parallel instance passes [mustBeNew] ([TabInstance]).
+     */
+    fun open(
+        resolved: ResolvedConnection,
+        instance: Int = SessionInstances.PRINCIPAL,
+        mustBeNew: Boolean = false,
+    ): SessionTab {
         val tabId = Ids.newId("tab")
         val tab = SessionTab(
             id = tabId,
@@ -77,6 +91,7 @@ class SessionManager(
             reconnect = reconnect,
             agentDeployer = agentDeployer,
             agentObserver = agentObserver,
+            instance = TabInstance(resolved.session.id, instance, mustBeNew) { syncInstances() },
         )
         byId[tabId] = tab
         _list.value = _list.value.add(tabId)
@@ -100,11 +115,15 @@ class SessionManager(
     }
 
     /**
-     * Closes every tab of saved session [sessionId], e.g. before its agent
-     * session is terminated, so no tab reconnects and starts it again.
+     * Closes every tab of saved session [sessionId], or only those of
+     * [instance] when given, e.g. before its agent session is terminated, so no
+     * tab reconnects and starts it again.
      */
-    fun closeTabsOf(sessionId: String) {
-        _tabs.value.filter { it.resolved.session.id == sessionId }.forEach { close(it.id) }
+    fun closeTabsOf(sessionId: String, instance: Int? = null) {
+        _tabs.value
+            .filter { it.resolved.session.id == sessionId }
+            .filter { instance == null || it.instance.number.value == instance }
+            .forEach { close(it.id) }
     }
 
     /** Moves tab [id] one position towards the front of the strip. */
@@ -132,5 +151,12 @@ class SessionManager(
         val list = _list.value
         _tabs.value = list.order.mapNotNull { byId[it] }
         _activeId.value = list.activeId
+        syncInstances()
+    }
+
+    private fun syncInstances() {
+        _openInstances.value = _tabs.value
+            .groupBy({ it.resolved.session.id }, { it.instance.number.value })
+            .mapValues { (_, numbers) -> numbers.toSet() }
     }
 }

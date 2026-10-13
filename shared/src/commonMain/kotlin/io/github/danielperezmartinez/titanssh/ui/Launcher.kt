@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import io.github.danielperezmartinez.titanssh.config.ConfigController
 import io.github.danielperezmartinez.titanssh.config.GroupScope
 import io.github.danielperezmartinez.titanssh.config.GroupTree
+import io.github.danielperezmartinez.titanssh.config.ReopenMode
 import io.github.danielperezmartinez.titanssh.config.ResilienceLevel
 import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
 import io.github.danielperezmartinez.titanssh.config.SessionType
@@ -31,11 +32,23 @@ import io.github.danielperezmartinez.titanssh.terminal.AgentHost
 import io.github.danielperezmartinez.titanssh.terminal.AgentInsights
 import io.github.danielperezmartinez.titanssh.terminal.AgentKey
 import io.github.danielperezmartinez.titanssh.terminal.AgentManager
+import io.github.danielperezmartinez.titanssh.terminal.LaunchPlan
+import io.github.danielperezmartinez.titanssh.terminal.SessionInstances
+import io.github.danielperezmartinez.titanssh.terminal.SessionManager
 import io.github.danielperezmartinez.titanssh.theme.TitanColors
 import io.github.danielperezmartinez.titanssh.theme.TitanDimens
 
 /** Which inline confirmation a launcher row shows. */
 private enum class LauncherConfirm { DELETE, TERMINATE }
+
+/** What an unfolded launcher row shows: the session's actions, or where to open it (ADR-0020). */
+private sealed interface Unfolded {
+    val sessionId: String
+
+    data class Actions(override val sessionId: String) : Unfolded
+
+    data class Choice(override val sessionId: String, val plan: LaunchPlan.Ask) : Unfolded
+}
 
 /**
  * The launcher: saved sessions and the connection each resolves to. Tapping a
@@ -50,14 +63,20 @@ private enum class LauncherConfirm { DELETE, TERMINATE }
  * alive on its destination without an open tab (in warning after 24 hours with
  * no client), a warning strip for an agent above 1 GB, and the actions to see
  * the agent and to terminate the session there.
+ *
+ * Launching a session that already has instances open in tabs or alive on its
+ * destination follows its [ReopenMode] (ADR-0020): by default the row unfolds
+ * the choice between re-attaching to each instance and a new parallel one.
  */
 @Composable
 internal fun Launcher(
     controller: ConfigController,
     agents: AgentManager,
-    openSessionIds: Set<String>,
+    /** The instances open in tabs, by saved session id ([SessionManager.openInstances]). */
+    openInstances: Map<String, Set<Int>>,
     onOpenAgent: (AgentHost) -> Unit,
-    onLaunch: (ResolvedConnection) -> Unit,
+    /** Opens [instance] of a session in a tab; [mustBeNew] for a new parallel one. */
+    onLaunch: (ResolvedConnection, instance: Int, mustBeNew: Boolean) -> Unit,
     onEdit: (sessionId: String) -> Unit,
     onOpenConfig: () -> Unit,
     onBack: (() -> Unit)?,
@@ -65,7 +84,7 @@ internal fun Launcher(
     val config by controller.state.collectAsState()
     val watch by agents.watch.state.collectAsState()
     val now = rememberAppNow()
-    var expandedId by remember { mutableStateOf<String?>(null) }
+    var unfolded by remember { mutableStateOf<Unfolded?>(null) }
     var confirming by remember { mutableStateOf<LauncherConfirm?>(null) }
     val hosts = config.agentHosts()
     Column(Modifier.fillMaxSize()) {
@@ -133,18 +152,33 @@ internal fun Launcher(
                 // A mouse pad keeps nothing alive in the agent's daemon.
                 val isAgent = resolved != null && !mousepad && session.resilienceLevel == ResilienceLevel.AGENT
                 val obs = resolved?.let { watch.observations[AgentKey.of(it.endpoint).id] }
-                val live = obs?.let { AgentInsights.sessionOf(it, session.id) }
-                val note = if (obs == null || live == null || session.id in openSessionIds) {
+                // Every instance alive on the destination (ADR-0020), and those
+                // of them without a tab here.
+                val live = obs?.let { AgentInsights.instancesOf(it, session.id) }.orEmpty()
+                val inTabs = openInstances[session.id].orEmpty()
+                val background = live.filterKeys { it !in inTabs }.values
+                val note = if (obs == null || background.isEmpty()) {
                     null
-                } else if (AgentInsights.isAbandoned(obs, live, now)) {
-                    val idle = AgentInsights.detachedForMs(obs, live, now) ?: 0
+                } else if (background.any { AgentInsights.isAbandoned(obs, it, now) }) {
+                    val idle = background.maxOf { AgentInsights.detachedForMs(obs, it, now) ?: 0 }
                     "sin conectar desde hace ${AgentInsights.formatDuration(idle)}" to TitanColors.Warning
                 } else {
-                    "viva en el destino · vista hace ${AgentInsights.formatDuration(now - obs.observedAtMs)}" to TitanColors.Mute
+                    val what = if (background.size > 1) "${background.size} vivas en el destino" else "viva en el destino"
+                    "$what · vista hace ${AgentInsights.formatDuration(now - obs.observedAtMs)}" to TitanColors.Mute
                 }
-                val expanded = expandedId == session.id
+                val launch = { r: ResolvedConnection ->
+                    when (val plan = SessionInstances.plan(session, inTabs, live.keys)) {
+                        is LaunchPlan.Open -> onLaunch(r, plan.instance, plan.mustBeNew)
+                        is LaunchPlan.Ask -> {
+                            val choice = Unfolded.Choice(session.id, plan)
+                            unfolded = if (unfolded == choice) null else choice
+                            confirming = null
+                        }
+                    }
+                }
+                val expanded = unfolded?.sessionId == session.id
                 val toggle = {
-                    expandedId = if (expanded) null else session.id
+                    unfolded = if (unfolded is Unfolded.Actions && expanded) null else Unfolded.Actions(session.id)
                     confirming = null
                 }
                 ListRow(
@@ -155,7 +189,7 @@ internal fun Launcher(
                     noteColor = note?.second ?: TitanColors.Mute,
                     // An unresolved session cannot connect, but its actions stay
                     // reachable so it can be fixed or removed from here.
-                    onClick = resolved?.let { { onLaunch(it) } },
+                    onClick = resolved?.let { { launch(it) } },
                     onLongClick = toggle,
                     onMarkerClick = toggle,
                     markerColor = when {
@@ -164,26 +198,34 @@ internal fun Launcher(
                         else -> TitanColors.Body
                     },
                     trailing = resolved?.let {
-                        { TitanButton("[>] Lanzar", onClick = { onLaunch(it) }, kind = ButtonKind.SECONDARY) }
+                        { TitanButton("[>] Lanzar", onClick = { launch(it) }, kind = ButtonKind.SECONDARY) }
                     },
                     expanded = expanded,
-                    expandedContent = {
+                    expandedContent = expandedContent@{
+                        val choice = unfolded as? Unfolded.Choice
+                        if (choice != null && resolved != null) {
+                            ReopenChoice(session.name, choice.plan) { instance, mustBeNew ->
+                                unfolded = null
+                                onLaunch(resolved, instance, mustBeNew)
+                            }
+                            return@expandedContent
+                        }
                         EntryActions(
                             onEdit = { onEdit(session.id) },
                             onDuplicate = {
                                 controller.duplicateSession(session.id)
-                                expandedId = null
+                                unfolded = null
                             },
                             confirmingDelete = confirming == LauncherConfirm.DELETE,
                             onConfirmingDelete = { confirming = if (it) LauncherConfirm.DELETE else null },
                             onDelete = {
                                 agents.delete(session)
-                                expandedId = null
+                                unfolded = null
                                 confirming = null
                             },
                             deleteQuestion = "¿Eliminar la sesión?",
-                            deleteSubtitle = if (live != null) "Sigue viva en el destino" else null,
-                            deleteConfirmLabel = if (live != null) "[x] Eliminar y terminarla" else "[x] Sí",
+                            deleteSubtitle = if (live.isNotEmpty()) "Sigue viva en el destino" else null,
+                            deleteConfirmLabel = if (live.isNotEmpty()) "[x] Eliminar y terminarla" else "[x] Sí",
                         ) {
                             if (isAgent && resolved != null) {
                                 ListRow(
@@ -192,17 +234,17 @@ internal fun Launcher(
                                     onClick = { onOpenAgent(agents.hostOf(resolved)) },
                                 )
                             }
-                            if (live != null) {
+                            if (live.isNotEmpty()) {
                                 if (confirming == LauncherConfirm.TERMINATE) {
                                     ConfirmRow(
                                         question = "¿Terminar en el destino?",
-                                        subtitle = "Se cierra lo que tenga en marcha",
+                                        subtitle = if (live.size > 1) "Se cierra lo que tengan en marcha sus ${live.size} sesiones" else "Se cierra lo que tenga en marcha",
                                         confirmLabel = "[x] Sí",
                                         marker = "[x]",
                                         markerColor = TitanColors.Danger,
                                         onConfirm = {
                                             agents.terminate(session)
-                                            expandedId = null
+                                            unfolded = null
                                             confirming = null
                                         },
                                         onCancel = { confirming = null },
@@ -222,6 +264,38 @@ internal fun Launcher(
             }
         }
     }
+}
+
+/**
+ * Where to open a session that already has instances (ADR-0020): re-attach to
+ * one of them, or a new parallel one. Rows like the session's actions.
+ */
+@Composable
+private fun ReopenChoice(name: String, plan: LaunchPlan.Ask, onPick: (instance: Int, mustBeNew: Boolean) -> Unit) {
+    Caption("Ya está abierta. Elige dónde entrar.", modifier = Modifier.padding(vertical = TitanDimens.SpaceXs))
+    plan.options.forEach { option ->
+        ListRow(
+            marker = "[>]",
+            title = if (option.instance == SessionInstances.PRINCIPAL) {
+                "Reengancharse a la principal"
+            } else {
+                "Reengancharse a ${SessionInstances.label(name, option.instance)}"
+            },
+            subtitle = when {
+                option.openInTab -> "abierta en una pestaña"
+                option.live -> "viva en el destino, sin pestaña"
+                else -> "sin pestaña abierta"
+            },
+            onClick = { onPick(option.instance, false) },
+        )
+    }
+    ListRow(
+        marker = "[+]",
+        title = "Nueva sesión paralela",
+        subtitle = "una terminal nueva: ${SessionInstances.label(name, plan.nextParallel)}",
+        markerColor = TitanColors.Accent,
+        onClick = { onPick(plan.nextParallel, true) },
+    )
 }
 
 /** The warning strip for an agent over [AgentInsights.MEMORY_WARNING_BYTES]. */

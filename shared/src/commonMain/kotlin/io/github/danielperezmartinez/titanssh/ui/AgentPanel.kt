@@ -39,7 +39,7 @@ import io.github.danielperezmartinez.titanssh.terminal.AgentObservation
 import io.github.danielperezmartinez.titanssh.terminal.AgentPreview
 import io.github.danielperezmartinez.titanssh.terminal.AgentSessionReport
 import io.github.danielperezmartinez.titanssh.terminal.AgentStatusReport
-import io.github.danielperezmartinez.titanssh.terminal.AgentTransport
+import io.github.danielperezmartinez.titanssh.terminal.SessionInstances
 import io.github.danielperezmartinez.titanssh.theme.TitanColors
 import io.github.danielperezmartinez.titanssh.theme.TitanDimens
 import kotlinx.coroutines.delay
@@ -89,7 +89,8 @@ fun AgentPanel(
     controller: ConfigController,
     host: AgentHost,
     onBack: () -> Unit,
-    onOpenSession: (ResolvedConnection) -> Unit,
+    /** Opens an instance (ADR-0020) of a saved session in a tab. */
+    onOpenSession: (ResolvedConnection, instance: Int) -> Unit,
 ) {
     val config by controller.state.collectAsState()
     val watch by agents.watch.state.collectAsState()
@@ -167,7 +168,10 @@ fun AgentPanel(
             // daemon drops it, but cannot be opened or terminated.
             val listed = shown.filter { !it.closed }
             items(shown, key = { it.id }) { s ->
-                val saved = config.sessions.firstOrNull { AgentTransport.sanitizeId(it.id) == s.id }
+                // Its saved session and which instance of it (ADR-0020).
+                val (saved, instance) = config.sessions.firstNotNullOfOrNull { saved ->
+                    SessionInstances.instanceOf(saved.id, s.id)?.let { saved to it }
+                } ?: (null to SessionInstances.PRINCIPAL)
                 val resolved = saved?.let { runCatching { config.resolve(it) }.getOrNull() }
                 val expanded = expandedId == s.id
                 val toggle = {
@@ -178,7 +182,7 @@ fun AgentPanel(
                 ListRow(
                     marker = marker,
                     markerColor = if (expanded) TitanColors.Accent else color,
-                    title = saved?.name ?: "(sesión borrada)",
+                    title = saved?.let { SessionInstances.label(it.name, instance) } ?: "(sesión borrada)",
                     subtitle = sessionLine(obs, s, now, orphan = saved == null, pending = s.id in pending),
                     onClick = toggle,
                     onLongClick = toggle,
@@ -188,7 +192,7 @@ fun AgentPanel(
                         if (obs != null) SessionDetails(obs, s, previews[s.id], now, orphan = saved == null)
                         if (s.closed) return@ListRow
                         if (resolved != null) {
-                            ListRow(marker = "[>]", title = "Abrir", onClick = { onOpenSession(resolved) })
+                            ListRow(marker = "[>]", title = "Abrir", onClick = { onOpenSession(resolved, instance) })
                         }
                         if (confirming == PanelConfirm.Terminate(s.id)) {
                             ConfirmRow(
@@ -198,7 +202,7 @@ fun AgentPanel(
                                 marker = "[x]",
                                 markerColor = TitanColors.Danger,
                                 onConfirm = {
-                                    if (saved != null) agents.terminate(saved) else agents.closeAgentSession(host, s.id)
+                                    if (saved != null) agents.terminate(saved, instance) else agents.closeAgentSession(host, s.id)
                                     expandedId = null
                                     confirming = null
                                 },

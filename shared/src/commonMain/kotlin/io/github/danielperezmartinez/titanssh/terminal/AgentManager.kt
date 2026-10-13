@@ -64,17 +64,27 @@ class AgentManager(
     }
 
     /**
-     * Ends saved session [session] on its destination: closes its tabs first,
-     * so none reconnects and starts it again, then closes its agent session.
+     * Ends saved session [session] on its destination, every instance of it
+     * (ADR-0020) that the app knows: closes their tabs first, so none
+     * reconnects and starts it again, then closes their agent sessions.
      */
     fun terminate(session: Session) {
         val resolved = runCatching { config.state.value.resolve(session) }.getOrNull() ?: return
-        sessions.closeTabsOf(session.id)
         val host = hostOf(resolved)
+        val instances = sessions.openInstances.value[session.id].orEmpty() +
+            liveInstances(session, resolved).keys + SessionInstances.PRINCIPAL
+        sessions.closeTabsOf(session.id)
         launchOn(host) {
-            watch.addPendingClose(host.key, AgentTransport.sanitizeId(session.id))
+            instances.forEach { watch.addPendingClose(host.key, SessionInstances.agentId(session.id, it)) }
             access.refresh(host)
         }
+    }
+
+    /** Ends one [instance] of saved session [session] on its destination, closing its tabs first. */
+    fun terminate(session: Session, instance: Int) {
+        val resolved = runCatching { config.state.value.resolve(session) }.getOrNull() ?: return
+        sessions.closeTabsOf(session.id, instance)
+        closeAgentSession(hostOf(resolved), SessionInstances.agentId(session.id, instance))
     }
 
     /**
@@ -93,8 +103,13 @@ class AgentManager(
      */
     fun isLive(session: Session): Boolean {
         val resolved = runCatching { config.state.value.resolve(session) }.getOrNull() ?: return false
-        val obs = watch.state.value.observations[AgentKey.of(resolved.endpoint).id] ?: return false
-        return AgentInsights.sessionOf(obs, session.id) != null
+        return liveInstances(session, resolved).isNotEmpty()
+    }
+
+    /** The instances of [session] its agent last reported alive (ADR-0020), by instance. */
+    private fun liveInstances(session: Session, resolved: ResolvedConnection): Map<Int, AgentSessionReport> {
+        val obs = watch.state.value.observations[AgentKey.of(resolved.endpoint).id] ?: return emptyMap()
+        return AgentInsights.instancesOf(obs, session.id)
     }
 
     /** Closes one agent session listed in [host]'s panel (e.g. an orphan). */

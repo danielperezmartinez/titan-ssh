@@ -219,8 +219,14 @@ class SessionTab(
     private val agentObserver: AgentObserver? = null,
     /** Clock for the reconnect time budget; tests pass their virtual one. */
     private val timeSource: TimeSource = TimeSource.Monotonic,
+    /**
+     * Which of the saved session's instances on the destination this tab shows
+     * (ADR-0020): its id names the agent session and the tmux/screen session.
+     */
+    val instance: TabInstance = TabInstance(resolved.session.id),
 ) {
-    val title: String get() = resolved.session.name
+    /** The saved session's name, with the instance number for a parallel one. */
+    val title: String get() = SessionInstances.label(resolved.session.name, instance.number.value)
 
     /** Whether this tab is a mouse pad rather than a terminal (ADR-0016). */
     val isMousepad: Boolean get() = resolved.session.type == SessionType.MOUSEPAD
@@ -539,7 +545,7 @@ class SessionTab(
             // runs concurrently with painting so it can wait on prompts/sentinels.
             val tee = newTee()
             outputTee = tee
-            val io = ShellIo(newShell, tee.asSharedFlow(), ::onMultiplexer) { detectShell(opened) }
+            val io = ShellIo(newShell, tee.asSharedFlow(), ::onMultiplexer, instance) { detectShell(opened) }
             liveIo = io
             launchAutomation {
                 if (reconnecting) automation.onReconnected(io, resolved)
@@ -607,37 +613,47 @@ class SessionTab(
         outputTee = tee
         val io = ShellIo({ bytes -> agent?.sendInput(bytes) }, tee.asSharedFlow()) { detectShell(opened) }
         liveIo = io
-        val transport = AgentTransport(
-            session = opened,
-            agentSessionId = resolved.session.id,
-            agent = agentLaunch,
-            onOutput = { bytes ->
-                feedBytes(bytes)
-                tee.tryEmit(bytes.decodeToString())
-            },
-            initialColumns = desiredColumns,
-            initialRows = desiredRows,
-            startOffset = agentOffset,
-            // Start scripts run only on a fresh PTY: a re-attach replays the
-            // live session as it was.
-            onAttached = { fresh ->
-                _resilience.value = _resilience.value.copy(level = EffectiveLevel.AGENT)
-                if (fresh) {
-                    launchAutomation {
-                        automation.onAgentSessionCreated(io, resolved, afterDrop = reconnecting)
+        var transport: AgentTransport
+        while (true) {
+            transport = AgentTransport(
+                session = opened,
+                agentSessionId = instance.id,
+                agent = agentLaunch,
+                onOutput = { bytes ->
+                    feedBytes(bytes)
+                    tee.tryEmit(bytes.decodeToString())
+                },
+                initialColumns = desiredColumns,
+                initialRows = desiredRows,
+                startOffset = agentOffset,
+                // Start scripts run only on a fresh PTY: a re-attach replays the
+                // live session as it was.
+                onAttached = { fresh ->
+                    instance.claimed()
+                    _resilience.value = _resilience.value.copy(level = EffectiveLevel.AGENT)
+                    if (fresh) {
+                        launchAutomation {
+                            automation.onAgentSessionCreated(io, resolved, afterDrop = reconnecting)
+                        }
+                    } else {
+                        // The replay can hold the lines of an earlier run's
+                        // automation; whether they can be erased depends on the shell.
+                        scope.launch { runCatching { detectShell(opened) } }
                     }
-                } else {
-                    // The replay can hold the lines of an earlier run's
-                    // automation; whether they can be erased depends on the shell.
-                    scope.launch { runCatching { detectShell(opened) } }
-                }
-                agentObserver?.let { observer ->
-                    scope.launch { observer.onAgentReady(AgentKey.of(resolved.endpoint), AgentControl(opened, agentLaunch)) }
-                }
-            },
-        )
-        agent = transport
-        transport.run()
+                    agentObserver?.let { observer ->
+                        scope.launch { observer.onAgentReady(AgentKey.of(resolved.endpoint), AgentControl(opened, agentLaunch)) }
+                    }
+                },
+                requireFresh = instance.mustBeNew,
+            )
+            agent = transport
+            transport.run()
+            if (!transport.occupied) break
+            // A new parallel instance whose number was already alive (opened
+            // from another device since the app last looked): take the next.
+            agent = null
+            instance.skipTaken()
+        }
         agentOffset = transport.appliedOffset
         transport.unavailable?.let { issue ->
             agent = null

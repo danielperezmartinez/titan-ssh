@@ -178,8 +178,8 @@ fun AppShell() {
                                 controller = controller,
                                 host = host,
                                 onBack = { screen = agentReturn },
-                                onOpenSession = { resolved ->
-                                    sessionManager.open(resolved)
+                                onOpenSession = { resolved, instance ->
+                                    sessionManager.open(resolved, instance)
                                     backToLauncher = false
                                     screen = Screen.SESSIONS
                                 },

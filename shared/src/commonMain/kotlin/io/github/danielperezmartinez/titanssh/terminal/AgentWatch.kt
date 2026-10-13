@@ -176,11 +176,16 @@ object AgentInsights {
     fun agentNow(obs: AgentObservation, appNowMs: Long): Long =
         obs.report.nowMs + (appNowMs - obs.observedAtMs).coerceAtLeast(0)
 
-    /** The live agent session of saved session [savedSessionId], if the observation lists one. */
-    fun sessionOf(obs: AgentObservation, savedSessionId: String): AgentSessionReport? {
-        val id = AgentTransport.sanitizeId(savedSessionId)
-        return obs.report.sessions.firstOrNull { it.id == id && !it.closed }
-    }
+    /** The live agent session of saved session [savedSessionId]'s principal instance, if the observation lists one. */
+    fun sessionOf(obs: AgentObservation, savedSessionId: String): AgentSessionReport? =
+        instancesOf(obs, savedSessionId)[SessionInstances.PRINCIPAL]
+
+    /** The live agent sessions of every instance of saved session [savedSessionId] (ADR-0020), by instance. */
+    fun instancesOf(obs: AgentObservation, savedSessionId: String): Map<Int, AgentSessionReport> =
+        obs.report.sessions
+            .filter { !it.closed }
+            .mapNotNull { s -> SessionInstances.instanceOf(savedSessionId, s.id)?.let { it to s } }
+            .toMap()
 
     /** How long [session] has had no client, or null while one is attached. */
     fun detachedForMs(obs: AgentObservation, session: AgentSessionReport, appNowMs: Long): Long? =

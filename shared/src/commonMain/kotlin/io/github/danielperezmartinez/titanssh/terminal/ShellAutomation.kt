@@ -20,6 +20,11 @@ class ShellIo internal constructor(
     val output: Flow<String>,
     /** Told which multiplexer the automation found, so the tab can show its effective level. */
     private val onMultiplexer: (TerminalMultiplexer.Kind) -> Unit = {},
+    /**
+     * The tab's instance of the saved session (ADR-0020), which names its
+     * tmux/screen session; null outside a tab (the saved session's own id).
+     */
+    internal val instance: TabInstance? = null,
     /** Finds out which shell reads [send]'s input; asked at most once. */
     private val detectShell: suspend () -> RemoteShell = { RemoteShell.POSIX },
 ) {
@@ -27,8 +32,9 @@ class ShellIo internal constructor(
         shell: SshShell,
         output: Flow<String>,
         onMultiplexer: (TerminalMultiplexer.Kind) -> Unit = {},
+        instance: TabInstance? = null,
         detectShell: suspend () -> RemoteShell = { RemoteShell.POSIX },
-    ) : this({ bytes -> shell.send(bytes) }, output, onMultiplexer, detectShell)
+    ) : this({ bytes -> shell.send(bytes) }, output, onMultiplexer, instance, detectShell)
 
     private var shell: RemoteShell? = null
 

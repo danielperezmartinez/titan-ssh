@@ -49,7 +49,9 @@ class TerminalMultiplexer(
     /** True if a multiplexer session named [name] already exists on the remote. */
     suspend fun sessionExists(kind: Kind, name: String): Boolean {
         val check = when (kind) {
-            Kind.TMUX -> "tmux has-session -t ${singleQuote(name)} >/dev/null 2>&1 && echo yes || echo no"
+            // "=" asks for the exact name: a bare target also matches a prefix,
+            // so the principal would find its parallel `<name>-p2` (ADR-0020).
+            Kind.TMUX -> "tmux has-session -t ${singleQuote("=$name")} >/dev/null 2>&1 && echo yes || echo no"
             // A screen session shows as "<pid>.<name>" in `screen -ls`.
             Kind.SCREEN -> "screen -ls 2>/dev/null | grep -q ${singleQuote("." + name + "\t")} && echo yes || echo no"
             Kind.NONE -> return false
