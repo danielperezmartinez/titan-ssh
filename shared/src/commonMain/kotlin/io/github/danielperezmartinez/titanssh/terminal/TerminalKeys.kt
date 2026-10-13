@@ -12,6 +12,11 @@ object TerminalKeys {
         ENTER, BACKSPACE, TAB, ESCAPE, DELETE,
         UP, DOWN, RIGHT, LEFT,
         HOME, END, PAGE_UP, PAGE_DOWN,
+        INSERT,
+
+        /** Shift+Tab, which terminals send as its own sequence. */
+        BACK_TAB,
+        F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
     }
 
     /** Encodes printable [text] typed by the user as UTF-8 bytes. */
@@ -32,6 +37,60 @@ object TerminalKeys {
         SpecialKey.END -> csi("F")
         SpecialKey.PAGE_UP -> csi("5~")
         SpecialKey.PAGE_DOWN -> csi("6~")
+        SpecialKey.INSERT -> csi("2~")
+        SpecialKey.BACK_TAB -> csi("Z")
+        SpecialKey.F1 -> ss3("P")
+        SpecialKey.F2 -> ss3("Q")
+        SpecialKey.F3 -> ss3("R")
+        SpecialKey.F4 -> ss3("S")
+        SpecialKey.F5 -> csi("15~")
+        SpecialKey.F6 -> csi("17~")
+        SpecialKey.F7 -> csi("18~")
+        SpecialKey.F8 -> csi("19~")
+        SpecialKey.F9 -> csi("20~")
+        SpecialKey.F10 -> csi("21~")
+        SpecialKey.F11 -> csi("23~")
+        SpecialKey.F12 -> csi("24~")
+    }
+
+    /**
+     * [key] pressed with [modifiers] (InputKeys `MOD_*` bits), as xterm sends
+     * it: the cursor, editing and function keys carry the modifiers as a
+     * parameter (`Ctrl+Left` = `ESC [ 1 ; 5 D`), Shift+Tab is [SpecialKey.BACK_TAB],
+     * and the rest only take Alt, as an ESC prefix. Win/Super has no encoding
+     * and is ignored.
+     */
+    fun special(key: SpecialKey, modifiers: Int): ByteArray {
+        val shift = modifiers and InputKeys.MOD_SHIFT != 0
+        val alt = modifiers and InputKeys.MOD_ALT != 0
+        val ctrl = modifiers and InputKeys.MOD_CTRL != 0
+        if (key == SpecialKey.TAB && shift) return special(SpecialKey.BACK_TAB, modifiers and InputKeys.MOD_SHIFT.inv())
+        val plain = special(key)
+        val param = 1 + (if (shift) 1 else 0) + (if (alt) 2 else 0) + (if (ctrl) 4 else 0)
+        if (param == 1) return plain
+        val body = plain.decodeToString()
+        return when {
+            // ESC [ x and ESC O x (the arrows, Home, End, F1-F4): ESC [ 1 ; m x.
+            body.length == 3 && body[0] == '\u001B' && body[1] in "[O" && body[2] != 'Z' -> csi("1;$param${body[2]}")
+            // ESC [ n ~: ESC [ n ; m ~.
+            body.length > 3 && body.startsWith("\u001B[") && body.endsWith("~") ->
+                csi("${body.substring(2, body.length - 1)};$param~")
+            alt -> byteArrayOf(0x1B) + plain
+            else -> plain
+        }
+    }
+
+    /**
+     * [text] typed with the sticky [modifiers] (InputKeys `MOD_*` bits): Shift
+     * upper-cases it, Ctrl turns its first character into a control code when
+     * it has one (the rest is dropped, as a key press is one character), and
+     * Alt prefixes ESC. Win/Super has no encoding and is ignored.
+     */
+    fun typed(text: String, modifiers: Int): ByteArray {
+        val shifted = if (modifiers and InputKeys.MOD_SHIFT != 0) text.uppercase() else text
+        val control = if (modifiers and InputKeys.MOD_CTRL != 0) shifted.firstOrNull()?.let(::ctrl) else null
+        val body = control ?: text(shifted)
+        return if (modifiers and InputKeys.MOD_ALT != 0) byteArrayOf(0x1B) + body else body
     }
 
     /**
@@ -91,46 +150,6 @@ object TerminalKeys {
     }
 
     private fun csi(tail: String): ByteArray = ("[" + tail).encodeToByteArray()
+
+    private fun ss3(tail: String): ByteArray = ("O" + tail).encodeToByteArray()
 }
-
-/**
- * One button on the Android accessory key bar (the soft keyboard lacks Esc, Tab,
- * Ctrl, Alt, arrows and shell symbols). A [Modifier] key is sticky (applied to
- * the next key press); the rest send their [bytes] immediately.
- */
-sealed interface AccessoryKey {
-    val label: String
-
-    /** A sticky modifier toggled on/off, applied to the next key. */
-    data class Modifier(override val label: String, val kind: ModifierKind) : AccessoryKey
-
-    /** A key that emits a fixed byte sequence when pressed. */
-    data class Send(override val label: String, val bytes: ByteArray) : AccessoryKey {
-        override fun equals(other: Any?): Boolean =
-            other is Send && other.label == label && other.bytes.contentEquals(bytes)
-
-        override fun hashCode(): Int = 31 * label.hashCode() + bytes.contentHashCode()
-    }
-}
-
-/** The two sticky modifiers the accessory bar offers. */
-enum class ModifierKind { CTRL, ALT }
-
-/**
- * The default Android accessory bar layout: the keys the task calls out (Esc,
- * Tab, Ctrl, Alt, the four arrows) plus the shell symbols `| / - ~`.
- */
-val DefaultAccessoryKeys: List<AccessoryKey> = listOf(
-    AccessoryKey.Send("Esc", TerminalKeys.special(TerminalKeys.SpecialKey.ESCAPE)),
-    AccessoryKey.Send("Tab", TerminalKeys.special(TerminalKeys.SpecialKey.TAB)),
-    AccessoryKey.Modifier("Ctrl", ModifierKind.CTRL),
-    AccessoryKey.Modifier("Alt", ModifierKind.ALT),
-    AccessoryKey.Send("<", TerminalKeys.special(TerminalKeys.SpecialKey.LEFT)),
-    AccessoryKey.Send("v", TerminalKeys.special(TerminalKeys.SpecialKey.DOWN)),
-    AccessoryKey.Send("^", TerminalKeys.special(TerminalKeys.SpecialKey.UP)),
-    AccessoryKey.Send(">", TerminalKeys.special(TerminalKeys.SpecialKey.RIGHT)),
-    AccessoryKey.Send("|", TerminalKeys.text("|")),
-    AccessoryKey.Send("/", TerminalKeys.text("/")),
-    AccessoryKey.Send("-", TerminalKeys.text("-")),
-    AccessoryKey.Send("~", TerminalKeys.text("~")),
-)

@@ -52,12 +52,43 @@ class TerminalKeysTest {
     }
 
     @Test
-    fun default_accessory_bar_covers_required_keys() {
-        val labels = DefaultAccessoryKeys.map { it.label }
-        assertTrue(labels.containsAll(listOf("Esc", "Tab", "Ctrl", "Alt", "|", "/", "-", "~")))
-        // The four arrows are present as send keys.
-        val arrows = DefaultAccessoryKeys.filterIsInstance<AccessoryKey.Send>()
-            .filter { it.label in setOf("<", ">", "^", "v") }
-        assertTrue(arrows.size == 4)
+    fun new_special_keys_map_to_xterm_sequences() {
+        assertContentEquals("\u001B[2~".encodeToByteArray(), TerminalKeys.special(TerminalKeys.SpecialKey.INSERT))
+        assertContentEquals("\u001B[Z".encodeToByteArray(), TerminalKeys.special(TerminalKeys.SpecialKey.BACK_TAB))
+        assertContentEquals("\u001BOP".encodeToByteArray(), TerminalKeys.special(TerminalKeys.SpecialKey.F1))
+        assertContentEquals("\u001BOS".encodeToByteArray(), TerminalKeys.special(TerminalKeys.SpecialKey.F4))
+        assertContentEquals("\u001B[15~".encodeToByteArray(), TerminalKeys.special(TerminalKeys.SpecialKey.F5))
+        assertContentEquals("\u001B[24~".encodeToByteArray(), TerminalKeys.special(TerminalKeys.SpecialKey.F12))
+    }
+
+    @Test
+    fun modifiers_on_special_keys_follow_xterm() {
+        val ctrl = InputKeys.MOD_CTRL
+        val shift = InputKeys.MOD_SHIFT
+        val alt = InputKeys.MOD_ALT
+        assertContentEquals(TerminalKeys.special(TerminalKeys.SpecialKey.LEFT), TerminalKeys.special(TerminalKeys.SpecialKey.LEFT, 0))
+        assertContentEquals("\u001B[1;5D".encodeToByteArray(), TerminalKeys.special(TerminalKeys.SpecialKey.LEFT, ctrl))
+        assertContentEquals("\u001B[1;2A".encodeToByteArray(), TerminalKeys.special(TerminalKeys.SpecialKey.UP, shift))
+        assertContentEquals("\u001B[1;7H".encodeToByteArray(), TerminalKeys.special(TerminalKeys.SpecialKey.HOME, ctrl or alt))
+        assertContentEquals("\u001B[1;5P".encodeToByteArray(), TerminalKeys.special(TerminalKeys.SpecialKey.F1, ctrl))
+        assertContentEquals("\u001B[3;5~".encodeToByteArray(), TerminalKeys.special(TerminalKeys.SpecialKey.DELETE, ctrl))
+        assertContentEquals("\u001B[15;2~".encodeToByteArray(), TerminalKeys.special(TerminalKeys.SpecialKey.F5, shift))
+        // Shift+Tab is its own key; Alt prefixes ESC where there is no parameter.
+        assertContentEquals("\u001B[Z".encodeToByteArray(), TerminalKeys.special(TerminalKeys.SpecialKey.TAB, shift))
+        assertContentEquals(byteArrayOf(0x1B, 0x7F), TerminalKeys.special(TerminalKeys.SpecialKey.BACKSPACE, alt))
+        assertContentEquals(byteArrayOf(0x09), TerminalKeys.special(TerminalKeys.SpecialKey.TAB, ctrl))
+        // Win/Super has no encoding.
+        assertContentEquals("\u001B[D".encodeToByteArray(), TerminalKeys.special(TerminalKeys.SpecialKey.LEFT, InputKeys.MOD_META))
+    }
+
+    @Test
+    fun typed_text_takes_the_sticky_modifiers() {
+        assertContentEquals("ls".encodeToByteArray(), TerminalKeys.typed("ls", 0))
+        assertContentEquals("A".encodeToByteArray(), TerminalKeys.typed("a", InputKeys.MOD_SHIFT))
+        assertContentEquals(byteArrayOf(0x03), TerminalKeys.typed("c", InputKeys.MOD_CTRL))
+        assertContentEquals(byteArrayOf(0x1B, 'x'.code.toByte()), TerminalKeys.typed("x", InputKeys.MOD_ALT))
+        assertContentEquals(byteArrayOf(0x1B, 0x18), TerminalKeys.typed("x", InputKeys.MOD_CTRL or InputKeys.MOD_ALT))
+        // No control code for a digit: it goes as typed, as before.
+        assertContentEquals("1".encodeToByteArray(), TerminalKeys.typed("1", InputKeys.MOD_CTRL))
     }
 }

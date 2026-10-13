@@ -109,6 +109,19 @@ object MousepadTyping {
         }
     }
 
+    /**
+     * Pasted [text] as frames: what a paste may carry ([TerminalKeys.pastedText])
+     * as TEXT, and each line break as an Enter key, so several lines arrive as
+     * the keyboard would type them.
+     */
+    fun pasted(text: String): List<AgentFrame> = buildList {
+        val lines = TerminalKeys.pastedText(text).replace("\r\n", "\n").replace('\r', '\n').split('\n')
+        lines.forEachIndexed { i, line ->
+            if (i > 0) add(AgentFrame.Key(InputKeys.ENTER))
+            if (line.isNotEmpty()) textChunks(line).forEach { add(AgentFrame.Text(it)) }
+        }
+    }
+
     /** [text] in pieces of at most [maxBytes] bytes of UTF-8, none splitting a surrogate pair. */
     internal fun textChunks(text: String, maxBytes: Int = AgentProtocol.MAX_INPUT_PAYLOAD): List<String> {
         val chunks = mutableListOf<String>()
