@@ -31,7 +31,7 @@ SSHD que ADR-0004 había hecho para el agente (el cliente sigue en sshj).
 agent/
 ├── go.mod / go.sum
 ├── cmd/titan-agent/
-│   ├── main.go            # modos: front (default) / --daemon / --status / --close-session / --stop
+│   ├── main.go            # modos: front (default) / --daemon / --status / --close-session / --rename-session / --stop
 │   │                      #        / --input / --desktop / --remove-desktop (mouse pad) / --desktop-run
 │   ├── daemon.go          # candado + listen TCP loopback + serve del protocolo por conexión
 │   ├── desktop.go         # mouse pad: ayudante de escritorio, front --input, estado y retirada
@@ -139,6 +139,11 @@ protocolo cliente-agente no cambia.
   del reloj del destino, junto a `nowMs` para compararlas.
 - `--close-session <id>` cierra una sesión; sin daemon no hay nada que cerrar
   y no es un error.
+- `--rename-session <id> --name-base64 <nombre>` da a una sesión el nombre que
+  eligió el usuario (en UTF-8 y base64url sin relleno, para que llegue intacto
+  sea cual sea el shell del destino); sin `--name-base64` se lo quita. El
+  daemon quita los caracteres de control y lo corta a 64 caracteres. `--status`
+  lo devuelve en el campo `name` de la sesión.
 - `--stop` pide una parada ordenada: el daemon cierra todas las sesiones, suelta
   el candado y borra `agent.json`. Con un daemon anterior al canal de control,
   se autentica contra `agent.json` (así el PID que mata es seguro el del

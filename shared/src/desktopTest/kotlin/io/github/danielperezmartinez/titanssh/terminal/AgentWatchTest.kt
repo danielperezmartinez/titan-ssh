@@ -122,6 +122,7 @@ class AgentWatchTest {
     private class FakeAgentSession(
         var status: String,
         val failClose: Boolean = false,
+        val oldAgent: Boolean = false,
     ) : SshSession {
         val commands = mutableListOf<String>()
         override val state = MutableStateFlow(SshConnectionState.CONNECTED)
@@ -133,6 +134,8 @@ class AgentWatchTest {
                 "--status" in command -> Exec(status, "", 0)
                 "--close-session" in command && failClose ->
                     Exec("", "TITAN_AGENT_ERROR E_AUTH the daemon did not accept the token\n", 1)
+                "--rename-session" in command && oldAgent ->
+                    Exec("", "flag provided but not defined: -rename-session\nUsage of titan-agent:\n", 2)
                 else -> Exec("", "", 0)
             }
         }
@@ -172,6 +175,30 @@ class AgentWatchTest {
         assertNull(state.pendingClose[key.id])
         assertEquals(42, state.observations.getValue(key.id).observedAtMs)
         assertEquals(state, store.saved, "every change is persisted")
+    }
+
+    @Test
+    fun renameSendsTheNameSoNoShellReinterpretsIt(): Unit = runBlocking {
+        val session = FakeAgentSession(running())
+        val control = AgentControl(session, launch)
+
+        control.renameSession("titan-s-p2", " logs '\$HOME' · ñ ")
+        // base64url of the trimmed UTF-8 name, unpadded: only [A-Za-z0-9_-] reaches the shell.
+        val expected = kotlin.io.encoding.Base64.UrlSafe.withPadding(kotlin.io.encoding.Base64.PaddingOption.ABSENT)
+            .encode("logs '\$HOME' · ñ".encodeToByteArray())
+        assertTrue(expected.all { it.isLetterOrDigit() || it == '-' || it == '_' }, expected)
+        assertTrue(session.commands.single().endsWith(" --rename-session titan-s-p2 --name-base64 $expected"), session.commands.single())
+
+        // Blank takes the name away: no --name-base64 at all.
+        control.renameSession("titan-s-p2", "  ")
+        assertTrue(session.commands.last().endsWith(" --rename-session titan-s-p2"), session.commands.last())
+    }
+
+    @Test
+    fun renamingOnAnAgentWithoutNamesSaysToUpdateIt(): Unit = runBlocking {
+        val session = FakeAgentSession(running(), oldAgent = true)
+        val e = assertFailsWith<AgentControlException> { AgentControl(session, launch).renameSession("titan-s", "logs") }
+        assertTrue("actualízalo" in e.message.orEmpty(), e.message)
     }
 
     @Test

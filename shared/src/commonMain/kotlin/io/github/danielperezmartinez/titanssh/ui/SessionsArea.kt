@@ -10,6 +10,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -22,6 +23,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,22 +35,31 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.zIndex
 import io.github.danielperezmartinez.titanssh.config.ConfigController
+import io.github.danielperezmartinez.titanssh.config.ResilienceLevel
 import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
 import io.github.danielperezmartinez.titanssh.config.SessionScript
 import io.github.danielperezmartinez.titanssh.config.TitanConfig
 import io.github.danielperezmartinez.titanssh.config.onDemandScripts
 import io.github.danielperezmartinez.titanssh.config.resolve
 import io.github.danielperezmartinez.titanssh.terminal.AgentHost
+import io.github.danielperezmartinez.titanssh.terminal.AgentInsights
+import io.github.danielperezmartinez.titanssh.terminal.AgentKey
 import io.github.danielperezmartinez.titanssh.terminal.AgentManager
 import io.github.danielperezmartinez.titanssh.terminal.KeyBar
 import io.github.danielperezmartinez.titanssh.terminal.KeyBarKey
@@ -58,6 +70,8 @@ import io.github.danielperezmartinez.titanssh.terminal.TabPhase
 import io.github.danielperezmartinez.titanssh.terminal.isAndroidRuntime
 import io.github.danielperezmartinez.titanssh.theme.TitanColors
 import io.github.danielperezmartinez.titanssh.theme.TitanDimens
+import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 /**
  * The "Sesiones" area: a multi-tab terminal. With no tabs open (or when the user
@@ -88,6 +102,9 @@ fun SessionsArea(
     var showLauncher by remember { mutableStateOf(openLauncher) }
     var splitEnabled by remember { mutableStateOf(false) }
     var fullscreen by remember { mutableStateOf(false) }
+    // The tab whose menu is open, and the one being renamed.
+    var menuTabId by remember { mutableStateOf<String?>(null) }
+    var renamingId by remember { mutableStateOf<String?>(null) }
 
     if (tabs.isEmpty() || showLauncher) {
         Launcher(
@@ -107,6 +124,19 @@ fun SessionsArea(
     }
 
     val active = tabs.firstOrNull { it.id == activeId } ?: tabs.first()
+    val scope = rememberCoroutineScope()
+    val watch by agents.watch.state.collectAsState()
+
+    // A new parallel instance of [tab]'s saved session (ADR-0020), numbered
+    // past those open in tabs and those its agent last reported alive.
+    fun openParallel(tab: SessionTab) {
+        val saved = config.sessions.firstOrNull { it.id == tab.resolved.session.id }
+        val resolved = saved?.let { runCatching { config.resolve(it) }.getOrNull() } ?: tab.resolved
+        val live = watch.observations[AgentKey.of(resolved.endpoint).id]
+            ?.let { AgentInsights.instancesOf(it, resolved.session.id).keys }.orEmpty()
+        val next = SessionInstances.nextParallel(openInstances[resolved.session.id].orEmpty() + live)
+        manager.open(resolved, next, mustBeNew = true)
+    }
 
     if (fullscreen && isAndroidRuntime()) {
         val sftp = active.sftp
@@ -138,8 +168,46 @@ fun SessionsArea(
             split = splitEnabled,
             onToggleSplit = if (!isAndroidRuntime()) ({ splitEnabled = !splitEnabled }) else null,
             onFullscreen = if (isAndroidRuntime()) ({ fullscreen = true }) else null,
+            menuTabId = menuTabId,
+            onMenu = { menuTabId = it },
+            onDismissMenu = { menuTabId = null },
+            menu = { tab ->
+                TabMenuItem("[~]", "Renombrar", onClick = {
+                    menuTabId = null
+                    renamingId = tab.id
+                })
+                if (tab.isTerminal && SessionInstances.supportsInstances(tab.resolved.session)) {
+                    TabMenuItem("[+]", "Abrir en paralelo", glyphColor = TitanColors.Accent, onClick = {
+                        menuTabId = null
+                        openParallel(tab)
+                    })
+                }
+                if (tab.isTerminal) {
+                    TabMenuItem("[d]", "Abrir explorador de archivos", onClick = {
+                        menuTabId = null
+                        scope.launch { manager.openExplorer(tab) }
+                    })
+                }
+            },
         )
         Hairline()
+        tabs.firstOrNull { it.id == renamingId }?.let { tab ->
+            RenameStrip(
+                tab = tab,
+                inAgent = tab.isTerminal && tab.resolved.session.resilienceLevel == ResilienceLevel.AGENT,
+                onSave = { name ->
+                    if (tab.isTerminal) {
+                        val saved = config.sessions.firstOrNull { it.id == tab.resolved.session.id } ?: tab.resolved.session
+                        agents.rename(saved, tab.instance.number.value, name)
+                    } else {
+                        tab.rename(name)
+                        null
+                    }
+                },
+                onDone = { renamingId = null },
+            )
+            Hairline()
+        }
 
         val secondary = if (splitEnabled && !isAndroidRuntime()) secondaryTab(tabs, active) else null
         if (secondary != null) {
@@ -200,6 +268,10 @@ private fun TabStrip(
     split: Boolean,
     onToggleSplit: (() -> Unit)?,
     onFullscreen: (() -> Unit)?,
+    menuTabId: String?,
+    onMenu: (String) -> Unit,
+    onDismissMenu: () -> Unit,
+    menu: @Composable ColumnScope.(SessionTab) -> Unit,
 ) {
     // Chip width per tab id (including its trailing gap), captured at layout and
     // stable across live reorders. From these we derive each slot's center by
@@ -271,6 +343,10 @@ private fun TabStrip(
                             dragIndex = -1
                             pointerDx = 0f
                         },
+                        menuOpen = menuTabId == tab.id,
+                        onMenu = { onMenu(tab.id) },
+                        onDismissMenu = onDismissMenu,
+                        menu = { menu(tab) },
                     )
                 }
             }
@@ -285,6 +361,12 @@ private fun TabStrip(
     }
 }
 
+/**
+ * One tab of the strip. A long press opens its [menu]: lifting the finger
+ * leaves it open, while dragging on instead closes it and moves the tab
+ * (decided with the user, [[Renombrar las pestañas y las sesiones activas]]).
+ * On desktop a right click opens it too.
+ */
 @Composable
 private fun TabChip(
     tab: SessionTab,
@@ -299,6 +381,10 @@ private fun TabChip(
     onDragStart: () -> Unit,
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit,
+    menuOpen: Boolean,
+    onMenu: () -> Unit,
+    onDismissMenu: () -> Unit,
+    menu: @Composable ColumnScope.() -> Unit,
 ) {
     val status by tab.status.collectAsState()
     val (marker, markerColor) = statusMarker(status.phase)
@@ -322,53 +408,142 @@ private fun TabChip(
     val currentOnDragStart by rememberUpdatedState(onDragStart)
     val currentOnDrag by rememberUpdatedState(onDrag)
     val currentOnDragEnd by rememberUpdatedState(onDragEnd)
-    Row(
+    val currentOnMenu by rememberUpdatedState(onMenu)
+    val currentOnDismissMenu by rememberUpdatedState(onDismissMenu)
+    val haptics = LocalHapticFeedback.current
+    Box(
         Modifier
             .onGloballyPositioned { onSize(it.size.width) }
             .zIndex(if (dragging) 1f else 0f)
             .graphicsLayer { this.translationX = floatOffset }
-            .padding(end = TitanDimens.SpaceXs)
-            .background(
-                when {
-                    dragging -> TitanColors.SurfaceElevated
-                    selected -> TitanColors.Surface
-                    else -> TitanColors.Canvas
-                },
-            )
-            .border(
-                TitanDimens.Hairline,
-                if (selected || dragging) TitanColors.Accent else TitanColors.HairlineStrong,
-                RoundedCornerShape(TitanDimens.RadiusSm),
-            )
-            .clickable(onClick = onSelect)
-            // Drag-to-reorder starts after a long press, so a quick horizontal
-            // drag still scrolls the strip and a tap still selects the tab.
-            .pointerInput(tab.id) {
-                detectDragGesturesAfterLongPress(
-                    onDragStart = { currentOnDragStart() },
-                    onDragEnd = { currentOnDragEnd() },
-                    onDragCancel = { currentOnDragEnd() },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        currentOnDrag(dragAmount.x)
+            .padding(end = TitanDimens.SpaceXs),
+    ) {
+        Row(
+            Modifier
+                .background(
+                    when {
+                        dragging -> TitanColors.SurfaceElevated
+                        selected || menuOpen -> TitanColors.Surface
+                        else -> TitanColors.Canvas
                     },
                 )
-            }
-            .padding(horizontal = TitanDimens.SpaceSm, vertical = TitanDimens.SpaceXs),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(marker, style = MaterialTheme.typography.labelSmall, color = markerColor)
-        Spacer(Modifier.width(TitanDimens.SpaceXs))
-        // A new parallel tab can still move to another number when it connects.
-        val instance by tab.instance.number.collectAsState()
-        Text(
-            SessionInstances.label(tab.resolved.session.name, instance),
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (selected) TitanColors.Ink else TitanColors.Mute,
+                .border(
+                    TitanDimens.Hairline,
+                    if (selected || dragging || menuOpen) TitanColors.Accent else TitanColors.HairlineStrong,
+                    RoundedCornerShape(TitanDimens.RadiusSm),
+                )
+                // A right click is desktop's long press: taken on the initial
+                // pass so the tab's click never sees it.
+                .pointerInput(tab.id) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            if (event.type == PointerEventType.Press && event.buttons.isSecondaryPressed) {
+                                event.changes.forEach { it.consume() }
+                                currentOnMenu()
+                            }
+                        }
+                    }
+                }
+                .clickable(onClick = onSelect)
+                // The menu opens after a long press, so a quick horizontal drag
+                // still scrolls the strip and a tap still selects the tab. Only
+                // a drag past the touch slop after it moves the tab: a finger
+                // that merely trembles leaves the menu open.
+                .pointerInput(tab.id) {
+                    var moved = 0f
+                    var reordering = false
+                    detectDragGesturesAfterLongPress(
+                        onDragStart = {
+                            moved = 0f
+                            reordering = false
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            currentOnMenu()
+                        },
+                        onDragEnd = { if (reordering) currentOnDragEnd() },
+                        onDragCancel = { if (reordering) currentOnDragEnd() },
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            if (reordering) {
+                                currentOnDrag(dragAmount.x)
+                            } else {
+                                moved += dragAmount.x
+                                if (abs(moved) > viewConfiguration.touchSlop) {
+                                    reordering = true
+                                    currentOnDismissMenu()
+                                    currentOnDragStart()
+                                    currentOnDrag(moved)
+                                }
+                            }
+                        },
+                    )
+                }
+                .padding(horizontal = TitanDimens.SpaceSm, vertical = TitanDimens.SpaceXs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(marker, style = MaterialTheme.typography.labelSmall, color = markerColor)
+            Spacer(Modifier.width(TitanDimens.SpaceXs))
+            // A new parallel tab can still move to another number when it connects.
+            val instance by tab.instance.number.collectAsState()
+            val customName by tab.customName.collectAsState()
+            Text(
+                SessionInstances.label(tab.resolved.session.name, instance, customName),
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (selected) TitanColors.Ink else TitanColors.Mute,
+            )
+            Spacer(Modifier.width(TitanDimens.SpaceXs))
+            MiniGlyph("[x]", onClose, color = TitanColors.Mute)
+        }
+        DropdownMenu(
+            expanded = menuOpen,
+            onDismissRequest = onDismissMenu,
+            containerColor = TitanColors.SurfaceElevated,
+            content = menu,
         )
-        Spacer(Modifier.width(TitanDimens.SpaceXs))
-        MiniGlyph("[x]", onClose, color = TitanColors.Mute)
     }
+}
+
+/** One action of a tab's menu: an ASCII [glyph] and its [label]. */
+@Composable
+private fun TabMenuItem(glyph: String, label: String, onClick: () -> Unit, glyphColor: Color = TitanColors.Body) {
+    DropdownMenuItem(
+        text = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(glyph, style = MaterialTheme.typography.bodyMedium, color = glyphColor)
+                Spacer(Modifier.width(TitanDimens.SpaceSm))
+                Text(label, style = MaterialTheme.typography.bodyMedium, color = TitanColors.Ink)
+            }
+        },
+        onClick = onClick,
+    )
+}
+
+/**
+ * Renames [tab] in place, under the strip. [onSave] applies the name and
+ * returns why it could not be kept, or null; at level 3 ([inAgent]) the
+ * destination's agent keeps it, elsewhere only this tab does. Blank goes back
+ * to the session's own name.
+ */
+@Composable
+private fun RenameStrip(
+    tab: SessionTab,
+    inAgent: Boolean,
+    onSave: suspend (String) -> String?,
+    onDone: () -> Unit,
+) {
+    val instance by tab.instance.number.collectAsState()
+    val current by tab.customName.collectAsState()
+    NameEditor(
+        key = tab.id,
+        initial = current.orEmpty(),
+        placeholder = SessionInstances.label(tab.resolved.session.name, instance),
+        hint = nameHint(inAgent),
+        onSave = onSave,
+        onDone = onDone,
+        modifier = Modifier
+            .background(TitanColors.Surface)
+            .padding(horizontal = TitanDimens.SpaceMd, vertical = TitanDimens.SpaceSm),
+    )
 }
 
 @Composable

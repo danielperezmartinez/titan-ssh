@@ -17,6 +17,7 @@
 //
 // --status reports the daemon and its sessions (--json for the client),
 // --preview prints the end of one session's output (for the client's preview),
+// --rename-session gives one session the name the user chose,
 // --close-session ends one session and --stop ends the daemon in order,
 // closing every session first. Nothing else ever ends them: sessions do not
 // expire (ADR-0014).
@@ -53,6 +54,8 @@ func main() {
 	asJSON := flag.Bool("json", false, "with --status or --preview: print the report as JSON")
 	closeID := flag.String("close-session", "", "close the session with this id, and exit")
 	previewID := flag.String("preview", "", "print the end of this session's output, and exit")
+	renameID := flag.String("rename-session", "", "give the session with this id the name in --name-base64 (none: take its name away), and exit")
+	nameB64 := flag.String("name-base64", "", "with --rename-session: the new name, UTF-8 in unpadded base64url")
 	input := flag.Bool("input", false, "connect a mouse pad session to the user's desktop helper")
 	desktop := flag.Bool("desktop", false, "run the desktop helper that injects mouse pad input")
 	removeDesk := flag.Bool("remove-desktop", false, "stop the desktop helper and delete its scheduled task, and exit")
@@ -74,6 +77,7 @@ func main() {
 	err := run(*stateDir, mode{
 		daemon: *daemon, stop: *stop, status: *status, json: *asJSON,
 		closeID: *closeID, previewID: *previewID,
+		renameID: *renameID, nameBase64: *nameB64,
 		input: *input, desktop: *desktop, removeDesktop: *removeDesk,
 		desktopRun: *desktopRun, cwd: *cwd, args: flag.Args(),
 	}, *bufCap)
@@ -93,6 +97,7 @@ func main() {
 type mode struct {
 	daemon, stop, status, json    bool
 	closeID, previewID            string
+	renameID, nameBase64          string
 	input, desktop, removeDesktop bool
 	desktopRun                    bool
 	cwd                           string
@@ -131,6 +136,15 @@ func run(stateDir string, m mode, bufCap int) error {
 		}
 		if !closed {
 			fmt.Println("titan-agent: no such session; nothing to close")
+		}
+		return nil
+	case m.renameID != "":
+		renamed, err := renameSession(stateDir, m.renameID, m.nameBase64)
+		if err != nil {
+			return err
+		}
+		if !renamed {
+			fmt.Println("titan-agent: no such session; nothing to rename")
 		}
 		return nil
 	case m.previewID != "":

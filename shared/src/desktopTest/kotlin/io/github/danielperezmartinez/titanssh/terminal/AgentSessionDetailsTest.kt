@@ -20,7 +20,7 @@ class AgentSessionDetailsTest {
     private val goSession =
         """{"id":"s2","createdMs":1,"lastUsedMs":2,"clients":0,"bufferBytes":3,"cpuPercent":12,""" +
             """"shell":"/bin/bash","shellPid":40,"foreground":"vim","foregroundPid":41,"cwd":"/tmp",""" +
-            """"cols":80,"rows":24,"lastOutputMs":2,"title":"vim notes"}"""
+            """"cols":80,"rows":24,"lastOutputMs":2,"title":"vim notes","name":"logs"}"""
 
     @Test
     fun parsesTheSessionDetails() {
@@ -35,6 +35,7 @@ class AgentSessionDetailsTest {
         assertEquals(80 to 24, s.cols to s.rows)
         assertEquals(2L, s.lastOutputMs)
         assertEquals("vim notes", s.title)
+        assertEquals("logs", s.name)
     }
 
     @Test

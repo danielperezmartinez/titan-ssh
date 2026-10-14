@@ -8,7 +8,7 @@ Consecuencias: La UI deja de pintar filas/CTAs con colores de estado; el verde/�
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-09-18T14:36:16+02:00
-Última modificación: 2026-09-29T23:00:00+02:00
+Última modificación: 2026-10-14T13:00:00+02:00
 ---
 
 # Vocabulario ASCII ampliado y disciplina de color semántico
@@ -47,6 +47,9 @@ Ampliación (todos ASCII, sin glifos Unicode como `✓`):
   `[+]` (añade una entrada) y eliminar, `[x]` en `danger`.
 - `[@]` — el agente del destino: abre su panel ("Ver el agente del destino").
   Añadido el 2026-09-29; ver [[Estado y control del agente en la interfaz]].
+- `[d]` — carpeta del destino (filas del explorador SFTP, en `accent`) y la
+  acción "Abrir explorador de archivos" del menú de la pestaña (en `body`).
+  Añadido el 2026-10-14; ver [[Menú de la pestaña con pulsación larga]].
 
 Regla: los marcadores son **ASCII imprimible dentro de brackets**; si hace falta
 uno nuevo, se añade aquí antes de usarlo, no ad hoc.

@@ -114,6 +114,27 @@ class TerminalEmulator(
 
     private enum class State { GROUND, ESC, CSI, OSC, OSC_ESC, ESC_INTERMEDIATE }
 
+    // The string of the OSC being read; the other strings (DCS…) are only skipped.
+    private val osc = ArrayList<Byte>()
+    private var oscIsOsc = false
+
+    /**
+     * The shell's directory as it last announced it with OSC 7
+     * (`ESC ] 7 ; file://host/path`), percent-decoded; null until a shell
+     * that sends it does. Most shells do not unless configured to.
+     */
+    var workingDirectory: String? = null
+        private set
+
+    /** An OSC string ended: OSC 7 updates [workingDirectory]; the rest are ignored. */
+    private fun endOsc() {
+        state = State.GROUND
+        if (!oscIsOsc) return
+        val text = osc.toByteArray().decodeToString()
+        osc.clear()
+        if (text.startsWith("7;")) Osc7.path(text.substring(2))?.let { workingDirectory = it }
+    }
+
     /** Feeds a chunk of raw output bytes, updating the grid. */
     fun feed(bytes: ByteArray) {
         val input = if (utf8Carry.isEmpty()) bytes else utf8Carry + bytes
@@ -156,13 +177,14 @@ class TerminalEmulator(
                 State.OSC -> {
                     // OSC string, terminated by BEL or ST (ESC \).
                     when (b) {
-                        0x07 -> state = State.GROUND
+                        0x07 -> endOsc()
                         0x1B -> state = State.OSC_ESC
+                        else -> if (osc.size < MAX_OSC_BYTES) osc.add(b.toByte())
                     }
                     i++
                 }
                 State.OSC_ESC -> {
-                    state = State.GROUND
+                    endOsc()
                     i++
                 }
             }
@@ -206,9 +228,17 @@ class TerminalEmulator(
                 params.clear()
                 csiPrivate = false
             }
-            ']' -> state = State.OSC
+            ']' -> {
+                state = State.OSC
+                osc.clear()
+                oscIsOsc = true
+            }
             // DCS/SOS/PM/APC strings: swallowed like an OSC.
-            'P', 'X', '^', '_' -> state = State.OSC
+            'P', 'X', '^', '_' -> {
+                state = State.OSC
+                osc.clear()
+                oscIsOsc = false
+            }
             '7' -> saveCursor() // DECSC
             '8' -> restoreCursor() // DECRC
             'M' -> reverseIndex() // RI
@@ -977,6 +1007,9 @@ class TerminalEmulator(
 
     private companion object {
         const val TAB = 8
+
+        /** An OSC string longer than this is cut: the ones read here are short. */
+        const val MAX_OSC_BYTES = 4096
 
         fun blankLine(cols: Int): Line = Line(Array(cols) { TerminalCell.Blank })
 

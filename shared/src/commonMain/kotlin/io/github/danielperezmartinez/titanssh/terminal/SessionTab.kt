@@ -30,6 +30,7 @@ import io.github.danielperezmartinez.titanssh.ssh.SshSession
 import io.github.danielperezmartinez.titanssh.ssh.SshShell
 import io.github.danielperezmartinez.titanssh.ssh.toKnownHostEntry
 import io.github.danielperezmartinez.titanssh.ssh.trust
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -40,6 +41,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
@@ -238,16 +240,44 @@ class SessionTab(
     val instance: TabInstance = TabInstance(resolved.session.id),
     /** Where an SFTP tab saves its downloads; only asked for by one. */
     downloadStore: () -> DownloadStore = ::createDownloadStore,
+    /**
+     * For a file browser opened from a terminal tab: that tab, whose SSH
+     * connection it borrows while the tab is open (see "SFTP").
+     */
+    val explorerOf: SessionTab? = null,
+    /** Shown with the file browser's start folder, e.g. that the terminal's directory is unknown ([SftpListing.notice]). */
+    sftpStartNote: String? = null,
 ) {
-    /** The saved session's name, with the instance number for a parallel one. */
-    val title: String get() = SessionInstances.label(resolved.session.name, instance.number.value)
+    private val _customName = MutableStateFlow<String?>(null)
+
+    /**
+     * The name the user gave the instance this tab shows, null for none. At
+     * level 3 it mirrors the agent's (the app keeps it in sync); elsewhere it
+     * lives only in this tab.
+     */
+    val customName: StateFlow<String?> = _customName.asStateFlow()
+
+    /** Sets [customName]; blank takes it away. */
+    fun rename(name: String?) {
+        _customName.value = name?.trim()?.takeIf { it.isNotEmpty() }
+    }
+
+    /** The name the user gave the instance, or the saved session's name with the instance number for a parallel one. */
+    val title: String get() = SessionInstances.label(resolved.session.name, instance.number.value, _customName.value)
 
     /** Whether this tab is a mouse pad rather than a terminal (ADR-0016). */
     val isMousepad: Boolean get() = resolved.session.type == SessionType.MOUSEPAD
 
+    /** Whether this tab is a terminal: not a mouse pad nor a file browser. */
+    val isTerminal: Boolean get() = resolved.session.type == SessionType.TERMINAL
+
     /** The file browser of an SFTP tab (ADR-0021); null for the other types. */
     val sftp: SftpBrowser? =
-        if (resolved.session.type == SessionType.SFTP) SftpBrowser(scope, resolved.session.initialDirectory, downloadStore) else null
+        if (resolved.session.type == SessionType.SFTP) {
+            SftpBrowser(scope, resolved.session.initialDirectory, downloadStore, startNote = sftpStartNote)
+        } else {
+            null
+        }
 
     private val _mousepad = MutableStateFlow(MousepadStatus())
 
@@ -314,6 +344,21 @@ class SessionTab(
     private var desiredRows = rows
 
     private var session: SshSession? = null
+        set(value) {
+            field = value
+            _liveSession.value = value
+        }
+
+    private val _liveSession = MutableStateFlow<SshSession?>(null)
+
+    /** The tab's SSH connection while it has one; a file browser opened from it borrows it. */
+    val liveSession: StateFlow<SshSession?> = _liveSession.asStateFlow()
+
+    private val _closedState = MutableStateFlow(false)
+
+    /** The agent's control commands over this tab's connection, while the agent serves it. */
+    private var agentControl: AgentControl? = null
+
     private var shell: SshShell? = null
     private var connectJob: Job? = null
     private var automationJob: Job? = null
@@ -389,6 +434,9 @@ class SessionTab(
          * trusted the key: connect again at once, the key is now known.
          */
         TRUSTED_LATE,
+
+        /** The terminal tab a file browser borrowed from was closed: connect on its own at once. */
+        SOURCE_CLOSED,
     }
 
     /** Starts the connection. Idempotent: a second call is a no-op. */
@@ -460,7 +508,7 @@ class SessionTab(
                     attempt = 0
                     downSince = null
                 }
-                AttemptResult.TRUSTED_LATE -> now = true
+                AttemptResult.TRUSTED_LATE, AttemptResult.SOURCE_CLOSED -> now = true
                 AttemptResult.ESTABLISH_FAILED -> {
                     if (!everConnected) {
                         _status.value = TabStatus(TabPhase.FAILED, lastFailure ?: "Fallo de conexión", lastFailureCause)
@@ -492,6 +540,9 @@ class SessionTab(
      * shell output into the emulator until it ends, then classify why it ended.
      */
     private suspend fun connectOnce(reconnecting: Boolean): AttemptResult {
+        val source = explorerOf
+        val browser = sftp
+        if (source != null && browser != null && !source._closedState.value) return borrowOnce(source, browser)
         // First contact asks the user inside the SSH handshake, and the prompt can
         // outlive it: sshj's key exchange (or the server's login grace time) runs
         // out meanwhile and sshj interrupts the verifier. So the answer lives here,
@@ -603,6 +654,7 @@ class SessionTab(
             tunnelRetryJob?.cancel()
             sessionTunnels.close()
             liveIo = null
+            agentControl = null
             runCatching { agent?.close() }
             runCatching { shell?.close() }
             runCatching { opened?.close() }
@@ -649,6 +701,7 @@ class SessionTab(
                 // live session as it was.
                 onAttached = { fresh ->
                     instance.claimed()
+                    agentControl = AgentControl(opened, agentLaunch)
                     _resilience.value = _resilience.value.copy(level = EffectiveLevel.AGENT)
                     if (fresh) {
                         launchAutomation {
@@ -747,6 +800,30 @@ class SessionTab(
         return AttemptResult.DROPPED
     }
 
+    /**
+     * One attempt of a file browser opened from terminal tab [source]: waits
+     * for that tab's connection and opens an SFTP channel on it ([runSftp]),
+     * without owning or closing the connection. When the terminal reconnects,
+     * the browser follows it to the new connection; once the terminal tab is
+     * closed, the browser connects on its own ([AttemptResult.SOURCE_CLOSED]).
+     */
+    private suspend fun borrowOnce(source: SessionTab, browser: SftpBrowser): AttemptResult {
+        val borrowed = combine(source.liveSession, source._closedState) { live, closed -> live to closed }
+            .first { (live, closed) -> live != null || closed }
+            .first
+            ?: return AttemptResult.SOURCE_CLOSED
+        return try {
+            runSftp(browser, borrowed)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            // The terminal's connection went away under the request.
+            if (everConnected) return AttemptResult.DROPPED
+            lastFailure = e.message ?: "No se pudo abrir el explorador"
+            lastFailureCause = failureCause(e)
+            AttemptResult.ESTABLISH_FAILED
+        }
+    }
+
     private fun mousepadFailed(issue: AgentIssue): AttemptResult {
         _mousepad.value = MousepadStatus(issue = issue)
         _status.value = TabStatus(TabPhase.FAILED, AgentDiagnostics.describeMousepad(issue))
@@ -804,6 +881,36 @@ class SessionTab(
         } else {
             _resilience.value.copy(lingerError = error)
         }
+    }
+
+    /** The agent's control commands over this tab's own connection; null unless the agent serves it now. */
+    val liveAgentControl: AgentControl? get() = agentControl
+
+    /**
+     * The terminal's current directory on the destination, when it can be
+     * told for sure: the agent's report of the shell (level 3; only Linux
+     * reports it), tmux's active pane (level 2), or what the shell announced
+     * with OSC 7. Null otherwise (screen, a shell that sends no OSC 7,
+     * PowerShell on Windows…), and the caller starts from the home folder.
+     */
+    suspend fun currentDirectory(): String? {
+        agentControl?.let { control ->
+            val id = SessionInstances.agentId(instance.savedSessionId, instance.number.value)
+            withTimeoutOrNull(DIRECTORY_QUERY_TIMEOUT_MILLIS) { runCatching { control.status() }.getOrNull() }
+                ?.sessions?.firstOrNull { it.id == id && !it.closed }
+                ?.cwd?.takeIf { it.isNotBlank() }
+                ?.let { return it }
+        }
+        val live = session
+        if (live != null && _resilience.value.multiplexer == TerminalMultiplexer.Kind.TMUX) {
+            val command = TerminalMultiplexer.tmuxDirectoryCommand(TerminalMultiplexer.nameFor(instance.id))
+            withTimeoutOrNull(DIRECTORY_QUERY_TIMEOUT_MILLIS) { runCatching { live.execCollect(command) }.getOrNull() }
+                ?.takeIf { it.exitStatus == null || it.exitStatus == 0 }
+                ?.stdout?.trim()
+                ?.takeIf { it.startsWith("/") }
+                ?.let { return it }
+        }
+        return emulatorLock.withLock { emulator.workingDirectory }
     }
 
     /**
@@ -1019,6 +1126,7 @@ class SessionTab(
     /** Closes the shell and the session and stops the reconnect loop. */
     suspend fun close() {
         closed = true
+        _closedState.value = true
         sftp?.close()
         // Unblocks sshj's reader thread if a host key prompt is still open.
         _pendingHostKey.value?.reject()
@@ -1039,6 +1147,9 @@ class SessionTab(
 
 /** How long the shell probe may take before the automation assumes a POSIX shell. */
 private const val SHELL_PROBE_TIMEOUT_MILLIS = 5_000L
+
+/** How long [SessionTab.currentDirectory] waits for each way of asking. */
+private const val DIRECTORY_QUERY_TIMEOUT_MILLIS = 5_000L
 
 /** What every automation marker starts with: `__TITAN_…__` sentinels and `TITANMUX_…` probes. */
 private val MARKER_PREFIX = "TITAN".encodeToByteArray()

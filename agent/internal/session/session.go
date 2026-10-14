@@ -11,8 +11,11 @@ package session
 import (
 	"errors"
 	"slices"
+	"strings"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/danielperezmartinez/titan-ssh/agent/internal/buffer"
 	"github.com/danielperezmartinez/titan-ssh/agent/internal/protocol"
@@ -49,6 +52,8 @@ type Session struct {
 	lastOutput time.Time
 	cols, rows uint16 // the PTY's size, as last set
 	titles     titleScanner
+	// name is the one the user gave the session (Registry.Rename), "" if none.
+	name string
 }
 
 func newSession(id string, pty Pty, capBytes int, cols, rows uint16) *Session {
@@ -310,6 +315,43 @@ func (r *Registry) Close(id string) bool {
 	return ok
 }
 
+// MaxNameRunes bounds a session's name: enough for a label, small enough for a
+// tab and for the status reply.
+const MaxNameRunes = 64
+
+// CleanName is name as a session keeps it: without control characters (a
+// name must not reach a terminal as an escape sequence), surrounding spaces
+// or anything past MaxNameRunes.
+func CleanName(name string) string {
+	out := make([]rune, 0, len(name))
+	for _, r := range name {
+		if unicode.IsControl(r) || r == utf8.RuneError {
+			continue
+		}
+		out = append(out, r)
+	}
+	out = []rune(strings.TrimSpace(string(out)))
+	if len(out) > MaxNameRunes {
+		out = []rune(strings.TrimSpace(string(out[:MaxNameRunes])))
+	}
+	return string(out)
+}
+
+// Rename gives session id the name the user chose (CleanName of it); an empty
+// one takes it away. It reports whether the session existed.
+func (r *Registry) Rename(id, name string) bool {
+	r.mu.Lock()
+	s, ok := r.sessions[id]
+	r.mu.Unlock()
+	if !ok {
+		return false
+	}
+	s.mu.Lock()
+	s.name = CleanName(name)
+	s.mu.Unlock()
+	return true
+}
+
 // CloseAll ends every session (the daemon's orderly stop) and returns how many
 // there were.
 func (r *Registry) CloseAll() int {
@@ -348,6 +390,7 @@ type Info struct {
 	LastOutput time.Time
 	Cols, Rows uint16
 	Title      string // the last window title set with OSC 0/2, "" if none
+	Name       string // the name the user gave it (Registry.Rename), "" if none
 }
 
 // List describes every session, oldest first.
@@ -381,6 +424,7 @@ func (s *Session) info() Info {
 		Cols:        s.cols,
 		Rows:        s.rows,
 		Title:       s.titles.title,
+		Name:        s.name,
 	}
 	if p, ok := s.pty.(interface{ Pid() int }); ok {
 		in.ShellPID = p.Pid()

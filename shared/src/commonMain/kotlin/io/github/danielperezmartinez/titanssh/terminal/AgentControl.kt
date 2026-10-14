@@ -1,6 +1,7 @@
 package io.github.danielperezmartinez.titanssh.terminal
 
 import io.github.danielperezmartinez.titanssh.ssh.SshSession
+import kotlin.io.encoding.Base64
 
 /**
  * Runs the agent's control commands ([[Transparencia y control del agente en el
@@ -30,6 +31,22 @@ class AgentControl(private val session: SshSession, private val launch: AgentLau
      */
     suspend fun closeSession(agentSessionId: String) {
         run("--close-session", agentSessionId).requireSuccess("--close-session")
+    }
+
+    /**
+     * `--rename-session`: gives agent session [agentSessionId] the user's
+     * [name]; a blank one takes its name away. The name travels base64url so
+     * no shell on the destination reinterprets it. An agent from before names
+     * does not know the command and says to update it.
+     */
+    suspend fun renameSession(agentSessionId: String, name: String) {
+        val encoded = Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT).encode(name.trim().encodeToByteArray())
+        val args = if (encoded.isEmpty()) arrayOf("--rename-session", agentSessionId) else arrayOf("--rename-session", agentSessionId, "--name-base64", encoded)
+        val result = run(*args)
+        if (result.stderr.contains("flag provided but not defined")) {
+            throw AgentControlException("El agente del destino es de una versión sin nombres: actualízalo desde su panel")
+        }
+        result.requireSuccess("--rename-session")
     }
 
     /**
