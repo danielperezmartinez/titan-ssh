@@ -1,6 +1,6 @@
 ---
 Nombre: 'Actualizar el agente sin cerrar las sesiones'
-Estado: 'En curso'
+Estado: 'Hecha'
 Resumen: 'Hoy, al actualizar un agente de una versión anterior desde la app, se para el daemon y se cierran todas sus sesiones con lo que tuvieran corriendo. Se quiere poder actualizar sin perder nada: cada sesión pasa a vivir en su propio proceso guardián, que tiene el PTY y el búfer, y el daemon queda como enrutador que se puede sustituir por otra versión sin tocar las sesiones. Windows, Linux y macOS.'
 Decisiones: 'El usuario eligió el 2026-10-14 separar las sesiones del daemon en procesos guardianes, frente a heredar los PTY con execve (no sirve en Windows) o dejar convivir dos daemons; recogido en [[ADR-0022 Procesos de sesión independientes del daemon del agente]], aceptada el mismo día. El daemon reenvía los bytes al guardián (no entrega el socket); cada guardián tiene su puerto, token, registro y candado. --stop sigue cerrando todo y --restart actualiza sin cerrar. En Unix los binarios viejos se borran con --remove-unused, que conserva los que usa un daemon o un guardián. La pestaña pregunta al agente si la sesión sigue viva antes de darla por terminada.'
 Bloqueada: []
@@ -105,4 +105,16 @@ cada shell y guarda su PTY y su búfer. Diseño en
 
 ## Resultado
 
-<Se rellena al completar: qué se hizo finalmente.>
+Integrada en `main` el 2026-10-14, a petición del usuario tras la prueba en
+el emulador. Cada sesión del agente vive en un guardián (`--session-host`,
+`agent/cmd/titan-agent/host.go`) y el daemon solo enruta (`hosts.go`);
+`--restart` actualiza el daemon sin cerrar sesiones (`update.go`) y
+`--remove-unused` borra en Unix los binarios que nada usa. En la app,
+«Actualizar» usa `--restart` con los agentes que lo admiten (`sessionHosts`
+en el estado), el detalle de la sesión dice con qué versión arrancó y la
+pestaña se reengancha cuando solo cambió el daemon.
+
+Los agentes anteriores (hasta `0.1.0-beta.16`) guardan las sesiones dentro
+del daemon: la primera actualización a esta versión aún las cierra; las
+siguientes ya no. La comprobación con la APK de un Release queda para cuando
+se publique la versión.
