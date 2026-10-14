@@ -109,6 +109,12 @@ fun SessionsArea(
     val active = tabs.firstOrNull { it.id == activeId } ?: tabs.first()
 
     if (fullscreen && isAndroidRuntime()) {
+        val sftp = active.sftp
+        if (sftp != null) {
+            // Its own strip has room for the way out; floating, it would cover the path bar.
+            SftpView(active, sftp, Modifier.fillMaxSize(), onExitFullscreen = { fullscreen = false })
+            return
+        }
         Box(Modifier.fillMaxSize()) {
             TabContent(active, Modifier.fillMaxSize(), scripts = config.menuScripts(active), keyBar, onConfigureKeyBar)
             GlyphButton(
@@ -148,7 +154,7 @@ fun SessionsArea(
     }
 }
 
-/** A tab's pane: its terminal, or its mouse pad (ADR-0016). */
+/** A tab's pane: its terminal, its mouse pad (ADR-0016) or its file browser (ADR-0021). */
 @Composable
 private fun TabContent(
     tab: SessionTab,
@@ -157,8 +163,11 @@ private fun TabContent(
     keyBar: List<KeyBarKey>,
     onConfigureKeyBar: () -> Unit,
 ) {
+    val sftp = tab.sftp
     if (tab.isMousepad) {
         MousepadView(tab, modifier, keyBar = keyBar, onConfigureKeyBar = onConfigureKeyBar)
+    } else if (sftp != null) {
+        SftpView(tab, sftp, modifier)
     } else {
         TerminalView(tab, modifier, scripts = scripts, keyBar = keyBar, onConfigureKeyBar = onConfigureKeyBar)
     }

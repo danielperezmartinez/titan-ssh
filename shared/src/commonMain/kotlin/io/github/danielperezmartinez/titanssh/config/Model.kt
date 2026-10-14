@@ -297,6 +297,13 @@ enum class SessionType {
      * so switching the type back loses nothing.
      */
     MOUSEPAD,
+
+    /**
+     * A read-only file browser of the destination over SFTP, with downloads
+     * (ADR-0021). Only the working directory applies, as the folder it opens
+     * in; the other terminal fields are kept, as with [MOUSEPAD].
+     */
+    SFTP,
 }
 
 /**

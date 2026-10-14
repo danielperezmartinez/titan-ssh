@@ -14,6 +14,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -25,7 +26,11 @@ import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.common.Buffer
 import net.schmizz.sshj.common.KeyType
 import net.schmizz.sshj.connection.channel.direct.Session
+import net.schmizz.sshj.sftp.FileAttributes
+import net.schmizz.sshj.sftp.FileMode
 import net.schmizz.sshj.sftp.OpenMode
+import net.schmizz.sshj.sftp.Response
+import net.schmizz.sshj.sftp.SFTPException
 import net.schmizz.sshj.sftp.SFTPClient
 import net.schmizz.sshj.userauth.UserAuthException
 import net.schmizz.sshj.userauth.keyprovider.KeyProvider
@@ -403,7 +408,10 @@ internal class SshjExecChannel(
     }
 }
 
-/** SFTP over sshj's [SFTPClient]; the level-3 agent installer's upload path (ADR-0009 §7). */
+/**
+ * SFTP over sshj's [SFTPClient]: the level-3 agent installer's upload path
+ * (ADR-0009 §7) and the SFTP session's browser and downloads (ADR-0021).
+ */
 internal class SshjSftp(private val sftp: SFTPClient) : SshSftp {
 
     override suspend fun canonicalize(path: String): String = io { sftp.canonicalize(path) }
@@ -413,6 +421,52 @@ internal class SshjSftp(private val sftp: SFTPClient) : SshSftp {
     override suspend fun list(directory: String): List<String> = io {
         sftp.ls(directory).map { it.name }.filter { it != "." && it != ".." }
     }
+
+    override suspend fun listEntries(directory: String): List<SftpEntry> = io(answers = true) {
+        sftp.ls(directory).filter { it.name != "." && it.name != ".." }.map { info ->
+            val attrs = info.attributes
+            if (attrs.type != FileMode.Type.SYMLINK) return@map entryOf(info.name, info.path, attrs)
+            // A link: what it points to decides whether it browses as a folder.
+            val target = runCatching { sftp.stat(info.path) }.getOrNull()
+            val kind = if (target?.type == FileMode.Type.DIRECTORY) SftpEntry.Kind.LINK_TO_DIRECTORY else SftpEntry.Kind.LINK
+            entryOf(info.name, info.path, target ?: attrs).copy(kind = kind)
+        }
+    }
+
+    override suspend fun stat(path: String): SftpEntry? = io(answers = true) {
+        sftp.statExistence(path)?.let { entryOf(path.trimEnd('/').substringAfterLast('/'), path, it) }
+    }
+
+    override suspend fun readFrom(path: String, offset: Long, onBlock: suspend (ByteArray, Int) -> Unit) =
+        withContext(Dispatchers.IO) {
+            serverAnswers {
+                sftp.open(path, EnumSet.of(OpenMode.READ))
+            }.use { file ->
+                file.ReadAheadRemoteFileInputStream(MAX_IN_FLIGHT, offset).use { input ->
+                    val buffer = ByteArray(READ_BLOCK)
+                    while (true) {
+                        currentCoroutineContext().ensureActive()
+                        val n = input.read(buffer)
+                        if (n < 0) break
+                        if (n > 0) onBlock(buffer, n)
+                    }
+                }
+            }
+        }
+
+    private fun entryOf(name: String, path: String, attrs: FileAttributes) = SftpEntry(
+        name = name,
+        path = path,
+        kind = when (attrs.type) {
+            FileMode.Type.DIRECTORY -> SftpEntry.Kind.DIRECTORY
+            FileMode.Type.REGULAR -> SftpEntry.Kind.FILE
+            FileMode.Type.SYMLINK -> SftpEntry.Kind.LINK
+            else -> SftpEntry.Kind.OTHER
+        },
+        size = attrs.size.takeIf { attrs.has(FileAttributes.Flag.SIZE) },
+        modifiedEpochSeconds = attrs.mtime.takeIf { attrs.has(FileAttributes.Flag.ACMODTIME) },
+        permissions = attrs.mode?.permissionsMask?.takeIf { attrs.has(FileAttributes.Flag.MODE) },
+    )
 
     override suspend fun mkdirs(directory: String) = io { sftp.mkdirs(directory) }
 
@@ -448,9 +502,35 @@ internal class SshjSftp(private val sftp: SFTPClient) : SshSftp {
 
     override suspend fun close() = io { runCatching { sftp.close() }; Unit }
 
-    private suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) { block() }
+    /** Runs [block] off the main thread; with [answers], the server's own errors become [SshSftpFailed]. */
+    private suspend fun <T> io(answers: Boolean = false, block: () -> T): T =
+        withContext(Dispatchers.IO) { if (answers) serverAnswers(block) else block() }
+
+    /**
+     * [block], with an error status the server sent (no such file, permission
+     * denied…) as [SshSftpFailed]. A lost connection keeps its own exception:
+     * the browser waits for the tab to reconnect instead of giving up.
+     */
+    private inline fun <T> serverAnswers(block: () -> T): T =
+        try {
+            block()
+        } catch (e: SFTPException) {
+            if (e.statusCode in SERVER_ANSWERS) throw SshSftpFailed(e.message ?: e.statusCode.name, e)
+            throw e
+        }
 
     private companion object {
         const val MAX_IN_FLIGHT = 16
+
+        /** What [readFrom] hands over at a time: big enough for few calls, small enough for smooth progress. */
+        const val READ_BLOCK = 64 * 1024
+
+        /** Statuses that are the server's answer to the request, not a broken connection. */
+        val SERVER_ANSWERS = setOf(
+            Response.StatusCode.NO_SUCH_FILE,
+            Response.StatusCode.PERMISSION_DENIED,
+            Response.StatusCode.FAILURE,
+            Response.StatusCode.OP_UNSUPPORTED,
+        )
     }
 }
