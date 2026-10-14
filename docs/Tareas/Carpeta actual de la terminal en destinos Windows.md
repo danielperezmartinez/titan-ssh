@@ -73,7 +73,9 @@ donde el directorio actual quedó solo para Linux.
   cuenta estándar de pruebas (no la del usuario ni su agente): `--status` da
   la carpeta de la sesión y el explorador la abre por SFTP (`/C:/Users/…`).
   Perfil de la cuenta limpio después.
-- Pendiente: probarlo desde el Pixel contra el Windows del usuario.
+- Integrada en `main` el 2026-10-15. Pendiente: el usuario la probará desde
+  el Pixel contra su Windows con la próxima release; hasta entonces sigue
+  `En curso`.
 
 ## Resultado
 
