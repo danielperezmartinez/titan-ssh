@@ -1,17 +1,22 @@
 ---
 Nombre: 'Estado y control del agente en la interfaz'
-Estado: 'Aceptada'
+Estado: 'Reemplazada'
 Ámbito: 'Layout'
 Resumen: 'El estado del agente de nivel 3 se ve en la lanzadera de Sesiones y en un panel propio, nunca en la pestaña del terminal. En la lanzadera, cada sesión viva en el destino lleva una línea más ("viva en el destino · vista hace 3 h", o en warning "sin conectar desde hace 26 h") y sus acciones desplegables suman "Ver el agente del destino" y "Terminar en el destino" (danger, confirmación en línea). Una franja warning encima de la lista avisa si un agente pasa de 1 GB. Eliminar una sesión viva solo ofrece eliminarla y terminarla, o no eliminarla. El panel del agente es una pantalla secundaria con [<] + título: datos del agente, sus sesiones como filas con Abrir y Terminar, aviso de versión anterior y Detener el agente. Se llega desde la lanzadera, desde la franja de memoria y desde las acciones de cada host en Configuración → Hosts.'
 Decisión: 'Estado y control del agente en la lanzadera de Sesiones y en un panel propio de pantalla secundaria; la pestaña del terminal y su franja de estado no cambian.'
 Consecuencias: 'La pestaña abierta no ofrece ninguna forma de terminar la sesión en el destino: cerrar la pestaña nunca pierde trabajo y terminar exige ir a la lanzadera o al panel. Los datos del agente son los de la última consulta, así que siempre se muestra cuándo se consultaron.'
 Reemplaza: []
-Reemplazada por: []
+Reemplazada por:
+  - '[[Control del agente en la interfaz y terminar desde la pestaña]]'
 Fecha de creación: 2026-09-29T22:30:00+02:00
-Última modificación: 2026-09-29T23:00:00+02:00
+Última modificación: 2026-10-15T00:51:29+02:00
 ---
 
 # Estado y control del agente en la interfaz
+
+> Reemplazada el 2026-10-15 por
+> [[Control del agente en la interfaz y terminar desde la pestaña]]: el menú
+> de la pestaña de nivel 3 ya ofrece terminar la sesión en el destino.
 
 Decidida con el usuario el 2026-09-29 para
 [[Transparencia y control del agente en el destino]]. Usa las filas de
