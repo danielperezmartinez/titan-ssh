@@ -1,6 +1,7 @@
 package session
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -167,5 +168,32 @@ func TestInfoAndTailDescribeTheSession(t *testing.T) {
 	}
 	if _, _, _, ok := reg.Tail("missing", 5); ok {
 		t.Fatal("Tail of a missing session must report it")
+	}
+}
+
+func TestRenameKeepsACleanName(t *testing.T) {
+	f := &fakeFactory{}
+	r := NewRegistry(f.new, 1024)
+	if _, _, err := r.AttachOrCreate("s1", 80, 24); err != nil {
+		t.Fatal(err)
+	}
+	if !r.Rename("s1", "  logs\x1b]0;evil\x07 · ñ  ") {
+		t.Fatal("Rename of a live session = false")
+	}
+	if got := r.List()[0].Name; got != "logs]0;evil · ñ" {
+		t.Fatalf("name = %q", got)
+	}
+	if r.Rename("nope", "x") {
+		t.Fatal("Rename of a missing session = true")
+	}
+}
+
+func TestCleanNameBoundsTheLength(t *testing.T) {
+	long := strings.Repeat("ñ", MaxNameRunes+10)
+	if got := []rune(CleanName(long)); len(got) != MaxNameRunes {
+		t.Fatalf("len = %d; want %d", len(got), MaxNameRunes)
+	}
+	if got := CleanName("\t \n"); got != "" {
+		t.Fatalf("blank name = %q", got)
 	}
 }

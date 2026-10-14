@@ -30,6 +30,8 @@ data class SftpListing(
     val loading: Boolean = true,
     /** Why the folder could not be listed; the entries are then the last ones shown. */
     val error: String? = null,
+    /** Why the browser did not start where it was asked to; shown with the start folder only. */
+    val notice: String? = null,
 )
 
 /** One download of the SFTP browser, for the transfers tray. */
@@ -78,6 +80,11 @@ class SftpBrowser(
     /** The session's working directory, where the browser starts ([SftpPaths.initial]). */
     private val initialDirectory: String?,
     private val store: () -> DownloadStore,
+    /**
+     * Shown with the start folder ([SftpListing.notice]) when the caller could
+     * not tell where to start, e.g. a terminal's directory that is unknown.
+     */
+    private val startNote: String? = null,
     /** Runs the blocking [DownloadTarget] calls; tests pass their own. */
     private val io: CoroutineDispatcher = Dispatchers.IO,
     /**
@@ -163,10 +170,10 @@ class SftpBrowser(
         loadJob = scope.launch {
             val sftp = client.first { it != null }!!
             try {
-                val target = path ?: startFolder(sftp)
+                val (target, notice) = if (path != null) path to null else startFolder(sftp)
                 val real = sftp.canonicalize(target)
                 val entries = sftp.listEntries(real)
-                _listing.value = SftpListing(path = real, entries = entries, loading = false)
+                _listing.value = SftpListing(path = real, entries = entries, loading = false, notice = notice)
                 listingRetries = 0
             } catch (e: CancellationException) {
                 throw e
@@ -184,13 +191,16 @@ class SftpBrowser(
         }
     }
 
-    /** The session's working directory if it can be opened, else the user's folder. */
-    private suspend fun startFolder(sftp: SshSftp): String {
+    /**
+     * The session's working directory if it can be opened, else the user's
+     * folder, with the note that says why it is not where it was asked to be.
+     */
+    private suspend fun startFolder(sftp: SshSftp): Pair<String, String?> {
         val home = home ?: sftp.canonicalize(".").also { home = it }
         val wanted = SftpPaths.initial(initialDirectory, home)
-        if (wanted == home) return home
+        if (wanted == home) return home to startNote
         val found = runCatching { sftp.stat(wanted) }.getOrNull()
-        return if (found?.isDirectory == true) wanted else home
+        return if (found?.isDirectory == true) wanted to null else home to "No se puede abrir $wanted: se muestra la carpeta de inicio"
     }
 
     /**

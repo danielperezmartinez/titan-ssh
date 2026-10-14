@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,8 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/danielperezmartinez/titan-ssh/agent/internal/procmem"
@@ -32,17 +35,21 @@ const (
 	opClose   = "close"
 	opStop    = "stop"
 	opPreview = "preview"
+	opRename  = "rename"
 )
 
 type controlRequest struct {
 	Op      string `json:"op"`
 	Session string `json:"session,omitempty"`
+	// Name is opRename's new name; empty takes the name away.
+	Name string `json:"name,omitempty"`
 }
 
 type controlReply struct {
 	Error   string         `json:"error,omitempty"`
 	Status  *statusReport  `json:"status,omitempty"`
-	Closed  bool           `json:"closed,omitempty"` // opClose: the session existed
+	Closed  bool           `json:"closed,omitempty"`  // opClose: the session existed
+	Renamed bool           `json:"renamed,omitempty"` // opRename: the session existed
 	Preview *previewReport `json:"preview,omitempty"`
 }
 
@@ -121,6 +128,8 @@ type sessionReport struct {
 	Rows          uint16 `json:"rows,omitempty"`
 	LastOutputMs  int64  `json:"lastOutputMs,omitempty"`
 	Title         string `json:"title,omitempty"` // the last OSC 0/2 window title
+	// Name is the one the user gave the session (--rename-session); absent if none.
+	Name string `json:"name,omitempty"`
 }
 
 const statusSchema = 1
@@ -151,6 +160,8 @@ func (d *daemon) serveControl(conn net.Conn) {
 		writeReply(conn, controlReply{Status: &st})
 	case opClose:
 		writeReply(conn, controlReply{Closed: d.reg.Close(req.Session)})
+	case opRename:
+		writeReply(conn, controlReply{Renamed: d.reg.Rename(req.Session, req.Name)})
 	case opStop:
 		writeReply(conn, controlReply{})
 		d.stop()
@@ -240,6 +251,7 @@ func sessionFrom(in session.Info, w sampleWindow) sessionReport {
 		Cols:        in.Cols,
 		Rows:        in.Rows,
 		Title:       in.Title,
+		Name:        in.Name,
 	}
 	if !in.Detached.IsZero() {
 		r.DetachedMs = in.Detached.UnixMilli()
@@ -365,6 +377,28 @@ func closeSession(stateDir, id string) (bool, error) {
 	return false, nil
 }
 
+// renameSession is --rename-session: it gives one session the name the user
+// chose ("" takes it away) and reports whether the session existed. The name
+// arrives base64url-encoded (--name-base64), so it reaches the daemon intact
+// whatever shell runs the command on the destination.
+func renameSession(stateDir, id, nameBase64 string) (bool, error) {
+	name, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(nameBase64, "="))
+	if err != nil {
+		return false, fmt.Errorf("--name-base64 is not base64url: %w", err)
+	}
+	if err := ensureStateDir(stateDir); err != nil {
+		return false, withCode(codeStateDir, err)
+	}
+	reply, _, err := request(stateDir, controlRequest{Op: opRename, Session: id, Name: string(name)})
+	switch {
+	case err == nil:
+		return reply.Renamed, nil
+	case errors.Is(err, fs.ErrNotExist):
+		return false, nil // no daemon: there is no session to name
+	}
+	return false, err
+}
+
 // queryPreview is --preview: the end of one session's history, or
 // errNoSession when the daemon does not hold it (or none runs).
 func queryPreview(stateDir, id string) (previewReport, error) {
@@ -433,8 +467,12 @@ func printDaemonStatus(w io.Writer, st statusReport) {
 		if s.MemoryBytes != nil {
 			mem = humanBytes(*s.MemoryBytes)
 		}
+		id := s.ID
+		if s.Name != "" {
+			id += " " + strconv.Quote(s.Name)
+		}
 		fmt.Fprintf(w, "  %s  %s · created %s ago · memory %s · history %s\n",
-			s.ID, state, ago(now, s.CreatedMs), mem, humanBytes(s.BufferBytes))
+			id, state, ago(now, s.CreatedMs), mem, humanBytes(s.BufferBytes))
 		if s.Shell != "" {
 			line := fmt.Sprintf("    shell %s (PID %d) · %dx%d", s.Shell, s.ShellPID, s.Cols, s.Rows)
 			if s.Foreground != "" {

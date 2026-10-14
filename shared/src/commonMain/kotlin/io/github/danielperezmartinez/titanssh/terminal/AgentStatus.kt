@@ -133,6 +133,8 @@ data class AgentSessionReport(
     val lastOutputMs: Long? = null,
     /** The last window title a program set (OSC 0/2). */
     val title: String? = null,
+    /** The name the user gave the session (`--rename-session`); null if none or from an older agent. */
+    val name: String? = null,
 )
 
 /**

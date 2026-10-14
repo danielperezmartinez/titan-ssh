@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
@@ -92,6 +93,58 @@ func TestCloseSessionWithoutDaemon(t *testing.T) {
 	dir := testStateDir(t)
 	if closed, err := closeSession(dir, "s1"); err != nil || closed {
 		t.Fatalf("closeSession = %v, %v", closed, err)
+	}
+}
+
+func TestRenameSessionNamesItInTheStatus(t *testing.T) {
+	shortTimeouts(t)
+	dir := testStateDir(t)
+	startTestDaemon(t, dir)
+	st, _ := readState(dir)
+	conn, err := dialDaemon(st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	helloConn(t, conn, "s1")
+	conn.Close()
+
+	// Spaces, quotes and non-ASCII travel intact, whatever the shell.
+	name := `logs "prod" · ñ`
+	if renamed, err := renameSession(dir, "s1", base64.RawURLEncoding.EncodeToString([]byte(name))); err != nil || !renamed {
+		t.Fatalf("renameSession = %v, %v", renamed, err)
+	}
+	rep, _ := queryStatus(dir)
+	if len(rep.Sessions) != 1 || rep.Sessions[0].Name != name {
+		t.Fatalf("status after rename: %+v", rep.Sessions)
+	}
+	var out bytes.Buffer
+	printStatus(&out, rep)
+	if !strings.Contains(out.String(), `s1 "logs \"prod\" · ñ"`) {
+		t.Fatalf("printed status does not name it:\n%s", out.String())
+	}
+
+	// No name takes it away; the JSON then leaves the field out.
+	if renamed, err := renameSession(dir, "s1", ""); err != nil || !renamed {
+		t.Fatalf("clearing = %v, %v", renamed, err)
+	}
+	rep, _ = queryStatus(dir)
+	data, _ := json.Marshal(rep.Sessions[0])
+	if rep.Sessions[0].Name != "" || strings.Contains(string(data), `"name"`) {
+		t.Fatalf("cleared session: %s", data)
+	}
+
+	if renamed, err := renameSession(dir, "nope", "eA"); err != nil || renamed {
+		t.Fatalf("renaming a missing session = %v, %v; want false, nil", renamed, err)
+	}
+	if _, err := renameSession(dir, "s1", "not base64!"); err == nil {
+		t.Fatal("a malformed name was accepted")
+	}
+}
+
+func TestRenameSessionWithoutDaemon(t *testing.T) {
+	dir := testStateDir(t)
+	if renamed, err := renameSession(dir, "s1", "eA"); err != nil || renamed {
+		t.Fatalf("renameSession = %v, %v", renamed, err)
 	}
 }
 
@@ -315,7 +368,7 @@ func TestStatusJSONContract(t *testing.T) {
 	full := sessionReport{
 		ID: "s2", CreatedMs: 1, LastUsedMs: 2, BufferBytes: 3, CPUPercent: &cpu,
 		Shell: "/bin/bash", ShellPID: 40, Foreground: "vim", ForegroundPID: 41, Cwd: "/tmp",
-		Cols: 80, Rows: 24, LastOutputMs: 2, Title: "vim notes",
+		Cols: 80, Rows: 24, LastOutputMs: 2, Title: "vim notes", Name: "logs",
 	}
 	data, err = json.Marshal(full)
 	if err != nil {
@@ -323,7 +376,7 @@ func TestStatusJSONContract(t *testing.T) {
 	}
 	want = `{"id":"s2","createdMs":1,"lastUsedMs":2,"clients":0,"bufferBytes":3,"cpuPercent":12,` +
 		`"shell":"/bin/bash","shellPid":40,"foreground":"vim","foregroundPid":41,"cwd":"/tmp",` +
-		`"cols":80,"rows":24,"lastOutputMs":2,"title":"vim notes"}`
+		`"cols":80,"rows":24,"lastOutputMs":2,"title":"vim notes","name":"logs"}`
 	if string(data) != want {
 		t.Fatalf("session JSON contract changed:\n got %s\nwant %s", data, want)
 	}

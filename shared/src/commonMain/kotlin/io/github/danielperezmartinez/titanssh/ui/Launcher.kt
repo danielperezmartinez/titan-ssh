@@ -208,7 +208,8 @@ internal fun Launcher(
                     expandedContent = expandedContent@{
                         val choice = unfolded as? Unfolded.Choice
                         if (choice != null && resolved != null) {
-                            ReopenChoice(session.name, choice.plan) { instance, mustBeNew ->
+                            val names = live.mapNotNull { (n, s) -> s.name?.takeIf { it.isNotBlank() }?.let { n to it } }.toMap()
+                            ReopenChoice(session.name, choice.plan, names) { instance, mustBeNew ->
                                 unfolded = null
                                 onLaunch(resolved, instance, mustBeNew)
                             }
@@ -275,15 +276,21 @@ internal fun Launcher(
  * one of them, or a new parallel one. Rows like the session's actions.
  */
 @Composable
-private fun ReopenChoice(name: String, plan: LaunchPlan.Ask, onPick: (instance: Int, mustBeNew: Boolean) -> Unit) {
+private fun ReopenChoice(
+    name: String,
+    plan: LaunchPlan.Ask,
+    /** The names the user gave instances (kept by the agent), by instance. */
+    names: Map<Int, String>,
+    onPick: (instance: Int, mustBeNew: Boolean) -> Unit,
+) {
     Caption("Ya está abierta. Elige dónde entrar.", modifier = Modifier.padding(vertical = TitanDimens.SpaceXs))
     plan.options.forEach { option ->
         ListRow(
             marker = "[>]",
-            title = if (option.instance == SessionInstances.PRINCIPAL) {
+            title = if (option.instance == SessionInstances.PRINCIPAL && names[option.instance] == null) {
                 "Reengancharse a la principal"
             } else {
-                "Reengancharse a ${SessionInstances.label(name, option.instance)}"
+                "Reengancharse a ${SessionInstances.label(name, option.instance, names[option.instance])}"
             },
             subtitle = when {
                 option.openInTab -> "abierta en una pestaña"

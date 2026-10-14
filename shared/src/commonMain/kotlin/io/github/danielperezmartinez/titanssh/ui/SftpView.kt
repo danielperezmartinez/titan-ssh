@@ -145,6 +145,11 @@ fun SftpView(
                             Caption(error, Modifier.padding(TitanDimens.SpaceSm), color = TitanColors.Danger)
                         }
                     }
+                    listing.notice?.let { notice ->
+                        item(key = "notice") {
+                            Caption(notice, Modifier.padding(TitanDimens.SpaceSm), color = TitanColors.Warning)
+                        }
+                    }
                     if (listing.loading) {
                         item(key = "loading") { Caption("Cargando…", Modifier.padding(TitanDimens.SpaceSm)) }
                     }

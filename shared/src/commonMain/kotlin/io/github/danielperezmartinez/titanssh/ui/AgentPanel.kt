@@ -105,6 +105,8 @@ fun AgentPanel(
     val isBusy = key.id in busy
     var expandedId by remember { mutableStateOf<String?>(null) }
     var confirming by remember { mutableStateOf<PanelConfirm?>(null) }
+    // The agent session whose name is being edited.
+    var renamingId by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(key.id) { agents.refreshWithPreviews(host) }
 
@@ -177,13 +179,18 @@ fun AgentPanel(
                 val toggle = {
                     expandedId = if (expanded) null else s.id
                     confirming = null
+                    renamingId = null
                 }
                 val (marker, color) = sessionMarker(obs, s, now)
                 ListRow(
                     marker = marker,
                     markerColor = if (expanded) TitanColors.Accent else color,
-                    title = saved?.let { SessionInstances.label(it.name, instance) } ?: "(sesión borrada)",
-                    subtitle = sessionLine(obs, s, now, orphan = saved == null, pending = s.id in pending),
+                    title = s.name?.takeIf { it.isNotBlank() } ?: saved?.let { SessionInstances.label(it.name, instance) } ?: "(sesión borrada)",
+                    // A named one still says which saved session it is.
+                    subtitle = listOfNotNull(
+                        saved?.takeIf { !s.name.isNullOrBlank() }?.let { SessionInstances.label(it.name, instance) },
+                        sessionLine(obs, s, now, orphan = saved == null, pending = s.id in pending),
+                    ).joinToString(" · "),
                     onClick = toggle,
                     onLongClick = toggle,
                     onMarkerClick = toggle,
@@ -193,6 +200,28 @@ fun AgentPanel(
                         if (s.closed) return@ListRow
                         if (resolved != null) {
                             ListRow(marker = "[>]", title = "Abrir", onClick = { onOpenSession(resolved, instance) })
+                        }
+                        if (saved != null) {
+                            if (renamingId == s.id) {
+                                NameEditor(
+                                    key = s.id,
+                                    initial = s.name.orEmpty(),
+                                    placeholder = SessionInstances.label(saved.name, instance),
+                                    hint = nameHint(inAgent = true),
+                                    onSave = { agents.rename(saved, instance, it) },
+                                    onDone = { renamingId = null },
+                                    modifier = Modifier.padding(vertical = TitanDimens.SpaceXs),
+                                )
+                            } else {
+                                ListRow(
+                                    marker = "[~]",
+                                    title = "Renombrar",
+                                    onClick = {
+                                        renamingId = s.id
+                                        confirming = null
+                                    },
+                                )
+                            }
                         }
                         if (confirming == PanelConfirm.Terminate(s.id)) {
                             ConfirmRow(

@@ -45,9 +45,13 @@ object SessionInstances {
         return n
     }
 
-    /** The name a tab or list shows for an instance: `name` or `name · 2`. */
-    fun label(name: String, instance: Int): String =
-        if (instance <= PRINCIPAL) name else "$name · $instance"
+    /**
+     * The name a tab or list shows for an instance: the one the user gave it
+     * ([customName]) or else `name` or `name · 2`.
+     */
+    fun label(name: String, instance: Int, customName: String? = null): String =
+        customName?.trim()?.takeIf { it.isNotEmpty() }
+            ?: if (instance <= PRINCIPAL) name else "$name · $instance"
 
     /**
      * Whether [session] keeps anything on its destination to re-attach to,

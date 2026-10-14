@@ -27,6 +27,16 @@ class SessionInstancesTest {
     }
 
     @Test
+    fun aNameTheUserGaveReplacesTheNumberedLabel() {
+        assertEquals("deploy", SessionInstances.label("deploy", 1))
+        assertEquals("deploy · 2", SessionInstances.label("deploy", 2))
+        assertEquals("logs", SessionInstances.label("deploy", 2, "  logs "))
+        assertEquals("logs", SessionInstances.label("deploy", 1, "logs"))
+        assertEquals("deploy · 3", SessionInstances.label("deploy", 3, "  "))
+        assertEquals("deploy · 3", SessionInstances.label("deploy", 3, null))
+    }
+
+    @Test
     fun agentIdsMapBackToTheirInstance() {
         assertEquals(1, SessionInstances.instanceOf("session-00ff", "titan-session-00ff"))
         assertEquals(2, SessionInstances.instanceOf("session-00ff", "titan-session-00ff-p2"))

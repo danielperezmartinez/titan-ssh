@@ -6,10 +6,12 @@ import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
 import io.github.danielperezmartinez.titanssh.config.Session
 import io.github.danielperezmartinez.titanssh.config.SessionType
 import io.github.danielperezmartinez.titanssh.config.resolve
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -110,6 +112,64 @@ class AgentManager(
     private fun liveInstances(session: Session, resolved: ResolvedConnection): Map<Int, AgentSessionReport> {
         val obs = watch.state.value.observations[AgentKey.of(resolved.endpoint).id] ?: return emptyMap()
         return AgentInsights.instancesOf(obs, session.id)
+    }
+
+    init {
+        // Level-3 tabs show the name the agent keeps for their instance,
+        // whichever device gave it.
+        scope.launch {
+            combine(watch.state, sessions.tabs) { state, tabs -> state to tabs }
+                .collect { (state, tabs) -> syncNames(state, tabs) }
+        }
+    }
+
+    private fun syncNames(state: AgentWatchState, tabs: List<SessionTab>) {
+        for (tab in tabs) {
+            val session = tab.resolved.session
+            if (!tab.isTerminal || session.resilienceLevel != ResilienceLevel.AGENT) continue
+            val obs = state.observations[AgentKey.of(tab.resolved.endpoint).id] ?: continue
+            val report = AgentInsights.instancesOf(obs, session.id)[tab.instance.number.value] ?: continue
+            tab.rename(report.name)
+        }
+    }
+
+    /**
+     * Gives [instance] of saved session [session] the user's [name]; blank
+     * takes it away. Its tabs show it at once. At level 3 the destination's
+     * agent keeps it, so the agent panel and other devices see it too: this
+     * goes through the tab's own connection when one serves that instance,
+     * or a short-lived one otherwise. Returns why the agent did not take it,
+     * or null; on failure the tabs go back to the agent's name.
+     */
+    suspend fun rename(session: Session, instance: Int, name: String): String? {
+        val tabs = sessions.tabsOf(session.id, instance)
+        tabs.forEach { it.rename(name) }
+        if (session.type != SessionType.TERMINAL || session.resilienceLevel != ResilienceLevel.AGENT) return null
+        val resolved = runCatching { config.state.value.resolve(session) }.getOrNull() ?: return null
+        val host = hostOf(resolved)
+        val agentId = SessionInstances.agentId(session.id, instance)
+        val control = tabs.firstNotNullOfOrNull { it.liveAgentControl }
+        _busy.value += host.key.id
+        return try {
+            if (control != null) {
+                try {
+                    control.renameSession(agentId, name)
+                } finally {
+                    // The agent's name, the new one or the one it kept.
+                    runCatching { watch.sync(host.key, control) }
+                }
+            } else {
+                access.withAgent(host) { it.renameSession(agentId, name) }
+            }
+            null
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            val why = e.message ?: "No se pudo cambiar el nombre en el destino"
+            watch.recordError(host.key, why)
+            why
+        } finally {
+            _busy.value -= host.key.id
+        }
     }
 
     /** Closes one agent session listed in [host]'s panel (e.g. an orphan). */

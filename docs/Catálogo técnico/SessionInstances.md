@@ -7,8 +7,8 @@ Estado: 'Vigente'
 Ámbito: 'Feature'
 Fuente: 'shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/terminal/SessionInstances.kt'
 Entrada pública: 'io.github.danielperezmartinez.titanssh.terminal'
-Resumen: 'Instancias de una sesión guardada en el destino (ADR-0020): la principal (número 1, con el id de la sesión guardada) y las paralelas desde el 2 (id <id>-p<n>), que nombran la sesión del agente (nivel 3) y la de tmux/screen (nivel 2). Da el id de una instancia (id, agentId), la instancia a la que corresponde un id del agente (instanceOf), el número libre más bajo para una paralela (nextParallel), el nombre que se muestra (label, "nombre · 2") y qué hace lanzar una sesión según las instancias abiertas en pestañas, las vivas en el destino y su ReopenMode (plan → LaunchPlan.Open o LaunchPlan.Ask). TabInstance es la instancia de una pestaña: una paralela nueva mustBeNew hasta que se engancha y, si su número ya estaba vivo, salta al siguiente (skipTaken).'
-Última modificación: '2026-10-13T10:05:00+02:00'
+Resumen: 'Instancias de una sesión guardada en el destino (ADR-0020): la principal (número 1, con el id de la sesión guardada) y las paralelas desde el 2 (id <id>-p<n>), que nombran la sesión del agente (nivel 3) y la de tmux/screen (nivel 2). Da el id de una instancia (id, agentId), la instancia a la que corresponde un id del agente (instanceOf), el número libre más bajo para una paralela (nextParallel), el nombre que se muestra (label, "nombre · 2") y qué hace lanzar una sesión según las instancias abiertas en pestañas, las vivas en el destino y su ReopenMode (plan → LaunchPlan.Open o LaunchPlan.Ask). TabInstance es la instancia de una pestaña: una paralela nueva mustBeNew hasta que se engancha y, si su número ya estaba vivo, salta al siguiente (skipTaken). label admite el nombre que el usuario dio a la instancia (customName), que sustituye al nombre numerado.'
+Última modificación: '2026-10-14T13:00:00+02:00'
 ---
 
 # SessionInstances

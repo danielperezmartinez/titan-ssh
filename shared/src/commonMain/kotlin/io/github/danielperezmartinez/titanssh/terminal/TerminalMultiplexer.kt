@@ -74,12 +74,7 @@ class TerminalMultiplexer(
     }
 
     /** Stable, shell-safe multiplexer session name for a config session id. */
-    fun sessionName(sessionId: String): String {
-        val safe = sessionId.map { if (it.isLetterOrDigit() || it == '-' || it == '_') it else '_' }
-            .joinToString("")
-            .ifEmpty { "session" }
-        return "titan-$safe"
-    }
+    fun sessionName(sessionId: String): String = nameFor(sessionId)
 
     /**
      * Sends [command] wrapped so its stdout is framed by a random token, and waits
@@ -107,14 +102,30 @@ class TerminalMultiplexer(
         }
     }
 
-    private companion object {
-        const val MAX_SEEN = 8_192
+    companion object {
+        /** Stable, shell-safe multiplexer session name for a config session (instance) id. */
+        fun nameFor(sessionId: String): String {
+            val safe = sessionId.map { if (it.isLetterOrDigit() || it == '-' || it == '_') it else '_' }
+                .joinToString("")
+                .ifEmpty { "session" }
+            return "titan-$safe"
+        }
 
-        fun trim(s: String): String = if (s.length <= MAX_SEEN) s else s.takeLast(MAX_SEEN)
+        /**
+         * The `exec` command that prints the directory of tmux session [name]'s
+         * active pane (tmux reads it from the process, so it follows `cd`).
+         * Screen has no equivalent.
+         */
+        fun tmuxDirectoryCommand(name: String): String =
+            "tmux display-message -p -t ${singleQuote("=$name:")} '#{pane_current_path}'"
 
-        fun singleQuote(s: String): String = "'" + s.replace("'", "'\\''") + "'"
+        private const val MAX_SEEN = 8_192
 
-        fun randomToken(): String =
+        private fun trim(s: String): String = if (s.length <= MAX_SEEN) s else s.takeLast(MAX_SEEN)
+
+        private fun singleQuote(s: String): String = "'" + s.replace("'", "'\\''") + "'"
+
+        private fun randomToken(): String =
             kotlin.random.Random.nextLong().toULong().toString(16).padStart(16, '0')
     }
 }

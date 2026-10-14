@@ -2,6 +2,7 @@ package io.github.danielperezmartinez.titanssh.terminal
 
 import io.github.danielperezmartinez.titanssh.config.Ids
 import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
+import io.github.danielperezmartinez.titanssh.config.SessionType
 import io.github.danielperezmartinez.titanssh.ssh.KnownHostsStore
 import io.github.danielperezmartinez.titanssh.ssh.SshConnector
 import kotlinx.coroutines.CoroutineScope
@@ -78,6 +79,31 @@ class SessionManager(
         resolved: ResolvedConnection,
         instance: Int = SessionInstances.PRINCIPAL,
         mustBeNew: Boolean = false,
+    ): SessionTab = add(resolved, TabInstance(resolved.session.id, instance, mustBeNew) { syncInstances() })
+
+    /**
+     * Opens a file browser of [terminal]'s destination in a new tab, on that
+     * tab's connection while it lasts ([SessionTab.explorerOf]), starting in
+     * the terminal's current directory when it can be told
+     * ([SessionTab.currentDirectory]) and in the user's folder otherwise, with
+     * a note that says so.
+     */
+    suspend fun openExplorer(terminal: SessionTab): SessionTab {
+        val directory = terminal.currentDirectory()
+        val explorer = terminal.resolved.session.copy(type = SessionType.SFTP, initialDirectory = directory)
+        return add(
+            terminal.resolved.copy(session = explorer),
+            TabInstance(explorer.id),
+            explorerOf = terminal,
+            sftpStartNote = if (directory == null) UNKNOWN_DIRECTORY_NOTE else null,
+        ).also { it.rename(terminal.title + EXPLORER_SUFFIX) }
+    }
+
+    private fun add(
+        resolved: ResolvedConnection,
+        instance: TabInstance,
+        explorerOf: SessionTab? = null,
+        sftpStartNote: String? = null,
     ): SessionTab {
         val tabId = Ids.newId("tab")
         val tab = SessionTab(
@@ -91,7 +117,9 @@ class SessionManager(
             reconnect = reconnect,
             agentDeployer = agentDeployer,
             agentObserver = agentObserver,
-            instance = TabInstance(resolved.session.id, instance, mustBeNew) { syncInstances() },
+            instance = instance,
+            explorerOf = explorerOf,
+            sftpStartNote = sftpStartNote,
         )
         byId[tabId] = tab
         _list.value = _list.value.add(tabId)
@@ -122,9 +150,13 @@ class SessionManager(
     fun closeTabsOf(sessionId: String, instance: Int? = null) {
         _tabs.value
             .filter { it.resolved.session.id == sessionId }
-            .filter { instance == null || it.instance.number.value == instance }
+            .filter { instance == null || (it.isTerminal && it.instance.number.value == instance) }
             .forEach { close(it.id) }
     }
+
+    /** The terminal tabs that show [instance] of saved session [sessionId]. */
+    fun tabsOf(sessionId: String, instance: Int): List<SessionTab> =
+        _tabs.value.filter { it.isTerminal && it.resolved.session.id == sessionId && it.instance.number.value == instance }
 
     /** Moves tab [id] one position towards the front of the strip. */
     fun moveLeft(id: String) {
@@ -155,8 +187,18 @@ class SessionManager(
     }
 
     private fun syncInstances() {
+        // A file browser opened from a terminal holds no instance of its session.
         _openInstances.value = _tabs.value
+            .filter { it.explorerOf == null }
             .groupBy({ it.resolved.session.id }, { it.instance.number.value })
             .mapValues { (_, numbers) -> numbers.toSet() }
+    }
+
+    private companion object {
+        /** What a file browser's tab is called after its terminal's name. */
+        const val EXPLORER_SUFFIX = " · archivos"
+
+        const val UNKNOWN_DIRECTORY_NOTE =
+            "No se sabe en qué carpeta está la terminal: se muestra la carpeta de inicio"
     }
 }

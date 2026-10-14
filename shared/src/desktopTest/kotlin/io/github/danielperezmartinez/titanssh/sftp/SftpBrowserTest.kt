@@ -8,6 +8,7 @@ import java.io.IOException
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -127,6 +128,22 @@ class SftpBrowserTest {
         b.attach(fake())
         advanceUntilIdle()
         assertEquals("/home/demo", b.listing.value.path)
+        assertEquals("No se puede abrir /no/existe: se muestra la carpeta de inicio", b.listing.value.notice)
+
+        // The note goes with the start folder only.
+        b.open("/home/demo/proyecto")
+        advanceUntilIdle()
+        assertNull(b.listing.value.notice)
+    }
+
+    @Test
+    fun the_start_note_of_an_unknown_folder_shows_with_home() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val b = SftpBrowser(CoroutineScope(dispatcher + Job()), null, { MemoryStore() }, startNote = "no se sabe", io = dispatcher)
+        b.attach(fake())
+        advanceUntilIdle()
+        assertEquals("/home/demo", b.listing.value.path)
+        assertEquals("no se sabe", b.listing.value.notice)
     }
 
     @Test
