@@ -17,6 +17,10 @@ const (
 	// let the daemon leave it.
 	codeJobNoBreakaway = "E_JOB_NO_BREAKAWAY"
 
+	// --restart: the running daemon predates the session hosts (ADR-0022) and
+	// cannot hand its sessions over; only --stop, which closes them, replaces it.
+	codeRestartUnsupported = "E_RESTART_UNSUPPORTED"
+
 	// Mouse pad (--input, ADR-0016).
 	codeInputUnsupported = "E_INPUT_UNSUPPORTED" // no injector for this system yet
 	codeNoDesktop        = "E_NO_DESKTOP"        // the desktop helper did not start: nobody signed in

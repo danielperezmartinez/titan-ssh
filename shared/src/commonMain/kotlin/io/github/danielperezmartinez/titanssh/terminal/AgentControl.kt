@@ -54,6 +54,15 @@ class AgentControl(private val session: SshSession, private val launch: AgentLau
     }
 
     /**
+     * `--restart`: the installed binary replaces the running daemon with its
+     * own version and every session keeps running in its host (ADR-0022).
+     * Only for a daemon whose status says [AgentStatusReport.sessionHosts].
+     */
+    suspend fun restart() {
+        run("--restart").requireSuccess("--restart")
+    }
+
+    /**
      * `--remove-desktop`: stops the mouse pad's desktop helper and deletes its
      * scheduled task and executable copies (ADR-0016). Nothing to remove succeeds.
      */

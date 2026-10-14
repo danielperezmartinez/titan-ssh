@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,8 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"slices"
+	"sync"
 	"time"
 
 	"github.com/danielperezmartinez/titan-ssh/agent/internal/procmem"
@@ -32,6 +35,9 @@ const (
 	opClose   = "close"
 	opStop    = "stop"
 	opPreview = "preview"
+	// opRestart ends the daemon but leaves every session running in its host
+	// (ADR-0022), for the next daemon to route to: how the agent is updated.
+	opRestart = "restart"
 )
 
 type controlRequest struct {
@@ -92,6 +98,9 @@ type statusReport struct {
 	// Desktop is the mouse pad's desktop helper, on systems that have one
 	// (Windows); the CLI adds it, whatever state the daemon is in.
 	Desktop *desktopReport `json:"desktop,omitempty"`
+	// SessionHosts says the daemon keeps each session in its own host process
+	// (ADR-0022), so --restart updates it without closing any session.
+	SessionHosts bool `json:"sessionHosts,omitempty"`
 }
 
 type sessionReport struct {
@@ -121,6 +130,9 @@ type sessionReport struct {
 	Rows          uint16 `json:"rows,omitempty"`
 	LastOutputMs  int64  `json:"lastOutputMs,omitempty"`
 	Title         string `json:"title,omitempty"` // the last OSC 0/2 window title
+	// Agent is the version of the session host that holds the session (ADR-0022):
+	// an older one keeps its sessions across an update of the daemon.
+	Agent string `json:"agent,omitempty"`
 }
 
 const statusSchema = 1
@@ -150,17 +162,25 @@ func (d *daemon) serveControl(conn net.Conn) {
 		st := d.status()
 		writeReply(conn, controlReply{Status: &st})
 	case opClose:
-		writeReply(conn, controlReply{Closed: d.reg.Close(req.Session)})
+		writeReply(conn, controlReply{Closed: d.hosts.close(req.Session)})
 	case opStop:
 		writeReply(conn, controlReply{})
-		d.stop()
+		d.stop(true)
+	case opRestart:
+		writeReply(conn, controlReply{})
+		d.stop(false)
 	case opPreview:
-		data, cols, rows, ok := d.reg.Tail(req.Session, previewBytes)
+		rec, ok := d.hosts.lookup(req.Session)
 		if !ok {
 			writeReply(conn, controlReply{Error: errNoSession.Error()})
 			return
 		}
-		writeReply(conn, controlReply{Preview: &previewReport{Cols: cols, Rows: rows, Data: data}})
+		reply, err := hostRequestTo(rec, hostRequest{Op: hostOpTail, Bytes: previewBytes})
+		if err != nil || reply.Tail == nil {
+			writeReply(conn, controlReply{Error: errNoSession.Error()})
+			return
+		}
+		writeReply(conn, controlReply{Preview: reply.Tail})
 	default:
 		writeReply(conn, controlReply{Error: "unknown op " + req.Op})
 	}
@@ -175,16 +195,17 @@ func writeReply(w io.Writer, r controlReply) {
 func (d *daemon) status() statusReport {
 	now := time.Now()
 	st := statusReport{
-		Schema:    statusSchema,
-		State:     stateRunning,
-		Agent:     version,
-		CLI:       version,
-		PID:       os.Getpid(),
-		OS:        runtime.GOOS,
-		Arch:      runtime.GOARCH,
-		NowMs:     now.UnixMilli(),
-		StartedMs: d.started.UnixMilli(),
-		Sessions:  []sessionReport{},
+		Schema:       statusSchema,
+		State:        stateRunning,
+		Agent:        version,
+		CLI:          version,
+		PID:          os.Getpid(),
+		OS:           runtime.GOOS,
+		Arch:         runtime.GOARCH,
+		NowMs:        now.UnixMilli(),
+		StartedMs:    d.started.UnixMilli(),
+		Sessions:     []sessionReport{},
+		SessionHosts: true,
 	}
 	// Two snapshots a moment apart: the CPU time used between them is the
 	// load now. Either is nil when the system cannot be measured.
@@ -195,15 +216,49 @@ func (d *daemon) status() statusReport {
 	}
 	table, _ := procmem.Snapshot()
 	sample := sampleWindow{before: before, after: table, elapsed: time.Since(start)}
+	infos := d.hostInfos()
 	if table != nil {
-		if b, ok := table.TreeBytes(os.Getpid()); ok {
+		// The daemon and every session host, which may not be under it.
+		pids := []int{os.Getpid()}
+		for _, in := range infos {
+			pids = append(pids, in.PID)
+		}
+		if b, ok := table.TreesBytes(pids...); ok {
 			st.MemoryBytes = &b
 		}
 	}
-	for _, in := range d.reg.List() {
-		st.Sessions = append(st.Sessions, sessionFrom(in, sample))
+	for _, in := range infos {
+		r := sessionFrom(in.sessionInfo(), sample)
+		r.Agent = in.Agent
+		st.Sessions = append(st.Sessions, r)
 	}
 	return st
+}
+
+// hostInfos asks every session host about its session, oldest session first.
+// A host that does not answer is left out.
+func (d *daemon) hostInfos() []hostInfo {
+	hosts := d.hosts.all()
+	infos := make([]*hostInfo, len(hosts))
+	var wg sync.WaitGroup
+	for i, rec := range hosts {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if reply, err := hostRequestTo(rec, hostRequest{Op: hostOpInfo}); err == nil && reply.Info != nil {
+				infos[i] = reply.Info
+			}
+		}()
+	}
+	wg.Wait()
+	out := make([]hostInfo, 0, len(infos))
+	for _, in := range infos {
+		if in != nil {
+			out = append(out, *in)
+		}
+	}
+	slices.SortFunc(out, func(a, b hostInfo) int { return cmp.Compare(a.CreatedMs, b.CreatedMs) })
+	return out
 }
 
 // sampleWindow is the process table at the start and end of a status sample.
@@ -324,7 +379,7 @@ func queryStatus(stateDir string) (statusReport, error) {
 		return statusReport{}, withCode(codeStateDir, err)
 	}
 	st := statusReport{Schema: statusSchema, CLI: version, NowMs: time.Now().UnixMilli(), Sessions: []sessionReport{}}
-	reply, rec, err := request(stateDir, controlRequest{Op: opStatus})
+	reply, rec, err := requestStarting(stateDir, controlRequest{Op: opStatus})
 	if err == nil && reply.Status != nil {
 		reply.Status.CLI = version
 		return *reply.Status, nil
@@ -351,7 +406,7 @@ func closeSession(stateDir, id string) (bool, error) {
 	if err := ensureStateDir(stateDir); err != nil {
 		return false, withCode(codeStateDir, err)
 	}
-	reply, _, err := request(stateDir, controlRequest{Op: opClose, Session: id})
+	reply, _, err := requestStarting(stateDir, controlRequest{Op: opClose, Session: id})
 	if err == nil {
 		return reply.Closed, nil
 	}
@@ -371,7 +426,7 @@ func queryPreview(stateDir, id string) (previewReport, error) {
 	if err := ensureStateDir(stateDir); err != nil {
 		return previewReport{}, withCode(codeStateDir, err)
 	}
-	reply, _, err := request(stateDir, controlRequest{Op: opPreview, Session: id})
+	reply, _, err := requestStarting(stateDir, controlRequest{Op: opPreview, Session: id})
 	switch {
 	case err == nil && reply.Preview != nil:
 		return *reply.Preview, nil

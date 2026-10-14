@@ -33,6 +33,12 @@ data class AgentStatusReport(
      * (Windows); null elsewhere and from agents that predate it.
      */
     val desktop: AgentDesktopReport? = null,
+    /**
+     * The daemon keeps each session in its own host process (ADR-0022), so
+     * `--restart` updates it without closing any session. False from agents
+     * that predate it, which only `--stop` replaces.
+     */
+    val sessionHosts: Boolean = false,
 ) {
     val isRunning: Boolean get() = state == STATE_RUNNING
 
@@ -133,6 +139,12 @@ data class AgentSessionReport(
     val lastOutputMs: Long? = null,
     /** The last window title a program set (OSC 0/2). */
     val title: String? = null,
+    /**
+     * Version of the session host that holds it (ADR-0022): a session keeps
+     * the version it started with across updates of the agent. Null from
+     * agents that predate session hosts.
+     */
+    val agent: String? = null,
 )
 
 /**

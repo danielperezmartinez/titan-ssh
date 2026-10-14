@@ -38,7 +38,7 @@ func startServe(t *testing.T) (net.Conn, <-chan struct{}) {
 	reg := session.NewRegistry(newIdlePty, 1<<16)
 	t.Cleanup(func() { reg.CloseAll() })
 	done := make(chan struct{})
-	go func() { serveConn(server, reg); close(done) }()
+	go func() { serveConn(server, reg.AttachOrCreate); close(done) }()
 	return client, done
 }
 
@@ -69,7 +69,7 @@ func TestServeConnRefusesWithReasonWhenThePtyFails(t *testing.T) {
 			server, client := net.Pipe()
 			defer client.Close()
 			done := make(chan struct{})
-			go func() { serveConn(server, session.NewRegistry(tc.factory, 1<<16)); close(done) }()
+			go func() { serveConn(server, session.NewRegistry(tc.factory, 1<<16).AttachOrCreate); close(done) }()
 
 			hello := protocol.Frame{Type: protocol.TypeHello, SessionID: "s", Cols: 80, Rows: 24}
 			if _, err := client.Write(protocol.Encode(hello)); err != nil {

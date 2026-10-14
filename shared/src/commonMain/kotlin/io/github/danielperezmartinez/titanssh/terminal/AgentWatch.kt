@@ -256,6 +256,8 @@ object AgentInsights {
             s.memoryBytes?.let { "memoria ${formatBytes(it)}" },
         ).takeIf { it.isNotEmpty() }?.let { lines += it.joinToString(" · ") }
         lines += "historial guardado " + if (s.bufferBytes > 0) formatBytes(s.bufferBytes) else "vacío"
+        // A session keeps the version it started with across agent updates (ADR-0022).
+        s.agent?.takeIf { it != obs.report.agent }?.let { lines += "iniciada con el agente $it" }
         return lines
     }
 

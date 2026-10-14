@@ -135,12 +135,12 @@ fun AgentPanel(
                     if (confirming == PanelConfirm.Update) {
                         ConfirmRow(
                             question = "¿Actualizar el agente?",
-                            subtitle = "Se cierran todas sus sesiones",
+                            subtitle = if (report.sessionHosts) "Las sesiones siguen abiertas" else "Se cierran todas sus sesiones",
                             confirmLabel = "[x] Sí",
                             marker = "[-]",
                             markerColor = TitanColors.Warning,
                             onConfirm = {
-                                agents.stopAgent(host)
+                                agents.updateAgent(host)
                                 confirming = null
                             },
                             onCancel = { confirming = null },

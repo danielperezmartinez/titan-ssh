@@ -26,8 +26,8 @@ import kotlinx.coroutines.launch
  *    `chmod 0700` on Unix, and rename it into place. Without SFTP (Unix only),
  *    pipe the exact byte count through `head -c`.
  * 4. **Verify** the installed file's SHA-256 again, then remove the binaries of
- *    other versions (on Windows a running one cannot be deleted: it is skipped
- *    and retried on the next install).
+ *    other versions that nothing runs from (a running one stays for the next
+ *    install, see [removeStale]).
  *
  * Everything lives in user space, never root. On any failure the caller
  * degrades to resilience level 2/1.
@@ -149,7 +149,7 @@ class AgentInstaller(
         val launch = AgentLaunch(path, host.shell)
 
         if (remoteSha256(host, sftp, path, sftpPath, bytes.size.toLong()) == expected) {
-            removeStale(host, sftp)
+            removeStale(host, sftp, launch)
             return Result.Installed(launch, host.target, uploaded = false)
         }
 
@@ -189,7 +189,7 @@ class AgentInstaller(
                 "checksum mismatch after upload (expected $expected, got $got)",
             )
         }
-        removeStale(host, sftp)
+        removeStale(host, sftp, launch)
         return Result.Installed(launch, host.target, uploaded = true)
     }
 
@@ -213,23 +213,34 @@ class AgentInstaller(
     }
 
     /**
-     * Removes the binaries of other versions, best-effort. On Unix a daemon still
-     * running one keeps working (the inode lives until it exits); on Windows a
-     * running `.exe` cannot be deleted and is simply left for the next install.
-     * The old daemon keeps serving its sessions: the new front finds it through
-     * `agent.json` and the protocol is compatible.
+     * Removes the binaries of other versions that nothing runs from any more,
+     * best-effort. The old daemon keeps serving its sessions meanwhile: the new
+     * front finds it through `agent.json` and the protocol is compatible; and
+     * since ADR-0022 each session lives in a host process of the version it
+     * started with, which outlives an update of the daemon.
+     *
+     * On Windows a running `.exe` cannot be deleted, so SFTP removes the
+     * unused ones and the rest wait for a later install. On Unix a running
+     * binary can be deleted, but a daemon still needs its own to start session
+     * hosts, and a session reaches its agent by path (`TITAN_AGENT`): the new
+     * agent removes them with `--remove-unused`, which keeps those in use.
      */
-    private suspend fun removeStale(host: Host, sftp: SshSftp?) {
-        if (sftp != null && host.sftpDir != null) {
+    private suspend fun removeStale(host: Host, sftp: SshSftp?, launch: AgentLaunch) {
+        if (host.target.isWindows) {
+            if (sftp == null || host.sftpDir == null) return
             val names = runCatching { sftp.list(host.sftpDir) }.getOrNull() ?: return
             for (name in names.filter(isStale)) runCatching { sftp.remove("${host.sftpDir}/$name") }
-        } else if (host.shell == RemoteShell.POSIX) {
-            val listing = runCommand("ls -1 ${AgentInstall.posixQuote(host.installDir)} 2>/dev/null")
-            val stale = listing.lines().map { it.trim() }.filter { it.isNotEmpty() && isStale(it) }
-            if (stale.isEmpty()) return
-            val paths = stale.joinToString(" ") { AgentInstall.posixQuote("${host.installDir}/$it") }
-            runCommand("rm -f $paths")
+            return
         }
+        val names = if (sftp != null && host.sftpDir != null) {
+            runCatching { sftp.list(host.sftpDir) }.getOrNull() ?: return
+        } else {
+            runCommand("ls -1 ${AgentInstall.posixQuote(host.installDir)} 2>/dev/null").lines().map { it.trim() }
+        }
+        val stale = names.filter { it.isNotEmpty() && isStale(it) }
+        if (stale.isEmpty()) return
+        val paths = stale.map { AgentInstall.posixQuote("${host.installDir}/$it") }
+        runCatching { runCommand(launch.command("--remove-unused", *paths.toTypedArray())) }
     }
 
     /**
