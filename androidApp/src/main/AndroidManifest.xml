@@ -5,6 +5,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Reconnect tabs as soon as the network comes back. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Keep the sessions that would be lost connected with the screen locked (ADR-0023). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- No backup or device transfer: see res/xml/data_extraction_rules.xml. -->
     <application
@@ -26,6 +30,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Foreground service with no time limit while a tab needs its connection (ADR-0023). -->
+        <service
+            android:name=".KeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps interactive SSH terminal sessions connected while the screen is locked; a dropped session loses the remote shell and its running processes." />
+        </service>
     </application>
 
 </manifest>

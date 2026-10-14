@@ -366,6 +366,7 @@ private fun MousepadStatusStrip(
         status.phase == TabPhase.CONNECTED -> Triple("[+]", TitanColors.Success, "Conectado al escritorio")
         status.phase == TabPhase.CONNECTING -> Triple("[-]", TitanColors.Warning, "Conectando…")
         status.phase == TabPhase.RECONNECTING -> Triple("[-]", TitanColors.Warning, "Reconectando…")
+        status.phase == TabPhase.PAUSED -> Triple("[-]", TitanColors.Mute, "En pausa")
         status.phase == TabPhase.DISCONNECTED -> Triple("[x]", TitanColors.Danger, "Caída")
         else -> Triple("[x]", TitanColors.Danger, "Fallo")
     }

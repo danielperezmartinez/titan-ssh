@@ -44,7 +44,14 @@ class SessionManager(
      * each tab then retries at once if it was waiting or had given up.
      */
     networkRestored: Flow<Unit> = emptyFlow(),
+    /**
+     * Whether the platform blocks the app's network ([networkBlocked]); tabs
+     * do not try to connect meanwhile (ADR-0023).
+     */
+    networkBlocked: Flow<Boolean> = emptyFlow(),
 ) {
+    private val blocked = MutableStateFlow(false)
+
     private val byId = mutableMapOf<String, SessionTab>()
 
     private val _list = MutableStateFlow(TabList())
@@ -59,6 +66,7 @@ class SessionManager(
         scope.launch {
             networkRestored.collect { _tabs.value.forEach { it.onNetworkRestored() } }
         }
+        scope.launch { networkBlocked.collect { blocked.value = it } }
     }
 
     private val _openInstances = MutableStateFlow<Map<String, Set<Int>>>(emptyMap())
@@ -120,6 +128,7 @@ class SessionManager(
             instance = instance,
             explorerOf = explorerOf,
             sftpStartNote = sftpStartNote,
+            networkBlocked = blocked,
         )
         byId[tabId] = tab
         _list.value = _list.value.add(tabId)

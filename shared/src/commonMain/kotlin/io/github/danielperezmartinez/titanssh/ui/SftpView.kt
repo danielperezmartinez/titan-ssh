@@ -345,6 +345,7 @@ private fun SftpStatusStrip(
         TabPhase.CONNECTED -> Triple("[+]", TitanColors.Success, "SFTP · solo lectura")
         TabPhase.CONNECTING -> Triple("[-]", TitanColors.Warning, "Conectando…")
         TabPhase.RECONNECTING -> Triple("[-]", TitanColors.Warning, "Reconectando…")
+        TabPhase.PAUSED -> Triple("[-]", TitanColors.Mute, "En pausa")
         TabPhase.DISCONNECTED -> Triple("[x]", TitanColors.Danger, "Caída")
         TabPhase.FAILED -> Triple("[x]", TitanColors.Danger, "Fallo")
     }
