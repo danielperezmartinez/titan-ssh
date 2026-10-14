@@ -105,6 +105,8 @@ fun SessionsArea(
     // The tab whose menu is open, and the one being renamed.
     var menuTabId by remember { mutableStateOf<String?>(null) }
     var renamingId by remember { mutableStateOf<String?>(null) }
+    // The tab whose menu is asking to confirm "Terminar en el destino".
+    var confirmingTerminateId by remember { mutableStateOf<String?>(null) }
 
     if (tabs.isEmpty() || showLauncher) {
         Launcher(
@@ -169,8 +171,14 @@ fun SessionsArea(
             onToggleSplit = if (!isAndroidRuntime()) ({ splitEnabled = !splitEnabled }) else null,
             onFullscreen = if (isAndroidRuntime()) ({ fullscreen = true }) else null,
             menuTabId = menuTabId,
-            onMenu = { menuTabId = it },
-            onDismissMenu = { menuTabId = null },
+            onMenu = {
+                menuTabId = it
+                confirmingTerminateId = null
+            },
+            onDismissMenu = {
+                menuTabId = null
+                confirmingTerminateId = null
+            },
             menu = { tab ->
                 TabMenuItem("[~]", "Renombrar", onClick = {
                     menuTabId = null
@@ -187,6 +195,24 @@ fun SessionsArea(
                         menuTabId = null
                         scope.launch { manager.openExplorer(tab) }
                     })
+                }
+                // Ends this instance in the agent, like the panel's Terminar:
+                // its tabs close first so none reconnects and starts it again.
+                if (tab.isTerminal && tab.resolved.session.resilienceLevel == ResilienceLevel.AGENT) {
+                    if (confirmingTerminateId == tab.id) {
+                        TabMenuNote("¿Terminar? Se cierra lo que tenga en marcha")
+                        TabMenuItem("[x]", "Sí", glyphColor = TitanColors.Danger, onClick = {
+                            menuTabId = null
+                            confirmingTerminateId = null
+                            val saved = config.sessions.firstOrNull { it.id == tab.resolved.session.id } ?: tab.resolved.session
+                            agents.terminate(saved, tab.instance.number.value)
+                        })
+                        TabMenuItem("[<]", "No", onClick = { confirmingTerminateId = null })
+                    } else {
+                        TabMenuItem("[x]", "Terminar en el destino", glyphColor = TitanColors.Danger, onClick = {
+                            confirmingTerminateId = tab.id
+                        })
+                    }
                 }
             },
         )
@@ -515,6 +541,17 @@ private fun TabMenuItem(glyph: String, label: String, onClick: () -> Unit, glyph
             }
         },
         onClick = onClick,
+    )
+}
+
+/** A line of a tab's menu that only explains, e.g. what a confirmation is about. */
+@Composable
+private fun TabMenuNote(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelSmall,
+        color = TitanColors.Mute,
+        modifier = Modifier.padding(horizontal = TitanDimens.SpaceMd, vertical = TitanDimens.SpaceXs),
     )
 }
 

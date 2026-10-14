@@ -5,7 +5,7 @@ Resumen: 'Hoy el usuario no tiene una forma sencilla de saber si hay un agente d
 Decisiones: 'El usuario decide el 2026-09-29: el agente no se cierra solo; se quita el TTL de 30 minutos de las sesiones y en su lugar se avisa ([[ADR-0014 Sesiones del agente sin caducidad]], que sustituye el punto GC de [[ADR-0008 Diseño del agente de resiliencia nivel 3]]); el icono en la bandeja de Windows no se hace de momento; los avisos y las formas de cerrar quedan como se describen en la nota; la ubicación en la interfaz está en [[Estado y control del agente en la interfaz]]. Se apoya en el candado y el encuentro por loopback de [[titan-agent instancia única y directorio de estado]] y [[titan-agent punto de encuentro TCP loopback con token]], y en las acciones contextuales de [[Acciones contextuales en las filas de lista]].'
 Bloqueada: []
 Fecha de creación: 2026-09-29T21:00:00+02:00
-Última modificación: 2026-10-13T10:10:00+02:00
+Última modificación: 2026-10-15T00:51:29+02:00
 ---
 
 # Transparencia y control del agente en el destino
@@ -34,7 +34,10 @@ tiempo que pase.
 - Avisos y formas de cerrar: como se describen en los puntos 4 y 5 del plan.
 - Interfaz: lanzadera de Sesiones y panel propio del agente, según
   [[Estado y control del agente en la interfaz]]. Se descarta poner un menú
-  del agente o una opción de terminar en la pestaña del terminal.
+  del agente o una opción de terminar en la pestaña del terminal. (Cambiado el
+  2026-10-15 por
+  [[Control del agente en la interfaz y terminar desde la pestaña]]: el menú
+  de la pestaña de nivel 3 ofrece terminar la sesión.)
 - Eliminar una sesión viva no ofrece dejarla viva, para que no queden
   sesiones huérfanas.
 
@@ -106,7 +109,8 @@ Los avisos solo informan y llevan al panel; nunca cierran nada.
 
 - **Cerrar la pestaña** conserva la sesión en el destino, como ahora: un
   cierre por accidente no pierde trabajo y reabrir la sesión guardada la
-  recupera. La pestaña no ofrece ninguna opción de terminar.
+  recupera. La pestaña no ofrece ninguna opción de terminar (cambiado el
+  2026-10-15, ver arriba).
 - **"Terminar en el destino"**, en las acciones de la sesión en la lanzadera y
   en el panel, con confirmación en línea.
 - **Eliminar una sesión guardada viva** solo ofrece `[x] Eliminar y
