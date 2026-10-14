@@ -113,22 +113,101 @@ func (t *Table) Newest(pid int) int {
 	cur := pid
 	for !seen[cur] {
 		seen[cur] = true
-		next, newest := 0, uint64(0)
-		for _, c := range t.children[cur] {
-			p := t.byPID[c]
-			if isConsoleHost(p.name) {
-				continue
-			}
-			if next == 0 || p.start >= newest {
-				next, newest = c, p.start
-			}
-		}
+		next := t.newestChild(cur)
 		if next == 0 {
 			break
 		}
 		cur = next
 	}
 	return cur
+}
+
+// ShellDir is the directory the user is in at the terminal whose shell is
+// shellPID, or "" when it cannot be told for sure. reported is what the
+// terminal learned from the shell itself, "" if nothing: on Windows, the
+// directory PowerShell writes from its prompt, as its process directory never
+// moves. On Linux it is the shell's process directory.
+func (t *Table) ShellDir(shellPID int, reported string) string {
+	return shellDir(t, shellPID, reported)
+}
+
+// windowsShellDir is [Table.ShellDir] on Windows, with processDir reading a
+// process's own directory. It looks at the innermost shell the user started
+// at the terminal (the youngest along the [Table.Newest] chain), and only
+// trusts cmd.exe's process directory and, for the shell the session started,
+// what it reported. Any other shell or remote client inside (a nested
+// PowerShell, bash, wsl, ssh…) has a directory the agent cannot see.
+func (t *Table) windowsShellDir(shellPID int, reported string, processDir func(int) string) string {
+	if t == nil || shellPID <= 0 {
+		return ""
+	}
+	if _, ok := t.byPID[shellPID]; !ok {
+		return ""
+	}
+	inner := shellPID
+	seen := map[int]bool{}
+	for cur := shellPID; !seen[cur]; {
+		seen[cur] = true
+		next := t.newestChild(cur)
+		if next == 0 {
+			break
+		}
+		if isNestedShell(t.byPID[next].name) {
+			inner = next
+		}
+		cur = next
+	}
+	name := strings.ToLower(t.byPID[inner].name)
+	switch {
+	case name == "cmd.exe":
+		return driveDir(processDir(inner))
+	case inner == shellPID && (name == "powershell.exe" || name == "pwsh.exe"):
+		return driveDir(reported)
+	}
+	return ""
+}
+
+// newestChild is pid's youngest child that is not a console host, 0 if none.
+func (t *Table) newestChild(pid int) int {
+	next, newest := 0, uint64(0)
+	for _, c := range t.children[pid] {
+		p := t.byPID[c]
+		if isConsoleHost(p.name) {
+			continue
+		}
+		if next == 0 || p.start >= newest {
+			next, newest = c, p.start
+		}
+	}
+	return next
+}
+
+// isNestedShell is a program that, started at the terminal, takes over its
+// input with a directory of its own: another shell, or a client to elsewhere.
+func isNestedShell(name string) bool {
+	switch strings.ToLower(name) {
+	case "cmd.exe", "powershell.exe", "pwsh.exe", "bash.exe", "sh.exe", "zsh.exe", "fish.exe",
+		"nu.exe", "wsl.exe", "ssh.exe", "telnet.exe", "docker.exe", "kubectl.exe":
+		return true
+	}
+	return false
+}
+
+// driveDir is dir when it is a folder on a drive (`C:\Users\u`), without the
+// trailing backslash Windows keeps on a process directory except at a drive's
+// root, and "" otherwise (empty, a network share, `\\?\` forms).
+func driveDir(dir string) string {
+	dir = strings.TrimSpace(strings.TrimPrefix(dir, "\ufeff"))
+	if len(dir) < 3 || dir[1] != ':' || dir[2] != '\\' {
+		return ""
+	}
+	if c := dir[0] | 0x20; c < 'a' || c > 'z' {
+		return ""
+	}
+	for len(dir) > 3 && dir[len(dir)-1] == '\\' {
+		dir = dir[:len(dir)-1]
+	}
+	return dir
 }
 
 func isConsoleHost(name string) bool {

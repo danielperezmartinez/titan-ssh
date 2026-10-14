@@ -131,7 +131,10 @@ data class AgentSessionReport(
      */
     val foreground: String? = null,
     val foregroundPid: Int? = null,
-    /** The shell's working directory; only Linux reports it. */
+    /**
+     * The shell's working directory; Linux and Windows report it (on Windows,
+     * cmd.exe's, or PowerShell's from its prompt; none inside a nested shell).
+     */
     val cwd: String? = null,
     val cols: Int? = null,
     val rows: Int? = null,
