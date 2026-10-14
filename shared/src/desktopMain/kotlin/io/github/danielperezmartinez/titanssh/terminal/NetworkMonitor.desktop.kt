@@ -5,3 +5,6 @@ import kotlinx.coroutines.flow.emptyFlow
 
 /** No portable JVM signal for network changes: desktop tabs rely on the backoff. */
 actual fun networkRestored(): Flow<Unit> = emptyFlow()
+
+/** Desktop systems do not cut an app's network in the background. */
+actual fun networkBlocked(): Flow<Boolean> = emptyFlow()

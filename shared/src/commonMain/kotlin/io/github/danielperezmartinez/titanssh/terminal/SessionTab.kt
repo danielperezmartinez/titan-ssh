@@ -36,21 +36,25 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.Duration
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
@@ -73,8 +77,12 @@ internal fun noCommonAlgorithmDetail(e: SshNoCommonAlgorithm): String {
     return "${e.host} solo ofrece algoritmos de $kind que titan-ssh no admite por antiguos o inseguros"
 }
 
-/** Lifecycle phase of one terminal tab, surfaced in the tab strip. */
-enum class TabPhase { CONNECTING, CONNECTED, RECONNECTING, DISCONNECTED, FAILED }
+/**
+ * Lifecycle phase of one terminal tab, surfaced in the tab strip. [PAUSED]: the
+ * app let its connection go in the background because the tab had nothing to
+ * lose (ADR-0023); it connects again when the app comes back.
+ */
+enum class TabPhase { CONNECTING, CONNECTED, RECONNECTING, PAUSED, DISCONNECTED, FAILED }
 
 /**
  * A tab's status: its [phase], an optional human [detail] (e.g. a failure
@@ -101,6 +109,34 @@ internal fun failureCause(e: Throwable, includeSelf: Boolean = false): String? {
 
 /** How deep [failureCause] follows a chain of causes. */
 private const val MAX_CAUSES = 6
+
+/**
+ * Whether a tab would lose something if its connection went away while the app
+ * is in the background, so a foreground service must keep it (ADR-0023): the
+ * shell of a level-1 terminal (or one whose level is not known yet and is not
+ * waiting for the agent), the tunnels other apps may be using, or a download in
+ * progress. A tab with no live connection, a mouse pad, or a terminal at level 2
+ * or 3 loses nothing: tmux/screen or the agent keep its PTY on the destination.
+ */
+internal fun needsConnection(
+    type: SessionType,
+    phase: TabPhase,
+    level: EffectiveLevel?,
+    expectsAgent: Boolean,
+    hasTunnels: Boolean,
+    downloading: Boolean,
+): Boolean {
+    if (phase != TabPhase.CONNECTED && phase != TabPhase.RECONNECTING) return false
+    return when (type) {
+        SessionType.MOUSEPAD -> false
+        SessionType.SFTP -> downloading
+        SessionType.TERMINAL -> hasTunnels || when (level) {
+            EffectiveLevel.BASE -> true
+            null -> !expectsAgent
+            EffectiveLevel.MULTIPLEXER, EffectiveLevel.AGENT -> false
+        }
+    }
+}
 
 /** The resilience level a tab really runs at, which can be below the session's setting. */
 enum class EffectiveLevel { BASE, MULTIPLEXER, AGENT }
@@ -197,6 +233,14 @@ data class ChangedHostKey(val presented: HostKeyInfo, val stored: List<KnownHost
  * opens an SFTP channel and hands it to [sftp], the browser, until the
  * connection drops: then the browser waits, its downloads pause, and the tab
  * reconnects as usual. Nothing runs on the destination.
+ *
+ * ## In the background (ADR-0023)
+ * [keepAlive] says whether the tab would lose something without its
+ * connection ([needsConnection]); the app keeps a foreground service while any
+ * tab does. Otherwise it may [pause] the tab: the connection closes cleanly
+ * ([TabPhase.PAUSED]) and [resume] connects again, like after a drop. While the
+ * platform blocks the app's network ([networkBlocked]) no attempt is made, and
+ * that time does not count towards [ReconnectPolicy.giveUpAfterMillis].
  */
 class SessionTab(
     val id: String,
@@ -247,6 +291,8 @@ class SessionTab(
     val explorerOf: SessionTab? = null,
     /** Shown with the file browser's start folder, e.g. that the terminal's directory is unknown ([SftpListing.notice]). */
     sftpStartNote: String? = null,
+    /** Whether the platform blocks the app's network now ([networkBlocked]). */
+    private val networkBlocked: StateFlow<Boolean> = MutableStateFlow(false),
 ) {
     private val _customName = MutableStateFlow<String?>(null)
 
@@ -402,8 +448,33 @@ class SessionTab(
     /** Set when the reconnect loop ran out of [ReconnectPolicy]; the network coming back retries. */
     private var gaveUp = false
 
-    /** Cuts a reconnect backoff short: [reconnectNow] or [onNetworkRestored]. */
+    /** Cuts a reconnect backoff short: [reconnectNow], [onNetworkRestored] or [pause]. */
     private val wake = Channel<Unit>(Channel.CONFLATED)
+
+    /** Set by [pause] until [resume]: the run loop holds the tab in [TabPhase.PAUSED]. */
+    private val paused = MutableStateFlow(false)
+
+    /**
+     * Whether this tab would lose something without its connection while the
+     * app is in the background ([needsConnection], ADR-0023).
+     */
+    val keepAlive: Flow<Boolean> = combine(
+        _status,
+        _resilience,
+        sessionTunnels.status,
+        sftp?.transfers ?: flowOf(emptyList()),
+    ) { status, resilience, tunnels, transfers ->
+        needsConnection(
+            type = resolved.session.type,
+            phase = status.phase,
+            level = resilience.level,
+            expectsAgent = agentDeployer != null &&
+                resolved.session.resilienceLevel == ResilienceLevel.AGENT &&
+                resilience.issue?.isWarning != false,
+            hasTunnels = tunnels.isNotEmpty(),
+            downloading = transfers.any { !it.finished },
+        )
+    }.distinctUntilChanged()
 
     /** Reason of the last establish failure, surfaced if the tab gives up. */
     private var lastFailure: String? = null
@@ -466,7 +537,56 @@ class SessionTab(
      * connected is left alone.
      */
     fun onNetworkRestored() {
+        if (paused.value) return
         if (_status.value.phase == TabPhase.RECONNECTING || gaveUp) reconnectNow()
+    }
+
+    /**
+     * Lets the connection go while the app is in the background, because the
+     * tab has nothing to lose ([keepAlive] is false; ADR-0023). The connection
+     * closes cleanly, so the agent and tmux/screen keep the PTY on the
+     * destination, and the tab waits in [TabPhase.PAUSED] until [resume]. A tab
+     * with no connection to keep (it ended, failed or gave up) is left alone.
+     */
+    suspend fun pause() {
+        if (closed || paused.value) return
+        if (_status.value.phase == TabPhase.DISCONNECTED || _status.value.phase == TabPhase.FAILED) return
+        paused.value = true
+        wake.trySend(Unit)
+        // Say goodbye to the agent first, so it keeps the session as is.
+        runCatching { agent?.close() }
+        runCatching { input?.close() }
+        runCatching { shell?.close() }
+        runCatching { session?.close() }
+    }
+
+    /** Connects a [pause]d tab again at once, as after a drop. */
+    fun resume() {
+        paused.value = false
+    }
+
+    /**
+     * Holds the loop while the tab is paused. Returns whether it was, so the
+     * caller connects again at once with a fresh time budget.
+     */
+    private suspend fun awaitResume(): Boolean {
+        if (!paused.value) return false
+        _status.value = TabStatus(TabPhase.PAUSED, PAUSED_DETAIL)
+        combine(paused, _closedState) { p, c -> !p || c }.first { it }
+        return true
+    }
+
+    /**
+     * Holds the loop while the platform blocks the app's network: an attempt
+     * could not get out. Returns how long it waited, which the caller leaves
+     * out of the time budget.
+     */
+    private suspend fun awaitNetwork(): Duration {
+        if (!networkBlocked.value) return Duration.ZERO
+        val mark = timeSource.markNow()
+        if (everConnected) _status.value = TabStatus(TabPhase.RECONNECTING, NETWORK_BLOCKED_DETAIL, lastFailureDetail())
+        combine(networkBlocked, paused, _closedState) { blocked, p, c -> !blocked || p || c }.first { it }
+        return mark.elapsedNow()
     }
 
     /**
@@ -478,12 +598,21 @@ class SessionTab(
     private suspend fun runSession(immediate: Boolean = false) {
         var attempt = 0
         var downSince: TimeMark? = null
+        // Time spent with the network blocked since [downSince]: not tried, not counted.
+        var blockedFor = Duration.ZERO
         var now = immediate
         while (!closed) {
+            if (awaitResume()) {
+                now = true
+                attempt = 0
+                downSince = null
+                blockedFor = Duration.ZERO
+            }
+            if (closed) return
             if (everConnected && !now) {
                 attempt++
                 val since = downSince ?: timeSource.markNow().also { downSince = it }
-                reconnect.giveUpReason(attempt, since.elapsedNow())?.let { reason ->
+                reconnect.giveUpReason(attempt, since.elapsedNow() - blockedFor)?.let { reason ->
                     gaveUp = true
                     _status.value = TabStatus(TabPhase.DISCONNECTED, reason, lastFailureDetail())
                     return
@@ -491,12 +620,19 @@ class SessionTab(
                 _status.value = TabStatus(TabPhase.RECONNECTING, reconnect.progress(attempt), lastFailureDetail())
                 awaitBackoff(reconnect.backoffMillis(attempt))
                 if (closed) return
+                if (paused.value) continue
             } else {
                 _status.value = TabStatus(if (everConnected) TabPhase.RECONNECTING else TabPhase.CONNECTING)
             }
             now = false
+            blockedFor += awaitNetwork()
+            if (closed) return
+            if (paused.value) continue
 
-            when (connectOnce(reconnecting = everConnected)) {
+            val result = connectOnce(reconnecting = everConnected)
+            // A pause closes the connection under the shell or the agent, which
+            // can look like the user leaving it: it is not.
+            when (if (paused.value && result == AttemptResult.CLEAN_EXIT) AttemptResult.DROPPED else result) {
                 AttemptResult.CLEAN_EXIT -> {
                     _status.value = TabStatus(TabPhase.DISCONNECTED, "Sesión finalizada")
                     return
@@ -507,6 +643,7 @@ class SessionTab(
                     // fresh backoff and time budget.
                     attempt = 0
                     downSince = null
+                    blockedFor = Duration.ZERO
                 }
                 AttemptResult.TRUSTED_LATE, AttemptResult.SOURCE_CLOSED -> now = true
                 AttemptResult.ESTABLISH_FAILED -> {
@@ -586,6 +723,8 @@ class SessionTab(
                 return AttemptResult.TRUSTED_LATE
             }
             session = opened
+            // Paused while it connected: [pause] found no connection to close.
+            if (paused.value) return AttemptResult.DROPPED
             if (isMousepad) return runMousepad(opened)
             sftp?.let { return runSftp(it, opened) }
             // Tunnels ride the SSH connection itself, whatever carries the PTY.
@@ -1156,6 +1295,12 @@ class SessionTab(
         session = null
     }
 }
+
+/** Status detail of a tab [SessionTab.pause]d in the background. */
+private const val PAUSED_DETAIL = "En pausa en segundo plano: vuelve a conectar al abrir la app"
+
+/** Status detail while the platform blocks the app's network. */
+private const val NETWORK_BLOCKED_DETAIL = "El sistema no deja usar la red a la app: espera a que se desbloquee"
 
 /** How long the shell probe may take before the automation assumes a POSIX shell. */
 private const val SHELL_PROBE_TIMEOUT_MILLIS = 5_000L

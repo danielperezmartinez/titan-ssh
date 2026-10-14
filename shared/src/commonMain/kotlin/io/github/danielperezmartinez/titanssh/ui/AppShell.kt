@@ -32,10 +32,12 @@ import io.github.danielperezmartinez.titanssh.terminal.AgentHost
 import io.github.danielperezmartinez.titanssh.terminal.AgentHostAccess
 import io.github.danielperezmartinez.titanssh.terminal.AgentManager
 import io.github.danielperezmartinez.titanssh.terminal.AgentWatch
+import io.github.danielperezmartinez.titanssh.terminal.BackgroundConnections
 import io.github.danielperezmartinez.titanssh.terminal.CredentialResolver
 import io.github.danielperezmartinez.titanssh.terminal.createAgentWatchStore
 import io.github.danielperezmartinez.titanssh.terminal.SessionManager
 import io.github.danielperezmartinez.titanssh.terminal.createAgentDeployer
+import io.github.danielperezmartinez.titanssh.terminal.networkBlocked
 import io.github.danielperezmartinez.titanssh.terminal.networkRestored
 import io.github.danielperezmartinez.titanssh.terminal.StartScriptAutomation
 import io.github.danielperezmartinez.titanssh.theme.TitanColors
@@ -86,8 +88,15 @@ fun AppShell() {
                 agentDeployer = agentDeployer,
                 agentObserver = agentWatch,
                 networkRestored = networkRestored(),
+                networkBlocked = networkBlocked(),
             )
         }
+        // ADR-0023: a foreground service while a tab would lose its connection,
+        // otherwise the tabs pause a while after the app leaves the screen.
+        val background = remember { BackgroundConnections(scope, sessionManager.tabs) }
+        AppVisibilityEffect(background::setForeground)
+        val keepAlive by background.request.collectAsState()
+        KeepAliveService(keepAlive)
         val agents = remember {
             AgentManager(
                 scope = scope,

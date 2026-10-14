@@ -519,6 +519,7 @@ private fun StatusStrip(
         TabPhase.CONNECTING -> Triple("[-]", TitanColors.Warning, "Conectando…")
         TabPhase.CONNECTED -> Triple("[+]", TitanColors.Success, "Conectado")
         TabPhase.RECONNECTING -> Triple("[-]", TitanColors.Warning, "Reconectando…")
+        TabPhase.PAUSED -> Triple("[-]", TitanColors.Mute, "En pausa")
         TabPhase.DISCONNECTED -> Triple("[x]", TitanColors.Danger, "Caída")
         TabPhase.FAILED -> Triple("[x]", TitanColors.Danger, "Fallo")
     }

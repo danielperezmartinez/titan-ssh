@@ -563,6 +563,7 @@ private fun statusMarker(phase: TabPhase): Pair<String, Color> = when (phase) {
     TabPhase.CONNECTING -> "[-]" to TitanColors.Warning
     TabPhase.CONNECTED -> "[+]" to TitanColors.Success
     TabPhase.RECONNECTING -> "[-]" to TitanColors.Warning
+    TabPhase.PAUSED -> "[-]" to TitanColors.Mute
     TabPhase.DISCONNECTED -> "[x]" to TitanColors.Danger
     TabPhase.FAILED -> "[x]" to TitanColors.Danger
 }
