@@ -8,7 +8,7 @@ Consecuencias: 'Reutiliza el transporte y la auth de SSH (mínima superficie de 
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-09-19T18:10:00+02:00
-Última modificación: 2026-09-29T21:30:00+02:00
+Última modificación: 2026-10-14T17:00:00+02:00
 ---
 
 # ADR-0008 · Diseño del agente de resiliencia nivel 3
@@ -20,6 +20,13 @@ Fecha de creación: 2026-09-19T18:10:00+02:00
 > funcione también en Windows, macOS, BSD y cualquier Linux. El resto de esta ADR
 > sigue vigente: opción B sobre `exec`, Go, protocolo por tramas, semántica de
 > buffer y replay, e instalación por SFTP con checksum.
+
+> **Actualización (ADR-0022, 2026-10-14): sustituida en parte.**
+> [[ADR-0022 Procesos de sesión independientes del daemon del agente]] saca
+> el PTY y el búfer de cada sesión del daemon a un proceso guardián propio, para
+> que actualizar o reiniciar el daemon no cierre las sesiones. El daemon queda
+> como enrutador; el protocolo con el cliente y la semántica de replay no
+> cambian.
 
 ## Contexto
 

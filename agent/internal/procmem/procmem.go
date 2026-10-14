@@ -71,6 +71,24 @@ func (t *Table) TreeBytes(pid int) (uint64, bool) {
 	return total, ok
 }
 
+// TreesBytes is the resident memory of the trees of pids together, each
+// process counted once even when one tree holds another, and false if none of
+// pids is in the snapshot.
+func (t *Table) TreesBytes(pids ...int) (uint64, bool) {
+	seen := map[int]bool{}
+	var total uint64
+	found := false
+	for _, pid := range pids {
+		found = t.walk(pid, func(p proc) {
+			if !seen[p.pid] {
+				seen[p.pid] = true
+				total += p.rss
+			}
+		}) || found
+	}
+	return total, found
+}
+
 // TreeCPU is the CPU time used so far by pid and its live descendants, and
 // false if pid is not in the snapshot.
 func (t *Table) TreeCPU(pid int) (time.Duration, bool) {

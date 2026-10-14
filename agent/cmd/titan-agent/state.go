@@ -34,6 +34,11 @@ type agentState struct {
 	// Session is the Windows session the desktop helper runs in (desktop.json
 	// only).
 	Session int `json:"session,omitempty"`
+	// A session host's record (session-<key>.json, ADR-0022): the session it
+	// holds, its executable and the daemon↔host protocol it speaks.
+	ID        string `json:"id,omitempty"`
+	Exe       string `json:"exe,omitempty"`
+	HostProto int    `json:"hostProto,omitempty"`
 }
 
 // token decodes the preamble secret.

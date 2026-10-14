@@ -152,7 +152,7 @@ func TestRenameSessionWithoutDaemon(t *testing.T) {
 func TestStopRequestEndsTheDaemonInOrder(t *testing.T) {
 	shortTimeouts(t)
 	dir := testStateDir(t)
-	d, err := startDaemon(dir, 1<<16, newIdlePty)
+	d, err := startDaemon(dir, inProcessHosts(dir, newIdlePty))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +177,7 @@ func TestStopRequestEndsTheDaemonInOrder(t *testing.T) {
 	if !d.stopping.Load() {
 		t.Fatal("the daemon should know it is stopping")
 	}
-	if n := d.reg.CloseAll(); n != 1 {
+	if n := d.hosts.closeAll(); n != 1 {
 		t.Fatalf("the session should still be there to close, got %d", n)
 	}
 	d.close()
@@ -426,8 +426,8 @@ func TestPreviewGivesTheEndOfTheHistory(t *testing.T) {
 	if s := rep.Sessions[0]; s.Cols == 0 || s.Rows == 0 {
 		t.Fatalf("session size missing: %+v", s)
 	}
-	if _, _, _, ok := d.reg.Tail("s1", 1); !ok {
-		t.Fatal("the registry must hold s1")
+	if _, ok := d.hosts.lookup("s1"); !ok {
+		t.Fatal("the daemon must route s1 to a host")
 	}
 	p, err := queryPreview(dir, "s1")
 	if err != nil {

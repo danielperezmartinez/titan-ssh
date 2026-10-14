@@ -49,6 +49,33 @@ class AgentSessionDetailsTest {
     }
 
     @Test
+    fun parsesTheSessionHosts() {
+        // ADR-0022: the daemon says it keeps sessions in hosts, and each
+        // session the version of its host.
+        val r = AgentStatusReport.parse(
+            """{"schema":1,"state":"running","agent":"1.1.0","cli":"1.1.0","nowMs":5,"sessionHosts":true,""" +
+                """"sessions":[{"id":"s1","createdMs":1,"lastUsedMs":2,"clients":0,"bufferBytes":3,"agent":"1.0.0"}]}""",
+        )
+        assertTrue(r.sessionHosts)
+        assertEquals("1.0.0", r.sessions.single().agent)
+        // An agent from before them says neither: updating it closes its sessions.
+        val old = AgentStatusReport.parse("""{"schema":1,"state":"running","cli":"1","nowMs":5}""")
+        assertEquals(false, old.sessionHosts)
+    }
+
+    @Test
+    fun aSessionOfAnOlderHostSaysWhichVersion() {
+        val s = AgentSessionReport(id = "s", createdMs = 0, lastUsedMs = 0, agent = "1.0.0")
+        val o = AgentObservation(
+            AgentStatusReport(state = AgentStatusReport.STATE_RUNNING, agent = "1.1.0", nowMs = 0, sessions = listOf(s)),
+            observedAtMs = 0,
+        )
+        assertEquals("iniciada con el agente 1.0.0", AgentInsights.sessionDetails(o, s, 0) { "t" }.last())
+        val current = s.copy(agent = "1.1.0")
+        assertTrue(AgentInsights.sessionDetails(o, current, 0) { "t" }.none { "iniciada con" in it })
+    }
+
+    @Test
     fun parsesThePreviewContract() {
         // The exact JSON `TestStatusJSONContract` pins for --preview.
         val p = AgentPreview.parse("""{"cols":80,"rows":24,"data":"aGk="}""")

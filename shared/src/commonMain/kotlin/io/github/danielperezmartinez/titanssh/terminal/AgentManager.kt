@@ -179,8 +179,23 @@ class AgentManager(
     }
 
     /**
+     * Updates [host]'s agent to the app's version. One with session hosts
+     * (ADR-0022) is restarted and keeps every session: the open tabs see a
+     * dropped connection and reattach. An older one keeps its sessions inside
+     * the daemon, so updating it means stopping it, which closes them.
+     */
+    fun updateAgent(host: AgentHost) {
+        val report = watch.state.value.observations[host.key.id]?.report
+        if (report?.sessionHosts == true) {
+            launchOn(host) { access.withAgent(host) { it.restart() } }
+        } else {
+            stopAgent(host)
+        }
+    }
+
+    /**
      * Stops [host]'s agent, closing every session; the next level-3 session
-     * starts the app's own version. Also how an older agent is updated.
+     * starts the app's own version.
      */
     fun stopAgent(host: AgentHost) = launchOn(host) {
         config.state.value.sessions

@@ -731,7 +731,19 @@ class SessionTab(
             agent = null
             return degrade(issue)
         }
-        return if (droppedWithin(opened)) AttemptResult.DROPPED else AttemptResult.CLEAN_EXIT
+        if (droppedWithin(opened)) return AttemptResult.DROPPED
+        // The agent's channel closed with the connection still up: the session
+        // was closed, or only the daemon went away (an update, ADR-0022) while
+        // the session lives on in its host. Reattach to it in the second case.
+        return if (agentSessionAlive(opened, agentLaunch)) AttemptResult.DROPPED else AttemptResult.CLEAN_EXIT
+    }
+
+    /** Whether the agent on [opened] still holds this tab's session, alive. */
+    private suspend fun agentSessionAlive(opened: SshSession, launch: AgentLaunch): Boolean {
+        val id = AgentTransport.sanitizeId(instance.id)
+        return runCatching {
+            AgentControl(opened, launch).status().sessions.any { it.id == id && !it.closed }
+        }.getOrDefault(false)
     }
 
     /**

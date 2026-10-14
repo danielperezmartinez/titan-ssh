@@ -9,18 +9,22 @@
 //     use) and splices the exec channel's stdio to that connection. The framed
 //     protocol (package protocol) flows through untouched; the front is a dumb
 //     pipe, so it can come and go with each (re)connection.
-//   - daemon (--daemon): the persistent process that holds every session's PTY
-//     and output ring buffer and speaks the framed protocol per connection. It
-//     survives client disconnects, so reconnecting re-attaches to a live PTY and
-//     replays from the client's last offset. A lock in the state dir keeps it to
-//     one per user.
+//   - daemon (--daemon): the persistent process that routes each connection to
+//     its session. A lock in the state dir keeps it to one per user.
+//   - session host (--session-host, internal, ADR-0022): one per session,
+//     started by the daemon. It holds the session's PTY and output ring buffer
+//     and speaks the framed protocol, so reconnecting re-attaches to a live PTY
+//     and replays from the client's last offset. It outlives the daemon: a new
+//     daemon, even of another version, finds it and routes to it again.
 //
 // --status reports the daemon and its sessions (--json for the client),
 // --preview prints the end of one session's output (for the client's preview),
 // --rename-session gives one session the name the user chose,
 // --close-session ends one session and --stop ends the daemon in order,
-// closing every session first. Nothing else ever ends them: sessions do not
-// expire (ADR-0014).
+// closing every session first. --restart replaces the daemon with this
+// version and keeps every session: how the agent is updated. Nothing else
+// ever ends them: sessions do not expire (ADR-0014). --remove-unused deletes
+// the binaries of other versions that nothing runs from any more.
 //
 // A mouse pad session (ADR-0016) uses two more modes: --input, the front the
 // client execs for it, and --desktop, the helper on the user's desktop that
@@ -50,6 +54,12 @@ var version = "0.0.0-dev"
 func main() {
 	daemon := flag.Bool("daemon", false, "run the persistent session daemon")
 	stop := flag.Bool("stop", false, "stop the user's daemon, closing every session, and exit")
+	restart := flag.Bool("restart", false, "replace the user's daemon with this version, keeping every session, and exit")
+	removeUnusedFlag := flag.Bool("remove-unused", false, "delete the binaries named after the flags unless a running daemon or session uses them, and exit")
+	// Internal: the daemon starts one session host per session (ADR-0022).
+	sessionHost := flag.String("session-host", "", "internal: hold the session with this id (started by the daemon)")
+	cols := flag.Int("cols", 80, "with --session-host: the terminal's initial columns")
+	rows := flag.Int("rows", 24, "with --session-host: the terminal's initial rows")
 	status := flag.Bool("status", false, "print the user's daemon and its sessions, and exit")
 	asJSON := flag.Bool("json", false, "with --status or --preview: print the report as JSON")
 	closeID := flag.String("close-session", "", "close the session with this id, and exit")
@@ -75,6 +85,8 @@ func main() {
 	}
 
 	err := run(*stateDir, mode{
+		restart: *restart, removeUnused: *removeUnusedFlag,
+		sessionHost: *sessionHost, cols: clampFlag(*cols, 80), rows: clampFlag(*rows, 24),
 		daemon: *daemon, stop: *stop, status: *status, json: *asJSON,
 		closeID: *closeID, previewID: *previewID,
 		renameID: *renameID, nameBase64: *nameB64,
@@ -96,6 +108,9 @@ func main() {
 // runs as the front.
 type mode struct {
 	daemon, stop, status, json    bool
+	restart, removeUnused         bool
+	sessionHost                   string // the session id a session host holds
+	cols, rows                    uint16
 	closeID, previewID            string
 	renameID, nameBase64          string
 	input, desktop, removeDesktop bool
@@ -115,6 +130,12 @@ func run(stateDir string, m mode, bufCap int) error {
 	switch {
 	case m.stop:
 		return stopDaemon(stateDir)
+	case m.restart:
+		return restartDaemon(stateDir)
+	case m.removeUnused:
+		return removeUnused(stateDir, m.args)
+	case m.sessionHost != "":
+		return runSessionHost(hostConfig{dir: stateDir, id: m.sessionHost, cols: m.cols, rows: m.rows, bufCap: bufCap})
 	case m.status:
 		st, err := queryStatus(stateDir)
 		if err != nil {
@@ -171,4 +192,12 @@ func run(stateDir string, m mode, bufCap int) error {
 	default:
 		return runFront(stateDir)
 	}
+}
+
+// clampFlag turns a size flag into a terminal dimension, def when out of range.
+func clampFlag(v, def int) uint16 {
+	if v < 1 || v > 0xFFFF {
+		return uint16(def)
+	}
+	return uint16(v)
 }

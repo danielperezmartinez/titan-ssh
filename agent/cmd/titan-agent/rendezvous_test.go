@@ -69,7 +69,7 @@ func helloConn(t *testing.T, conn net.Conn, id string) protocol.Frame {
 // startTestDaemon runs an in-process daemon on dir with idle fake PTYs.
 func startTestDaemon(t *testing.T, dir string) *daemon {
 	t.Helper()
-	d, err := startDaemon(dir, 1<<16, newIdlePty)
+	d, err := startDaemon(dir, inProcessHosts(dir, newIdlePty))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func startTestDaemon(t *testing.T, dir string) *daemon {
 		<-done         // serve returned: no more connection goroutines start
 		d.conns.Wait() // nor outlive the test (they read its shortened timeouts)
 		d.close()
-		d.reg.CloseAll()
+		d.hosts.closeAll()
 	})
 	return d
 }
@@ -131,7 +131,7 @@ func TestSecondDaemonBacksOffAndFirstKeepsServing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := startDaemon(dir, 1<<16, newIdlePty); !errors.Is(err, errLocked) {
+	if _, err := startDaemon(dir, inProcessHosts(dir, newIdlePty)); !errors.Is(err, errLocked) {
 		t.Fatalf("a second daemon must see the lock taken, got %v", err)
 	}
 	if err := runDaemon(dir, 1<<16); err != nil {

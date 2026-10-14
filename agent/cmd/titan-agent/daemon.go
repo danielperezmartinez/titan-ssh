@@ -25,11 +25,11 @@ var maintainInterval = 5 * time.Second
 var helloTimeout = 10 * time.Second
 
 // runDaemon is the --daemon mode: it becomes the user's only daemon, publishes
-// where it listens and serves the framed protocol, holding every session's PTY
-// and ring buffer for their lifetime. It returns nil at once, touching
-// nothing, when another daemon already holds the lock. It never exits on its
-// own while it holds sessions or not; only a stop request (--stop) ends it,
-// closing every session first.
+// where it listens and routes each session connection to the host that holds
+// that session (ADR-0022), starting one on first use. It returns nil at once,
+// touching nothing, when another daemon already holds the lock. It never
+// exits on its own while it routes sessions or not; only a stop request ends
+// it: --stop closes every session first, --restart leaves them running.
 func runDaemon(stateDir string, bufCap int) error {
 	if err := ensureStateDir(stateDir); err != nil {
 		return withCode(codeStateDir, err)
@@ -39,7 +39,7 @@ func runDaemon(stateDir string, bufCap int) error {
 	if exe, err := os.Executable(); err == nil {
 		_ = os.Setenv(agentPathEnv, exe)
 	}
-	d, err := startDaemon(stateDir, bufCap, session.NewPty)
+	d, err := startDaemon(stateDir, processHostSpawner(stateDir, bufCap))
 	if errors.Is(err, errLocked) {
 		return nil // a live daemon serves this user; the front connects to it
 	}
@@ -59,13 +59,15 @@ func runDaemon(stateDir string, bufCap int) error {
 	close(quit)
 	wg.Wait()
 	if d.stopping.Load() {
-		d.reg.CloseAll()
+		if d.closeSessions.Load() {
+			d.hosts.closeAll()
+		}
 		return nil
 	}
 	return err
 }
 
-// maintain runs until quit: it reaps sessions whose shell exited and puts the
+// maintain runs until quit: it forgets the session hosts that ended and puts the
 // state file back if it went missing or was overwritten. The daemon holds the
 // lock, so its record is the only valid one; without it no front could reach
 // the daemon, and the daemon would hold the lock unreachable for good.
@@ -77,7 +79,7 @@ func (d *daemon) maintain(quit <-chan struct{}) {
 		case <-quit:
 			return
 		case <-t.C:
-			d.reg.GC()
+			d.hosts.prune()
 			d.republish()
 		}
 	}
@@ -93,8 +95,9 @@ func (d *daemon) republish() {
 }
 
 // stop is the orderly stop a control request asks for: serve returns, and
-// runDaemon closes every session and releases the lock.
-func (d *daemon) stop() {
+// runDaemon releases the lock, closing every session first if closeSessions.
+func (d *daemon) stop(closeSessions bool) {
+	d.closeSessions.Store(closeSessions)
 	d.stopping.Store(true)
 	d.ln.Close()
 }
@@ -109,16 +112,26 @@ type daemon struct {
 	record   agentState // what it published in the state file
 	started  time.Time
 	stopping atomic.Bool
-	reg      *session.Registry
-	conns    sync.WaitGroup // connection goroutines started by serve
-	slots    handshakeSlots
+	// closeSessions: the stop closes every session (--stop) rather than
+	// leaving their hosts running for the next daemon (--restart).
+	closeSessions atomic.Bool
+	hosts         *hostTable
+	conns         sync.WaitGroup // connection goroutines started by serve
+	slots         handshakeSlots
+
+	// routes are the client connections being routed to a host and their
+	// host ends, closed when the daemon closes: the clients reattach
+	// through the next daemon.
+	routeMu sync.Mutex
+	routes  map[net.Conn]struct{}
 }
 
 // startDaemon takes the single-instance lock, listens on a random loopback
 // port and only then publishes {port, token, pid}, so a front never finds a
-// state file for a port nobody listens on yet. It returns errLocked if another
-// daemon holds the lock.
-func startDaemon(dir string, bufCap int, newPty session.PtyFactory) (*daemon, error) {
+// state file for a port nobody listens on yet. Before publishing, it takes on
+// the session hosts a previous daemon left running. It returns errLocked if
+// another daemon holds the lock.
+func startDaemon(dir string, spawn hostSpawner) (*daemon, error) {
 	lock, err := lockDaemon(dir)
 	if errors.Is(err, errLocked) {
 		return nil, err
@@ -146,6 +159,11 @@ func startDaemon(dir string, bufCap int, newPty session.PtyFactory) (*daemon, er
 		Token:  hex.EncodeToString(token),
 		PID:    os.Getpid(),
 	}
+	if exe, err := os.Executable(); err == nil {
+		st.Exe = exe // --remove-unused keeps it while this daemon runs
+	}
+	hosts := newHostTable(dir, spawn)
+	hosts.adopt()
 	if err := writeState(dir, st); err != nil {
 		ln.Close()
 		lock.Close()
@@ -158,7 +176,8 @@ func startDaemon(dir string, bufCap int, newPty session.PtyFactory) (*daemon, er
 		token:   token,
 		record:  st,
 		started: time.Now(),
-		reg:     session.NewRegistry(newPty, bufCap),
+		hosts:   hosts,
+		routes:  map[net.Conn]struct{}{},
 		slots:   newHandshakeSlots(),
 	}, nil
 }
@@ -195,27 +214,39 @@ func (d *daemon) serve() error {
 				d.serveControl(conn)
 				return
 			}
-			serveConn(conn, d.reg)
+			d.routeConn(conn)
 		}()
 	}
 }
 
 // close stops listening, drops the state file if it is still this daemon's and
-// releases the lock. Open connections and live sessions are left alone.
+// releases the lock. The routed connections close; the sessions, in their
+// hosts, are left alone.
 func (d *daemon) close() {
 	d.ln.Close()
 	removeOwnState(d.dir, os.Getpid())
 	d.lock.Close()
+	d.routeMu.Lock()
+	for c := range d.routes {
+		c.Close()
+	}
+	d.routes = nil
+	d.routeMu.Unlock()
 }
 
-// serveConn runs one client connection: decode frames, wait for the opening
-// HELLO, attach-or-create its session and hand off to Session.Handle. Writes are
+// attachFunc gives serveConn the session a HELLO names: a session host's one
+// session (host.go), or a registry's attach-or-create in tests. The bool is
+// whether this attach created it.
+type attachFunc func(id string, cols, rows uint16) (*session.Session, bool, error)
+
+// serveConn runs one client connection on a session host: decode frames, wait
+// for the opening HELLO, attach to its session and hand off to Session.Handle. Writes are
 // serialized so the replay and the live tee never interleave a frame's bytes.
 //
 // It returns only once its reader goroutine has exited, whichever way the
 // connection ends: client gone or silent before HELLO, attach failure, or
 // Handle returning while the client is still sending.
-func serveConn(conn net.Conn, reg *session.Registry) {
+func serveConn(conn net.Conn, attach attachFunc) {
 	done := make(chan struct{})
 	var wg sync.WaitGroup
 	defer wg.Wait()
@@ -282,7 +313,7 @@ func serveConn(conn net.Conn, reg *session.Registry) {
 		return // client closed, errored or stayed silent before HELLO
 	}
 	_ = conn.SetReadDeadline(time.Time{})
-	s, created, err := reg.AttachOrCreate(first.SessionID, clampSize(first.Cols, 80), clampSize(first.Rows, 24))
+	s, created, err := attach(first.SessionID, clampSize(first.Cols, 80), clampSize(first.Rows, 24))
 	if err != nil {
 		// The front is only splicing bytes by now and has nothing to report,
 		// so the reason travels in the BYE instead of on the front's stderr.
@@ -293,8 +324,17 @@ func serveConn(conn net.Conn, reg *session.Registry) {
 }
 
 // attachFailure renders why a session could not be opened as the BYE reason:
-// `<code> <message>` of the error contract, E_PTY unless the PTY said better.
+// `<code> <message>` of the error contract, E_PTY unless the PTY, the session
+// host or the daemon said better.
 func attachFailure(err error) string {
+	var re reasonError
+	if errors.As(err, &re) {
+		return string(re)
+	}
+	var ae *agentError
+	if errors.As(err, &ae) {
+		return ae.contractReason()
+	}
 	code := session.CodePty
 	var pe *session.PtyError
 	if errors.As(err, &pe) {

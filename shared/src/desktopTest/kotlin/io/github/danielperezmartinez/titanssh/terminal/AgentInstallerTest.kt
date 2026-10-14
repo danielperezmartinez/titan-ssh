@@ -104,6 +104,12 @@ class AgentInstallerTest {
                 val path = cmd.substringAfter("sha256sum '").substringBefore("'")
                 sftp?.files?.get(path)?.let { "${sha256(it)}  $path\n" } ?: ""
             }
+            // The new agent removes the old binaries nothing runs from (ADR-0022).
+            " --remove-unused " in cmd -> {
+                Regex("'([^']*)'").findAll(cmd.substringAfter(" --remove-unused "))
+                    .forEach { sftp?.files?.remove(it.groupValues[1]) }
+                ""
+            }
             else -> ""
         }
     }
@@ -176,6 +182,10 @@ class AgentInstallerTest {
         assertEquals(0x1C0, sftp.modes[path])
         assertTrue(binary.contentEquals(sftp.files[path]))
         assertEquals(setOf(path), sftp.files.keys, "the old version is removed")
+        assertTrue(
+            "'$path' --remove-unused '/home/u/.local/share/titan-ssh/agent-0.9.0-linux-amd64'" in host.commands,
+            "by the new agent, which keeps what a daemon or session runs from: ${host.commands}",
+        )
 
         // Reconnecting: sha256sum answers, nothing is read back or uploaded.
         val writes = sftp.writes

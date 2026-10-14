@@ -257,6 +257,14 @@ func (r *Registry) AttachOrCreate(id string, cols, rows uint16) (*Session, bool,
 	return s, true, nil
 }
 
+// Get returns the live session for id without creating one.
+func (r *Registry) Get(id string) (*Session, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	s, ok := r.sessions[id]
+	return s, ok
+}
+
 // Tail is the last n bytes of session id's retained output and the PTY size
 // they were drawn for, so the client can show what the terminal looks like
 // without attaching. The bool is false when the session does not exist.

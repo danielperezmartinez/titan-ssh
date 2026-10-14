@@ -246,3 +246,71 @@ func TestStatusCloseAndStopFromTheCommandLine(t *testing.T) {
 		t.Fatalf("after --stop: %s", out)
 	}
 }
+
+// statusOf runs --status --json on dir.
+func statusOf(t *testing.T, dir string) statusReport {
+	t.Helper()
+	out, err := agentCmd(t, "--status", "--json", "--state-dir", dir).Output()
+	if err != nil {
+		t.Fatalf("--status: %v", err)
+	}
+	var rep statusReport
+	if err := json.Unmarshal(out, &rep); err != nil {
+		t.Fatalf("--status: %v: %s", err, out)
+	}
+	return rep
+}
+
+// ADR-0022 with real processes and a real shell: --restart replaces the
+// daemon and the session's shell carries on in its host, so the next front
+// reattaches to it. Killing the daemon outright does not take it either.
+func TestRestartKeepsTheSessionAndItsShell(t *testing.T) {
+	dir := testStateDir(t)
+	t.Cleanup(func() { stopAgent(t, dir) })
+
+	f1 := startFront(t, dir)
+	if ok := hello(t, f1.stdin, f1.out, "kept"); !ok.Created {
+		t.Fatal("the first attach should create the session")
+	}
+	f1.close(t)
+	var before statusReport
+	waitFor(t, "the session in --status", func() bool {
+		before = statusOf(t, dir)
+		return len(before.Sessions) == 1 && before.Sessions[0].ShellPID > 0
+	})
+	if !before.SessionHosts {
+		t.Fatal("the daemon must say it keeps sessions in hosts")
+	}
+
+	if out, err := agentCmd(t, "--restart", "--state-dir", dir).CombinedOutput(); err != nil {
+		t.Fatalf("--restart: %v: %s", err, out)
+	}
+	after := statusOf(t, dir)
+	if after.State != stateRunning || after.PID == before.PID {
+		t.Fatalf("--restart must leave a new daemon running: before PID %d, after %+v", before.PID, after)
+	}
+	if len(after.Sessions) != 1 || after.Sessions[0].ShellPID != before.Sessions[0].ShellPID {
+		t.Fatalf("the session's shell must carry on: before %+v, after %+v", before.Sessions, after.Sessions)
+	}
+
+	// A daemon killed outright: the control commands bring one back for the
+	// live session.
+	p, err := os.FindProcess(after.PID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Kill(); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the killed daemon's lock", func() bool { held, err := lockHeld(dir); return err == nil && !held })
+	again := statusOf(t, dir)
+	if again.State != stateRunning || len(again.Sessions) != 1 || again.Sessions[0].ShellPID != before.Sessions[0].ShellPID {
+		t.Fatalf("after killing the daemon: %+v", again)
+	}
+
+	f2 := startFront(t, dir)
+	if ok := hello(t, f2.stdin, f2.out, "kept"); ok.Created {
+		t.Fatal("the front must reattach to the live session")
+	}
+	f2.close(t)
+}
