@@ -3,10 +3,9 @@ Nombre: 'Operaciones de escritura en la sesión SFTP'
 Estado: 'Pendiente'
 Resumen: 'Petición del usuario (2026-10-14), para más adelante. La sesión SFTP nace de solo lectura (navegar y descargar). Esta tarea añade el resto: subir archivos desde el dispositivo, crear carpetas, renombrar, borrar y, si se decide, cambiar permisos, con confirmación en lo destructivo y subidas reanudables como las descargas.'
 Decisiones: 'Sale de [[Sesión SFTP para navegar y descargar archivos]] y de [[ADR-0021 Sesión SFTP de solo lectura con descargas reanudables]], que limitan la primera versión a solo lectura.'
-Bloqueada:
-  - "[[Sesión SFTP para navegar y descargar archivos]]"
+Bloqueada: []
 Fecha de creación: 2026-10-14T10:50:00+02:00
-Última modificación: 2026-10-14T10:50:00+02:00
+Última modificación: 2026-10-14T14:40:00+02:00
 ---
 
 # Operaciones de escritura en la sesión SFTP

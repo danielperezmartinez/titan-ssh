@@ -1,11 +1,11 @@
 ---
 Nombre: 'Sesión SFTP para navegar y descargar archivos'
-Estado: 'En curso'
+Estado: 'Hecha'
 Resumen: 'Un tipo de sesión nuevo, SFTP, junto a terminal y mouse pad: abre un explorador de archivos del destino sobre la conexión SSH de la sesión guardada (mismo host, credenciales y ProxyJump), permite navegar por los directorios y descargar archivos a Descargas del dispositivo. Solo lectura. Las descargas van por bloques con progreso y se reanudan desde donde iban si la conexión se corta.'
 Decisiones: 'Decidido con el usuario el 2026-10-14 y recogido en [[ADR-0021 Sesión SFTP de solo lectura con descargas reanudables]]. Es un tipo de sesión guardada (SessionType.SFTP), no una acción de la terminal; abrir el explorador desde una pestaña ya conectada queda en [[Abrir el explorador SFTP desde una sesión abierta]]. Las descargas van directas a Descargas; elegir la carpeta queda en [[Pantalla de ajustes generales de la app]]. Solo lectura; subir, renombrar, borrar y crear carpetas queda en [[Operaciones de escritura en la sesión SFTP]]. Incluye reanudar la descarga tras un corte.'
 Bloqueada: []
 Fecha de creación: 2026-10-14T10:50:00+02:00
-Última modificación: 2026-10-14T12:30:00+02:00
+Última modificación: 2026-10-14T14:40:00+02:00
 ---
 
 # Sesión SFTP para navegar y descargar archivos
@@ -71,10 +71,27 @@ Fuera de alcance: [[Abrir el explorador SFTP desde una sesión abierta]],
   el `[r]`. Repetido el corte: misma suma `sha256` que el servidor. La caída
   se detecta ~60 s después de congelar el servidor (tiempo de espera de las
   peticiones de sshj).
-- Pendiente: probar la ventana de escritorio (desde la sesión 0 no se puede
-  ver; solo se ha compilado) y que el usuario lo pruebe en el emulador.
-  Android 8–9 (carpeta propia de la app) no se ha probado en dispositivo.
+- El usuario lo probó en el emulador el 2026-10-14 y dio la tarea por
+  terminada. Sin verificar por el agente: la ventana de escritorio (solo
+  compilada; desde la sesión 0 no se ve) y Android 8–9 (carpeta propia de la
+  app) en un dispositivo real.
 
 ## Resultado
 
-<Se rellena al completar: qué se hizo finalmente.>
+- Tipo de sesión `SFTP` en el modelo, el editor (con "Carpeta inicial"), la
+  lanzadera y la lista de Configuración. No usa el agente.
+- `SshSftp` ampliado con `listEntries`, `stat` y `readFrom(offset)`; los
+  errores que son respuesta del servidor llegan como `SshSftpFailed`
+  ([[SshConnector]]).
+- [[SftpBrowser]]: estado de la pestaña que sobrevive a las reconexiones;
+  descargas por bloques que se pausan y siguen desde el último byte. Un
+  fallo que no es respuesta del servidor hace reconectar la pestaña al
+  momento; 5 intentos seguidos sin avanzar la dan por fallida.
+- [[DownloadStore]]: Descargas vía MediaStore en Android 10+, carpeta de la
+  app en Android 8–9 y la carpeta de descargas del usuario en escritorio.
+- [[SftpView]]: barra de ruta, listado, detalle con "Descargar" y bandeja de
+  descargas con progreso, cancelar y abrir.
+- Tareas de seguimiento: [[Abrir el explorador SFTP desde una sesión abierta]],
+  [[Pantalla de ajustes generales de la app]] y
+  [[Operaciones de escritura en la sesión SFTP]] (desbloqueada al cerrar
+  esta).
