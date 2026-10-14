@@ -181,6 +181,7 @@ func TestStopRequestEndsTheDaemonInOrder(t *testing.T) {
 		t.Fatalf("the session should still be there to close, got %d", n)
 	}
 	d.close()
+	d.conns.Wait()
 	if _, err := os.Stat(filepath.Join(dir, stateFileName)); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("a stopped daemon removes its state file, got %v", err)
 	}

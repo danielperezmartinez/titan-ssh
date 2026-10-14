@@ -437,8 +437,14 @@ func TestControlCommandsBringBackADaemonForLiveHosts(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		go func() { _ = d.serve() }()
-		t.Cleanup(func() { d.ln.Close(); d.close() })
+		done := make(chan struct{})
+		go func() { _ = d.serve(); close(done) }()
+		t.Cleanup(func() {
+			d.ln.Close()
+			<-done
+			d.conns.Wait()
+			d.close()
+		})
 		return nil
 	})
 	if err != nil {
