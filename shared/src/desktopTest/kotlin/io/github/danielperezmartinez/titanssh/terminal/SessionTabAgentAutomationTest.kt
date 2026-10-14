@@ -68,16 +68,27 @@ class SessionTabAgentAutomationTest {
     }
 
     /** [probe] is what the shell probe prints (empty: a POSIX shell). */
-    private class FakeSession(created: Boolean, replay: String = "$ ", private val probe: String = "") : SshSession {
+    private class FakeSession(
+        created: Boolean,
+        replay: String = "$ ",
+        private val probe: String = "",
+        /** What `--status --json` prints (empty: the command fails to parse). */
+        private val status: String = "",
+    ) : SshSession {
         private val _state = MutableStateFlow(SshConnectionState.CONNECTED)
         override val state = _state.asStateFlow()
         val agent = FakeAgent(created, replay)
         override suspend fun openShell(columns: Int, rows: Int): SshShell = error("agent path only")
-        override suspend fun exec(command: String): SshExecChannel =
-            if (command == ShellSyntax.PROBE) FakeProbeChannel(probe) else agent
+        override suspend fun exec(command: String): SshExecChannel = when {
+            command == ShellSyntax.PROBE -> FakeProbeChannel(probe)
+            command.endsWith("--status --json") -> FakeProbeChannel(status)
+            else -> agent
+        }
         override suspend fun close() { _state.value = SshConnectionState.DISCONNECTED; agent.end() }
         /** Network micro-cut: the agent channel ends and the transport reports itself down. */
         fun drop() { _state.value = SshConnectionState.DISCONNECTED; agent.end() }
+        /** The agent channel ends with the connection still up (the session closed, or the daemon restarted). */
+        fun agentEnds() { agent.end() }
     }
 
     private class FakeConnector(sessions: List<FakeSession>) : SshConnector {
@@ -178,6 +189,46 @@ class SessionTabAgentAutomationTest {
         advanceUntilIdle()
         assertEquals(listOf("agent(afterDrop=false)", "agent(afterDrop=true)"), automation.calls)
         assertEquals(listOf("cd /work\n"), recreated.agent.inputs)
+        tab.close()
+    }
+
+    private fun statusWith(vararg sessions: String) =
+        """{"schema":1,"state":"running","cli":"1","nowMs":5,"sessionHosts":true,"sessions":[""" +
+            sessions.joinToString(",") { """{"id":"$it","createdMs":1,"lastUsedMs":2,"clients":0,"bufferBytes":3}""" } + "]}"
+
+    @Test
+    fun an_agent_restart_reattaches_to_the_session_it_kept() = runTest {
+        // ADR-0022: an update replaces the daemon; the session lives on in its
+        // host, so the closed channel is not the end of the session.
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + Job())
+        val first = FakeSession(created = true, status = statusWith(AgentTransport.sanitizeId("s")))
+        val reattached = FakeSession(created = false)
+        val automation = RecordingAutomation()
+        val tab = newTab(scope, listOf(first, reattached), automation)
+
+        tab.start()
+        advanceUntilIdle()
+        first.agentEnds()
+        advanceUntilIdle()
+
+        assertEquals(TabPhase.CONNECTED, tab.status.value.phase)
+        assertEquals(listOf("agent(afterDrop=false)"), automation.calls, "a re-attach replays nothing")
+        tab.close()
+    }
+
+    @Test
+    fun a_closed_agent_session_ends_the_tab() = runTest {
+        val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + Job())
+        val first = FakeSession(created = true, status = statusWith("titan-other"))
+        val tab = newTab(scope, listOf(first), RecordingAutomation())
+
+        tab.start()
+        advanceUntilIdle()
+        first.agentEnds()
+        advanceUntilIdle()
+
+        assertEquals(TabPhase.DISCONNECTED, tab.status.value.phase)
+        assertEquals("Sesión finalizada", tab.status.value.detail)
         tab.close()
     }
 

@@ -166,6 +166,7 @@ type sessionHost struct {
 	fresh   atomic.Bool // the next attach is the first: HELLO_OK says created
 	closing atomic.Bool
 	slots   handshakeSlots
+	tick    time.Duration // maintainInterval when it started
 	quit    chan struct{}
 	once    sync.Once
 
@@ -263,7 +264,7 @@ func startHost(cfg hostConfig, newPty session.PtyFactory) (*sessionHost, error) 
 	}
 	h := &sessionHost{
 		cfg: cfg, lock: lock, ln: ln, token: token, record: rec, reg: reg,
-		slots: newHandshakeSlots(), quit: make(chan struct{}), conns: map[net.Conn]struct{}{},
+		slots: newHandshakeSlots(), tick: maintainInterval, quit: make(chan struct{}), conns: map[net.Conn]struct{}{},
 	}
 	h.fresh.Store(true)
 	return h, nil
@@ -304,7 +305,7 @@ func (h *sessionHost) end() {
 // maintain ends the host once the shell has exited and no client is still
 // reading its last output, and puts the record back if it went missing.
 func (h *sessionHost) maintain() {
-	t := time.NewTicker(maintainInterval)
+	t := time.NewTicker(h.tick)
 	defer t.Stop()
 	for {
 		select {

@@ -2,10 +2,10 @@
 Nombre: 'Actualizar el agente sin cerrar las sesiones'
 Estado: 'En curso'
 Resumen: 'Hoy, al actualizar un agente de una versión anterior desde la app, se para el daemon y se cierran todas sus sesiones con lo que tuvieran corriendo. Se quiere poder actualizar sin perder nada: cada sesión pasa a vivir en su propio proceso guardián, que tiene el PTY y el búfer, y el daemon queda como enrutador que se puede sustituir por otra versión sin tocar las sesiones. Windows, Linux y macOS.'
-Decisiones: 'El usuario eligió el 2026-10-14 separar las sesiones del daemon en procesos guardianes, frente a heredar los PTY con execve (no sirve en Windows) o dejar convivir dos daemons; recogido en [[ADR-0022 Procesos de sesión independientes del daemon del agente]], aceptada el mismo día.'
+Decisiones: 'El usuario eligió el 2026-10-14 separar las sesiones del daemon en procesos guardianes, frente a heredar los PTY con execve (no sirve en Windows) o dejar convivir dos daemons; recogido en [[ADR-0022 Procesos de sesión independientes del daemon del agente]], aceptada el mismo día. El daemon reenvía los bytes al guardián (no entrega el socket); cada guardián tiene su puerto, token, registro y candado. --stop sigue cerrando todo y --restart actualiza sin cerrar. En Unix los binarios viejos se borran con --remove-unused, que conserva los que usa un daemon o un guardián. La pestaña pregunta al agente si la sesión sigue viva antes de darla por terminada.'
 Bloqueada: []
 Fecha de creación: 2026-10-14T16:35:00+02:00
-Última modificación: 2026-10-14T17:00:00+02:00
+Última modificación: 2026-10-14T19:10:00+02:00
 ---
 
 # Actualizar el agente sin cerrar las sesiones
@@ -38,14 +38,20 @@ cada shell y guarda su PTY y su búfer. Diseño en
   agente.
 - Transición desde los daemons actuales, que tienen las sesiones dentro.
 
-## Preguntas abiertas
+## Preguntas resueltas (2026-10-14)
 
-- Cómo pasa la conexión del daemon al guardián: reenviar bytes por el daemon
-  (simple, un salto más) o entregar el socket (`SCM_RIGHTS` en Unix,
-  `WSADuplicateSocket` en Windows).
-- Cómo se contacta un guardián: puerto loopback con token propio, como el
-  daemon, o un canal heredado del daemon que lo lanzó.
-- Qué hacer con un guardián cuyo registro existe pero que no responde.
+- **Cómo pasa la conexión al guardián:** el daemon lee el `HELLO`, conecta con
+  el guardián de esa sesión y desde ahí solo copia bytes en los dos sentidos.
+  Más simple y portable que entregar el socket; el salto extra es local.
+- **Cómo se contacta un guardián:** como el daemon, con su propio puerto
+  loopback y su propio token, publicados en `session-<clave>.json` (la clave
+  es un hash del id de sesión) y protegidos por `session-<clave>.lock`. El
+  guardián anuncia al arrancar, por su stdout, su registro o el motivo por el
+  que no pudo abrir la sesión.
+- **Un registro cuyo guardián no responde:** si su candado está libre, el
+  guardián murió y el daemon borra el registro (y, si llega un `HELLO`, abre
+  una sesión nueva); si el candado sigue cogido, se informa del fallo y no se
+  toca.
 
 ## Criterios de finalización
 
@@ -63,7 +69,39 @@ cada shell y guarda su PTY y su búfer. Diseño en
 
 ## Verificación
 
-<Se rellena al completar: pruebas, build, comprobación real.>
+2026-10-14, en la rama `agent-session-hosts`:
+
+- **Tests del agente:** `go test ./...` en verde en Windows (con ConPTY y
+  procesos reales) y `go test -race -count=3 ./...` en verde en Linux
+  (Docker). Los nuevos cubren que una sesión sobrevive a su daemon y el
+  siguiente la recupera con su historial (`TestASessionOutlivesItsDaemon`),
+  un guardián por sesión, `--stop` que cierra todos, `--restart` que los
+  deja, el fin del guardián cuando su shell termina, el rechazo con motivo de
+  un guardián que no arranca, un único guardián ante `HELLO` simultáneos,
+  `--remove-unused` y, con procesos y shell reales,
+  `TestRestartKeepsTheSessionAndItsShell` (`--restart` y matar el daemon a
+  mano: la shell sigue con el mismo PID). Fuera de esta tarea,
+  `TestRacingFrontsAgreeOnTheTaskName` falla a veces también en `main`.
+- **Tests de la app:** `:shared:desktopTest` del paquete `terminal` en verde,
+  con los nuevos de `AgentSessionDetailsTest` (contrato `sessionHosts` y
+  `agent`), `SessionTabAgentAutomationTest` (tras un reinicio del daemon la
+  pestaña se reengancha; si la sesión ya no está, termina) y
+  `AgentInstallerTest` (`--remove-unused` en Unix).
+- **Linux en el emulador** (`Pixel_9_Pro_XL`, build de debug, contenedor
+  desechable de la imagen `titan-test-sshd` en el puerto 2223 con un agente
+  `0.0.0-old` ya en marcha): sesión de nivel 3 con un contador en bucle; el
+  instalador conserva el binario viejo porque lo usan el daemon y el
+  guardián; el panel avisa del agente de otra versión y ofrece actualizar
+  con «Las sesiones siguen abiertas»; tras actualizar, el daemon es el
+  `0.0.0-dev`, la shell sigue con el mismo PID en su guardián `0.0.0-old`,
+  el detalle dice «iniciada con el agente 0.0.0-old» y la pestaña se
+  reengancha sola con el contador avanzando. Matar el daemon y arrancar otro
+  también recupera la sesión.
+- **Windows real por sshd** (cuenta estándar de pruebas, desde
+  `127.0.0.1`): sesión creada con un agente `0.0.0-old` y un `ping` largo,
+  que sigue vivo al cerrarse la conexión SSH (Job Object de sshd); `--restart`
+  con un binario `0.0.0-new` deja el daemon nuevo y la sesión con la misma
+  shell, el `ping` en marcha y `agent` `0.0.0-old`. Limpiado después.
 
 ## Resultado
 

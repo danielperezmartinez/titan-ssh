@@ -488,8 +488,12 @@ func printDaemonStatus(w io.Writer, st statusReport) {
 		if s.MemoryBytes != nil {
 			mem = humanBytes(*s.MemoryBytes)
 		}
-		fmt.Fprintf(w, "  %s  %s · created %s ago · memory %s · history %s\n",
-			s.ID, state, ago(now, s.CreatedMs), mem, humanBytes(s.BufferBytes))
+		host := ""
+		if s.Agent != "" && s.Agent != st.Agent {
+			host = " · started by titan-agent " + s.Agent
+		}
+		fmt.Fprintf(w, "  %s  %s · created %s ago · memory %s · history %s%s\n",
+			s.ID, state, ago(now, s.CreatedMs), mem, humanBytes(s.BufferBytes), host)
 		if s.Shell != "" {
 			line := fmt.Sprintf("    shell %s (PID %d) · %dx%d", s.Shell, s.ShellPID, s.Cols, s.Rows)
 			if s.Foreground != "" {

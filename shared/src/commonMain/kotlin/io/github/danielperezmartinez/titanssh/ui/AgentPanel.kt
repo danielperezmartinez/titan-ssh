@@ -135,8 +135,10 @@ fun AgentPanel(
                     if (confirming == PanelConfirm.Update) {
                         ConfirmRow(
                             question = "¿Actualizar el agente?",
+                            // An agent with session hosts (ADR-0022) keeps them: nothing to warn about.
                             subtitle = if (report.sessionHosts) "Las sesiones siguen abiertas" else "Se cierran todas sus sesiones",
-                            confirmLabel = "[x] Sí",
+                            confirmLabel = if (report.sessionHosts) "[ok] Sí" else "[x] Sí",
+                            confirmKind = if (report.sessionHosts) ButtonKind.PRIMARY else ButtonKind.DANGER,
                             marker = "[-]",
                             markerColor = TitanColors.Warning,
                             onConfirm = {
