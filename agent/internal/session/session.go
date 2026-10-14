@@ -391,6 +391,9 @@ type Info struct {
 	BufferBytes uint64 // output history held for replay
 	ShellPID    int    // 0 if the PTY does not expose it
 	Shell       string // the shell's program, "" if the PTY does not tell
+	// Cwd is the directory the shell itself reported through the PTY
+	// (PowerShell's prompt hook on Windows), "" where it reports none.
+	Cwd string
 	// ForegroundPID is the process group leading the terminal on a POSIX
 	// PTY; 0 where the terminal cannot tell (ConPTY) or it could not be read.
 	ForegroundPID int
@@ -439,6 +442,9 @@ func (s *Session) info() Info {
 	}
 	if p, ok := s.pty.(interface{ Shell() string }); ok {
 		in.Shell = p.Shell()
+	}
+	if p, ok := s.pty.(interface{ Cwd() string }); ok && !s.closed {
+		in.Cwd = p.Cwd()
 	}
 	if p, ok := s.pty.(interface{ Foreground() int }); ok && !s.closed {
 		in.ForegroundPID = p.Foreground()

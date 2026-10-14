@@ -6,3 +6,5 @@ func list() ([]proc, error) { return nil, ErrUnsupported }
 
 // Cwd is not available on this system.
 func Cwd(int) string { return "" }
+
+func shellDir(*Table, int, string) string { return "" }

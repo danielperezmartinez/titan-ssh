@@ -102,3 +102,6 @@ func Cwd(pid int) string {
 	}
 	return dir
 }
+
+// shellDir is the shell's own directory: a POSIX shell's `cd` moves it.
+func shellDir(_ *Table, shellPID int, _ string) string { return Cwd(shellPID) }

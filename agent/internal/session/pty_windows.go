@@ -1,11 +1,14 @@
 package session
 
 import (
+	"encoding/base64"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
+	"unicode/utf16"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -16,7 +19,76 @@ import (
 // size and returns it behind the Pty seam. It is the PtyFactory used by the
 // daemon on Windows destinations.
 func NewPty(cols, rows uint16) (Pty, error) {
-	return startConPty(syscall.EscapeArg(defaultShell()), cols, rows)
+	p, err := startShell(defaultShell(), cols, rows)
+	if err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+// startShell starts shell on a new ConPTY. PowerShell gets the prompt hook of
+// [powerShellCwdHook] (after the user's profile), so the session can tell its
+// directory; any other shell starts as it is.
+func startShell(shell string, cols, rows uint16) (*conPty, error) {
+	cmdline := syscall.EscapeArg(shell)
+	var cwdFile string
+	if isPowerShell(shell) {
+		if f, err := os.CreateTemp("", "titan-cwd-*.txt"); err == nil {
+			cwdFile = f.Name()
+			_ = f.Close()
+			cmdline += " -NoExit -EncodedCommand " + encodePowerShell(powerShellCwdHook(cwdFile))
+		}
+	}
+	p, err := startConPty(cmdline, cols, rows)
+	if err != nil {
+		if cwdFile != "" {
+			_ = os.Remove(cwdFile)
+		}
+		return nil, err
+	}
+	p.shell = shell
+	p.cwdFile = cwdFile
+	return p, nil
+}
+
+func isPowerShell(shell string) bool {
+	name := strings.ToLower(filepath.Base(shell))
+	return name == "powershell.exe" || name == "pwsh.exe" || name == "powershell" || name == "pwsh"
+}
+
+// powerShellCwdHook wraps the prompt in place (whatever the user's profile
+// left there: the default one, oh-my-posh, starship…) so that each prompt
+// also writes the current file-system folder to file, or nothing when the
+// location is in another provider (HKLM:, Env:…). The wrapped prompt runs
+// first, so it still sees the last command's $?, and what it returns is
+// what PowerShell shows. Nothing is printed and no file of the user's is
+// touched: the hook lives in this shell's memory only.
+func powerShellCwdHook(file string) string {
+	return `$global:__titanCwdFile = '` + strings.ReplaceAll(file, `'`, `''`) + `'
+$global:__titanCwdPrompt = $function:prompt
+function global:prompt {
+    $titanPrompt = if ($global:__titanCwdPrompt) { & $global:__titanCwdPrompt } else { "PS $($executionContext.SessionState.Path.CurrentLocation)$('>' * ($nestedPromptLevel + 1)) " }
+    try {
+        $titanLocation = $executionContext.SessionState.Path.CurrentLocation
+        $titanDir = if ($titanLocation.Provider.Name -eq 'FileSystem') { $titanLocation.ProviderPath } else { '' }
+        if ($titanDir -ne $global:__titanCwdLast) {
+            [System.IO.File]::WriteAllText($global:__titanCwdFile, $titanDir)
+            $global:__titanCwdLast = $titanDir
+        }
+    } catch {}
+    $titanPrompt
+}
+`
+}
+
+// encodePowerShell is script as -EncodedCommand takes it: base64 of UTF-16LE.
+func encodePowerShell(script string) string {
+	u := utf16.Encode([]rune(script))
+	b := make([]byte, 2*len(u))
+	for i, c := range u {
+		b[2*i], b[2*i+1] = byte(c), byte(c>>8)
+	}
+	return base64.StdEncoding.EncodeToString(b)
 }
 
 // defaultShell is the shell Win32-OpenSSH is configured to use
@@ -37,7 +109,7 @@ func defaultShell() string {
 
 // startConPty runs cmdline attached to a new pseudo console. os/exec cannot
 // pass the pseudo-console attribute, so the process is created directly.
-func startConPty(cmdline string, cols, rows uint16) (Pty, error) {
+func startConPty(cmdline string, cols, rows uint16) (*conPty, error) {
 	if windows.NewLazySystemDLL("kernel32.dll").NewProc("CreatePseudoConsole").Find() != nil {
 		return nil, ptyError(CodeNoConPty, errors.New("ConPTY needs Windows 10 1809 / Server 2019 or later"))
 	}
@@ -119,7 +191,8 @@ type conPty struct {
 	mu         sync.Mutex // guards process against use after waitExit closes it
 	process    windows.Handle
 	pid        int    // the shell's process id
-	shell      string // the command line it was started with
+	shell      string // the program it was started with
+	cwdFile    string // where PowerShell's prompt hook writes its folder, "" for other shells
 	procClosed bool
 	exited     chan struct{} // closed once the process has exited and been released
 }
@@ -135,6 +208,20 @@ func (p *conPty) Pid() int { return p.pid }
 // tree instead.
 func (p *conPty) Shell() string { return p.shell }
 
+// Cwd is the folder PowerShell's prompt hook last wrote, "" for any other
+// shell or before its first prompt. The process directory, which cmd.exe
+// keeps, is read from the process instead (procmem.Cwd).
+func (p *conPty) Cwd() string {
+	if p.cwdFile == "" {
+		return ""
+	}
+	b, err := os.ReadFile(p.cwdFile)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
 func (p *conPty) Resize(cols, rows uint16) error {
 	return windows.ResizePseudoConsole(p.hpc, coord(cols, rows))
 }
@@ -148,6 +235,9 @@ func (p *conPty) waitExit() {
 	_ = windows.CloseHandle(p.process)
 	p.procClosed = true
 	p.mu.Unlock()
+	if p.cwdFile != "" {
+		_ = os.Remove(p.cwdFile)
+	}
 	close(p.exited)
 }
 

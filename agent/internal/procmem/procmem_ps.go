@@ -76,3 +76,5 @@ func parsePsTime(s string) (time.Duration, bool) {
 // Cwd is not read on macOS and FreeBSD: neither has /proc by default, and the
 // tools that tell (lsof, procstat) are not in both base systems.
 func Cwd(int) string { return "" }
+
+func shellDir(*Table, int, string) string { return "" }

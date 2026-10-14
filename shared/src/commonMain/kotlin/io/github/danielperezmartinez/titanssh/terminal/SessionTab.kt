@@ -1039,10 +1039,11 @@ class SessionTab(
 
     /**
      * The terminal's current directory on the destination, when it can be
-     * told for sure: the agent's report of the shell (level 3; only Linux
-     * reports it), tmux's active pane (level 2), or what the shell announced
-     * with OSC 7. Null otherwise (screen, a shell that sends no OSC 7,
-     * PowerShell on Windows…), and the caller starts from the home folder.
+     * told for sure: the agent's report of the shell (level 3; Linux and
+     * Windows report it), tmux's active pane (level 2), or what the shell
+     * announced with OSC 7. Null otherwise (screen, a shell that sends no OSC
+     * 7, PowerShell at levels 1 and 2…), and the caller starts from the home
+     * folder.
      */
     suspend fun currentDirectory(): String? {
         agentControl?.let { control ->

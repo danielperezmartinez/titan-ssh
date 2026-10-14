@@ -84,6 +84,77 @@ func TestNewestFollowsTheYoungestChild(t *testing.T) {
 	}
 }
 
+// On Windows the directory comes from the innermost shell at the terminal:
+// cmd.exe's process directory, PowerShell's own report only for the shell the
+// session started, and nothing for any other shell or remote client.
+func TestWindowsShellDirFollowsTheInnermostShell(t *testing.T) {
+	dirs := map[int]string{20: `C:\Users\u\`, 30: `D:\work`, 50: `C:\`}
+	processDir := func(pid int) string { return dirs[pid] }
+	cases := []struct {
+		name     string
+		procs    []proc
+		reported string
+		want     string
+	}{
+		{"cmd alone", []proc{{pid: 20, name: "cmd.exe", start: 1}}, "", `C:\Users\u`},
+		{"cmd running a program", []proc{
+			{pid: 20, name: "cmd.exe", start: 1},
+			{pid: 21, ppid: 20, name: "conhost.exe", start: 2},
+			{pid: 22, ppid: 20, name: "node.exe", start: 3},
+		}, "", `C:\Users\u`},
+		{"powershell reports", []proc{{pid: 20, name: "pwsh.exe", start: 1}}, "E:\\src\\app\r\n", `E:\src\app`},
+		{"powershell in another provider", []proc{{pid: 20, name: "powershell.exe", start: 1}}, "", ""},
+		{"powershell's process dir is never used", []proc{{pid: 20, name: "PowerShell.exe", start: 1}}, `\\server\share`, ""},
+		{"cmd inside powershell", []proc{
+			{pid: 20, name: "powershell.exe", start: 1},
+			{pid: 30, ppid: 20, name: "cmd.exe", start: 2},
+		}, `C:\elsewhere`, `D:\work`},
+		{"powershell inside cmd", []proc{
+			{pid: 20, name: "cmd.exe", start: 1},
+			{pid: 30, ppid: 20, name: "powershell.exe", start: 2},
+		}, "", ""},
+		{"ssh inside cmd", []proc{
+			{pid: 20, name: "cmd.exe", start: 1},
+			{pid: 30, ppid: 20, name: "ssh.exe", start: 2},
+		}, "", ""},
+		{"a tool's cmd under a program", []proc{
+			{pid: 20, name: "pwsh.exe", start: 1},
+			{pid: 40, ppid: 20, name: "claude.exe", start: 2},
+			{pid: 50, ppid: 40, name: "cmd.exe", start: 3},
+		}, `C:\x`, `C:\`},
+		{"another shell at the root", []proc{{pid: 20, name: "bash.exe", start: 1}}, `C:\x`, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := newTable(c.procs).windowsShellDir(20, c.reported, processDir); got != c.want {
+				t.Fatalf("dir = %q; want %q", got, c.want)
+			}
+		})
+	}
+	if got := newTable(nil).windowsShellDir(20, `C:\x`, processDir); got != "" {
+		t.Fatalf("a shell missing from the snapshot gives %q", got)
+	}
+}
+
+func TestDriveDirKeepsOnlyFoldersOnADrive(t *testing.T) {
+	for in, want := range map[string]string{
+		`C:\Users\u\`:    `C:\Users\u`,
+		`c:\`:            `c:\`,
+		"\ufeffC:\\src":  `C:\src`,
+		`\\server\share`: "",
+		`\\?\C:\long`:    "",
+		`HKCU:\`:         "",
+		`C:relative`:     "",
+		"":               "",
+		`1:\x`:           "",
+		`D:\\`:           `D:\`,
+	} {
+		if got := driveDir(in); got != want {
+			t.Errorf("driveDir(%q) = %q; want %q", in, got, want)
+		}
+	}
+}
+
 // The real snapshot sees this test process and gives it a resident size.
 func TestSnapshotSeesThisProcess(t *testing.T) {
 	tb, err := Snapshot()

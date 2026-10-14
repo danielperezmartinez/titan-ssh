@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -52,7 +54,54 @@ func TestSessionDetailsOnARealConPty(t *testing.T) {
 	if r.CPUPercent == nil || r.MemoryBytes == nil || r.LastOutputMs == 0 {
 		t.Fatalf("measures missing: %+v", r)
 	}
-	if r.Cwd != "" {
-		t.Fatalf("Windows does not report a cwd, got %q", r.Cwd)
+	// The shell started in the agent's directory and ping is no shell of its
+	// own: the directory is the shell's.
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
 	}
+	if !strings.EqualFold(r.Cwd, strings.TrimRight(wd, `\`)) && !strings.EqualFold(r.Cwd, wd) {
+		t.Fatalf("cwd %q; want %q", r.Cwd, wd)
+	}
+}
+
+// The directory follows `cd` in cmd.exe, read from the shell's process, and
+// is not given while another shell runs inside it: that shell's directory is
+// its own.
+func TestSessionDirFollowsCmdOnARealConPty(t *testing.T) {
+	// Before the registry, so its cleanup runs after the shell has left it.
+	dir := t.TempDir()
+	var pty session.Pty
+	reg := session.NewRegistry(func(cols, rows uint16) (session.Pty, error) {
+		p, err := session.NewPty(cols, rows)
+		pty = p
+		return p, err
+	}, 1<<20)
+	t.Cleanup(func() { reg.CloseAll() })
+	if _, _, err := reg.AttachOrCreate("win", 100, 30); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.EqualFold(filepath.Base(reg.List()[0].Shell), "cmd.exe") {
+		t.Skipf("the default shell here is %s, not cmd.exe", reg.List()[0].Shell)
+	}
+	waitFor(t, "the shell's first output", func() bool { return !reg.List()[0].LastOutput.IsZero() })
+	time.Sleep(time.Second)
+	dirOf := func() string {
+		table, _ := procmem.Snapshot()
+		return sessionFrom(reg.List()[0], sampleWindow{after: table}).Cwd
+	}
+
+	if _, err := pty.Write([]byte("cd /d \"" + dir + "\"\r")); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "cmd in the new folder", func() bool { return strings.EqualFold(dirOf(), dir) })
+
+	if _, err := pty.Write([]byte("powershell -NoProfile\r")); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "no folder while PowerShell runs inside", func() bool { return dirOf() == "" })
+	if _, err := pty.Write([]byte("exit\r")); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "cmd's folder again", func() bool { return strings.EqualFold(dirOf(), dir) })
 }

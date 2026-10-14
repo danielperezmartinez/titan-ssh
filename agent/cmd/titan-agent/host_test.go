@@ -35,6 +35,20 @@ func parseAnnounceValue(a hostAnnounce) (agentState, error) {
 	return *a.State, nil
 }
 
+// What a host tells the daemon about its session survives the trip, the
+// folder its shell reported included.
+func TestHostInfoKeepsTheSessionDetails(t *testing.T) {
+	in := session.Info{
+		ID: "titan-a", Created: time.UnixMilli(1000), LastUsed: time.UnixMilli(2000),
+		Detached: time.UnixMilli(3000), LastOutput: time.UnixMilli(4000),
+		Clients: 1, BufferBytes: 5, ShellPID: 6, Shell: "pwsh.exe", ForegroundPID: 7,
+		Cwd: `C:\src`, Cols: 80, Rows: 24, Title: "t", Name: "n",
+	}
+	if got := infoOf(in).sessionInfo(); got != in {
+		t.Fatalf("round trip:\n got %+v\nwant %+v", got, in)
+	}
+}
+
 // echoPty echoes its input as output, so a test can tell a session's history
 // survives.
 type echoPty struct {

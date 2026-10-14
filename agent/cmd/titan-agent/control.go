@@ -132,7 +132,7 @@ type sessionReport struct {
 	// (the newest descendant of the shell).
 	Foreground    string `json:"foreground,omitempty"`
 	ForegroundPID int    `json:"foregroundPid,omitempty"`
-	Cwd           string `json:"cwd,omitempty"` // the shell's directory; Linux only
+	Cwd           string `json:"cwd,omitempty"` // the shell's directory; Linux and Windows
 	Cols          uint16 `json:"cols,omitempty"`
 	Rows          uint16 `json:"rows,omitempty"`
 	LastOutputMs  int64  `json:"lastOutputMs,omitempty"`
@@ -335,7 +335,7 @@ func sessionFrom(in session.Info, w sampleWindow) sessionReport {
 	}
 	// The shell's directory, not the running program's: that is where the
 	// user is (a program may move elsewhere, as busybox top does to /proc).
-	r.Cwd = procmem.Cwd(in.ShellPID)
+	r.Cwd = table.ShellDir(in.ShellPID, in.Cwd)
 	return r
 }
 

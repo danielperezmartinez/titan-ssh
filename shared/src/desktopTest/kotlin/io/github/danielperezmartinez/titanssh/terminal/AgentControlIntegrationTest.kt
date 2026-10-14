@@ -1,5 +1,6 @@
 package io.github.danielperezmartinez.titanssh.terminal
 
+import io.github.danielperezmartinez.titanssh.sftp.SftpPaths
 import io.github.danielperezmartinez.titanssh.ssh.SshCredentials
 import io.github.danielperezmartinez.titanssh.ssh.SshEndpoint
 import io.github.danielperezmartinez.titanssh.ssh.SshSession
@@ -111,7 +112,15 @@ class AgentControlIntegrationTest {
                 assertNotNull(listed.cpuPercent, "the CPU sample")
                 val running = assertNotNull(listed.foreground, "the job in front of the user")
                 assertTrue(running.lowercase().startsWith(if (posix) "sleep" else "ping"), "foreground: $running")
-                if (report.os == "linux") assertNotNull(listed.cwd, "Linux reports the working directory")
+                if (report.os == "linux" || report.os == "windows") assertNotNull(listed.cwd, "${report.os} reports the working directory")
+                if (report.os == "windows") assertTrue(Regex("""^[A-Za-z]:\\""").containsMatchIn(listed.cwd!!), "a folder on a drive: ${listed.cwd}")
+                listed.cwd?.let { cwd ->
+                    // What the explorer opened from this tab starts in ([SftpPaths.initial]).
+                    val sftp = assertNotNull(s.openSftp(), "SFTP")
+                    val start = SftpPaths.initial(cwd, sftp.canonicalize("."))
+                    println("[integration] explorer starts in $start")
+                    assertEquals(true, sftp.stat(start)?.isDirectory, "the explorer opens $start")
+                }
 
                 val preview = assertNotNull(control.preview(agentId), "a live session has a preview")
                 assertEquals(80 to 24, preview.cols to preview.rows)

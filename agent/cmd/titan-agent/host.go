@@ -103,6 +103,7 @@ type hostInfo struct {
 	ShellPID      int    `json:"shellPid,omitempty"`
 	Shell         string `json:"shell,omitempty"`
 	ForegroundPID int    `json:"foregroundPid,omitempty"`
+	Cwd           string `json:"cwd,omitempty"` // what the shell reported itself (PowerShell on Windows)
 	LastOutputMs  int64  `json:"lastOutputMs,omitempty"`
 	Cols          uint16 `json:"cols,omitempty"`
 	Rows          uint16 `json:"rows,omitempty"`
@@ -115,7 +116,7 @@ func (h hostInfo) sessionInfo() session.Info {
 	in := session.Info{
 		ID: h.ID, Created: time.UnixMilli(h.CreatedMs), LastUsed: time.UnixMilli(h.LastUsedMs),
 		Clients: h.Clients, Closed: h.Closed, BufferBytes: h.BufferBytes,
-		ShellPID: h.ShellPID, Shell: h.Shell, ForegroundPID: h.ForegroundPID,
+		ShellPID: h.ShellPID, Shell: h.Shell, ForegroundPID: h.ForegroundPID, Cwd: h.Cwd,
 		Cols: h.Cols, Rows: h.Rows, Title: h.Title, Name: h.Name,
 	}
 	if h.DetachedMs != 0 {
@@ -132,7 +133,7 @@ func infoOf(in session.Info) hostInfo {
 		ID: in.ID, Agent: version, PID: os.Getpid(),
 		CreatedMs: in.Created.UnixMilli(), LastUsedMs: in.LastUsed.UnixMilli(),
 		Clients: in.Clients, Closed: in.Closed, BufferBytes: in.BufferBytes,
-		ShellPID: in.ShellPID, Shell: in.Shell, ForegroundPID: in.ForegroundPID,
+		ShellPID: in.ShellPID, Shell: in.Shell, ForegroundPID: in.ForegroundPID, Cwd: in.Cwd,
 		Cols: in.Cols, Rows: in.Rows, Title: in.Title, Name: in.Name,
 	}
 	if !in.Detached.IsZero() {
