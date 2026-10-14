@@ -59,7 +59,8 @@ interface SshExecChannel {
 /**
  * A minimal SFTP client over one session: what the level-3 agent installer needs
  * (ADR-0009 §7) to place a binary on any destination, Windows included, without
- * relying on the remote shell's tools. Paths use SFTP syntax: `/`-separated,
+ * relying on the remote shell's tools, and what the SFTP session browses and
+ * downloads with (ADR-0021). Paths use SFTP syntax: `/`-separated,
  * and on Windows a drive letter behind a leading slash (`/C:/Users/u`). SFTP does
  * not expand `~`; resolve the home with [canonicalize] (`"."`).
  */
@@ -72,6 +73,27 @@ interface SshSftp {
 
     /** Names (not paths) of the entries in [directory], without `.` and `..`. */
     suspend fun list(directory: String): List<String>
+
+    /**
+     * The entries of [directory] with their attributes, without `.` and `..`,
+     * for the SFTP browser (ADR-0021). A symbolic link is followed to say what
+     * it points to ([SftpEntry.Kind.LINK_TO_DIRECTORY] or [SftpEntry.Kind.LINK]).
+     */
+    suspend fun listEntries(directory: String): List<SftpEntry> =
+        throw NotImplementedError("listing with attributes not supported")
+
+    /** The attributes of [path], following links, or null if nothing exists there. */
+    suspend fun stat(path: String): SftpEntry? =
+        throw NotImplementedError("stat not supported")
+
+    /**
+     * Reads the file at [path] from byte [offset] to its end, handing each block
+     * to [onBlock] as it arrives (the buffer is reused: copy what you keep). The
+     * blocks come in order and [onBlock] may suspend; cancelling the caller stops
+     * the read. A resumed download passes the bytes it already has as [offset].
+     */
+    suspend fun readFrom(path: String, offset: Long, onBlock: suspend (ByteArray, Int) -> Unit): Unit =
+        throw NotImplementedError("streamed read not supported")
 
     /** Creates [directory] and any missing parents. */
     suspend fun mkdirs(directory: String)
@@ -93,6 +115,36 @@ interface SshSftp {
 
     /** Closes the SFTP channel. The session stays open. */
     suspend fun close()
+}
+
+/**
+ * One entry of a remote directory, as the SFTP browser shows it (ADR-0021).
+ * [path] is the full SFTP path; [size] and [modifiedEpochSeconds] are null when
+ * the server does not report them; [permissions] holds the Unix mode bits.
+ */
+data class SftpEntry(
+    val name: String,
+    val path: String,
+    val kind: Kind,
+    val size: Long?,
+    val modifiedEpochSeconds: Long?,
+    val permissions: Int?,
+) {
+    enum class Kind {
+        DIRECTORY,
+        FILE,
+
+        /** A symbolic link to a directory: browsed like one. */
+        LINK_TO_DIRECTORY,
+
+        /** A symbolic link to a file, or a broken one. */
+        LINK,
+
+        /** A device, socket, pipe… nothing to browse or download. */
+        OTHER,
+    }
+
+    val isDirectory: Boolean get() = kind == Kind.DIRECTORY || kind == Kind.LINK_TO_DIRECTORY
 }
 
 /**
@@ -272,6 +324,13 @@ class SshHostKeyRejected(message: String, cause: Throwable? = null) :
 
 /** Authentication was rejected by the server. */
 class SshAuthFailed(message: String, cause: Throwable? = null) :
+    SshException(message, cause)
+
+/**
+ * The SFTP server answered a request with an error of its own (no such file,
+ * permission denied…): the connection is fine and trying again cannot help.
+ */
+class SshSftpFailed(message: String, cause: Throwable? = null) :
     SshException(message, cause)
 
 /** A [PortForward] could not be opened, for [reason]. */

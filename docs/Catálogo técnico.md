@@ -38,7 +38,8 @@ que ninguno de los valores existentes cubra.
   `Resiliencia` · `Gestión de hosts` · `Shared UI` · `Terminal` ·
   `Distribución` (añadido con `BuildInfo`: versión y avisos legales de los
   artefactos publicados) · `Mouse pad` (añadido con `InputTransport`: el móvil
-  como touchpad y teclado del destino, ADR-0016).
+  como touchpad y teclado del destino, ADR-0016) · `SFTP` (añadido con
+  `SftpBrowser`: explorador de archivos del destino y descargas, ADR-0021).
 - **Ámbito**: `Aplicación` · `Feature` · `Shell`.
 
 <!-- Opcional: si el proyecto tiene una comprobación automatizada del catálogo

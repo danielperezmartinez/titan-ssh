@@ -139,9 +139,12 @@ internal fun Launcher(
                 },
             ) { session ->
                 val resolved = runCatching { config.resolve(session) }.getOrNull()
-                val mousepad = session.type == SessionType.MOUSEPAD
                 val subtitle = if (resolved != null) {
-                    (if (mousepad) "mouse pad · " else "") +
+                    when (session.type) {
+                        SessionType.TERMINAL -> ""
+                        SessionType.MOUSEPAD -> "mouse pad · "
+                        SessionType.SFTP -> "sftp · "
+                    } +
                         "${resolved.endpoint.username}@${resolved.endpoint.host}:${resolved.endpoint.port}"
                 } else if (config.hosts.any { it.id == session.hostId }) {
                     // The host is there, so its ProxyJump chain is what fails.
@@ -149,8 +152,9 @@ internal fun Launcher(
                 } else {
                     "host no encontrado — revisa la configuración"
                 }
-                // A mouse pad keeps nothing alive in the agent's daemon.
-                val isAgent = resolved != null && !mousepad && session.resilienceLevel == ResilienceLevel.AGENT
+                // A mouse pad or an SFTP browser keeps nothing alive in the agent's daemon.
+                val isAgent = resolved != null && session.type == SessionType.TERMINAL &&
+                    session.resilienceLevel == ResilienceLevel.AGENT
                 val obs = resolved?.let { watch.observations[AgentKey.of(it.endpoint).id] }
                 // Every instance alive on the destination (ADR-0020), and those
                 // of them without a tab here.

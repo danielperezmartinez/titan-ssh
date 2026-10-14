@@ -7,6 +7,9 @@ import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
 import io.github.danielperezmartinez.titanssh.config.SessionScript
 import io.github.danielperezmartinez.titanssh.config.SessionType
 import io.github.danielperezmartinez.titanssh.config.jumpEndpoint
+import io.github.danielperezmartinez.titanssh.sftp.DownloadStore
+import io.github.danielperezmartinez.titanssh.sftp.SftpBrowser
+import io.github.danielperezmartinez.titanssh.sftp.createDownloadStore
 import io.github.danielperezmartinez.titanssh.ssh.HostKeyInfo
 import io.github.danielperezmartinez.titanssh.ssh.HostKeyRejection
 import io.github.danielperezmartinez.titanssh.ssh.HostKeyVerifier
@@ -37,7 +40,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -183,6 +189,12 @@ data class ChangedHostKey(val presented: HostKeyInfo, val stored: List<KnownHost
  * ([InputTransport]): [sendInput] sends the touchpad and keyboard events, and
  * [mousepad] says whether they reach the desktop. No tunnels, scripts or
  * emulator output are involved.
+ *
+ * ## SFTP (ADR-0021)
+ * A [SessionType.SFTP] session also keeps the lifecycle, and on each connection
+ * opens an SFTP channel and hands it to [sftp], the browser, until the
+ * connection drops: then the browser waits, its downloads pause, and the tab
+ * reconnects as usual. Nothing runs on the destination.
  */
 class SessionTab(
     val id: String,
@@ -224,12 +236,18 @@ class SessionTab(
      * (ADR-0020): its id names the agent session and the tmux/screen session.
      */
     val instance: TabInstance = TabInstance(resolved.session.id),
+    /** Where an SFTP tab saves its downloads; only asked for by one. */
+    downloadStore: () -> DownloadStore = ::createDownloadStore,
 ) {
     /** The saved session's name, with the instance number for a parallel one. */
     val title: String get() = SessionInstances.label(resolved.session.name, instance.number.value)
 
     /** Whether this tab is a mouse pad rather than a terminal (ADR-0016). */
     val isMousepad: Boolean get() = resolved.session.type == SessionType.MOUSEPAD
+
+    /** The file browser of an SFTP tab (ADR-0021); null for the other types. */
+    val sftp: SftpBrowser? =
+        if (resolved.session.type == SessionType.SFTP) SftpBrowser(scope, resolved.session.initialDirectory, downloadStore) else null
 
     private val _mousepad = MutableStateFlow(MousepadStatus())
 
@@ -518,6 +536,7 @@ class SessionTab(
             }
             session = opened
             if (isMousepad) return runMousepad(opened)
+            sftp?.let { return runSftp(it, opened) }
             // Tunnels ride the SSH connection itself, whatever carries the PTY.
             sessionTunnels.open(opened)
             tunnelRetryJob = scope.launch { sessionTunnels.retryFailed(opened) }
@@ -695,6 +714,37 @@ class SessionTab(
         transport.unavailable?.let { return mousepadFailed(it) }
         _mousepad.value = MousepadStatus()
         return if (droppedWithin(opened)) AttemptResult.DROPPED else AttemptResult.CLEAN_EXIT
+    }
+
+    /**
+     * The SFTP browser on [opened]: one SFTP channel for this connection, lent
+     * to [browser] until the connection drops. A server without the `sftp`
+     * subsystem fails the tab; retrying would not change that.
+     */
+    private suspend fun runSftp(browser: SftpBrowser, opened: SshSession): AttemptResult {
+        val channel = opened.openSftp() ?: run {
+            _status.value = TabStatus(TabPhase.FAILED, "El destino no ofrece SFTP (subsistema sftp desactivado en su sshd)")
+            return AttemptResult.FATAL
+        }
+        markConnected()
+        // The keepalive notices a dead link late; a request that times out on it
+        // tells sooner ([SftpBrowser]). Whichever comes first ends this connection.
+        val lost = CompletableDeferred<Unit>()
+        try {
+            browser.attach(channel) { lost.complete(Unit) }
+            merge<Any>(
+                opened.state.filter { it == SshConnectionState.DISCONNECTED || it == SshConnectionState.FAILED },
+                flow { emit(lost.await()) },
+            ).first()
+        } finally {
+            browser.detach(channel)
+            // Closing a channel on a dead link can wait for sshj's timeout:
+            // do it aside so the tab says it is reconnecting right away.
+            scope.launch { runCatching { channel.close() } }
+        }
+        if (!closed) _status.value = TabStatus(TabPhase.RECONNECTING)
+        // There is no clean exit to tell apart: the connection went away.
+        return AttemptResult.DROPPED
     }
 
     private fun mousepadFailed(issue: AgentIssue): AttemptResult {
@@ -969,6 +1019,7 @@ class SessionTab(
     /** Closes the shell and the session and stops the reconnect loop. */
     suspend fun close() {
         closed = true
+        sftp?.close()
         // Unblocks sshj's reader thread if a host key prompt is still open.
         _pendingHostKey.value?.reject()
         automationJob?.cancel()

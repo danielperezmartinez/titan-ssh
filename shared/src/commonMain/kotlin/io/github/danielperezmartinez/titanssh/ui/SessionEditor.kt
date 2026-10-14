@@ -242,6 +242,7 @@ private fun SessionForm(
                 when (it) {
                     SessionType.TERMINAL -> "terminal"
                     SessionType.MOUSEPAD -> "mouse pad"
+                    SessionType.SFTP -> "sftp"
                 }
             })
             if (type == SessionType.MOUSEPAD) {
@@ -249,6 +250,13 @@ private fun SessionForm(
                 Caption(
                     "El móvil hace de touchpad y teclado del escritorio del destino. Usa el agente, " +
                         "que se instala solo; por ahora, solo en destinos Windows con la sesión iniciada.",
+                )
+            }
+            if (type == SessionType.SFTP) {
+                Spacer(Modifier.height(TitanDimens.SpaceXs))
+                Caption(
+                    "Explora las carpetas del destino y descarga archivos a Descargas. Solo lectura. " +
+                        "Si la conexión se corta, las descargas siguen donde iban al reconectar.",
                 )
             }
             Gap()
@@ -269,6 +277,17 @@ private fun SessionForm(
             Gap()
             if (type == SessionType.MOUSEPAD) {
                 MousepadFields(mousepad, onMousepad)
+                SectionHeader("Organización")
+                GroupPicker(controller, GroupScope.SESSIONS, config.sessionGroups, groupId, onGroupId)
+                Gap()
+                TitanTextField("Etiquetas (separadas por coma)", tags, onTags, placeholder = "casa, oficina")
+                Gap()
+                TitanTextField("Marcador ASCII", marker, onMarker, placeholder = "[+]")
+                Spacer(Modifier.height(TitanDimens.SpaceSection))
+                return@Column
+            }
+            if (type == SessionType.SFTP) {
+                TitanTextField("Carpeta inicial", initialDirectory, onInitialDirectory, placeholder = "tu carpeta de inicio")
                 SectionHeader("Organización")
                 GroupPicker(controller, GroupScope.SESSIONS, config.sessionGroups, groupId, onGroupId)
                 Gap()

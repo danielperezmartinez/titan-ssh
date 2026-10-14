@@ -405,10 +405,14 @@ private fun SessionList(
         val host = config.hosts.firstOrNull { it.id == session.hostId }
         val hostLabel = host?.alias?.ifBlank { host.hostname } ?: "host desconocido"
         val scripts = session.scripts.size
-        val subtitle = "$hostLabel  ·  ${scripts} script(s)  ·  ${session.resilienceLevel.name.lowercase()}"
-        // A mouse pad keeps nothing alive in the agent's daemon.
+        val subtitle = when (session.type) {
+            SessionType.TERMINAL -> "$hostLabel  ·  ${scripts} script(s)  ·  ${session.resilienceLevel.name.lowercase()}"
+            SessionType.MOUSEPAD -> "$hostLabel  ·  mouse pad"
+            SessionType.SFTP -> "$hostLabel  ·  sftp"
+        }
+        // A mouse pad or an SFTP browser keeps nothing alive in the agent's daemon.
         val agent = runCatching { config.resolve(session) }.getOrNull()
-            ?.takeIf { session.type != SessionType.MOUSEPAD && session.resilienceLevel == ResilienceLevel.AGENT }
+            ?.takeIf { session.type == SessionType.TERMINAL && session.resilienceLevel == ResilienceLevel.AGENT }
             ?.let { AgentHost.of(it) }
         // Only asked while the row is open: it reads the agent's last report.
         val live = row.expanded && isSessionLive(session)
