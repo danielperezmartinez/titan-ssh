@@ -63,6 +63,10 @@ donde el directorio actual quedó solo para Linux.
     no hay carpeta y el fichero se borra al cerrar.
   - `TestSessionDirFollowsCmdOnARealConPty`: `cd /d` en cmd se refleja, con
     un `powershell` anidado no hay carpeta y al salir vuelve.
+  - `TestHostInfoKeepsTheSessionDetails`: la carpeta que anota PowerShell
+    pasa del proceso guardián de la sesión (ADR-0022) al daemon. La de cmd la
+    lee el daemon del proceso, así que vale también para las sesiones que ya
+    estaban abiertas con un guardián anterior.
 - A mano en PowerShell 5.1 y 7: el prompt envuelto sigue viendo el `$?` y el
   `$LASTEXITCODE` del último comando (lo que usan oh-my-posh o starship).
 - `AgentControlIntegrationTest` contra el Windows del PC de desarrollo con la
