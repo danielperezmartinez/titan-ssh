@@ -5,7 +5,7 @@ Resumen: 'Petición del usuario (2026-10-15) tras probar en el Pixel: al abrir e
 Decisiones: 'Decidido con el usuario el 2026-10-15, después de explicarle qué supone tocar el prompt: ambas partes. En PowerShell no se toca el $PROFILE ni ningún fichero del usuario ni el aspecto del prompt; el agente arranca el shell de la sesión con el envoltorio ya puesto, solo en sesiones nuevas. Detalle técnico (decisión del agente): el envoltorio anota la carpeta en un fichero temporal del agente, no con una secuencia de escape, para no depender de lo que ConPTY deje pasar.'
 Bloqueada: []
 Fecha de creación: 2026-10-15T10:00:00+02:00
-Última modificación: 2026-10-15T12:07:00+02:00
+Última modificación: 2026-10-15T12:22:00+02:00
 ---
 
 # Carpeta actual de la terminal en destinos Windows
@@ -74,15 +74,19 @@ donde el directorio actual quedó solo para Linux.
   la carpeta de la sesión y el explorador la abre por SFTP (`/C:/Users/…`).
   Perfil de la cuenta limpio después.
 - Integrada en `main` el 2026-10-15. Pendiente: el usuario la probará desde
-  el Pixel contra su Windows con la próxima release; hasta entonces sigue
+  el Pixel contra su Windows con `v0.1.0-beta.19`; hasta entonces sigue
   `En curso`.
 
 - 2026-10-15, preparación de `v0.1.0-beta.19`: la build debug de `main` se
   compiló e instaló en `Pixel_9_Pro_XL`, con `titan-test-sshd` preparado y una
   sesión de prueba abierta. Captura local:
   `build/release-prep-beta.19/01-terminal-pruebas.png`. Falta que el usuario
-  pruebe la carpeta actual desde el Pixel contra su destino Windows; la versión
-  aún no se ha publicado.
+  pruebe la carpeta actual desde el Pixel contra su destino Windows.
+- Publicada [`v0.1.0-beta.19`](https://github.com/danielperezmartinez/titan-ssh/releases/tag/v0.1.0-beta.19),
+  run `38718655521`: los jobs de tests, Android, Linux, Windows y publicación
+  acabaron bien. Los 19 assets pasan `sha256sum -c SHA256SUMS` y la APK está
+  firmada con el certificado cuya huella publica el `README.md`. Sigue
+  pendiente la prueba del usuario contra Windows.
 
 ## Resultado
 
