@@ -182,6 +182,10 @@ kotlin {
 
         getByName("androidMain") {
             dependsOn(jvmSharedMain)
+            dependencies {
+                // The document picker of the SFTP uploads (ADR-0024).
+                implementation(libs.androidx.activity.compose)
+            }
         }
 
         // Desktop SecretStore backend (ADR-0001). Android uses the platform
