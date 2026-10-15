@@ -67,6 +67,17 @@ object SftpPaths {
             .filter { showHidden || !it.name.startsWith(".") }
             .sortedWith(compareBy<SftpEntry> { !it.isDirectory }.thenBy { it.name.lowercase() }.thenBy { it.name })
 
+    /**
+     * Why [name] cannot be a file or folder name on the destination (empty,
+     * `.`/`..`, or with a `/`), or null if it can. The server decides the rest.
+     */
+    fun nameProblem(name: String): String? = when {
+        name.isEmpty() -> "Falta el nombre"
+        name == "." || name == ".." -> "«$name» no es un nombre válido"
+        '/' in name -> "El nombre no puede llevar «/»"
+        else -> null
+    }
+
     /** `1.4 MB`-style size for the listing. */
     fun formatSize(bytes: Long): String {
         if (bytes < 1024) return "$bytes B"

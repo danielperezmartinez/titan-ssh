@@ -10,7 +10,6 @@ import android.provider.MediaStore
 import android.webkit.MimeTypeMap
 import io.github.danielperezmartinez.titanssh.config.AndroidConfigContext
 import java.io.File
-import java.io.FileOutputStream
 import java.io.OutputStream
 
 /**
@@ -24,17 +23,67 @@ actual fun createDownloadStore(): DownloadStore {
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         MediaStoreDownloadStore(context)
     } else {
-        AppFolderDownloadStore(context)
+        val directory = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            ?: File(context.filesDir, Environment.DIRECTORY_DOWNLOADS)
+        // Sharing an app-private file needs a FileProvider; not worth it for Android 8–9.
+        FileDownloadStore(directory) { false }
     }
 }
 
 private class MediaStoreDownloadStore(private val context: Context) : DownloadStore {
-    override fun create(fileName: String): DownloadTarget {
+    override fun create(fileName: String): DownloadTarget = insert(Environment.DIRECTORY_DOWNLOADS, fileName)
+
+    /**
+     * A folder of Downloads (ADR-0024). MediaStore files carry their folder in
+     * RELATIVE_PATH and it creates the folders itself; the taken names are
+     * looked up on the shared storage, which this app can read but not list
+     * whole, so a folder of another app may go unseen and be shared (its files
+     * are never overwritten: MediaStore numbers a taken file name).
+     */
+    override fun createFolder(name: String): DownloadFolder {
+        val downloads = publicDownloads()
+        var n = 0
+        while (true) {
+            val candidate = if (n == 0) name else "$name ($n)"
+            if (!File(downloads, candidate).exists()) {
+                runCatching { File(downloads, candidate).mkdirs() }
+                return MediaStoreDownloadFolder(candidate)
+            }
+            n++
+        }
+    }
+
+    private inner class MediaStoreDownloadFolder(override val name: String) : DownloadFolder {
+        override val location: String get() = "${Environment.DIRECTORY_DOWNLOADS}/$name"
+
+        override fun create(subfolder: String, fileName: String): DownloadTarget =
+            insert(relativePath(subfolder), fileName)
+
+        // MediaStore has no empty folders; the shared storage takes them from Android 11 on.
+        override fun makeFolder(subfolder: String) {
+            runCatching { File(publicDownloads(), "$name/$subfolder").mkdirs() }
+        }
+
+        override fun discard() {
+            runCatching { removeEmptyFolders(File(publicDownloads(), name)) }
+        }
+
+        override fun open(): Boolean = false
+
+        private fun relativePath(subfolder: String) =
+            listOf(Environment.DIRECTORY_DOWNLOADS, name, subfolder).filter { it.isNotEmpty() }.joinToString("/")
+    }
+
+    @Suppress("DEPRECATION") // Only to tell whether a folder name is taken.
+    private fun publicDownloads(): File = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+
+    /** A new MediaStore file [fileName] in [relativePath] (`Download/…`). */
+    private fun insert(relativePath: String, fileName: String): DownloadTarget {
         val resolver = context.contentResolver
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
             put(MediaStore.MediaColumns.MIME_TYPE, mimeTypeOf(fileName))
-            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
             // Hidden from other apps until it is complete.
             put(MediaStore.MediaColumns.IS_PENDING, 1)
         }
@@ -45,21 +94,28 @@ private class MediaStoreDownloadStore(private val context: Context) : DownloadSt
             resolver.delete(uri, null, null)
             error("no se pudo escribir en Descargas")
         }
-        // MediaStore renames a taken name to "name (1).ext" itself.
-        val actual = resolver.query(uri, arrayOf(MediaStore.MediaColumns.DISPLAY_NAME), null, null, null)?.use {
-            if (it.moveToFirst()) it.getString(0) else null
-        } ?: fileName
-        return MediaStoreDownloadTarget(context, uri, out, actual)
+        return MediaStoreDownloadTarget(context, uri, out, displayName(context, uri) ?: fileName, relativePath)
     }
 }
+
+/** The name MediaStore gave [uri]: it numbers a taken one ("name (1).ext") itself. */
+private fun displayName(context: Context, uri: Uri): String? = runCatching {
+    context.contentResolver.query(uri, arrayOf(MediaStore.MediaColumns.DISPLAY_NAME), null, null, null)?.use {
+        if (it.moveToFirst()) it.getString(0) else null
+    }
+}.getOrNull()
 
 private class MediaStoreDownloadTarget(
     private val context: Context,
     private val uri: Uri,
     private val out: OutputStream,
-    override val name: String,
+    name: String,
+    private val relativePath: String,
 ) : DownloadTarget {
-    override val location: String get() = "${Environment.DIRECTORY_DOWNLOADS}/$name"
+    override var name: String = name
+        private set
+
+    override val location: String get() = "$relativePath/$name"
 
     override fun write(bytes: ByteArray, length: Int) = out.write(bytes, 0, length)
 
@@ -67,6 +123,8 @@ private class MediaStoreDownloadTarget(
         out.close()
         val values = ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }
         context.contentResolver.update(uri, values, null, null)
+        // A pending file can keep the name asked for and only be numbered on publishing.
+        displayName(context, uri)?.let { name = it }
     }
 
     override fun discard() {
@@ -75,39 +133,6 @@ private class MediaStoreDownloadTarget(
     }
 
     override fun open(): Boolean = viewIntent(context, uri, mimeTypeOf(name))
-}
-
-private class AppFolderDownloadStore(private val context: Context) : DownloadStore {
-    override fun create(fileName: String): DownloadTarget {
-        val directory = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-            ?: File(context.filesDir, Environment.DIRECTORY_DOWNLOADS)
-        directory.mkdirs()
-        var n = 0
-        while (true) {
-            val candidate = File(directory, if (n == 0) fileName else numberedFileName(fileName, n))
-            if (candidate.createNewFile()) return AppFolderDownloadTarget(candidate)
-            n++
-        }
-    }
-}
-
-private class AppFolderDownloadTarget(private val file: File) : DownloadTarget {
-    private val out = FileOutputStream(file)
-
-    override val name: String get() = file.name
-    override val location: String get() = file.path
-
-    override fun write(bytes: ByteArray, length: Int) = out.write(bytes, 0, length)
-
-    override fun complete() = out.close()
-
-    override fun discard() {
-        runCatching { out.close() }
-        file.delete()
-    }
-
-    /** Sharing an app-private file needs a FileProvider; not worth it for Android 8–9. */
-    override fun open(): Boolean = false
 }
 
 private fun viewIntent(context: Context, uri: Uri, mimeType: String): Boolean = runCatching {

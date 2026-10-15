@@ -59,8 +59,9 @@ interface SshExecChannel {
 /**
  * A minimal SFTP client over one session: what the level-3 agent installer needs
  * (ADR-0009 §7) to place a binary on any destination, Windows included, without
- * relying on the remote shell's tools, and what the SFTP session browses and
- * downloads with (ADR-0021). Paths use SFTP syntax: `/`-separated,
+ * relying on the remote shell's tools, and what the SFTP session browses,
+ * downloads, uploads and edits the destination with (ADR-0021, ADR-0024).
+ * Paths use SFTP syntax: `/`-separated,
  * and on Windows a drive letter behind a leading slash (`/C:/Users/u`). SFTP does
  * not expand `~`; resolve the home with [canonicalize] (`"."`).
  */
@@ -95,6 +96,28 @@ interface SshSftp {
     suspend fun readFrom(path: String, offset: Long, onBlock: suspend (ByteArray, Int) -> Unit): Unit =
         throw NotImplementedError("streamed read not supported")
 
+    /**
+     * Writes the file at [path] from byte [offset] on, taking each block from
+     * [nextBlock] (which fills the buffer it gets and returns how many bytes it
+     * put there, or -1 at the end) until it returns -1. Offset 0 creates or
+     * truncates the file; a larger one keeps what is there, for a resumed upload.
+     * Several writes travel at once: if the connection drops, the bytes of the
+     * last [writeAhead] before the file's size on the server may be missing.
+     */
+    suspend fun writeFrom(path: String, offset: Long, nextBlock: suspend (ByteArray) -> Int): Unit =
+        throw NotImplementedError("streamed write not supported")
+
+    /** How far behind the file's size a dropped [writeFrom] may have left gaps. */
+    val writeAhead: Long get() = 0
+
+    /** Creates the folder [path]; fails if something already exists there. */
+    suspend fun makeDirectory(path: String): Unit =
+        throw NotImplementedError("mkdir not supported")
+
+    /** Deletes the empty folder [path]. */
+    suspend fun removeDirectory(path: String): Unit =
+        throw NotImplementedError("rmdir not supported")
+
     /** Creates [directory] and any missing parents. */
     suspend fun mkdirs(directory: String)
 
@@ -110,7 +133,7 @@ interface SshSftp {
     /** Renames [from] to [to]; [to] must not exist (SFTP v3 semantics). */
     suspend fun rename(from: String, to: String)
 
-    /** Deletes the file at [path]. */
+    /** Deletes the file (or the link, not what it points to) at [path]. */
     suspend fun remove(path: String)
 
     /** Closes the SFTP channel. The session stays open. */

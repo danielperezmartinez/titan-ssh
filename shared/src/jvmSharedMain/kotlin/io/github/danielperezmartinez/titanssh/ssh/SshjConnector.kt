@@ -410,7 +410,8 @@ internal class SshjExecChannel(
 
 /**
  * SFTP over sshj's [SFTPClient]: the level-3 agent installer's upload path
- * (ADR-0009 §7) and the SFTP session's browser and downloads (ADR-0021).
+ * (ADR-0009 §7) and the SFTP session's browser and transfers (ADR-0021,
+ * ADR-0024).
  */
 internal class SshjSftp(private val sftp: SFTPClient) : SshSftp {
 
@@ -468,6 +469,36 @@ internal class SshjSftp(private val sftp: SFTPClient) : SshSftp {
         permissions = attrs.mode?.permissionsMask?.takeIf { attrs.has(FileAttributes.Flag.MODE) },
     )
 
+    override suspend fun writeFrom(path: String, offset: Long, nextBlock: suspend (ByteArray) -> Int) =
+        withContext(Dispatchers.IO) {
+            val modes = if (offset == 0L) {
+                EnumSet.of(OpenMode.WRITE, OpenMode.CREAT, OpenMode.TRUNC)
+            } else {
+                EnumSet.of(OpenMode.WRITE)
+            }
+            serverAnswers {
+                sftp.open(path, modes).use { file ->
+                    // One packet per write, several in flight, as in [write].
+                    val buffer = ByteArray(sftp.sftpEngine.subsystem.remoteMaxPacketSize - file.outgoingPacketOverhead)
+                    file.RemoteFileOutputStream(offset, MAX_IN_FLIGHT).use { out ->
+                        while (true) {
+                            currentCoroutineContext().ensureActive()
+                            val n = nextBlock(buffer)
+                            if (n < 0) break
+                            if (n > 0) out.write(buffer, 0, n)
+                        }
+                    }
+                }
+            }
+        }
+
+    override val writeAhead: Long
+        get() = sftp.sftpEngine.subsystem.remoteMaxPacketSize.toLong() * MAX_IN_FLIGHT
+
+    override suspend fun makeDirectory(path: String) = io(answers = true) { sftp.mkdir(path) }
+
+    override suspend fun removeDirectory(path: String) = io(answers = true) { sftp.rmdir(path) }
+
     override suspend fun mkdirs(directory: String) = io { sftp.mkdirs(directory) }
 
     override suspend fun write(path: String, bytes: ByteArray) = io {
@@ -496,9 +527,9 @@ internal class SshjSftp(private val sftp: SFTPClient) : SshSftp {
 
     override suspend fun chmod(path: String, mode: Int) = io { sftp.chmod(path, mode) }
 
-    override suspend fun rename(from: String, to: String) = io { sftp.rename(from, to) }
+    override suspend fun rename(from: String, to: String) = io(answers = true) { sftp.rename(from, to) }
 
-    override suspend fun remove(path: String) = io { sftp.rm(path) }
+    override suspend fun remove(path: String) = io(answers = true) { sftp.rm(path) }
 
     override suspend fun close() = io { runCatching { sftp.close() }; Unit }
 

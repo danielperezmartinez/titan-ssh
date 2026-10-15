@@ -105,6 +105,8 @@ fun SessionsArea(
     // The tab whose menu is open, and the one being renamed.
     var menuTabId by remember { mutableStateOf<String?>(null) }
     var renamingId by remember { mutableStateOf<String?>(null) }
+    // An SFTP tab whose closing would leave partial uploads on the destination (ADR-0024).
+    var closingId by remember { mutableStateOf<String?>(null) }
 
     if (tabs.isEmpty() || showLauncher) {
         Launcher(
@@ -162,7 +164,12 @@ fun SessionsArea(
             tabs = tabs,
             activeId = active.id,
             onSelect = { manager.activate(it) },
-            onClose = { manager.close(it) },
+            onClose = { id ->
+                // Connected, closing deletes the partial uploads itself: no need to ask.
+                val tab = tabs.firstOrNull { it.id == id }
+                val leftovers = tab?.sftp?.takeIf { tab.status.value.phase != TabPhase.CONNECTED }?.partialUploads().orEmpty()
+                if (leftovers.isEmpty()) manager.close(id) else closingId = id
+            },
             onMove = { from, to -> manager.move(from, to) },
             onNew = { showLauncher = true },
             split = splitEnabled,
@@ -191,6 +198,23 @@ fun SessionsArea(
             },
         )
         Hairline()
+        tabs.firstOrNull { it.id == closingId }?.let { tab ->
+            val leftovers = tab.sftp?.partialUploads().orEmpty()
+            ConfirmRow(
+                question = if (leftovers.size == 1) "Hay 1 subida sin terminar" else "Hay ${leftovers.size} subidas sin terminar",
+                subtitle = "Sin conexión no se pueden borrar: si cierras ahora, quedará " + leftoverList(leftovers) + ".",
+                confirmLabel = "[x] Cerrar igualmente",
+                onConfirm = {
+                    closingId = null
+                    manager.close(tab.id)
+                },
+                onCancel = { closingId = null },
+                marker = "[!]",
+                markerColor = TitanColors.Warning,
+                modifier = Modifier.padding(horizontal = TitanDimens.SpaceSm),
+            )
+            Hairline()
+        }
         tabs.firstOrNull { it.id == renamingId }?.let { tab ->
             RenameStrip(
                 tab = tab,
@@ -220,6 +244,14 @@ fun SessionsArea(
             TabContent(active, Modifier.fillMaxSize(), scripts = config.menuScripts(active), keyBar, onConfigureKeyBar)
         }
     }
+}
+
+/** `.a.titan-part en /srv` or `2 archivos a medias (.a.titan-part, .b.titan-part) en /srv`. */
+private fun leftoverList(partials: List<String>): String {
+    val folders = partials.map { it.substringBeforeLast('/').ifEmpty { "/" } }.distinct()
+    val names = partials.joinToString(", ") { it.substringAfterLast('/') }
+    val where = if (folders.size == 1) " en ${folders[0]}" else " en el destino"
+    return if (partials.size == 1) names + where else "${partials.size} archivos a medias ($names)$where"
 }
 
 /** A tab's pane: its terminal, its mouse pad (ADR-0016) or its file browser (ADR-0021). */

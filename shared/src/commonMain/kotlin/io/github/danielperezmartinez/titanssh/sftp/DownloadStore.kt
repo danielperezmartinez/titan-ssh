@@ -12,6 +12,39 @@ interface DownloadStore {
      * taken gets a `(1)`, `(2)`… suffix, so nothing is overwritten.
      */
     fun create(fileName: String): DownloadTarget
+
+    /**
+     * Creates a new folder [name] for the download of a whole remote folder
+     * (ADR-0024). A name already taken gets a `(1)`, `(2)`… suffix, as files do.
+     */
+    fun createFolder(name: String): DownloadFolder
+}
+
+/** A folder being downloaded: its files and subfolders go in it, keeping the remote layout. */
+interface DownloadFolder {
+    /** The name the folder really got. */
+    val name: String
+
+    /** Where it is, as the user would look for it (`Descargas/proyecto`). */
+    val location: String
+
+    /**
+     * Creates the file [fileName] in [subfolder] (`""` for the folder itself,
+     * else `/`-separated names, already made safe), which is created as needed.
+     */
+    fun create(subfolder: String, fileName: String): DownloadTarget
+
+    /** Creates [subfolder] even if no file goes in it, where the platform can hold an empty folder. */
+    fun makeFolder(subfolder: String)
+
+    /**
+     * The download will not finish: removes the folders it left empty once its
+     * files are discarded. Never deletes a file.
+     */
+    fun discard()
+
+    /** Opens the folder with the system's file manager; false if it cannot. */
+    fun open(): Boolean
 }
 
 /** One file being downloaded: written in order, then kept or thrown away. */
@@ -33,6 +66,28 @@ interface DownloadTarget {
 
     /** Opens the finished file with the app the system picks; false if it cannot. */
     fun open(): Boolean
+}
+
+/**
+ * A file on this device picked to be uploaded (ADR-0024). Its calls block: run
+ * them off the main thread.
+ */
+interface UploadSource {
+    val name: String
+
+    /** Its size in bytes, when the platform tells. */
+    val size: Long?
+
+    /** Opens it for reading from byte [offset] on, for a resumed upload. */
+    fun open(offset: Long): UploadReader
+}
+
+/** An open [UploadSource]. */
+interface UploadReader {
+    /** Fills [buffer] from the start; returns how many bytes it read, or -1 at the end. */
+    fun read(buffer: ByteArray): Int
+
+    fun close()
 }
 
 /** The platform's [DownloadStore]. */

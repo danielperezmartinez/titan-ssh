@@ -2,9 +2,8 @@ package io.github.danielperezmartinez.titanssh.sftp
 
 import java.awt.Desktop
 import java.io.File
-import java.io.FileOutputStream
 
-actual fun createDownloadStore(): DownloadStore = FileDownloadStore(desktopDownloadsDir())
+actual fun createDownloadStore(): DownloadStore = FileDownloadStore(desktopDownloadsDir(), ::openWithSystem)
 
 /**
  * The user's Downloads folder: on Linux the XDG one (`Descargas` on a Spanish
@@ -33,39 +32,10 @@ private fun xdgDownloadDir(home: File): File? {
     return File(path).takeIf { it.isDirectory }
 }
 
-/** Downloads as plain files in [directory]. */
-internal class FileDownloadStore(private val directory: File) : DownloadStore {
-    override fun create(fileName: String): DownloadTarget {
-        directory.mkdirs()
-        var n = 0
-        while (true) {
-            val candidate = File(directory, if (n == 0) fileName else numberedFileName(fileName, n))
-            // createNewFile is atomic: two downloads of the same name never share a file.
-            if (candidate.createNewFile()) return FileDownloadTarget(candidate)
-            n++
-        }
+/** Opens a file or folder with the desktop's app for it. */
+private fun openWithSystem(file: File): Boolean {
+    if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+        return runCatching { Desktop.getDesktop().open(file) }.isSuccess
     }
-}
-
-private class FileDownloadTarget(private val file: File) : DownloadTarget {
-    private val out = FileOutputStream(file)
-
-    override val name: String get() = file.name
-    override val location: String get() = file.path
-
-    override fun write(bytes: ByteArray, length: Int) = out.write(bytes, 0, length)
-
-    override fun complete() = out.close()
-
-    override fun discard() {
-        runCatching { out.close() }
-        file.delete()
-    }
-
-    override fun open(): Boolean {
-        if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
-            return runCatching { Desktop.getDesktop().open(file) }.isSuccess
-        }
-        return runCatching { ProcessBuilder("xdg-open", file.path).start() }.isSuccess
-    }
+    return runCatching { ProcessBuilder("xdg-open", file.path).start() }.isSuccess
 }
