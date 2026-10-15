@@ -1,14 +1,14 @@
 ---
 Nombre: 'Sesión SFTP con escritura, carpetas y selección múltiple'
 Número: 24
-Estado: 'Propuesta'
-Resumen: 'Alcance decidido por el usuario el 2026-10-15; pendiente de que lo pruebe en el emulador para aceptarla. El explorador SFTP deja de ser de solo lectura. Sube archivos con subidas reanudables y pregunta qué hacer si el nombre ya existe. Crea carpetas, renombra y borra; una carpeta con contenido pide doble confirmación. Descarga carpetas enteras como carpeta. Tiene un modo de selección por pulsación larga para descargar, mover y borrar varios elementos a la vez. Cambiar permisos queda fuera. Lo demás de ADR-0021 se mantiene.'
+Estado: 'Aceptada'
+Resumen: 'Aceptada por el usuario el 2026-10-15. Amplía ADR-0021 sin cambiar nada de lo que decidió: aquella dejó la escritura para una segunda fase y esta la define. El explorador SFTP deja de ser de solo lectura. Sube archivos con subidas reanudables y pregunta qué hacer si el nombre ya existe. Crea carpetas, renombra y borra; una carpeta con contenido pide doble confirmación. Descarga carpetas enteras como carpeta. Tiene un modo de selección por pulsación larga para descargar, mover y borrar varios elementos a la vez. Cambiar permisos queda fuera. Lo demás de ADR-0021 se mantiene.'
 Decisión: 'El explorador SFTP sube, crea carpetas, renombra, mueve y borra en el destino, descarga carpetas como carpetas y trabaja con varios elementos a la vez en un modo de selección. Borrar pide confirmación, y dos si hay carpetas con contenido.'
 Consecuencias: 'SshSftp crece con writeFrom (escritura desde un desplazamiento), makeDirectory y removeDirectory. DownloadStore crece con createFolder (DownloadFolder) y aparece UploadSource con su selector por plataforma. Una subida usa un archivo parcial oculto junto a su destino y lo renombra al terminar. Cancelar sin conexión espera a la conexión para borrar el parcial, avisando de lo que quedaría; cerrar la pestaña sin conexión con subidas a medias pide confirmación. Los enlaces a carpetas nunca se siguen al borrar ni al descargar una carpeta.'
-Reemplaza: ['[[ADR-0021 Sesión SFTP de solo lectura con descargas reanudables]]']
+Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-10-15T11:00:00+02:00
-Última modificación: 2026-10-15T11:00:00+02:00
+Última modificación: 2026-10-15T13:00:00+02:00
 ---
 
 # ADR-0024 · Sesión SFTP con escritura, carpetas y selección múltiple
@@ -22,10 +22,11 @@ cerró el alcance de esa tarea y añadió dos peticiones: elegir varios elemento
 con una pulsación larga para trabajar con todos a la vez, y descargar una
 carpeta entera **como carpeta**, no solo su contenido.
 
-Esta ADR sustituye a la ADR-0021. Sus puntos 1 (tipo de sesión), 2 (una
-pestaña, un canal), 4 (destino de las descargas), 5 (descargas reanudables) y
-6 (explorador desde una terminal) **siguen vigentes tal como están**. Cambia
-el punto 3, "solo lectura".
+Esta ADR **amplía** la ADR-0021, no la sustituye: todo lo que aquella decidió
+sigue vigente. Su punto 3 hizo de solo lectura la primera versión y dejó la
+escritura para esta tarea; esta ADR la define. La descarga de carpetas sigue
+las reglas de destino del punto 4, y las subidas copian el esquema de
+reanudación del punto 5.
 
 ## Decisión
 

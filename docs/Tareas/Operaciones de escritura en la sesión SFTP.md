@@ -1,11 +1,11 @@
 ---
 Nombre: 'Operaciones de escritura en la sesión SFTP'
-Estado: 'En curso'
+Estado: 'Hecha'
 Resumen: 'Petición del usuario (2026-10-14), alcance cerrado el 2026-10-15. La sesión SFTP nace de solo lectura (navegar y descargar). Esta tarea añade subir archivos (reanudables y preguntando qué hacer si el nombre ya existe), crear carpetas, renombrar, borrar (carpetas con contenido con doble confirmación), descargar carpetas enteras como carpeta y un modo de selección múltiple por pulsación larga para descargar, mover y borrar varios elementos a la vez. Cambiar permisos queda fuera.'
 Decisiones: 'Sale de [[Sesión SFTP para navegar y descargar archivos]] y de [[ADR-0021 Sesión SFTP de solo lectura con descargas reanudables]], que limitan la primera versión a solo lectura. El diseño está en [[ADR-0024 Sesión SFTP con escritura, carpetas y selección múltiple]].'
 Bloqueada: []
 Fecha de creación: 2026-10-14T10:50:00+02:00
-Última modificación: 2026-10-15T12:30:00+02:00
+Última modificación: 2026-10-15T13:00:00+02:00
 ---
 
 # Operaciones de escritura en la sesión SFTP
@@ -44,7 +44,7 @@ Decidido con el usuario el 2026-10-15:
 
 ## Verificación
 
-Avance del 2026-10-15, en el worktree `sftp-write` (sin commit todavía):
+2026-10-15, integrado en `main` (merge `005dae4`):
 
 - `SftpBrowserTest`: 22 tests en verde, 11 de ellos nuevos (subida con
   parcial, reanudación con margen `writeAhead`, conflictos con y sin «para
@@ -78,9 +78,33 @@ Avance del 2026-10-15, en el worktree `sftp-write` (sin commit todavía):
   preguntar. La pestaña solo deja de reintentar a los 15 minutos (sin contar
   el tiempo sin red del sistema), así que el aviso sale mientras no haya
   conexión, no solo cuando la pestaña se rinde.
-- Pendiente: que el usuario lo pruebe en el emulador y en escritorio (el
-  diálogo de archivos de escritorio no se ha podido ver desde la sesión 0).
+- Tras el merge con lo que había llegado a `main` (terminar desde el menú de
+  la pestaña), `main` compila para Android y escritorio y pasan los 90 tests
+  de SFTP, pestañas y gestor de sesiones.
+- El usuario da la tarea por finalizada el 2026-10-15. Queda sin comprobar a
+  mano el diálogo de subida de escritorio (`FileDialog`), que no se pudo
+  abrir desde la sesión 0 de Windows: compila y su lógica es la misma que la
+  probada en Android.
 
 ## Resultado
 
-<Se rellena al completar: qué se hizo finalmente.>
+El explorador SFTP escribe en el destino según
+[[ADR-0024 Sesión SFTP con escritura, carpetas y selección múltiple]], que
+amplía [[ADR-0021 Sesión SFTP de solo lectura con descargas reanudables]]:
+
+- Subidas por un parcial oculto (`.<nombre>.titan-part`) que se renombra al
+  terminar, reanudables tras un corte y con la pregunta de nombre ocupado
+  (reemplazar, conservar ambos u omitir, también para el resto de la tanda).
+- Cancelar una subida sin conexión espera a la conexión para borrar el
+  parcial y avisa de lo que quedaría. Cerrar la pestaña con conexión borra
+  los parciales; sin conexión, pregunta antes.
+- Crear carpeta, renombrar, mover y borrar. Borrar carpetas con contenido
+  pide una segunda confirmación con lo que se borra, y los enlaces se borran
+  sin seguirlos.
+- Descarga de carpetas enteras como carpeta de Descargas, con su estructura.
+- Modo selección por pulsación larga (clic derecho en escritorio) para
+  descargar, mover y borrar varios elementos, y renombrar uno.
+- Piezas nuevas: `SshSftp.writeFrom`, `makeDirectory` y `removeDirectory`;
+  `DownloadStore.createFolder` (`DownloadFolder`); `UploadSource` con
+  `rememberUploadPicker` por plataforma; `FileDownloadStore` compartido en
+  `jvmShared`.

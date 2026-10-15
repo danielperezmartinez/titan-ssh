@@ -8,10 +8,16 @@ Consecuencias: 'El usuario obtiene archivos del destino sin salir de la app y si
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-10-14T11:10:00+02:00
-Última modificación: 2026-10-14T12:30:00+02:00
+Última modificación: 2026-10-15T13:00:00+02:00
 ---
 
 # ADR-0021 · Sesión SFTP de solo lectura con descargas reanudables
+
+> **Ampliada (ADR-0024, 2026-10-15).** La escritura que el punto 3 dejaba
+> para más adelante (subir, crear carpetas, renombrar, mover, borrar),
+> la descarga de carpetas enteras y la selección múltiple las define
+> [[ADR-0024 Sesión SFTP con escritura, carpetas y selección múltiple]].
+> Esta ADR sigue vigente entera: la primera versión fue de solo lectura.
 
 ## Contexto
 
