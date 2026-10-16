@@ -15,24 +15,33 @@ set -euo pipefail
 
 dist=$1 version=$2 keys=$3
 
-if [[ -z "${TITAN_UPDATE_SIGNING_KEY:-}" ]]; then
-    echo "::error::Secret TITAN_UPDATE_SIGNING_KEY is not set; the apps could not verify this release" >&2
+# Errors go to stdout: GitHub turns ::error:: into an annotation only there.
+fail() {
+    echo "::error::$1"
     exit 1
+}
+
+if [[ -z "${TITAN_UPDATE_SIGNING_KEY:-}" ]]; then
+    fail "Secret TITAN_UPDATE_SIGNING_KEY is not set; the apps could not verify this release"
 fi
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 key="$tmp/key.pem"
-(umask 077 && printf '%s\n' "$TITAN_UPDATE_SIGNING_KEY" >"$key")
+# The secret is pasted by hand: rebuild the PEM from its base64 body, so a
+# copy that lost its line breaks or gained quotes or spaces still reads.
+body=$(printf '%s' "$TITAN_UPDATE_SIGNING_KEY" | tr -d '\r"'"'" |
+    sed -e 's/-----BEGIN PRIVATE KEY-----//' -e 's/-----END PRIVATE KEY-----//' | tr -d ' \t\n')
+(umask 077 && printf -- '-----BEGIN PRIVATE KEY-----\n%s\n-----END PRIVATE KEY-----\n' "$body" >"$key")
+openssl pkey -in "$key" -noout 2>/dev/null ||
+    fail "TITAN_UPDATE_SIGNING_KEY is not an Ed25519 private key in PEM (openssl genpkey -algorithm ed25519)"
 
 # The signing key must be one the apps already trust, or no install could
 # verify this release.
 openssl pkey -in "$key" -pubout -out "$tmp/pub.pem"
 public=$(openssl pkey -pubin -in "$tmp/pub.pem" -outform DER | tail -c 32 | base64 | tr -d '\n')
-if ! sed 's/#.*//' "$keys" | tr -d ' \t\r' | grep -qxF "$public"; then
-    echo "::error::The signing key ($public) is not listed in $keys" >&2
-    exit 1
-fi
+listed=$(sed 's/#.*//' "$keys" | tr -d ' \t\r')
+grep -qxF "$public" <<<"$listed" || fail "The signing key ($public) is not listed in $keys"
 
 cd "$dist"
 artifacts=()
@@ -46,10 +55,7 @@ for file in *; do
         *-linux-x64.tar.gz) kind=tar.gz ;;
         *) continue ;;
     esac
-    if [[ -n "${seen[$kind]:-}" ]]; then
-        echo "::error::Two $kind packages: ${seen[$kind]} and $file" >&2
-        exit 1
-    fi
+    [[ -z "${seen[$kind]:-}" ]] || fail "Two $kind packages: ${seen[$kind]} and $file"
     seen[$kind]=$file
     sha=$(sha256sum -- "$file" | cut -d' ' -f1)
     size=$(stat -c %s -- "$file")
@@ -57,10 +63,7 @@ for file in *; do
         '{kind: $kind, name: $name, size: $size, sha256: $sha}')")
 done
 for kind in msi apk deb rpm tar.gz; do
-    if [[ -z "${seen[$kind]:-}" ]]; then
-        echo "::error::No $kind package in $dist" >&2
-        exit 1
-    fi
+    [[ -n "${seen[$kind]:-}" ]] || fail "No $kind package in $dist"
 done
 
 printf '%s\n' "${artifacts[@]}" | jq -s --arg version "$version" '{schema: 1, version: $version, artifacts: .}' \
