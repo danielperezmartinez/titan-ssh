@@ -5,7 +5,7 @@ Resumen: 'Dejar compose.desktop listo para distribuir. Añadir un upgradeUuid fi
 Decisiones: 'Sigue [[ADR-0011 Distribución y canales de publicación]] §3–4. Instalación por usuario en Windows (sin UAC) y sin ProGuard; upgradeUuid fijado en aa0fe179-f4a1-4db1-92f3-f3b04240e849.'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-26T16:55:00+02:00
+Última modificación: 2026-10-16T19:00:00+02:00
 ---
 
 # Configuración de release del escritorio
@@ -141,7 +141,9 @@ Cambios en `desktopApp/build.gradle.kts`, en `build.gradle.kts` (raíz) y en
   siempre**.
 - **Decisión**: `perUserInstall = true`. Instala en `%LOCALAPPDATA%` sin
   administrador ni UAC, que es lo que corresponde a una herramienta de
-  usuario; winget admite el ámbito de usuario. También `dirChooser`,
+  usuario; winget admite el ámbito de usuario. Desde la 1.0.0 la carpeta es
+  `%LOCALAPPDATA%\Programs\titan-ssh` y ya no hay `dirChooser`: ver
+  [[ADR-0026 Carpeta de instalación del MSI aparte de los datos]]. También `dirChooser`,
   `shortcut`, `menu` y `menuGroup`.
 - Metadatos (`vendor`, `description`, `copyright`, `licenseFile`) y en Linux
   `debMaintainer`, que es solo la dirección `noreply` de GitHub porque
