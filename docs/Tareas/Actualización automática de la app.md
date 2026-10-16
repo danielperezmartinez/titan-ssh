@@ -5,7 +5,7 @@ Resumen: 'La app se actualiza sola en Windows, Linux y Android desde GitHub Rele
 Decisiones: 'El 2026-10-16 el usuario decide no esperar a AUR ni a winget: actualización automática en las tres plataformas, betas incluidas, instalando sola por defecto y con opción de preguntar en Ajustes. Diseño en [[ADR-0025 Actualización automática de la app]] (Aceptada el 2026-10-16), que sustituye la política de actualización de [[ADR-0011 Distribución y canales de publicación]]. .deb y .rpm piden la contraseña con pkexec (decisión del usuario). Pendiente: que el usuario cree la clave de firma de actualizaciones.'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-10-16T15:30:00+02:00
+Última modificación: 2026-10-16T19:10:00+02:00
 ---
 
 # Actualización automática de la app
@@ -132,6 +132,14 @@ workflow.
     salen como anotaciones de GitHub.
   - 👤 El usuario está instalando la beta.20 a mano en el PC (MSI, encima de su
     0.1.0-beta.6) y en el Pixel (APK, dando «Permitir instalar» en Ajustes).
+  - 2026-10-16: el usuario instaló la beta.20 en un portátil con Arch y qtile,
+    con el `tar.gz` en `~/.local/opt/titan-ssh/`, sin `sudo`, y un `.desktop`
+    con la ruta absoluta. Hubo que añadir un proveedor de Secret Service
+    (`gnome-keyring`). Ahí la 1.0.0 tiene que llegar sustituyendo la carpeta al
+    cerrar la app. En Ajustes, **Buscar ahora** responde «es la más
+    reciente», así que el actualizador está activo en esa instalación.
+    Mejoras para después de 1.0.0 en
+    [[Instalador del tar.gz de Linux con dependencias]].
 - **Siguiente**:
   1. Cuando el usuario confirme que la beta.20 funciona en los dos, publicar
      `v1.0.0` según la regla 4 del [[README]].
