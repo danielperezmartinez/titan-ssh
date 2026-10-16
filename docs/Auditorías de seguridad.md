@@ -130,8 +130,8 @@ amplía, se anota aquí con un enlace a esa auditoría, y el detalle va al aviso
 3. Mensajes de commit, nombres de rama y comentarios **neutros**, que no
    expliquen el fallo (p. ej. "Harden host key checks"). Los tests que lo
    cubren no llevan nombres que lo describan.
-4. Verificar como cualquier otro cambio: tests y prueba en el emulador (regla
-   4, paso 0). Pasar su nota de hallazgo a `Corregido`, con una línea en su
+4. Verificar como cualquier otro cambio: tests y prueba en el emulador («Prueba en
+   Android» de la regla 4). Pasar su nota de hallazgo a `Corregido`, con una línea en su
    registro.
 5. Publicar la versión cuando el usuario lo pida (regla 4) y anotar el tag en
    `Versión del arreglo`. Después, si el usuario lo aprueba, publicar el aviso

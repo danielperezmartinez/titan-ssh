@@ -4,6 +4,7 @@ Estado: 'En curso'
 Resumen: 'En Linux, «Instalar y reiniciar» instala la versión nueva pero no reabre la app. El instalador hereda de la JVM las variables que el lanzador de jpackage pone en su propio proceso (_JPACKAGE_LAUNCHER y LD_LIBRARY_PATH con lib/app). El lanzador relanzado las toma por un reinicio interno de la JVM, no lee su configuración y se cierra al instante. Visto al pasar un tar.gz de la beta.20 a la 1.0.0. Arreglo para 1.0.1: quitar esas variables del entorno del instalador y conservar sus registros.'
 Decisiones: 'El 2026-10-16 la sesión de control lo asigna a una 1.0.1. No hace falta cambiar ninguna ADR: el comportamiento es el de [[ADR-0025 Actualización automática de la app]] §2 («tras actualizar, la app se reabre»), que en Linux no se cumplía.'
 Bloqueada: []
+Versión: ''
 Fecha de creación: 2026-10-16T20:20:00+02:00
 Última modificación: 2026-10-16T20:20:00+02:00
 ---

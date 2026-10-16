@@ -53,7 +53,7 @@ detenerse e informar al usuario.
 
 ### Tareas
 
-_Versión del sistema: 1._
+_Versión del sistema: 2._
 
 Gestión de trabajos como notas con estado en `Tareas/`, indexadas por
 `Tareas/Tareas.base`.
@@ -61,6 +61,12 @@ Gestión de trabajos como notas con estado en `Tareas/`, indexadas por
 - `Estado` ∈ `Planificando` · `Pendiente` · `En curso` · `Hecha` · `Archivada`.
 - `Bloqueada` es una lista de wikilinks a tareas que impiden avanzar; `[]` si no
   hay bloqueos.
+- `Versión` es la versión publicada que lleva el resultado de la tarea a los
+  usuarios (`'1.0.1'`, sin `v`). Se deja vacía (`''`) al crear la tarea y la
+  rellena el agente al publicar esa versión (regla 4), en las tareas cuyos
+  cambios entran en ella. Las tareas que no llegan a ninguna versión (solo
+  documentación, infraestructura o decisiones) la dejan vacía. Las tareas
+  cerradas antes de la 1.0.0 no se rellenan hacia atrás.
 - Al empezar → `En curso`; al completar y **verificar** → `Hecha`; lo que ya no
   deba aparecer en el trabajo habitual → `Archivada`.
 - Antes de crear una tarea, buscar en TODAS (incluidas `Hecha` y `Archivada`)
@@ -200,50 +206,58 @@ herramientas, checklist y cómo trabajar con los avisos privados.
     las sigue aceptando: el actualizador instala las versiones preliminares en
     todas las instalaciones, así que una beta llegaría a todo el mundo. Volver a
     publicarlas exige antes un canal beta opcional en Ajustes, desactivado por
-    defecto. Lo que necesite pruebas se prueba antes de publicar (paso 0).
+    defecto. Lo que necesite pruebas se prueba durante el desarrollo, antes de
+    cerrar su tarea (ver **Prueba en Android**).
+- **Prueba en Android** (al cerrar cada tarea, no al publicar). Los cambios que
+  afectan a Android se prueban en el emulador (`Pixel_9_Pro_XL`) con una build
+  de debug, no con un Release ni lanzando el workflow a mano. El agente enseña
+  al usuario capturas del emulador (ficheros o carpeta) y deja el emulador
+  abierto con la app instalada y un destino de pruebas preparado, para que el
+  usuario la pruebe él mismo. El destino es el servidor SSH de pruebas de
+  `tools/test-sshd/` (un contenedor que se conserva y solo se enciende y se
+  apaga). Con eso la verificación "en dispositivo" de la tarea queda cubierta.
+  Varias sesiones comparten el emulador: cada worktree instala su propia build
+  de debug (sufijo de paquete automático) y **nadie maneja el emulador sin
+  tener el turno** de `tools/emulator-lock/` (ver su `README.md`), que se
+  suelta al terminar las capturas. Si está ocupado, se avanza con lo que no
+  necesite el emulador y, cuando no quede nada, se espera el turno de la forma
+  que permita el agente (en segundo plano si puede).
 - **Publicar una versión** (workflow `.github/workflows/release.yml`; detalle
   en [[Pipeline de release en GitHub Actions]]). Un agente **solo publica
   cuando el usuario lo pide en esa sesión**: el tag y el Release son públicos
   y no se pueden retirar. Si al agente le parece buen momento, lo propone y
-  espera la respuesta.
-  0. **Prueba en Android sin publicar.** Los cambios que afectan a Android se
-     prueban antes en el emulador (`Pixel_9_Pro_XL`) con una build de debug,
-     no con un Release ni lanzando el workflow a mano. El agente enseña al
-     usuario capturas del emulador (ficheros o carpeta) y deja el emulador
-     abierto con la app instalada y un destino de pruebas preparado, para que
-     el usuario la pruebe él mismo. El destino es el servidor SSH de pruebas
-     de `tools/test-sshd/` (un contenedor que se conserva y solo se enciende
-     y se apaga). Con eso el usuario decide si se publica, y
-     la verificación "en dispositivo" de una tarea queda cubierta.
-     Varias sesiones comparten el emulador: cada worktree instala su propia
-     build de debug (sufijo de paquete automático) y **nadie maneja el
-     emulador sin tener el turno** de `tools/emulator-lock/` (ver su
-     `README.md`), que se suelta al terminar las capturas. Si está ocupado,
-     se avanza con lo que no necesite el emulador y, cuando no quede nada,
-     se espera el turno de la forma que permita el agente (en segundo plano
-     si puede).
-  1. `main` con todo subido y el árbol limpio. Se revisa el diff según la
-     regla 5.
-  2. Versión: la siguiente según SemVer (ver **Fase de producto**), sin
-     sufijo. Nunca se reutiliza un tag. Se comprueba con
-     `./gradlew printVersion -PtitanVersion=<versión>`.
+  espera la respuesta. Las pruebas no se repiten al publicar: se hicieron al
+  cerrar cada tarea, y el workflow vuelve a pasar los tests, comprueba la
+  firma de la APK y firma y verifica `titan-update.json`, y si algo falla no
+  publica nada.
+  1. **Número de versión.** El agente lee `git log v<última>..main` y las
+     tareas que han pasado a `Hecha` desde la última versión, clasifica cada
+     cambio según **Fase de producto** (arreglo → `X.Y.Z+1`; función nueva o
+     cambio de comportamiento → `X.Y+1.0`; ruptura → `X+1.0.0`) y **propone al
+     usuario** el número con la lista de cambios que lo justifica. Se publica
+     el que confirme el usuario: sin sufijo y nunca un tag ya usado. Se
+     comprueba con `./gradlew printVersion -PtitanVersion=<versión>`.
+  2. `main` con todo lo que entra en la versión subido. Se revisa el diff
+     desde la última versión según la regla 5.
   3. `git tag -a v<versión> -m "titan-ssh <versión>"` y
      `git push origin v<versión>`.
-  4. Se sigue el run del workflow `Release` hasta que acaben todos sus jobs. Si
-     falla, se arregla en `main` y se publica el número siguiente: un tag
-     publicado no se mueve ni se borra sin permiso del usuario. Los jobs `aur`
-     y `winget` van después del Release: si solo falla uno de ellos, el
-     Release vale y basta con reintentar ese job. Solo se ejecutan si la
-     variable del repositorio `AUR_ENABLED` o `WINGET_ENABLED` vale `true`.
-  5. Se comprueba el Release: no marcado como pre-release, `sha256sum -c
-     SHA256SUMS` sin errores, la APK firmada con la clave de release (su huella
-     está en el `README.md` de la raíz; CI también la comprueba), y
-     `titan-update.json` con su `.sig` entre los assets, con los cinco paquetes.
-  6. La versión llega sola al Pixel y al PC del usuario con el actualizador, y
-     el usuario confirma que funciona. Se anota en la tarea correspondiente. Es
-     una comprobación del Release; la de la funcionalidad es el paso 0. Si no
-     llega, se mira el `update.log` del actualizador (en la caché de la app en
-     escritorio y en `no_backup/update/` en Android) antes de instalar a mano.
+  4. Se sigue el run del workflow `Release` hasta que acaben todos sus jobs.
+     **Si falla, el agente se para**: explica al usuario qué ha fallado (con
+     el job y el error) y qué propone para arreglarlo, y no cambia nada hasta
+     que el usuario lo confirme. Un tag publicado no se mueve ni se borra sin
+     su permiso; lo normal es arreglarlo en `main` y publicar el número
+     siguiente. Los jobs `aur` y `winget` van después del Release: si solo
+     falla uno de ellos, el Release vale y basta con reintentar ese job. Solo
+     se ejecutan si la variable del repositorio `AUR_ENABLED` o
+     `WINGET_ENABLED` vale `true`.
+  5. Se confirma que el Release existe con sus assets y no es pre-release. Las
+     comprobaciones de firma y de SHA-256 ya las hace el workflow.
+  6. Se rellena `Versión` en las tareas cuyos cambios entran en esta versión
+     (sistema de Tareas) y se suben esas notas.
+  - La llegada a los dispositivos no se sigue paso a paso: la versión llega
+    sola con el actualizador. Si en algún dispositivo no llega, el usuario lo
+    avisa y se mira el `update.log` del actualizador (en la caché de la app en
+    escritorio y en `no_backup/update/` en Android) antes de instalar a mano.
   - Para probar el pipeline sin publicar nada, se lanza el workflow a mano
     (`workflow_dispatch`): genera los paquetes como artefactos del run.
   - Los secretos del keystore (`TITAN_KEYSTORE_BASE64`, `TITAN_KEY_ALIAS`,

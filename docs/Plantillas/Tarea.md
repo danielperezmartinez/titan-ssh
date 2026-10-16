@@ -4,6 +4,7 @@ Estado: Pendiente
 Resumen: <Una o dos frases que permitan entender la tarea sin abrirla.>
 Decisiones: <Acuerdos relevantes tomados durante la tarea. Vacío al crear.>
 Bloqueada: []
+Versión: ''
 Fecha de creación: <AAAA-MM-DDTHH:mm:ss+ZZ:ZZ>
 Última modificación: <AAAA-MM-DDTHH:mm:ss+ZZ:ZZ>
 ---

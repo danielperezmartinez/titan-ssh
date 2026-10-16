@@ -17,6 +17,8 @@ properties:
     displayName: Decisiones
   Bloqueada:
     displayName: Bloqueada por
+  Versión:
+    displayName: Versión
   formula.created_display:
     displayName: Creada
   formula.updated_display:
@@ -27,6 +29,7 @@ views:
     order:
       - file.name
       - Estado
+      - Versión
       - Resumen
       - Decisiones
       - Bloqueada
@@ -84,10 +87,26 @@ views:
     order:
       - file.name
       - Estado
+      - Versión
       - Resumen
       - Decisiones
       - formula.created_display
       - formula.updated_display
+  - type: table
+    name: Por versión
+    filters:
+      and:
+        - Versión != null
+        - Versión != ""
+    order:
+      - Versión
+      - file.name
+      - Estado
+      - Resumen
+      - formula.updated_display
+    sort:
+      - property: Versión
+        direction: DESC
   - type: table
     name: Archivada
     filters:

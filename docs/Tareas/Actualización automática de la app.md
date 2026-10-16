@@ -4,6 +4,7 @@ Estado: 'Hecha'
 Resumen: 'La app se actualiza sola en Windows, Linux y Android desde GitHub Releases, como Claude Code Desktop; desde la 1.0.0 solo se publican versiones estables. Hecha el 2026-10-16: la v1.0.0 llegó sola al Pixel, al portátil Arch y al PC. Por defecto instala sin preguntar; en Configuración → Ajustes se puede cambiar a preguntar antes. Nunca cierra pestañas abiertas: instala al cerrar o al arrancar la app. Cada Release publica un manifiesto firmado con una clave Ed25519 propia y la app lo verifica antes de instalar. No depende de winget, AUR ni SignPath. Se apaga en Flatpak, AUR y Google Play. Antes se llamaba «Aviso de nueva versión en la app» y solo avisaba.'
 Decisiones: 'El 2026-10-16 el usuario decide no esperar a AUR ni a winget: actualización automática en las tres plataformas, betas incluidas, instalando sola por defecto y con opción de preguntar en Ajustes. Diseño en [[ADR-0025 Actualización automática de la app]] (Aceptada el 2026-10-16), que sustituye la política de actualización de [[ADR-0011 Distribución y canales de publicación]]. .deb y .rpm piden la contraseña con pkexec (decisión del usuario). Desde la 1.0.0 solo versiones estables (regla 4 del README). Hecha el 2026-10-16 con la v1.0.0.'
 Bloqueada: []
+Versión: '1.0.0'
 Fecha de creación: 2026-09-23T22:50:00+02:00
 Última modificación: 2026-10-16T22:00:00+02:00
 ---
