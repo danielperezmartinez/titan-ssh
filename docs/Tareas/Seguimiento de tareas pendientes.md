@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta del despliegue y la distribución, con una lista cerrada 
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-10-16T13:00:00+02:00
+Última modificación: 2026-10-16T22:00:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -267,8 +267,10 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
 - [ ] **13. Firma de Windows con SignPath** 👤 (el usuario envía la solicitud)
   - [[Firma de código Windows con SignPath Foundation]]
   - Al acabar, winget (paso 7) pasa a apuntar al MSI firmado.
-- [ ] **14. Actualización automática** 👤 (aceptar la ADR y crear la clave de
+- [x] **14. Actualización automática** 👤 (aceptar la ADR y crear la clave de
   firma de actualizaciones)
+  - Hecho el 2026-10-16 con la `v1.0.0`, que llegó sola al Pixel, al portátil
+    Arch y al PC.
   - [[Actualización automática de la app]]
   - 2026-10-16: el usuario la saca de la espera. Ya no es un aviso, sino una
     actualización automática en las tres plataformas
@@ -884,3 +886,7 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   se publican versiones estables con SemVer (regla 4 del [[README]]). Antes de
   publicar, el instalador vuelve a comprobar el SHA-256 justo antes de
   instalar, como root en `.deb` y `.rpm`.
+- 2026-10-16 — Publicada `v1.0.0`, la primera versión estable. Llegó sola al
+  Pixel, al portátil Arch y al PC con el actualizador, y el paso 14 queda
+  hecho. El detalle y lo que queda para la 1.0.1 están en
+  [[Actualización automática de la app]].

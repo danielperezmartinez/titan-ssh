@@ -1,11 +1,11 @@
 ---
 Nombre: 'Actualización automática de la app'
-Estado: 'En curso'
-Resumen: 'La app se actualiza sola en Windows, Linux y Android desde GitHub Releases, betas incluidas, como Claude Code Desktop. Por defecto instala sin preguntar; en Configuración → Ajustes se puede cambiar a preguntar antes. Nunca cierra pestañas abiertas: instala al cerrar o al arrancar la app. Cada Release publica un manifiesto firmado con una clave Ed25519 propia y la app lo verifica antes de instalar. No depende de winget, AUR ni SignPath. Se apaga en Flatpak, AUR y Google Play. Antes se llamaba «Aviso de nueva versión en la app» y solo avisaba.'
-Decisiones: 'El 2026-10-16 el usuario decide no esperar a AUR ni a winget: actualización automática en las tres plataformas, betas incluidas, instalando sola por defecto y con opción de preguntar en Ajustes. Diseño en [[ADR-0025 Actualización automática de la app]] (Aceptada el 2026-10-16), que sustituye la política de actualización de [[ADR-0011 Distribución y canales de publicación]]. .deb y .rpm piden la contraseña con pkexec (decisión del usuario). Pendiente: que el usuario cree la clave de firma de actualizaciones.'
+Estado: 'Hecha'
+Resumen: 'La app se actualiza sola en Windows, Linux y Android desde GitHub Releases, como Claude Code Desktop; desde la 1.0.0 solo se publican versiones estables. Hecha el 2026-10-16: la v1.0.0 llegó sola al Pixel, al portátil Arch y al PC. Por defecto instala sin preguntar; en Configuración → Ajustes se puede cambiar a preguntar antes. Nunca cierra pestañas abiertas: instala al cerrar o al arrancar la app. Cada Release publica un manifiesto firmado con una clave Ed25519 propia y la app lo verifica antes de instalar. No depende de winget, AUR ni SignPath. Se apaga en Flatpak, AUR y Google Play. Antes se llamaba «Aviso de nueva versión en la app» y solo avisaba.'
+Decisiones: 'El 2026-10-16 el usuario decide no esperar a AUR ni a winget: actualización automática en las tres plataformas, betas incluidas, instalando sola por defecto y con opción de preguntar en Ajustes. Diseño en [[ADR-0025 Actualización automática de la app]] (Aceptada el 2026-10-16), que sustituye la política de actualización de [[ADR-0011 Distribución y canales de publicación]]. .deb y .rpm piden la contraseña con pkexec (decisión del usuario). Desde la 1.0.0 solo versiones estables (regla 4 del README). Hecha el 2026-10-16 con la v1.0.0.'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-10-16T19:10:00+02:00
+Última modificación: 2026-10-16T22:00:00+02:00
 ---
 
 # Actualización automática de la app
@@ -140,26 +140,48 @@ workflow.
     reciente», así que el actualizador está activo en esa instalación.
     Mejoras para después de 1.0.0 en
     [[Instalador del tar.gz de Linux con dependencias]].
-- **Siguiente**:
-  1. Cuando el usuario confirme que la beta.20 funciona en los dos, publicar
-     `v1.0.0` según la regla 4 del [[README]].
-  2. Comprobar el Release y que la 1.0.0 llega sola: en el PC al cerrar la app,
-     y en el Pixel en segundo plano, con una confirmación la primera vez y quizá
-     Play Protect. Si no llega, leer el `update.log`: en el PC en
-     `%LOCALAPPDATA%\titan-ssh\cache\update\` y en Android en
-     `no_backup/update/`.
-  3. Pasar esta tarea a `Hecha` y marcar el paso 14 del seguimiento.
-- **Limpieza pendiente**:
-  - El emulador `Pixel_9_Pro_XL` tiene la app de prueba
-    `io.github.danielperezmartinez.titanssh.auto_update` (0.9.0-beta.4, que
-    apunta a un origen local que ya no existe). Además, para la prueba se
-    desactivó Play Protect con `settings put global package_verifier_enable 0`,
-    `package_verifier_user_consent -1` y `upload_apk_enable 0`.
-  - El worktree `.claude/worktrees/auto-update` (rama `worktree-auto-update`) ya
-    está integrado en `main` y se puede borrar.
-  - Se puede plantear un ajuste «Recibir versiones beta» si vuelven a hacer
-    falta betas (regla 4).
+    Al pasar a la 1.0.0 con «Instalar y reiniciar», la versión se instaló
+    pero la app no se reabrió: el lanzador relanzado hereda
+    `_JPACKAGE_LAUNCHER` de la JVM y se cierra. Arreglo para 1.0.1 en
+    [[Reabrir la app tras Instalar y reiniciar en Linux]].
+  - 2026-10-16: el usuario confirma que la beta.20 funciona en el PC (tras
+    desinstalar la beta.6 que había quedado a medias, ver
+    [[Carpeta de instalación del MSI aparte del estado del agente]]) y en el
+    Pixel. Publicada
+    [`v1.0.0`](https://github.com/danielperezmartinez/titan-ssh/releases/tag/v1.0.0)
+    (run `38941312786`, todo en verde; `aur` y `winget` saltados). Comprobado:
+    no es pre-release; `SHA256SUMS` da 21 de 21; la APK está firmada con la
+    clave de release (`3929d8…deab`); `titan-update.json` verifica con la clave
+    de `shared/update-keys.txt` y sus cinco paquetes cuadran en SHA-256 y
+    tamaño.
+- **Llegada de la 1.0.0, 2026-10-16** (confirmada por el usuario):
+  - **Pixel**: se actualizó solo y la app quedó abierta en la 1.0.0.
+  - **Arch** (`tar.gz`): se instaló con «Instalar y reiniciar», pero la app no
+    se reabrió; ver [[Reabrir la app tras Instalar y reiniciar en Linux]].
+  - **Windows**: con «Instalar y reiniciar», el primer intento falló con 1603
+    (error 1306 sobre `cache\update\1.0.0\helper.log`). En una beta la caché del
+    actualizador está dentro de la carpeta que borra la desinstalación del MSI
+    viejo ([[ADR-0026 Carpeta de instalación del MSI aparte de los datos]]).
+    La vuelta atrás dejó la beta.20 registrada a medias, y el segundo intento
+    instaló la 1.0.0 en `Programs\titan-ssh` junto a ella. Desde la 1.0.0 la
+    caché ya no está en la carpeta de instalación, así que no se repite. Como
+    el actualizador sobrescribe `msiexec.log` en cada intento, la causa del
+    primero salió del Visor de eventos (MsiInstaller, 11306).
+  - Limpieza en el PC: un `msiexec /x` con el MSI de la beta.20, que ya no
+    estaba bien registrada, ejecutó `RemoveExistingProducts` y desinstaló la
+    1.0.0, que comparte `UpgradeCode`. Se reinstaló con el MSI verificado del
+    Release y se borraron a mano los ficheros de la beta.20 que quedaron.
+- **Limpieza hecha el 2026-10-16**: desinstalada del emulador la app de prueba
+  `…titanssh.auto_update` y restaurados los ajustes de Play Protect
+  (`settings delete global` de `package_verifier_enable`,
+  `package_verifier_user_consent` y `upload_apk_enable`). Borrados los
+  worktrees `auto-update` y `msi-install-dir` y sus ramas.
 
 ## Resultado
 
-<Se rellena al completar.>
+Hecha el 2026-10-16. La `v1.0.0` es la primera versión estable y la primera que
+llega sola desde un Release: al Pixel en segundo plano, al portátil Arch
+sustituyendo el `tar.gz` y al PC con el MSI por usuario. El manifiesto firmado
+verifica con la clave de `shared/update-keys.txt`. Queda para la 1.0.1 reabrir
+la app en Linux tras «Instalar y reiniciar». Si vuelven a hacer falta betas, se
+puede plantear un ajuste «Recibir versiones beta» (regla 4 del [[README]]).
