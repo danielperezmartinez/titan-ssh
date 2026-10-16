@@ -13,26 +13,22 @@ sesión sin muros de pago.
 
 Todas las versiones se publican en
 [GitHub Releases](https://github.com/danielperezmartinez/titan-ssh/releases),
-generadas por CI a partir de un tag. Las que llevan sufijo (`-alpha.N`,
-`-beta.N`, `-rc.N`) son versiones de prueba y aparecen como *pre-release*.
-Cada Release trae un `SHA256SUMS` para comprobar las descargas.
+generadas por CI a partir de un tag. Desde la 1.0.0 solo se publican versiones
+estables, que siguen [SemVer](https://semver.org/lang/es/). Las anteriores, con
+sufijo `-beta.N`, fueron versiones de prueba y aparecen como *pre-release*.
+Cada Release trae un `SHA256SUMS` para comprobar las descargas, y la app se
+actualiza sola (ver [Actualizaciones](#actualizaciones)).
 
 ### Android
 
-La forma recomendada es [Obtainium](https://github.com/ImranR98/Obtainium), que
-instala la APK desde los Releases y avisa de cada versión nueva:
+Descarga `titan-ssh-<versión>.apk` del último Release e instálala. Después la
+app se actualiza sola (ver [Actualizaciones](#actualizaciones)) y conserva los
+hosts y sesiones guardados. El `.aab` es para Google Play y no se instala
+directamente.
 
-1. Instala Obtainium (desde su página de Releases o desde IzzyOnDroid).
-2. Pulsa **Añadir aplicación** y pega la URL del repositorio:
-   `https://github.com/danielperezmartinez/titan-ssh`.
-3. Mientras solo haya versiones de prueba, activa **Incluir versiones
-   preliminares** (*Include prereleases*). Si no, Obtainium no encontrará
-   ninguna.
-4. Instala. Las actualizaciones siguientes se instalan encima y conservan los
-   hosts y sesiones guardados.
-
-También se puede descargar a mano `titan-ssh-<versión>.apk` del Release. El
-`.aab` es para Google Play y no se instala directamente.
+También se puede usar [Obtainium](https://github.com/ImranR98/Obtainium):
+**Añadir aplicación** con la URL del repositorio,
+`https://github.com/danielperezmartinez/titan-ssh`.
 
 Todas las APK publicadas están firmadas con la misma clave. Huella SHA-256 del
 certificado, para comprobarla (por ejemplo con AppVerifier o
@@ -67,7 +63,7 @@ anterior. Mientras el instalador no esté firmado, SmartScreen mostrará un avis
 ### Actualizaciones
 
 A partir de la versión que lo incluye, la app se actualiza sola en Windows,
-Linux y Android, también con las versiones de prueba. Se puede cambiar en
+Linux y Android. Se puede cambiar en
 **Configuración → Ajustes → Actualizaciones**: *Instalar automáticamente* (por
 defecto) o *Preguntar antes de instalar*. Nunca cierra pestañas abiertas por su
 cuenta:

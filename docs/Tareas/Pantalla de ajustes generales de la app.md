@@ -1,11 +1,11 @@
 ---
 Nombre: 'Pantalla de ajustes generales de la app'
 Estado: 'Pendiente'
-Resumen: 'Petición del usuario (2026-10-14), para más adelante. Una pantalla de configuración general de la app donde reunir las opciones que no son de un host ni de una sesión. La primera nueva es la carpeta de destino de las descargas SFTP, que de momento van siempre a Descargas. Hoy existe la pestaña Ajustes de Configuración (AppSettings), que solo se muestra donde hay alguna opción (permitir capturas en Android) y además guarda la barra de teclas.'
+Resumen: 'Petición del usuario (2026-10-14), para más adelante. Una pantalla de configuración general de la app donde reunir las opciones que no son de un host ni de una sesión. La primera nueva es la carpeta de destino de las descargas SFTP, que de momento van siempre a Descargas. Hoy existe la pestaña Ajustes de Configuración (AppSettings), que desde el 2026-10-16 se muestra en todas las plataformas porque lleva las actualizaciones (ADR-0025), además de permitir capturas en Android, y guarda la barra de teclas.'
 Decisiones: 'Sale de [[Sesión SFTP para navegar y descargar archivos]] y de [[ADR-0021 Sesión SFTP de solo lectura con descargas reanudables]], que fijan Descargas como destino por ahora. Partir de la pestaña Ajustes y de AppSettings existentes, no crear un segundo sitio para lo mismo.'
 Bloqueada: []
 Fecha de creación: 2026-10-14T10:50:00+02:00
-Última modificación: 2026-10-14T10:50:00+02:00
+Última modificación: 2026-10-16T13:00:00+02:00
 ---
 
 # Pantalla de ajustes generales de la app

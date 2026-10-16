@@ -5,7 +5,7 @@ Resumen: 'La app se actualiza sola en Windows, Linux y Android desde GitHub Rele
 Decisiones: 'El 2026-10-16 el usuario decide no esperar a AUR ni a winget: actualización automática en las tres plataformas, betas incluidas, instalando sola por defecto y con opción de preguntar en Ajustes. Diseño en [[ADR-0025 Actualización automática de la app]] (Aceptada el 2026-10-16), que sustituye la política de actualización de [[ADR-0011 Distribución y canales de publicación]]. .deb y .rpm piden la contraseña con pkexec (decisión del usuario). Pendiente: que el usuario cree la clave de firma de actualizaciones.'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-10-16T12:20:00+02:00
+Última modificación: 2026-10-16T13:00:00+02:00
 ---
 
 # Actualización automática de la app
@@ -98,15 +98,26 @@ workflow.
     y no deja instalarla sin enviarla a Google. En el emulador se desactivó el
     análisis.
 
+- **Endurecimiento antes de publicar**, a petición del usuario. El instalador
+  vuelve a comprobar el SHA-256 del manifiesto justo antes de instalar. Con
+  `.deb` y `.rpm` lo hace como root sobre una copia en una carpeta de root, e
+  instala esa misma copia; así otro proceso del usuario no puede cambiar el
+  paquete entre la verificación y la instalación, que pide la contraseña de
+  administrador. Si no coincide, sale con el código 3 y no instala ni reabre la
+  app. Probado en Ubuntu 22.04 (17 de 17, con un `.tar.gz` y un `.deb`
+  cambiados), en Fedora 42 y con el script de Windows.
+
 **Pendiente**:
 
 - Hecho el 2026-10-16: el usuario creó la clave de firma real, la guardó en
   el secreto `TITAN_UPDATE_SIGNING_KEY` y en su gestor de contraseñas. Su
   clave pública está en `shared/update-keys.txt` y el fichero privado se borró
   del disco sin pasar por git.
-- Comprobar con dos betas reales la primera actualización desde una versión
-  publicada que ya traiga el actualizador, incluido el aviso de Play Protect en
-  el Pixel.
+- Comprobarlo con versiones reales. Decidido el 2026-10-16: se publica
+  `0.1.0-beta.20`, la última beta y la primera con el actualizador; el usuario
+  la instala a mano en el PC y en el Pixel. Después se publica `1.0.0`, que
+  tiene que llegar sola a los dos, con el aviso de Play Protect en el Pixel si
+  sale. Con eso la tarea pasa a `Hecha`.
 
 ## Resultado
 

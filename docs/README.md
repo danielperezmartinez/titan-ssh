@@ -184,12 +184,23 @@ herramientas, checklist y cómo trabajar con los avisos privados.
   a partir de un tag `vX.Y.Z`.
 - **Versión única**: la versión de Android, escritorio y agente sale de un solo
   sitio, el `build.gradle.kts` raíz, y **nunca se escribe a mano en otro
-  fichero**. Para subir versión se crea y se sube el tag `vX.Y.Z` (o
-  `vX.Y.Z-beta.N`, `-alpha.N`, `-rc.N`) en `main`; el build lo lee (en CI con
-  `-PtitanVersion`, en local también del tag que apunte a HEAD). Sin tag, la
-  versión es `0.0.0-dev`. `./gradlew printVersion` muestra los valores
-  derivados. Formato admitido, fórmula del `versionCode` y límites en
-  [[Versionado único desde tag de git]].
+  fichero**. Para subir versión se crea y se sube el tag `vX.Y.Z` en `main`; el
+  build lo lee (en CI con `-PtitanVersion`, en local también del tag que apunte
+  a HEAD). Sin tag, la versión es `0.0.0-dev`. `./gradlew printVersion` muestra
+  los valores derivados. Formato admitido, fórmula del `versionCode` y límites
+  en [[Versionado único desde tag de git]].
+- **Fase de producto (desde `1.0.0`)**: solo se publican versiones estables,
+  que llegan solas a todas las instalaciones con el actualizador de la app
+  ([[ADR-0025 Actualización automática de la app]]). Se sigue SemVer:
+  - `X.Y.Z+1` para arreglos sin cambios visibles de funcionamiento.
+  - `X.Y+1.0` para funciones nuevas o cambios de comportamiento compatibles.
+  - `X+1.0.0` solo para una ruptura: una configuración que no se puede migrar
+    sola o un agente incompatible con las apps anteriores.
+  - **No se publican betas** (`-alpha.N`, `-beta.N`, `-rc.N`), aunque el build
+    las sigue aceptando: el actualizador instala las versiones preliminares en
+    todas las instalaciones, así que una beta llegaría a todo el mundo. Volver a
+    publicarlas exige antes un canal beta opcional en Ajustes, desactivado por
+    defecto. Lo que necesite pruebas se prueba antes de publicar (paso 0).
 - **Publicar una versión** (workflow `.github/workflows/release.yml`; detalle
   en [[Pipeline de release en GitHub Actions]]). Un agente **solo publica
   cuando el usuario lo pide en esa sesión**: el tag y el Release son públicos
@@ -213,8 +224,8 @@ herramientas, checklist y cómo trabajar con los avisos privados.
      si puede).
   1. `main` con todo subido y el árbol limpio. Se revisa el diff según la
      regla 5.
-  2. Versión: el siguiente `-beta.N` para el canal interno, o sin sufijo para
-     una estable. Nunca se reutiliza un tag. Se comprueba con
+  2. Versión: la siguiente según SemVer (ver **Fase de producto**), sin
+     sufijo. Nunca se reutiliza un tag. Se comprueba con
      `./gradlew printVersion -PtitanVersion=<versión>`.
   3. `git tag -a v<versión> -m "titan-ssh <versión>"` y
      `git push origin v<versión>`.
@@ -224,19 +235,24 @@ herramientas, checklist y cómo trabajar con los avisos privados.
      y `winget` van después del Release: si solo falla uno de ellos, el
      Release vale y basta con reintentar ese job. Solo se ejecutan si la
      variable del repositorio `AUR_ENABLED` o `WINGET_ENABLED` vale `true`.
-  5. Se comprueba el Release: marcado como pre-release si la versión lleva
-     sufijo, `sha256sum -c SHA256SUMS` sin errores y la APK firmada con la
-     clave de release (su huella está en el `README.md` de la raíz; CI también
-     la comprueba).
-  6. El usuario instala la APK en el Pixel descargándola del Release (no usa
-     Obtainium) y confirma que funciona. Se anota en la tarea correspondiente.
-     Es una comprobación del Release; la de la funcionalidad es el paso 0.
+  5. Se comprueba el Release: no marcado como pre-release, `sha256sum -c
+     SHA256SUMS` sin errores, la APK firmada con la clave de release (su huella
+     está en el `README.md` de la raíz; CI también la comprueba), y
+     `titan-update.json` con su `.sig` entre los assets, con los cinco paquetes.
+  6. La versión llega sola al Pixel y al PC del usuario con el actualizador, y
+     el usuario confirma que funciona. Se anota en la tarea correspondiente. Es
+     una comprobación del Release; la de la funcionalidad es el paso 0. Si no
+     llega, se mira el `update.log` del actualizador (en la caché de la app en
+     escritorio y en `no_backup/update/` en Android) antes de instalar a mano.
   - Para probar el pipeline sin publicar nada, se lanza el workflow a mano
     (`workflow_dispatch`): genera los paquetes como artefactos del run.
   - Los secretos del keystore (`TITAN_KEYSTORE_BASE64`, `TITAN_KEY_ALIAS`,
     `TITAN_KEYSTORE_PASSWORD`) ya están en GitHub y los gestiona el usuario,
     igual que `AUR_SSH_PRIVATE_KEY` y `WINGET_TOKEN` (ver
-    [[Canal Arch Linux AUR]] y [[Canal Windows winget]]).
+    [[Canal Arch Linux AUR]] y [[Canal Windows winget]]), y que
+    `TITAN_UPDATE_SIGNING_KEY`, la clave que firma el manifiesto de
+    actualizaciones. Sin ella el job `publish` falla. Su clave pública está en
+    `shared/update-keys.txt`.
 - **Windows**: MSI (Compose/jpackage) y winget; firma con SignPath Foundation
   cuando se conceda.
 - **Linux**: Flatpak en Flathub (principal), AUR para Arch, y `.deb`/`.rpm`/`tar.gz`.

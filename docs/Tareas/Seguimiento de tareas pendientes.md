@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta del despliegue y la distribución, con una lista cerrada 
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-10-16T09:30:00+02:00
+Última modificación: 2026-10-16T13:00:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -878,3 +878,9 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   actualización se instala sin preguntar). El detalle está en
   [[Actualización automática de la app]]. 👤 Falta la clave de firma real;
   después, probarlo con dos betas reales.
+- 2026-10-16 — El usuario crea la clave de firma y decide pasar a la **fase de
+  producto**. `0.1.0-beta.20` es la última beta y la primera con el
+  actualizador, y la sigue `1.0.0`, que debe llegar sola. Desde la 1.0.0 solo
+  se publican versiones estables con SemVer (regla 4 del [[README]]). Antes de
+  publicar, el instalador vuelve a comprobar el SHA-256 justo antes de
+  instalar, como root en `.deb` y `.rpm`.
