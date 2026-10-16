@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import io.github.danielperezmartinez.titanssh.App
+import io.github.danielperezmartinez.titanssh.update.AppUpdates
 import javax.imageio.ImageIO
 
 // Window/taskbar icon, generated from branding/icon.svg by branding/RenderIcon.java.
@@ -13,8 +14,14 @@ private val windowIcon = BitmapPainter(
 )
 
 fun main() = application {
+    // ADR-0025: installing an update from Acerca de exits the app, and closing
+    // the window first hands a ready update to its installer.
+    AppUpdates.exitApp = ::exitApplication
     Window(
-        onCloseRequest = ::exitApplication,
+        onCloseRequest = {
+            AppUpdates.updater.beforeExit()
+            exitApplication()
+        },
         title = "titan-ssh",
         icon = windowIcon,
     ) {

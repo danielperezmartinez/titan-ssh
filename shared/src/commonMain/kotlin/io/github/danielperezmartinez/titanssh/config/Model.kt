@@ -379,7 +379,19 @@ data class AppSettings(
      * so they get the default bar of their build.
      */
     val keyBar: List<String>? = null,
+    /** What the app does with a downloaded update (ADR-0025). */
+    val updates: UpdatePolicy = UpdatePolicy.AUTO,
 )
+
+/** When a verified update is installed (ADR-0025). */
+@Serializable
+enum class UpdatePolicy {
+    /** On its own, without closing an open tab: at exit, or in the background on Android. */
+    AUTO,
+
+    /** Only when the user taps install. */
+    ASK,
+}
 
 /**
  * Root of the persisted configuration. One JSON document holds the whole

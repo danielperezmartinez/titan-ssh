@@ -5,7 +5,7 @@ Resumen: 'Sustituir el pasar la APK a mano por la descarga desde los GitHub Rele
 Decisiones: 'Sigue [[ADR-0011 Distribución y canales de publicación]] §4.'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-26T18:34:00+02:00
+Última modificación: 2026-10-16T09:30:00+02:00
 ---
 
 # Canal Android Obtainium desde GitHub Releases
@@ -79,6 +79,6 @@ comprobó:
 - Obtainium sigue como canal documentado para quien lo quiera
   ([[ADR-0011 Distribución y canales de publicación]] no cambia). El usuario
   actualiza a mano desde Releases, así que no le llega aviso de las versiones
-  nuevas hasta [[Aviso de nueva versión en la app]]. Esa tarea se queda en el
+  nuevas hasta [[Actualización automática de la app]]. Esa tarea se queda en el
   paso 14, por decisión suya: mientras sea el único usuario, ya sabe cuándo
   sale cada versión.

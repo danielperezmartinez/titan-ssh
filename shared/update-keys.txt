@@ -1,0 +1,12 @@
+# Ed25519 public keys that may sign the update manifest (titan-update.json) of a
+# GitHub Release (ADR-0025). One base64 raw key (32 bytes) per line. The app
+# installs an update only if one of these keys signed it, and the release
+# workflow refuses to publish a manifest signed by a key that is not listed.
+#
+# To rotate: add the new key here, publish a version, then sign with the new key
+# and remove the old one in a later version.
+#
+# With no key, the updater stays off.
+
+# Release key, created 2026-10-16 (private half: GitHub secret TITAN_UPDATE_SIGNING_KEY).
+HWn8+02U5NYftcW5RiZTPmMLGaqIwcqPt8HtJgbp9g0=

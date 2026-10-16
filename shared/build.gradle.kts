@@ -1,4 +1,5 @@
 import java.security.MessageDigest
+import java.util.Base64
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -86,10 +87,29 @@ fun resolveGo(): String? {
 // BuildInfo exposes the single app version to commonMain. The root LICENSE and
 // THIRD_PARTY_NOTICES.md are bundled as JVM resources under /legal/ so the About
 // screen shows them offline, from the same files the repository publishes.
+//
+// It also carries what the in-app updater trusts (ADR-0025): the Ed25519 public
+// keys of update-keys.txt (one base64 raw key per line, `#` comments) and the
+// Releases API it polls. For a local end-to-end test,
+// -PtitanUpdateExtraKeys=<base64,...> adds a throwaway key and
+// -PtitanUpdateApi=<url> points it at a local origin; CI passes neither.
+val updateKeysFile = file("update-keys.txt")
+val updateKeys: List<String> = (
+    updateKeysFile.readLines().map { it.substringBefore('#').trim() } +
+        ((findProperty("titanUpdateExtraKeys") as String?)?.split(',')?.map { it.trim() } ?: emptyList())
+    ).filter { it.isNotEmpty() }
+updateKeys.forEach { key ->
+    val raw = runCatching { Base64.getDecoder().decode(key) }.getOrNull()
+    if (raw?.size != 32) throw GradleException("update key '$key' is not a base64 raw Ed25519 public key (32 bytes)")
+}
+val updateApi = (findProperty("titanUpdateApi") as String?)
+    ?: "https://api.github.com/repos/danielperezmartinez/titan-ssh/releases?per_page=10"
 val buildInfoDir = layout.buildDirectory.dir("generated/buildInfo/commonMain/kotlin")
 val generateBuildInfo by tasks.registering {
     description = "Generates BuildInfo.kt with the single app version."
     inputs.property("titanVersion", titanVersion)
+    inputs.property("updateKeys", updateKeys)
+    inputs.property("updateApi", updateApi)
     outputs.dir(buildInfoDir)
     doLast {
         val file = buildInfoDir.get()
@@ -106,6 +126,12 @@ val generateBuildInfo by tasks.registering {
             |
             |    /** False for a development build (no release version was resolved). */
             |    const val IS_RELEASE: Boolean = ${titanVersion != "0.0.0-dev"}
+            |
+            |    /** Ed25519 public keys (base64, raw) that may sign an update manifest (ADR-0025). */
+            |    val UPDATE_KEYS: List<String> = listOf(${updateKeys.joinToString(", ") { "\"$it\"" }})
+            |
+            |    /** The GitHub Releases API the updater polls (ADR-0025). */
+            |    const val UPDATE_API: String = "$updateApi"
             |}
             |""".trimMargin(),
         )

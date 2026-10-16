@@ -37,6 +37,9 @@ docs/**/Screenshot_*.png
 *.jks
 *.keystore
 
+# Private keys in PEM, such as the update signing key (ADR-0025): never versioned
+*.pem
+
 # Obsidian's per-machine state: window layout (rewritten on every use) and the
 # community plugins each machine installs. The shared vault config (core
 # plugins such as Bases, templates, links, appearance) stays versioned.

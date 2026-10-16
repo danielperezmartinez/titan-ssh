@@ -5,7 +5,7 @@ Resumen: 'Hoja de ruta del despliegue y la distribución, con una lista cerrada 
 Decisiones: 'Prioridad acordada el 2026-09-24 a partir de [[ADR-0011 Distribución y canales de publicación]] y [[ADR-0009 Agente de nivel 3 portable a todos los destinos]]. El nivel 3 portable conserva su propio orden interno en [[Nivel 3 portable a todos los destinos]].'
 Bloqueada: []
 Fecha de creación: 2026-09-24T00:05:00+02:00
-Última modificación: 2026-10-07T11:46:02+02:00
+Última modificación: 2026-10-16T09:30:00+02:00
 ---
 
 # Seguimiento de tareas pendientes
@@ -267,11 +267,14 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
 - [ ] **13. Firma de Windows con SignPath** 👤 (el usuario envía la solicitud)
   - [[Firma de código Windows con SignPath Foundation]]
   - Al acabar, winget (paso 7) pasa a apuntar al MSI firmado.
-- [ ] **14. Aviso de nueva versión** 👤 (valor por defecto activado o
-  desactivado)
-  - [[Aviso de nueva versión en la app]]
-  - Al final porque necesita conocer todos los canales para desactivarse en los
-    que ya actualizan solos.
+- [ ] **14. Actualización automática** 👤 (aceptar la ADR y crear la clave de
+  firma de actualizaciones)
+  - [[Actualización automática de la app]]
+  - 2026-10-16: el usuario la saca de la espera. Ya no es un aviso, sino una
+    actualización automática en las tres plataformas
+    ([[ADR-0025 Actualización automática de la app]]). No depende de los pasos
+    7, 11, 12 ni 13. Se apaga en los canales que ya actualizan con una
+    propiedad de canal, así que no hace falta esperar a que existan.
 
 ### Aparcada
 
@@ -862,3 +865,16 @@ fase 4) y haya varias versiones publicadas, que SignPath e IzzyOnDroid valoran.
   privados sale de S3 a su propio panel,
   [[Auditorías de seguridad/Hallazgos privados.base]], con una nota opaca por
   `SEC-2026-NN` (sistema de auditorías, versión 2).
+- 2026-10-16 — El usuario decide no esperar más a AUR ni a winget. El paso 14
+  pasa de aviso de versión a actualización automática en Windows, Linux y
+  Android, con las betas incluidas. Por defecto instala sola y, desde Ajustes,
+  se puede cambiar a preguntar. La tarea se renombra a
+  [[Actualización automática de la app]] (`Planificando`). El diseño está en
+  [[ADR-0025 Actualización automática de la app]] (`Propuesta`).
+  👤 Falta aceptar la ADR y crear la clave de firma.
+- 2026-10-16 — ADR-0025 aceptada y ADR-0011 marcada como `Reemplazada`.
+  Implementado y probado de punta a punta antes de publicar, en Windows
+  (MSI de prueba), Linux (contenedores) y Android (emulador; la segunda
+  actualización se instala sin preguntar). El detalle está en
+  [[Actualización automática de la app]]. 👤 Falta la clave de firma real;
+  después, probarlo con dos betas reales.

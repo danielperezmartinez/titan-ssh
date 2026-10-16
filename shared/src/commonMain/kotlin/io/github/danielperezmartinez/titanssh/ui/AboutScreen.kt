@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,10 +25,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import io.github.danielperezmartinez.titanssh.BuildInfo
 import io.github.danielperezmartinez.titanssh.LegalText
+import io.github.danielperezmartinez.titanssh.config.ConfigController
+import io.github.danielperezmartinez.titanssh.config.UpdatePolicy
 import io.github.danielperezmartinez.titanssh.platformName
 import io.github.danielperezmartinez.titanssh.readLegalText
 import io.github.danielperezmartinez.titanssh.theme.TitanColors
 import io.github.danielperezmartinez.titanssh.theme.TitanDimens
+import io.github.danielperezmartinez.titanssh.update.AppUpdater
+import io.github.danielperezmartinez.titanssh.update.AppUpdates
 
 private const val REPOSITORY_URL = "https://github.com/danielperezmartinez/titan-ssh"
 
@@ -45,17 +50,27 @@ private fun sourceUrl(): String =
  * documents open in an in-app viewer from the bundled copies ([readLegalText]).
  */
 @Composable
-fun AboutScreen(onBack: () -> Unit) {
+fun AboutScreen(
+    onBack: () -> Unit,
+    updater: AppUpdater = AppUpdates.updater,
+    controller: ConfigController? = null,
+    openTabs: () -> Int = { 0 },
+) {
     var document by remember { mutableStateOf<LegalText?>(null) }
 
     when (val current = document) {
-        null -> AboutSummary(onBack = onBack, onOpen = { document = it })
+        null -> AboutSummary(onBack = onBack, onOpen = { document = it }) {
+            // ADR-0025: what the updater is doing, and installing a ready update.
+            SectionHeader("Actualizaciones")
+            val policy = controller?.state?.collectAsState()?.value?.settings?.updates ?: UpdatePolicy.AUTO
+            UpdateStatus(updater, policy, openTabs)
+        }
         else -> LegalTextViewer(current, onBack = { document = null })
     }
 }
 
 @Composable
-private fun AboutSummary(onBack: () -> Unit, onOpen: (LegalText) -> Unit) {
+private fun AboutSummary(onBack: () -> Unit, onOpen: (LegalText) -> Unit, updates: @Composable () -> Unit) {
     val uriHandler = LocalUriHandler.current
     Column(Modifier.fillMaxSize()) {
         TopBar("Acerca de", onBack)
@@ -63,6 +78,7 @@ private fun AboutSummary(onBack: () -> Unit, onOpen: (LegalText) -> Unit) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bodyPadding())) {
             Text("titan-ssh", style = MaterialTheme.typography.headlineSmall, color = TitanColors.Ink)
             Caption("Versión ${BuildInfo.VERSION} · ${platformName()}")
+            updates()
             Spacer(Modifier.height(TitanDimens.SpaceLg))
             Text(
                 "Copyright (C) 2026 Daniel Pérez Martínez",

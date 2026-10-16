@@ -229,6 +229,10 @@ class ConfigController(
         cfg.copy(settings = cfg.settings.copy(allowScreenCapture = allowed))
     }
 
+    fun setUpdatePolicy(policy: UpdatePolicy) = mutate { cfg ->
+        cfg.copy(settings = cfg.settings.copy(updates = policy))
+    }
+
     /** Saves the key bar as [keyIds]; null goes back to the default bar. */
     fun setKeyBar(keyIds: List<String>?) = mutate { cfg ->
         cfg.copy(settings = cfg.settings.copy(keyBar = keyIds))

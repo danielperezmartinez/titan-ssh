@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "version": "0.1.0-beta.90",
+  "artifacts": [
+    {
+      "kind": "rpm",
+      "name": "titan-ssh-0.1.0-beta.90-1.x86_64.rpm",
+      "size": 48,
+      "sha256": "1e80c779e63078b767be0be75074c608f72ef82b1188c00f16099b9b1280d1b2"
+    },
+    {
+      "kind": "tar.gz",
+      "name": "titan-ssh-0.1.0-beta.90-linux-x64.tar.gz",
+      "size": 52,
+      "sha256": "827788be71ee79b7f6186319ed0161db84cd3e74144019b36195ca2bdcfc8753"
+    },
+    {
+      "kind": "msi",
+      "name": "titan-ssh-0.1.0-beta.90-windows-x64.msi",
+      "size": 51,
+      "sha256": "f314998fd8223d9966700037c1fa16d533bca242d58717479e9312ab2f782f14"
+    },
+    {
+      "kind": "apk",
+      "name": "titan-ssh-0.1.0-beta.90.apk",
+      "size": 39,
+      "sha256": "4ab8891f8fc0ec90de2781e9cbaf3a622d5c65864b01aeb0e2f0106808389b86"
+    },
+    {
+      "kind": "deb",
+      "name": "titan-ssh_0.1.0-beta.90_amd64.deb",
+      "size": 45,
+      "sha256": "89542dd3343a007784a1c3fa9e1ab744481b1249a4c43a53168b9fdabcf27e78"
+    }
+  ]
+}

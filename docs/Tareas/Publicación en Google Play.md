@@ -5,7 +5,7 @@ Resumen: 'APLAZADA por coste (decisión del usuario, 2026-09-23): publicar en Pl
 Decisiones: 'Sigue [[ADR-0011 Distribución y canales de publicación]] §6. Reutiliza el AAB y la clave de [[Firma y configuración de release Android]].'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-23T22:50:00+02:00
+Última modificación: 2026-10-16T09:30:00+02:00
 ---
 
 # Publicación en Google Play
@@ -39,7 +39,7 @@ Android.
   512, gráfico de 1024×500 y capturas ([[Icono y recursos gráficos de la app]]).
 - **Legal**: URL pública de política de privacidad (puede ser una página en el
   repositorio o en GitHub Pages; decir que no se recoge nada y explicar la
-  consulta de versiones de [[Aviso de nueva versión en la app]], que en Play debe
+  consulta de versiones de [[Actualización automática de la app]], que en Play debe
   ir desactivada), formulario de Seguridad de los datos y cuestionario de
   clasificación de contenido.
 - **Foreground service**: si la app mantiene sesiones SSH en segundo plano con

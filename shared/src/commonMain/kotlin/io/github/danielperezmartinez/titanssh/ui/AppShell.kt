@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -43,6 +44,8 @@ import io.github.danielperezmartinez.titanssh.terminal.StartScriptAutomation
 import io.github.danielperezmartinez.titanssh.theme.TitanColors
 import io.github.danielperezmartinez.titanssh.theme.TitanDimens
 import io.github.danielperezmartinez.titanssh.theme.TitanTheme
+import io.github.danielperezmartinez.titanssh.update.AppUpdater
+import io.github.danielperezmartinez.titanssh.update.AppUpdates
 
 /**
  * Top-level screens. Sesiones is the home screen; Configuración and About open
@@ -97,6 +100,13 @@ fun AppShell() {
         AppVisibilityEffect(background::setForeground)
         val keepAlive by background.request.collectAsState()
         KeepAliveService(keepAlive)
+        // ADR-0025: the updater learns the policy, the open tabs and whether the
+        // app is on screen; it starts once the saved policy is known.
+        val updater = remember { AppUpdates.updater }
+        UpdaterSetting(controller, sessionManager, updater)
+        AppVisibilityEffect(updater::setForeground)
+        val updateState by updater.state.collectAsState()
+        val openTabs = { sessionManager.tabs.value.size }
         val agents = remember {
             AgentManager(
                 scope = scope,
@@ -139,6 +149,7 @@ fun AppShell() {
                     current = screen,
                     onAbout = { toggle(Screen.ABOUT) },
                     onConfig = { toggle(Screen.CONFIG) },
+                    updateReady = updateState.showsInHeader(),
                 )
                 Hairline()
                 Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -185,8 +196,14 @@ fun AppShell() {
                             onDeleteSession = { agents.delete(it) },
                             isSessionLive = { agents.isLive(it) },
                             onOpenAgent = { openAgent(it, Screen.CONFIG) },
+                            openTabs = openTabs,
                         )
-                        Screen.ABOUT -> AboutScreen(onBack = home)
+                        Screen.ABOUT -> AboutScreen(
+                            onBack = home,
+                            updater = updater,
+                            controller = controller,
+                            openTabs = openTabs,
+                        )
                         Screen.KEY_BAR -> KeyBarEditor(controller, onBack = home)
                         Screen.AGENT -> agentHost?.let { host ->
                             AgentPanel(
@@ -219,11 +236,28 @@ private fun ScreenCaptureSetting(controller: ConfigController) {
 }
 
 /**
- * App title with the `[i]` About and `[*]` Configuración actions; the glyph of
- * the open screen is in accent (an active selection, visual decision).
+ * Feeds the updater (ADR-0025) the saved policy and the number of open tabs,
+ * and starts it once the config is loaded, so a saved "ask" is known before
+ * anything could install. Its own scope, like [ScreenCaptureSetting].
  */
 @Composable
-private fun AppHeader(current: Screen, onAbout: () -> Unit, onConfig: () -> Unit) {
+private fun UpdaterSetting(controller: ConfigController, sessions: SessionManager, updater: AppUpdater) {
+    val config by controller.state.collectAsState()
+    val loaded by controller.loaded.collectAsState()
+    val tabs by sessions.tabs.collectAsState()
+    LaunchedEffect(config.settings.updates) { updater.setPolicy(config.settings.updates) }
+    LaunchedEffect(tabs.size) { updater.setOpenTabs(tabs.size) }
+    LaunchedEffect(loaded) { if (loaded) updater.start() }
+}
+
+/**
+ * App title with the `[i]` About and `[*]` Configuración actions; the glyph of
+ * the open screen is in accent (an active selection, visual decision). While an
+ * update waits to be installed, `[^]` in accent leads to Acerca de, where it is
+ * installed (ADR-0025).
+ */
+@Composable
+private fun AppHeader(current: Screen, onAbout: () -> Unit, onConfig: () -> Unit, updateReady: Boolean) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = TitanDimens.SpaceLg, vertical = TitanDimens.SpaceMd),
         verticalAlignment = Alignment.CenterVertically,
@@ -234,6 +268,7 @@ private fun AppHeader(current: Screen, onAbout: () -> Unit, onConfig: () -> Unit
             color = TitanColors.Ink,
             modifier = Modifier.weight(1f),
         )
+        if (updateReady && current != Screen.ABOUT) GlyphButton("[^]", onClick = onAbout, color = TitanColors.Accent)
         GlyphButton("[i]", onClick = onAbout, color = headerGlyphColor(current == Screen.ABOUT))
         GlyphButton("[*]", onClick = onConfig, color = headerGlyphColor(current == Screen.CONFIG))
     }

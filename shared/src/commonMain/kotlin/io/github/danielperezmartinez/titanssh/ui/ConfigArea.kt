@@ -36,6 +36,7 @@ import io.github.danielperezmartinez.titanssh.config.Session
 import io.github.danielperezmartinez.titanssh.config.SessionType
 import io.github.danielperezmartinez.titanssh.config.LibraryScript
 import io.github.danielperezmartinez.titanssh.config.TitanConfig
+import io.github.danielperezmartinez.titanssh.config.UpdatePolicy
 import io.github.danielperezmartinez.titanssh.config.resolve
 import io.github.danielperezmartinez.titanssh.config.sessionsUsing
 import io.github.danielperezmartinez.titanssh.isScreenCaptureControlSupported
@@ -43,6 +44,8 @@ import io.github.danielperezmartinez.titanssh.secret.SecretProvisioner
 import io.github.danielperezmartinez.titanssh.terminal.AgentHost
 import io.github.danielperezmartinez.titanssh.theme.TitanColors
 import io.github.danielperezmartinez.titanssh.theme.TitanDimens
+import io.github.danielperezmartinez.titanssh.update.AppUpdates
+import io.github.danielperezmartinez.titanssh.update.UpdateState
 
 private enum class ConfigTab(val label: String) {
     HOSTS("Hosts"),
@@ -51,9 +54,8 @@ private enum class ConfigTab(val label: String) {
     SETTINGS("Ajustes"),
 }
 
-/** The tabs this platform shows: Ajustes only where it has an option to offer. */
-private val configTabs: List<ConfigTab> =
-    ConfigTab.entries.filter { it != ConfigTab.SETTINGS || isScreenCaptureControlSupported() }
+/** The tabs of Configuración; Ajustes always has the updates (ADR-0025). */
+private val configTabs: List<ConfigTab> = ConfigTab.entries
 
 private sealed interface Editor {
     /** [groupId]: the group a new host starts in. */
@@ -86,6 +88,8 @@ fun ConfigArea(
     isSessionLive: (Session) -> Boolean = { false },
     /** Opens the panel of a host's agent (its default user). */
     onOpenAgent: ((AgentHost) -> Unit)? = null,
+    /** How many tabs are open, for the warning before installing an update. */
+    openTabs: () -> Int = { 0 },
 ) {
     val config by controller.state.collectAsState()
     var tab by remember {
@@ -133,7 +137,7 @@ fun ConfigArea(
                     ConfigTab.SCRIPTS -> LibraryScriptList(controller, config, onNew = { editor = Editor.LibraryScriptEdit(null) }) {
                         editor = Editor.LibraryScriptEdit(it.id)
                     }
-                    ConfigTab.SETTINGS -> SettingsList(controller, config)
+                    ConfigTab.SETTINGS -> SettingsList(controller, config, openTabs)
                 }
             }
         }
@@ -520,18 +524,39 @@ private fun LibraryScriptList(
     }
 }
 
-/** App-wide options. Shown only where the platform has any ([configTabs]). */
+/** App-wide options: updates everywhere, screen capture where the platform controls it. */
 @Composable
-private fun SettingsList(controller: ConfigController, config: TitanConfig) {
+private fun SettingsList(controller: ConfigController, config: TitanConfig, openTabs: () -> Int) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bodyPadding())) {
-        SectionHeader("Privacidad")
-        TitanCheck(
-            label = "Permitir capturas de pantalla",
-            checked = config.settings.allowScreenCapture,
-        ) { controller.setAllowScreenCapture(it) }
-        Caption(
-            "Desactivado, la app no sale en capturas ni grabaciones de pantalla, y la vista " +
-                "de apps recientes no muestra su contenido.",
-        )
+        SectionHeader("Actualizaciones")
+        val updater = AppUpdates.updater
+        if (updater.state.collectAsState().value !is UpdateState.Unavailable) {
+            TitanSegmented(
+                label = "",
+                options = UpdatePolicy.entries,
+                selected = config.settings.updates,
+                onSelect = controller::setUpdatePolicy,
+                optionLabel = { it.label() },
+            )
+            Spacer(Modifier.height(TitanDimens.SpaceSm))
+            Caption(
+                "La app busca versiones nuevas en GitHub, incluidas las beta, y solo instala las " +
+                    "firmadas por el proyecto. Nunca cierra pestañas abiertas por su cuenta.",
+            )
+            Spacer(Modifier.height(TitanDimens.SpaceSm))
+        }
+        UpdateStatus(updater, config.settings.updates, openTabs)
+
+        if (isScreenCaptureControlSupported()) {
+            SectionHeader("Privacidad")
+            TitanCheck(
+                label = "Permitir capturas de pantalla",
+                checked = config.settings.allowScreenCapture,
+            ) { controller.setAllowScreenCapture(it) }
+            Caption(
+                "Desactivado, la app no sale en capturas ni grabaciones de pantalla, y la vista " +
+                    "de apps recientes no muestra su contenido.",
+            )
+        }
     }
 }

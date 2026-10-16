@@ -1,14 +1,15 @@
 ---
 Nombre: 'Distribución y canales de publicación'
 Número: 11
-Estado: 'Aceptada'
-Resumen: 'Cómo se distribuye titan-ssh en Windows, Linux y Android con coste cero (decisión del usuario, 2026-09-23: el proyecto no es rentable y no se paga por distribuir). El código se publica con licencia GPL-3.0-or-later (titular Daniel Pérez Martínez) y el identificador de la app pasa a io.github.danielperezmartinez.* (no se usa gar.im, que no es del usuario). Una única fuente de artefactos, los GitHub Releases generados por GitHub Actions a partir de un tag vX.Y.Z; encima de ellos, canales gratuitos con actualización automática. Windows usa MSI y winget, sin firmar al principio y firmado con SignPath Foundation (gratuito para open source) cuando sea posible. Linux usa Flatpak en Flathub como canal principal (cubre Bazzite y el resto), AUR para Arch y .deb, .rpm y tar.gz en Releases. Android usa una APK firmada en Releases, instalable con Obtainium, más IzzyOnDroid como canal público. Google Play queda aplazado (25 $ únicos) pero se preparan la clave y el AAB para no cerrarlo.'
+Estado: 'Reemplazada'
+Resumen: 'Reemplazada el 2026-10-16 por ADR-0025 solo en la política de actualización: la app se actualiza sola en vez de solo avisar. Todo lo demás de esta ADR sigue vigente. Cómo se distribuye titan-ssh en Windows, Linux y Android con coste cero (decisión del usuario, 2026-09-23: el proyecto no es rentable y no se paga por distribuir). El código se publica con licencia GPL-3.0-or-later (titular Daniel Pérez Martínez) y el identificador de la app pasa a io.github.danielperezmartinez.* (no se usa gar.im, que no es del usuario). Una única fuente de artefactos, los GitHub Releases generados por GitHub Actions a partir de un tag vX.Y.Z; encima de ellos, canales gratuitos con actualización automática. Windows usa MSI y winget, sin firmar al principio y firmado con SignPath Foundation (gratuito para open source) cuando sea posible. Linux usa Flatpak en Flathub como canal principal (cubre Bazzite y el resto), AUR para Arch y .deb, .rpm y tar.gz en Releases. Android usa una APK firmada en Releases, instalable con Obtainium, más IzzyOnDroid como canal público. Google Play queda aplazado (25 $ únicos) pero se preparan la clave y el AAB para no cerrarlo.'
 Decisión: 'Licencia GPL-3.0-or-later; ID io.github.danielperezmartinez.*; artefactos solo en GitHub Releases generados por CI desde un tag; canales gratuitos encima (winget, Flathub, AUR, Obtainium, IzzyOnDroid); firma de Windows con SignPath Foundation cuando se conceda, sin pagar certificados; Google Play aplazado sin cerrar la puerta (AAB y clave de subida preparados).'
 Consecuencias: 'Distribución a coste cero y con actualizaciones automáticas en todos los canales salvo el MSI suelto. A cambio, Windows mostrará el aviso de SmartScreen hasta obtener la firma de SignPath (que depende de su aprobación), cada canal tiene su propio proceso de revisión y su mantenimiento, y Flathub exige permisos de sandbox y probablemente compilar desde el código fuente. La clave de firma de Android pasa a ser un secreto crítico: si se pierde, los usuarios de Obtainium/IzzyOnDroid no pueden actualizar sin reinstalar. El cambio de identificador obliga a renombrar los paquetes Kotlin antes de la primera versión pública.'
 Reemplaza: []
-Reemplazada por: []
+Reemplazada por:
+  - '[[ADR-0025 Actualización automática de la app]]'
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-23T22:50:00+02:00
+Última modificación: 2026-10-16T10:00:00+02:00
 ---
 
 # ADR-0011 · Distribución y canales de publicación
@@ -87,7 +88,9 @@ actualizaciones. Ver [[Cambiar el identificador de la app a io.github]].
 | Android (público) | IzzyOnDroid | Automática (clientes F-Droid) | [[Canal Android IzzyOnDroid]] |
 
 Para los canales sin actualizador propio (MSI, `.deb`, `.rpm` y `tar.gz` sueltos) se añade un
-aviso de versión nueva en la app ([[Aviso de nueva versión en la app]]).
+aviso de versión nueva en la app ([[Actualización automática de la app]];
+la tarea se renombró el 2026-10-16 y su nueva propuesta es
+[[ADR-0025 Actualización automática de la app]]).
 
 ### 5. Firma
 

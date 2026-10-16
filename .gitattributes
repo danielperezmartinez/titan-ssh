@@ -17,3 +17,6 @@ gradlew text eol=lf
 *.apk binary
 *.aab binary
 *.keystore binary
+
+# Signed bytes: a test checks their Ed25519 signature byte for byte.
+shared/src/desktopTest/resources/update/openssl/* binary

@@ -64,6 +64,31 @@ anterior. Mientras el instalador no esté firmado, SmartScreen mostrará un avis
 - Cualquier distribución: `titan-ssh-<versión>-linux-x64.tar.gz`. Se
   descomprime y se ejecuta `titan-ssh/bin/titan-ssh`.
 
+### Actualizaciones
+
+A partir de la versión que lo incluye, la app se actualiza sola en Windows,
+Linux y Android, también con las versiones de prueba. Se puede cambiar en
+**Configuración → Ajustes → Actualizaciones**: *Instalar automáticamente* (por
+defecto) o *Preguntar antes de instalar*. Nunca cierra pestañas abiertas por su
+cuenta:
+
+- **Windows** (MSI): instala la versión nueva al cerrar la app, sin pedir
+  permisos.
+- **Linux**: el `tar.gz` se sustituye al cerrar la app. Con `.deb` o `.rpm`, el
+  sistema pide la contraseña para instalar el paquete.
+- **Android**: instala con la app en segundo plano y sin pestañas abiertas. La
+  primera vez hay que permitir que titan-ssh instale apps y confirmar la
+  instalación.
+- No se actualiza sola si la instaló Flatpak, AUR o Google Play: lo hacen ellos.
+
+Qué sale del dispositivo: al arrancar y como mucho cada 6 horas, una petición
+sin cuenta ni datos tuyos a la API pública de GitHub Releases
+(`api.github.com/repos/danielperezmartinez/titan-ssh/releases`), y la descarga
+del paquete cuando hay versión nueva. La única cabecera propia es el
+`User-Agent` con la versión de la app. Solo se instala un paquete que aparezca,
+con su SHA-256, en el manifiesto `titan-update.json` del Release, firmado con la
+clave Ed25519 del proyecto. Su clave pública va dentro de la app.
+
 ## Seguridad
 
 Si encuentras una vulnerabilidad, avísanos en privado como explica

@@ -14,11 +14,15 @@
 # (ADR-0010), and every other job takes these same files through
 # -PtitanAgentPrebuilt, so the digests pinned in each app match the assets.
 #
+# The publish job also writes titan-update.json, the list of packages with
+# their SHA-256, signed with TITAN_UPDATE_SIGNING_KEY: the apps update
+# themselves only through it (ADR-0025).
+#
 # Once the Release exists, the aur and winget jobs hand the new version to
 # those package managers.
 #
 # Third-party actions are pinned by commit SHA and the Komac binary by its
-# SHA-256. Secrets are only read by the Android, AUR and winget jobs, and this
+# SHA-256. Secrets are only read by the Android, publish, AUR and winget jobs, and this
 # workflow never runs for pull requests.
 name: Release
 
@@ -296,10 +300,22 @@ jobs:
       PRERELEASE: ${{ needs.version.outputs.prerelease }}
       GH_TOKEN: ${{ github.token }}
     steps:
+      # Only the manifest script and the public keys the apps trust.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: |
+            tools/release
+            shared/update-keys.txt
+          sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: dist
           merge-multiple: true
+      # ADR-0025: the apps install a package only through this signed manifest.
+      - name: Update manifest
+        env:
+          TITAN_UPDATE_SIGNING_KEY: ${{ secrets.TITAN_UPDATE_SIGNING_KEY }}
+        run: bash tools/release/update-manifest.sh dist "$VERSION" shared/update-keys.txt
       - name: Checksums
         working-directory: dist
         run: |
