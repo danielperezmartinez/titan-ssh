@@ -5,7 +5,7 @@ Resumen: 'La app se actualiza sola en Windows, Linux y Android desde GitHub Rele
 Decisiones: 'El 2026-10-16 el usuario decide no esperar a AUR ni a winget: actualización automática en las tres plataformas, betas incluidas, instalando sola por defecto y con opción de preguntar en Ajustes. Diseño en [[ADR-0025 Actualización automática de la app]] (Aceptada el 2026-10-16), que sustituye la política de actualización de [[ADR-0011 Distribución y canales de publicación]]. .deb y .rpm piden la contraseña con pkexec (decisión del usuario). Pendiente: que el usuario cree la clave de firma de actualizaciones.'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-10-16T13:00:00+02:00
+Última modificación: 2026-10-16T15:30:00+02:00
 ---
 
 # Actualización automática de la app
@@ -118,6 +118,39 @@ workflow.
   la instala a mano en el PC y en el Pixel. Después se publica `1.0.0`, que
   tiene que llegar sola a los dos, con el aviso de Play Protect en el Pixel si
   sale. Con eso la tarea pasa a `Hecha`.
+- **Estado al 2026-10-16, 15:30.**
+  - Publicada
+    [`v0.1.0-beta.20`](https://github.com/danielperezmartinez/titan-ssh/releases/tag/v0.1.0-beta.20).
+    En el run `38905140677`, el primer intento de `publish` falló con «Could
+    not read key», porque el secreto se pegó sin saltos de línea. El usuario lo
+    corrigió y relanzó el job (intento 2, todo en verde).
+  - Comprobado: es pre-release; `SHA256SUMS` da 21 de 21; la APK está firmada
+    con la clave de release (`3929d8…deab`); `titan-update.json` verifica con la
+    clave de `shared/update-keys.txt` y sus cinco paquetes cuadran.
+  - Después, en `main` (`19d1203`, sale con la 1.0.0): el script de firma
+    acepta la clave en una línea, entre comillas o sin BEGIN/END, y sus errores
+    salen como anotaciones de GitHub.
+  - 👤 El usuario está instalando la beta.20 a mano en el PC (MSI, encima de su
+    0.1.0-beta.6) y en el Pixel (APK, dando «Permitir instalar» en Ajustes).
+- **Siguiente**:
+  1. Cuando el usuario confirme que la beta.20 funciona en los dos, publicar
+     `v1.0.0` según la regla 4 del [[README]].
+  2. Comprobar el Release y que la 1.0.0 llega sola: en el PC al cerrar la app,
+     y en el Pixel en segundo plano, con una confirmación la primera vez y quizá
+     Play Protect. Si no llega, leer el `update.log`: en el PC en
+     `%LOCALAPPDATA%\titan-ssh\cache\update\` y en Android en
+     `no_backup/update/`.
+  3. Pasar esta tarea a `Hecha` y marcar el paso 14 del seguimiento.
+- **Limpieza pendiente**:
+  - El emulador `Pixel_9_Pro_XL` tiene la app de prueba
+    `io.github.danielperezmartinez.titanssh.auto_update` (0.9.0-beta.4, que
+    apunta a un origen local que ya no existe). Además, para la prueba se
+    desactivó Play Protect con `settings put global package_verifier_enable 0`,
+    `package_verifier_user_consent -1` y `upload_apk_enable 0`.
+  - El worktree `.claude/worktrees/auto-update` (rama `worktree-auto-update`) ya
+    está integrado en `main` y se puede borrar.
+  - Se puede plantear un ajuste «Recibir versiones beta» si vuelven a hacer
+    falta betas (regla 4).
 
 ## Resultado
 
