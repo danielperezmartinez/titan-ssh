@@ -84,8 +84,9 @@ internal class DesktopUpdatePlatform(private val install: DesktopInstall.Updatab
     override suspend fun install(file: File, sha256: String, version: String, relaunch: Boolean): InstallOutcome {
         val dir = file.parentFile
         val result = File(dir, RESULT_FILE).apply { delete() }
-        // The helper's own output; on Windows msiexec writes its verbose log apart.
-        val log = File(dir, "helper.log")
+        // The helper's own output, next to update.log so the new version does not
+        // delete it with the package; on Windows msiexec writes its verbose log apart.
+        val log = File(dir.parentFile, HELPER_LOG).apply { if (length() > MAX_HELPER_LOG_BYTES) delete() }
         val msiLog = File(dir, "msiexec.log")
         val scriptName = if (windows) "install-windows.ps1" else "install-linux.sh"
         val script = File(dir, scriptName)
@@ -109,11 +110,12 @@ internal class DesktopUpdatePlatform(private val install: DesktopInstall.Updatab
             )
         }
         return runCatching {
-            ProcessBuilder(command)
+            val builder = ProcessBuilder(command)
                 .directory(dir)
                 .redirectErrorStream(true)
                 .redirectOutput(ProcessBuilder.Redirect.appendTo(log))
-                .start()
+            if (!windows) withoutLauncherMarks(builder.environment(), install.root)
+            builder.start()
             InstallOutcome.Started
         }.getOrElse { InstallOutcome.Failed(it.message ?: "no se pudo lanzar el instalador") }
     }
@@ -130,8 +132,25 @@ internal class DesktopUpdatePlatform(private val install: DesktopInstall.Updatab
         }
     }
 
-    private companion object {
+    internal companion object {
         const val RESULT_FILE = "result"
+        const val HELPER_LOG = "helper.log"
+        const val MAX_HELPER_LOG_BYTES = 256L * 1024
+
+        /**
+         * Removes what jpackage's Linux launcher sets in its own process before
+         * starting the JVM: `_JPACKAGE_LAUNCHER` and the app's `lib/app` in
+         * `LD_LIBRARY_PATH`. A launcher that inherits them takes itself for a
+         * JVM restart, skips its `.cfg` (main class, classpath) and exits at
+         * once, so the relaunched app would never open.
+         */
+        fun withoutLauncherMarks(env: MutableMap<String, String>, root: File) {
+            env.remove("_JPACKAGE_LAUNCHER")
+            val appDirs = setOf(File(root, "lib/app").absolutePath, runCatching { File(root, "lib/app").canonicalPath }.getOrNull())
+            val libPath = env["LD_LIBRARY_PATH"] ?: return
+            val kept = libPath.split(File.pathSeparator).filter { it.isNotEmpty() && it !in appDirs }
+            if (kept.isEmpty()) env.remove("LD_LIBRARY_PATH") else env["LD_LIBRARY_PATH"] = kept.joinToString(File.pathSeparator)
+        }
 
         /** `%LOCALAPPDATA%` or `$XDG_CACHE_HOME` (`~/.cache`), under `titan-ssh/cache`. */
         fun desktopCacheDirectory(): File {

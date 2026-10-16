@@ -208,13 +208,16 @@ class UpdateEngine(
      * Picks up a download a previous run left verified, checking it again:
      * signature, version above the running one and the package's digest.
      * Anything else in the folder (an installed version, a broken download)
-     * is removed.
+     * is removed, except the logs: the installer's own ones live next to
+     * [LOG_FILE] so they outlive the version they installed.
      */
     private fun loadPending() {
         val found = updateDir.listFiles()?.filter { it.isDirectory }.orEmpty()
             .mapNotNull { dir -> runCatching { verifiedPending(dir) }.getOrNull() }
             .maxByOrNull { it.version }
-        updateDir.listFiles()?.filter { it != found?.dir && it.name != LOG_FILE }?.forEach { it.deleteRecursively() }
+        updateDir.listFiles()
+            ?.filter { it != found?.dir && !(it.isFile && it.name.endsWith(".log")) }
+            ?.forEach { it.deleteRecursively() }
         pending = found
         if (found != null) {
             val failure = platform.previousFailure(found.dir)

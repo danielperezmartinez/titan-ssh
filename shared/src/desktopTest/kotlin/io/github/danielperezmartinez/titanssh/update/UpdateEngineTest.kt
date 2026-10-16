@@ -245,6 +245,17 @@ class UpdateEngineTest {
     }
 
     @Test
+    fun the_installer_logs_outlive_the_installed_version() = runBlocking {
+        val updateDir = File(cache, "update").apply { mkdirs() }
+        File(updateDir, "0.1.0-beta.15").apply { mkdirs() }.resolve("result").writeText("0")
+        listOf("update.log", "helper.log", "relaunch.log", "stray.part").forEach { File(updateDir, it).writeText("x") }
+
+        engine(FakeHttp(emptyList()), FakePlatform()).start()
+
+        assertEquals(setOf("update.log", "helper.log", "relaunch.log"), updateDir.list().orEmpty().toSet())
+    }
+
+    @Test
     fun a_package_removed_before_installing_is_downloaded_again() = runBlocking {
         val platform = FakePlatform()
         val updater = engine(FakeHttp(listOf(release("0.1.0-beta.15"))), platform)

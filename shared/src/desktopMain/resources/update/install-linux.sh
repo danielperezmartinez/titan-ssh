@@ -8,10 +8,20 @@
 #   SHA256    the package's digest from the signed manifest, checked again here
 #   APP_ROOT  the app image folder (tar.gz: replaced as a whole)
 #   RELAUNCH  1 to open LAUNCHER once installed
+#   LOG       helper.log next to update.log, which also gets this script's
+#             output; the relaunched app's errors go to relaunch.log beside it
 #
 # Exit statuses written to RESULT besides the installer's own: 3 = the package
 # no longer matches SHA256, 126 = the password was not given (pkexec).
 kind=$1 pid=$2 pkg=$3 sha=$4 root=$5 launcher=$6 result=$7 relaunch=$8 log=$9
+
+# jpackage's launcher marks the app's process with _JPACKAGE_LAUNCHER; a
+# launcher that inherits it takes itself for a JVM restart and exits at once.
+# The app already drops it; this covers a helper started some other way.
+unset _JPACKAGE_LAUNCHER
+
+note() { echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $*"; }
+note "installing $kind $pkg (relaunch=$relaunch)"
 
 i=0
 while kill -0 "$pid" 2>/dev/null && [ "$i" -lt 240 ]; do
@@ -83,11 +93,14 @@ case "$kind" in
         ;;
 esac
 echo "$status" >"$result"
+note "finished with status $status"
 
 if [ "$relaunch" = 1 ] && [ "$status" -eq 0 ]; then
+    relaunch_log="$(dirname "$log")/relaunch.log"
+    note "relaunching $launcher"
     if command -v setsid >/dev/null 2>&1; then
-        setsid "$launcher" >/dev/null 2>&1 </dev/null &
+        setsid "$launcher" >/dev/null 2>"$relaunch_log" </dev/null &
     else
-        nohup "$launcher" >/dev/null 2>&1 </dev/null &
+        nohup "$launcher" >/dev/null 2>"$relaunch_log" </dev/null &
     fi
 fi
