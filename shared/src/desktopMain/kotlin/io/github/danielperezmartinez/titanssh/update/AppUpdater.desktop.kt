@@ -81,7 +81,7 @@ internal class DesktopUpdatePlatform(private val install: DesktopInstall.Updatab
 
     private val windows = install.kind == "msi"
 
-    override suspend fun install(file: File, version: String, relaunch: Boolean): InstallOutcome {
+    override suspend fun install(file: File, sha256: String, version: String, relaunch: Boolean): InstallOutcome {
         val dir = file.parentFile
         val result = File(dir, RESULT_FILE).apply { delete() }
         // The helper's own output; on Windows msiexec writes its verbose log apart.
@@ -97,13 +97,14 @@ internal class DesktopUpdatePlatform(private val install: DesktopInstall.Updatab
             buildList {
                 addAll(listOf("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass"))
                 addAll(listOf("-WindowStyle", "Hidden", "-File", script.absolutePath))
-                addAll(listOf("-AppPid", pid, "-Msi", file.absolutePath, "-Log", msiLog.absolutePath, "-Result", result.absolutePath))
+                addAll(listOf("-AppPid", pid, "-Msi", file.absolutePath, "-Sha256", sha256))
+                addAll(listOf("-Log", msiLog.absolutePath, "-Result", result.absolutePath))
                 if (relaunch) addAll(listOf("-Relaunch", install.launcher.absolutePath))
             }
         } else {
             val prefix = if (File("/usr/bin/setsid").exists() || File("/bin/setsid").exists()) listOf("setsid") else emptyList()
             prefix + listOf(
-                "sh", script.absolutePath, install.kind, pid, file.absolutePath, install.root.absolutePath,
+                "sh", script.absolutePath, install.kind, pid, file.absolutePath, sha256, install.root.absolutePath,
                 install.launcher.absolutePath, result.absolutePath, if (relaunch) "1" else "0", log.absolutePath,
             )
         }
@@ -121,6 +122,7 @@ internal class DesktopUpdatePlatform(private val install: DesktopInstall.Updatab
     override fun previousFailure(versionDir: File): String? {
         val code = runCatching { File(versionDir, RESULT_FILE).readText().trim() }.getOrNull() ?: return null
         return when {
+            code == "3" -> "el paquete cambió después de verificarlo"
             windows && code == "1602" -> "se canceló la instalación"
             windows -> "msiexec terminó con el código $code"
             install.kind != "tar.gz" && code == "126" -> "no se dio la contraseña"

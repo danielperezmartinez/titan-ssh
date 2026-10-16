@@ -77,8 +77,11 @@ class UpdateEngineTest {
 
         override fun needsPermission() = permissionMissing
 
-        override suspend fun install(file: File, version: String, relaunch: Boolean): InstallOutcome {
+        val digests = mutableListOf<String>()
+
+        override suspend fun install(file: File, sha256: String, version: String, relaunch: Boolean): InstallOutcome {
             installs += version to relaunch
+            digests += sha256
             return outcome
         }
     }
@@ -269,6 +272,8 @@ class UpdateEngineTest {
         updater.setPolicy(UpdatePolicy.AUTO)
         updater.beforeExit()
         assertEquals(listOf("0.1.0-beta.15" to false), platform.installs)
+        // The installer gets the manifest's digest to check the file once more.
+        assertEquals(listOf(sha256("msi of 0.1.0-beta.15".encodeToByteArray())), platform.digests)
     }
 
     @Test

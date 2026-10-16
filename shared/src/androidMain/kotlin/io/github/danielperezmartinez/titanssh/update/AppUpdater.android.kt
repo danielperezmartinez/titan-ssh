@@ -79,7 +79,8 @@ internal class AndroidUpdatePlatform(private val context: Context) : UpdatePlatf
         runCatching { context.startActivity(intent) }
     }
 
-    override suspend fun install(file: File, version: String, relaunch: Boolean): InstallOutcome {
+    // The system itself refuses an APK not signed with the installed app's key.
+    override suspend fun install(file: File, sha256: String, version: String, relaunch: Boolean): InstallOutcome {
         if (needsPermission()) return InstallOutcome.NeedsPermission
         // A confirmation already waiting: show it (only works with the app on screen).
         confirmation?.let { waiting ->

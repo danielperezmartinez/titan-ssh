@@ -58,7 +58,7 @@ class UpdateEngine(
     @Volatile private var pending: Pending? = null
 
     /** A verified package waiting to be installed. */
-    private class Pending(val version: AppVersion, val dir: File, val file: File)
+    private class Pending(val version: AppVersion, val dir: File, val file: File, val sha256: String)
 
     private val updateDir get() = File(platform.cacheDir, "update")
 
@@ -199,7 +199,7 @@ class UpdateEngine(
         File(dir, UpdateFiles.SIGNATURE).writeBytes(signature)
         removeOtherVersions(keep = dir)
         log("downloaded $version (${artifact.name})")
-        val next = Pending(version, dir, file)
+        val next = Pending(version, dir, file, artifact.sha256.lowercase())
         pending = next
         publishReady(next)
     }
@@ -233,7 +233,7 @@ class UpdateEngine(
         if (!UpdateFiles.isSafeName(artifact.name)) return null
         val file = File(dir, artifact.name).takeIf { it.isFile && it.length() == artifact.size } ?: return null
         if (!UpdateFiles.sha256Hex(file).equals(artifact.sha256, ignoreCase = true)) return null
-        return Pending(version, dir, file)
+        return Pending(version, dir, file, artifact.sha256.lowercase())
     }
 
     private fun removeOtherVersions(keep: File) {
@@ -265,7 +265,7 @@ class UpdateEngine(
                 if (automatic) recordAttempt(ready.dir)
                 _state.value = UpdateState.Installing(ready.version.toString())
                 log("installing ${ready.version} (automatic=$automatic, relaunch=$relaunch)")
-                runCatching { platform.install(ready.file, ready.version.toString(), relaunch) }
+                runCatching { platform.install(ready.file, ready.sha256, ready.version.toString(), relaunch) }
                     .getOrElse { InstallOutcome.Failed(describe(it)) }
             }
         } finally {

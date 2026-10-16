@@ -22,11 +22,12 @@ interface UpdatePlatform {
     fun requestPermission() = Unit
 
     /**
-     * Installs [file], the verified package of [version]. On the desktop it
-     * starts a helper that waits for the app to exit, installs and, with
-     * [relaunch], opens the new version; the caller then exits the app.
+     * Installs [file], the verified package of [version] whose digest is
+     * [sha256]. On the desktop it starts a helper that waits for the app to
+     * exit, checks [sha256] once more right before installing, installs and,
+     * with [relaunch], opens the new version; the caller then exits the app.
      */
-    suspend fun install(file: File, version: String, relaunch: Boolean): InstallOutcome
+    suspend fun install(file: File, sha256: String, version: String, relaunch: Boolean): InstallOutcome
 
     /**
      * The result the desktop helper left in [versionDir] after a previous
