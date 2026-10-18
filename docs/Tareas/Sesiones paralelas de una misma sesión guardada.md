@@ -1,11 +1,11 @@
 ---
 Nombre: 'Sesiones paralelas de una misma sesión guardada'
-Estado: 'En curso'
+Estado: 'Hecha'
 Resumen: 'Petición del usuario (2026-10-13). Hoy, abrir dos veces la misma sesión guardada con nivel 2 o 3 engancha las dos pestañas a la misma terminal del destino. Objetivo: que el usuario elija al lanzarla si se reengancha a una instancia existente o abre una sesión paralela independiente. Las paralelas se numeran (· 2, · 3…) y se puede volver a ellas igual que a la principal. Incluye un ajuste por sesión guardada para no preguntar (preguntar · reengancharse · paralela), y agrupar las instancias en la lanzadera y en el panel del agente.'
 Decisiones: 'Diseño aceptado por el usuario el 2026-10-13 y recogido en [[ADR-0020 Sesiones paralelas de una misma sesión guardada]]. Las paralelas se numeran; renombrarlas va en [[Renombrar las pestañas y las sesiones activas]]. Se incluye el ajuste por sesión "Al abrirla de nuevo". Abrir una paralela desde la propia pestaña necesita un menú de acciones en la pestaña, que hoy no existe, y se hace junto con el renombrado.'
 Bloqueada: []
 Fecha de creación: 2026-10-13T09:45:00+02:00
-Última modificación: 2026-10-13T10:10:00+02:00
+Última modificación: 2026-10-15T14:54:27+02:00
 ---
 
 # Sesiones paralelas de una misma sesión guardada
@@ -127,4 +127,8 @@ independiente, sin tener que duplicar la sesión guardada. El diseño está en
 
 ## Resultado
 
-<Se rellena al completar: qué se hizo finalmente.>
+Implementado y verificado; ver la verificación del usuario al final de la nota.
+
+## Verificación del usuario (2026-10-15)
+
+Probado por el usuario; funciona, incluido reengancharse a una paralela.

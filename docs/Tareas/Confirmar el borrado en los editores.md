@@ -1,11 +1,11 @@
 ---
 Nombre: 'Confirmar el borrado en los editores'
-Estado: 'En curso'
+Estado: 'Hecha'
 Resumen: 'El botón [x] Eliminar / [x] Quitar de la barra de los editores (host, sesión, script de la biblioteca, script de una sesión y túnel) borraba con un solo toque. Ahora cambia la barra por una confirmación en línea ([<] No · [x] Sí) que avisa de las consecuencias: las sesiones que se quedan sin host, si la sesión sigue viva en el destino (entonces el botón dice "[x] Eliminar y terminarla", como en el lanzador) o cuántas sesiones usan el script. De paso, ConfirmRow baja sus botones bajo la pregunta cuando no cabe a su lado; antes, en el móvil, la pregunta del lanzador se aplastaba hasta salir una letra por línea.'
 Decisiones: 'Pedida por el usuario el 2026-10-01, tras borrar una sesión sin querer desde su editor. La confirmación vive en EditorScaffold, así que la tienen todos los editores sin repetir código. Sigue [[Filas de lista con acciones contextuales desplegables]]: confirmación en línea, sin diálogos. El aviso propio del script de la biblioteca (que antes solo salía si alguna sesión lo usaba) se une a la confirmación general.'
 Bloqueada: []
 Fecha de creación: 2026-10-01T11:40:00+02:00
-Última modificación: 2026-10-01T12:10:00+02:00
+Última modificación: 2026-10-15T14:54:27+02:00
 ---
 
 # Confirmar el borrado en los editores
@@ -79,3 +79,7 @@ No confirmaban, porque `EditorScaffold` llamaba a `onDelete` directamente:
     emulador desde una copia (`config.pre-confirm.bak`).
 - Escritorio: solo compilación y tests; no se ha mirado la ventana.
 - **Pendiente:** revisión del usuario.
+
+## Verificación del usuario (2026-10-15)
+
+Probado por el usuario; funciona.

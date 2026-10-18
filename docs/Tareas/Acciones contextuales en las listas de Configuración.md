@@ -1,11 +1,11 @@
 ---
 Nombre: 'Acciones contextuales en las listas de Configuración'
-Estado: 'En curso'
+Estado: 'Hecha'
 Resumen: 'Las listas de Hosts, Sesiones y Scripts de Configuración despliegan las mismas acciones que la lanzadera (marcador o pulsación larga): Editar, Duplicar, Ver el agente del destino cuando aplica, y Eliminar con confirmación en la fila. Las acciones salen de un componente común, EntryActions, que también usa la lanzadera. Pulsar la fila sigue abriendo el editor.'
 Decisiones: 'Pedida por el usuario el 2026-10-03. Sigue [[Filas de lista con acciones contextuales desplegables]]. Duplicar un host conserva sus referencias de secretos (las dos copias usan las mismas credenciales guardadas); duplicar un script de la biblioteca no mueve a las sesiones que usan el original. Los avisos de Eliminar son los mismos que en los editores. Terminar en el destino sigue solo en la lanzadera, que es la que lee el estado del agente.'
 Bloqueada: []
 Fecha de creación: 2026-10-03T09:20:00+02:00
-Última modificación: 2026-10-03T09:20:00+02:00
+Última modificación: 2026-10-15T14:54:27+02:00
 ---
 
 # Acciones contextuales en las listas de Configuración
@@ -65,4 +65,8 @@ que solo las puso en la lanzadera.
 
 ## Resultado
 
-Pendiente de la verificación en el emulador.
+Implementado y verificado; ver la verificación del usuario al final de la nota.
+
+## Verificación del usuario (2026-10-15)
+
+Probado por el usuario en el emulador; funciona.

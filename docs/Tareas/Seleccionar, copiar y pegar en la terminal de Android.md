@@ -1,11 +1,11 @@
 ---
 Nombre: 'Seleccionar, copiar y pegar en la terminal de Android'
-Estado: 'En curso'
-Resumen: 'En Android no se puede seleccionar texto de la terminal ni mantener pulsado para sacar el menú de copiar y pegar, porque la terminal se pinta celda a celda en un Canvas y no es texto para el sistema. Se añade la selección como capa encima del Canvas (no entra en la caché de filas), con pulsación larga, arrastre, asas y la barra flotante nativa (Copiar, Pegar, Seleccionar todo) mediante LocalTextToolbar, sin perder el rendimiento ganado en Terminal fluida. Implementado y verificado con tests (343) y en el emulador, rendimiento igual que la base; falta la prueba del usuario y llevarlo a main.'
+Estado: 'Hecha'
+Resumen: 'En Android no se puede seleccionar texto de la terminal ni mantener pulsado para sacar el menú de copiar y pegar, porque la terminal se pinta celda a celda en un Canvas y no es texto para el sistema. Se añade la selección como capa encima del Canvas (no entra en la caché de filas), con pulsación larga, arrastre, asas y la barra flotante nativa (Copiar, Pegar, Seleccionar todo) mediante LocalTextToolbar, sin perder el rendimiento ganado en Terminal fluida. Implementado y verificado con tests (343) y en el emulador, rendimiento igual que la base; probado por el usuario en el Pixel con una release.'
 Decisiones: 'Ajuste de [[TerminalView]] y de [[Terminal fluida con ajuste de líneas y sin rastro de la automatización]]. Se descarta pintar las filas como Text dentro de un SelectionContainer (deshace la caché por fila y vuelve a los tirones). La selección vive en líneas absolutas del documento y solo se lee en la fase de dibujo. Escritorio (selección con ratón y Ctrl+Shift+C) queda para después. La barra flotante sigue a la selección mientras llega salida y se oculta cuando sale de la pantalla. Se mantiene LocalClipboardManager (LocalClipboard pide código por plataforma).'
 Bloqueada: []
 Fecha de creación: 2026-10-13T08:35:00+02:00
-Última modificación: 2026-10-13T09:40:00+02:00
+Última modificación: 2026-10-15T14:54:27+02:00
 ---
 
 # Seleccionar, copiar y pegar en la terminal de Android
@@ -112,3 +112,7 @@ con pegar y demás. Hay que añadirlo sin romper las mejoras de rendimiento de
   quitan la selección. En escritorio no cambia nada.
 - No se migró a `LocalClipboard`: crear un `ClipEntry` desde código común pide
   código por plataforma; se sigue con `LocalClipboardManager`.
+
+## Verificación del usuario (2026-10-15)
+
+Probado por el usuario en su Pixel instalando la app desde una release; funciona. La tarea ya está en `main` y queda cerrada. Un comportamiento raro al pegar se sigue en [[Saltos de línea al pegar en la terminal de Android]].
