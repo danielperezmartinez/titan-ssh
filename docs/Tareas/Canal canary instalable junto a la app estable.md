@@ -6,7 +6,7 @@ Decisiones: 'El 2026-10-20 el usuario elige la opción de una app canary aparte,
 Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-20T10:40:00+02:00
-Última modificación: 2026-10-20T12:00:00+02:00
+Última modificación: 2026-10-20T20:30:00+02:00
 ---
 
 # Canal canary instalable junto a la app estable
@@ -116,11 +116,17 @@ pendiente):
   `tar.gz`, los 13 agentes, `SHA256SUMS` y un `titan-update.json` con
   `channel: canary`. El Release *latest* sigue siendo `v1.2.0`, y `publish`,
   `aur` y `winget` se saltaron.
+- **En los dispositivos del usuario** (2026-10-20, canary `1.2.1-canary.27`):
+  - Linux y Windows: instalada junto a la estable y funcionando bien, según
+    el usuario.
+  - Pixel: instalada, pero no copió hosts ni sesiones, y el botón dice que la
+    estable no está instalada. Causa probable: la estable del Pixel es la
+    v1.2.0, sin `StableConfigProvider`. Sigue en
+    [[Copia de la estable a la canary en Android con estables antiguas]].
 - **Pendiente**:
   - ver que una canary instalada se actualiza sola a la siguiente build;
-  - el MSI de la canary en Windows junto al de la estable;
-  - el `tar.gz` de la canary instalado y en marcha en Linux, con la copia de
-    secretos desde el almacén del sistema.
+  - la copia en Android con una estable publicada que lleve el proveedor
+    (tarea de arriba).
 
 ## Resultado
 
