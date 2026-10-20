@@ -22,8 +22,10 @@
         android:name="io.github.danielperezmartinez.titanssh.permission.READ_STABLE_CONFIG"
         android:protectionLevel="signature" />
     <uses-permission android:name="io.github.danielperezmartinez.titanssh.permission.READ_STABLE_CONFIG" />
+    <!-- The package tells an absent stable app from one older than its provider. -->
     <queries>
-        <provider android:authorities="${stableConfigAuthority}" />
+        <package android:name="${stableAppId}" />
+        <provider android:authorities="${stableAppId}.stableconfig" />
     </queries>
 
     <!-- No backup or device transfer: see res/xml/data_extraction_rules.xml. -->
@@ -56,8 +58,9 @@
                 android:value="Keeps interactive SSH terminal sessions connected while the screen is locked; a dropped session loses the remote shell and its running processes." />
         </service>
         <!-- Enabled only in the stable app, where its authority is the
-             stableConfigAuthority the canary reads (ADR-0027). The canary's
-             disabled copy has its own authority: two apps cannot share one. -->
+             <stable app id>.stableconfig the canary reads (ADR-0027). The
+             canary's disabled copy has its own authority: two apps cannot
+             share one. -->
         <provider
             android:name="io.github.danielperezmartinez.titanssh.config.StableConfigProvider"
             android:authorities="${applicationId}.stableconfig"
@@ -65,8 +68,8 @@
             android:exported="true"
             android:permission="io.github.danielperezmartinez.titanssh.permission.READ_STABLE_CONFIG" />
         <meta-data
-            android:name="io.github.danielperezmartinez.titanssh.STABLE_CONFIG_AUTHORITY"
-            android:value="${stableConfigAuthority}" />
+            android:name="io.github.danielperezmartinez.titanssh.STABLE_APP_ID"
+            android:value="${stableAppId}" />
     </application>
 
 </manifest>

@@ -1,12 +1,12 @@
 ---
 Nombre: 'Copia de la estable a la canary en Android con estables antiguas'
-Estado: 'Pendiente'
-Resumen: 'En el Pixel del usuario, la canary 1.2.1-canary.27 no copió los hosts ni las sesiones de la estable, ni al arrancar ni con el botón Copiar de la app estable, que dice que la estable no está instalada aunque sí lo está. Causa probable: la estable instalada es la v1.2.0, anterior al StableConfigProvider, así que la canary no encuentra el proveedor y lo toma por app ausente. Hay que hacer que el mensaje distinga una estable ausente de una antigua, comprobarlo en la canary y publicar una versión estable con el proveedor (propuesta 1.3.0).'
+Estado: 'En curso'
+Resumen: 'En el Pixel del usuario, la canary 1.2.1-canary.27 no copió los hosts ni las sesiones de la estable, ni al arrancar ni con el botón Copiar de la app estable, que dice que la estable no está instalada aunque sí lo está. Causa: la estable instalada es la v1.2.0, anterior al StableConfigProvider, así que la canary no encuentra el proveedor y lo toma por app ausente (confirmado en el emulador). El mensaje ya distingue estable ausente, anterior al proveedor, firmada con otra clave y sin configuración, y está probado en el emulador con una estable v1.2.0. Falta publicar una versión estable con el proveedor (propuesta 1.3.0) y comprobar la copia en el Pixel.'
 Decisiones: 'El 2026-10-20 el usuario acepta corregir el mensaje y publicar una estable con el proveedor, y pide hacerlo en una sesión nueva.'
 Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-20T20:30:00+02:00
-Última modificación: 2026-10-20T20:30:00+02:00
+Última modificación: 2026-10-20T21:35:00+02:00
 ---
 
 # Copia de la estable a la canary en Android con estables antiguas
@@ -28,7 +28,7 @@ Lo que vio el usuario el 2026-10-20 en su Pixel, con la canary
 En Linux y en Windows la canary funciona, copia incluida: allí lee la carpeta
 de la estable y no necesita proveedor.
 
-## Causa probable (por confirmar)
+## Causa (confirmada en el emulador)
 
 En Android, la canary pide la configuración al `StableConfigProvider` de la
 estable (`shared/src/androidMain/.../config/StableCopy.android.kt`). Ese
@@ -75,8 +75,36 @@ stableconfig` no debería mostrar ningún proveedor.
 
 ## Verificación
 
-<Se rellena al completar: pruebas, build, comprobación real.>
+2026-10-20, rama `worktree-canary-old-stable`:
+
+- **Tests**: los de escritorio pasan. `FileStableCopierTest` comprueba ahora
+  que el motivo llega tal cual al resultado.
+- **Emulador** (canary de debug junto a la estable de debug del mismo
+  worktree; capturas enseñadas al usuario):
+  1. sin estable: «la app estable no está instalada»;
+  2. con una estable construida desde el tag `v1.2.0`: «la app estable
+     instalada (1.2.0) es anterior a la versión que comparte la
+     configuración; actualízala y vuelve a intentarlo». Es lo que pasaba en
+     el Pixel, y confirma la causa;
+  3. estable nueva recién instalada: «la app estable aún no tiene
+     configuración»;
+  4. estable v1.2.0 con hosts actualizada encima a la nueva, conservando sus
+     datos (lo que hará el Pixel con la 1.3.0): la canary copia 1 host y
+     1 sesión, también sola en el primer arranque tras `pm clear`.
+- No probado en dispositivo: el caso de firma distinta (`SecurityException`
+  del proveedor). Solo se da con una build de debug al lado de una publicada.
+- **Pendiente**: publicar la estable y la comprobación en el Pixel (puntos 3 y
+  4 del alcance).
 
 ## Resultado
 
-<Se rellena al completar: qué se hizo finalmente.>
+- `readStable` devuelve `StableRead`: `StableSnapshot` o
+  `StableUnavailable(reason)`, y el motivo sale en *Copiar de la app
+  estable*.
+- Android: la canary conoce el paquete de la estable (marcador
+  `stableAppId`, que sustituye a `stableConfigAuthority`; la autoridad es
+  `<stableAppId>.stableconfig`) y lo declara en `<queries><package>`. Con eso
+  distingue paquete ausente, paquete sin proveedor (indica su
+  `versionName`), firma distinta y estable sin configuración.
+- Escritorio: distingue carpeta de la estable ausente (no instalada o nunca
+  abierta) de carpeta sin `config.json`.

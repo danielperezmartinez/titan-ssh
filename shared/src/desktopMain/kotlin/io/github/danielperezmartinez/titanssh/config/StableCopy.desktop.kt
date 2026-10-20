@@ -21,8 +21,12 @@ actual fun createStableCopier(): StableCopier? {
         readStable = {
             withContext(Dispatchers.IO) {
                 val stable = stableConfigDirectory()
-                val config = File(stable, JsonFileConfigStore.CONFIG_FILE).takeIf { it.isFile }?.readBytes()
-                config?.let { StableSnapshot(it, File(stable, "known_hosts").takeIf { f -> f.isFile }?.readBytes()) }
+                val config = File(stable, JsonFileConfigStore.CONFIG_FILE)
+                when {
+                    config.isFile -> StableSnapshot(config.readBytes(), File(stable, "known_hosts").takeIf { it.isFile }?.readBytes())
+                    stable.isDirectory -> StableUnavailable(NO_STABLE_CONFIG)
+                    else -> StableUnavailable("la app estable no está instalada o no se ha abierto nunca")
+                }
             }
         },
         secrets = stableSecretStore() to createSecretStore(),

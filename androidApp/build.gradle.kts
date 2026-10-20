@@ -44,9 +44,9 @@ android {
         versionCode = rootProject.extra["titanVersionCode"] as Int
         versionName = rootProject.extra["titanVersion"] as String
         manifestPlaceholders["appLabel"] = appLabel
-        // The stable app's StableConfigProvider: exported by the stable app and
-        // read by the canary to copy its configuration (ADR-0027 §4).
-        manifestPlaceholders["stableConfigAuthority"] = "$STABLE_APP_ID.stableconfig"
+        // The stable app, whose StableConfigProvider the canary reads to copy
+        // its configuration (ADR-0027 §4).
+        manifestPlaceholders["stableAppId"] = STABLE_APP_ID
         manifestPlaceholders["stableConfigProviderEnabled"] = (!isCanary).toString()
     }
 
@@ -73,7 +73,7 @@ android {
                 applicationIdSuffix = ".$devSuffix"
                 manifestPlaceholders["appLabel"] = "$appLabel $devSuffix"
                 // The debug canary of a worktree copies from that worktree's debug app.
-                manifestPlaceholders["stableConfigAuthority"] = "$STABLE_APP_ID.$devSuffix.stableconfig"
+                manifestPlaceholders["stableAppId"] = "$STABLE_APP_ID.$devSuffix"
             }
         }
         release {

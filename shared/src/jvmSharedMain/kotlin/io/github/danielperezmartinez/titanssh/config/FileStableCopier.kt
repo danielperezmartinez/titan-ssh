@@ -7,8 +7,16 @@ import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+/** What reading the stable app gives: its files, or why there are none. */
+sealed interface StableRead
+
 /** The stable app's `config.json` and `known_hosts` (null if it has none), as read. */
-class StableSnapshot(val config: ByteArray, val knownHosts: ByteArray?)
+class StableSnapshot(val config: ByteArray, val knownHosts: ByteArray?) : StableRead
+
+/** Nothing to copy, for [reason]: the stable app is missing, too old or has no configuration yet. */
+class StableUnavailable(val reason: String) : StableRead
+
+internal const val NO_STABLE_CONFIG = "la app estable aún no tiene configuración"
 
 /**
  * [StableCopier] over the canary's own files: [configDir] (where
@@ -20,7 +28,7 @@ class StableSnapshot(val config: ByteArray, val knownHosts: ByteArray?)
 internal class FileStableCopier(
     private val configDir: File,
     private val knownHosts: File,
-    private val readStable: suspend () -> StableSnapshot?,
+    private val readStable: suspend () -> StableRead,
     private val secrets: Pair<SecretStore, SecretStore>?,
 ) : StableCopier {
 
@@ -29,9 +37,12 @@ internal class FileStableCopier(
     override fun hasOwnConfig(): Boolean = File(configDir, JsonFileConfigStore.CONFIG_FILE).exists()
 
     override suspend fun copy(): StableCopyResult {
-        val snapshot = runCatching { readStable() }.getOrElse {
+        val snapshot = when (val read = runCatching { readStable() }.getOrElse {
             return StableCopyResult.NotCopied("no se pudo leer la app estable: ${it.message ?: it::class.simpleName}")
-        } ?: return StableCopyResult.NotCopied("la app estable no está instalada o aún no tiene configuración")
+        }) {
+            is StableSnapshot -> read
+            is StableUnavailable -> return StableCopyResult.NotCopied(read.reason)
+        }
         // Parsed (and migrated) before anything is replaced: a document this
         // canary cannot read leaves its own configuration untouched.
         val staging = withContext(Dispatchers.IO) {

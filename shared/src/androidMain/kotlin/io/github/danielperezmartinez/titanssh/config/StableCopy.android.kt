@@ -29,21 +29,36 @@ actual fun createStableCopier(): StableCopier? {
     )
 }
 
-private suspend fun readStableSnapshot(context: Context): StableSnapshot? = withContext(Dispatchers.IO) {
-    val authority = stableAuthority(context) ?: return@withContext null
-    // A missing app or provider answers with null or IllegalArgumentException.
-    val bundle = runCatching {
+private suspend fun readStableSnapshot(context: Context): StableRead = withContext(Dispatchers.IO) {
+    val stableAppId = stableAppId(context) ?: return@withContext StableUnavailable("esta build no sabe cuál es la app estable")
+    val packageManager = context.packageManager
+    val stable = try {
+        packageManager.getPackageInfo(stableAppId, 0)
+    } catch (_: PackageManager.NameNotFoundException) {
+        return@withContext StableUnavailable("la app estable no está instalada")
+    }
+    val authority = "$stableAppId.stableconfig"
+    // Stable apps before the provider (v1.2.0 and older) are installed but cannot share.
+    if (packageManager.resolveContentProvider(authority, 0) == null) {
+        return@withContext StableUnavailable(
+            "la app estable instalada (${stable.versionName}) es anterior a la versión que comparte la configuración; actualízala y vuelve a intentarlo",
+        )
+    }
+    val bundle = try {
         context.contentResolver.call(Uri.parse("content://$authority"), StableConfigProvider.METHOD_SNAPSHOT, null, null)
-    }.getOrNull() ?: return@withContext null
-    val config = bundle.getByteArray(StableConfigProvider.KEY_CONFIG) ?: return@withContext null
+    } catch (_: SecurityException) {
+        // The signature permission: a debug build next to a published one, or the other way round.
+        return@withContext StableUnavailable("la app estable está firmada con otra clave")
+    } ?: return@withContext StableUnavailable(NO_STABLE_CONFIG)
+    val config = bundle.getByteArray(StableConfigProvider.KEY_CONFIG) ?: return@withContext StableUnavailable(NO_STABLE_CONFIG)
     StableSnapshot(config, bundle.getByteArray(StableConfigProvider.KEY_KNOWN_HOSTS))
 }
 
-/** The stable app's provider authority, which the build writes into the manifest. */
-private fun stableAuthority(context: Context): String? =
+/** The stable app's package, which the build writes into the manifest. */
+private fun stableAppId(context: Context): String? =
     runCatching {
         context.packageManager.getApplicationInfo(context.packageName, PackageManager.GET_META_DATA)
-            .metaData?.getString(StableConfigProvider.META_STABLE_AUTHORITY)
+            .metaData?.getString(StableConfigProvider.META_STABLE_APP_ID)
     }.getOrNull()
 
 /**
@@ -86,6 +101,6 @@ class StableConfigProvider : ContentProvider() {
         const val METHOD_SNAPSHOT = "snapshot"
         const val KEY_CONFIG = "config"
         const val KEY_KNOWN_HOSTS = "known_hosts"
-        const val META_STABLE_AUTHORITY = "io.github.danielperezmartinez.titanssh.STABLE_CONFIG_AUTHORITY"
+        const val META_STABLE_APP_ID = "io.github.danielperezmartinez.titanssh.STABLE_APP_ID"
     }
 }

@@ -53,7 +53,7 @@ class FileStableCopierTest {
         readStable = {
             File(stableDir, JsonFileConfigStore.CONFIG_FILE).takeIf { it.isFile }?.let {
                 StableSnapshot(it.readBytes(), File(stableDir, "known_hosts").takeIf { f -> f.isFile }?.readBytes())
-            }
+            } ?: StableUnavailable(NO_STABLE_CONFIG)
         },
         secrets = secrets,
     )
@@ -93,7 +93,7 @@ class FileStableCopierTest {
         val own = TitanConfig(hosts = listOf(Host(id = "c", alias = "mine", hostname = "m", username = "u", auth = HostAuth.Password("p"))))
         JsonFileConfigStore(canaryDir).save(own)
 
-        assertIs<StableCopyResult.NotCopied>(copier(null).copy())
+        assertEquals(StableCopyResult.NotCopied(NO_STABLE_CONFIG), copier(null).copy())
         File(stableDir, JsonFileConfigStore.CONFIG_FILE).writeText("{ not json")
         assertIs<StableCopyResult.NotCopied>(copier(null).copy())
 
