@@ -11,6 +11,10 @@ sesión sin muros de pago.
 
 ## Instalar
 
+La forma más rápida es la web del proyecto,
+[danielperezmartinez.github.io/titan-ssh](https://danielperezmartinez.github.io/titan-ssh/),
+que ofrece la descarga de la última versión para tu sistema.
+
 Todas las versiones se publican en
 [GitHub Releases](https://github.com/danielperezmartinez/titan-ssh/releases),
 generadas por CI a partir de un tag. Desde la 1.0.0 solo se publican versiones
