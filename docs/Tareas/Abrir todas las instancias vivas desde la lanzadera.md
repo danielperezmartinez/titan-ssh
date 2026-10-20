@@ -4,9 +4,9 @@ Estado: 'Hecha'
 Resumen: 'Petición del usuario (2026-10-20). Al lanzar una sesión guardada que ya tiene instancias, el menú de elección (reengancharse a cada una o nueva paralela) gana una opción "Abrir todas": abre una pestaña por cada instancia viva en el destino que no tenga pestaña, y cada una se reengancha a la suya.'
 Decisiones: 'Solo se abren las instancias vivas sin pestaña: las que ya tienen pestaña no se duplican y la principal no se crea si no existe. La opción aparece cuando hay al menos dos de esas instancias (con una sola equivale a su "Reengancharse"). Se abren en orden de número y queda activa la última.'
 Bloqueada: []
-Versión: ''
+Versión: '1.2.0'
 Fecha de creación: 2026-10-20T10:00:00+02:00
-Última modificación: 2026-10-20T11:08:00+02:00
+Última modificación: 2026-10-20T12:50:00+02:00
 ---
 
 # Abrir todas las instancias vivas desde la lanzadera
