@@ -90,6 +90,15 @@ class SessionInstancesTest {
     }
 
     @Test
+    fun openAllTakesTheLiveInstancesWithoutATab() {
+        val plan = SessionInstances.plan(session(), openInTabs = setOf(3), live = setOf(1, 2, 3, 5))
+        assertEquals(listOf(1, 2, 5), (plan as LaunchPlan.Ask).background)
+        // The principal nothing holds is listed, but there is nothing to re-attach to.
+        val onlyParallels = SessionInstances.plan(session(), openInTabs = emptySet(), live = setOf(2, 4))
+        assertEquals(listOf(2, 4), (onlyParallels as LaunchPlan.Ask).background)
+    }
+
+    @Test
     fun theSettingSkipsTheQuestion() {
         assertEquals(LaunchPlan.Open(1), SessionInstances.plan(session(reopen = ReopenMode.ATTACH), setOf(1), setOf(1, 2)))
         assertEquals(

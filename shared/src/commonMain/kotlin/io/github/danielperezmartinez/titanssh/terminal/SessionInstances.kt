@@ -91,7 +91,13 @@ sealed interface LaunchPlan {
     data class Open(val instance: Int, val mustBeNew: Boolean = false) : LaunchPlan
 
     /** Let the user pick one of [options] or a new parallel instance, number [nextParallel]. */
-    data class Ask(val options: List<InstanceOption>, val nextParallel: Int) : LaunchPlan
+    data class Ask(val options: List<InstanceOption>, val nextParallel: Int) : LaunchPlan {
+        /**
+         * The instances alive on the destination without a tab, in order: what
+         * "Abrir todas" re-attaches to. Worth offering from two on.
+         */
+        val background: List<Int> get() = options.filter { it.live && !it.openInTab }.map { it.instance }
+    }
 }
 
 /**

@@ -273,7 +273,8 @@ internal fun Launcher(
 
 /**
  * Where to open a session that already has instances (ADR-0020): re-attach to
- * one of them, or a new parallel one. Rows like the session's actions.
+ * one of them, to all those alive without a tab, or a new parallel one. Rows
+ * like the session's actions.
  */
 @Composable
 private fun ReopenChoice(
@@ -284,6 +285,16 @@ private fun ReopenChoice(
     onPick: (instance: Int, mustBeNew: Boolean) -> Unit,
 ) {
     Caption("Ya está abierta. Elige dónde entrar.", modifier = Modifier.padding(vertical = TitanDimens.SpaceXs))
+    val background = plan.background
+    if (background.size > 1) {
+        ListRow(
+            marker = "[>]",
+            title = "Abrir todas",
+            subtitle = "una pestaña por cada una de las ${background.size} vivas en el destino",
+            markerColor = TitanColors.Accent,
+            onClick = { background.forEach { onPick(it, false) } },
+        )
+    }
     plan.options.forEach { option ->
         ListRow(
             marker = "[>]",
