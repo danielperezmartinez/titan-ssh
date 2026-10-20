@@ -291,7 +291,7 @@ private data class GlyphKey(val text: String, val color: Color, val bold: Boolea
 
 /**
  * Lays out and draws rows, caching the layout of each [TerminalRow] instance
- * for as long as it stays visible.
+ * (and of its content) for as long as it stays visible.
  */
 private class TerminalPainter(
     private val measurer: TextMeasurer,
@@ -300,20 +300,33 @@ private class TerminalPainter(
 ) {
     private var cache = HashMap<TerminalRow, RowPaint>()
     private var next = HashMap<TerminalRow, RowPaint>()
+
+    // The same, by content: a full-screen app that scrolls repaints every row
+    // as a new instance, but most of them show text that was on screen a line
+    // away in the previous frame.
+    private var cacheByContent = HashMap<List<TerminalCell>, RowPaint>()
+    private var nextByContent = HashMap<List<TerminalCell>, RowPaint>()
     private val glyphs = HashMap<GlyphKey, TextLayoutResult>()
 
     fun beginFrame() {
         next.clear()
+        nextByContent.clear()
     }
 
     fun endFrame() {
         val done = cache
         cache = next
         next = done
+        val doneByContent = cacheByContent
+        cacheByContent = nextByContent
+        nextByContent = doneByContent
     }
 
     fun draw(scope: DrawScope, row: TerminalRow, x0: Float, y: Float) {
-        val paint = next[row] ?: cache[row] ?: layout(row)
+        val paint = next[row] ?: cache[row] ?: run {
+            val content = ArrayList<TerminalCell>(row)
+            (nextByContent[content] ?: cacheByContent[content] ?: layout(row)).also { nextByContent[content] = it }
+        }
         next[row] = paint
         for ((cols, color) in paint.backgrounds) {
             scope.drawRect(

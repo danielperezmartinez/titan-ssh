@@ -6,7 +6,7 @@ Decisiones: 'Ajuste de [[Terminal multipestaña con sesiones simultáneas]].'
 Bloqueada: []
 Versión: '1.1.0'
 Fecha de creación: 2026-10-20T09:00:00+02:00
-Última modificación: 2026-10-20T09:20:00+02:00
+Última modificación: 2026-10-20T10:25:00+02:00
 ---
 
 # Rueda del ratón para apps a pantalla completa en el terminal
@@ -71,3 +71,21 @@ Diagnóstico (grabando los bytes de la sesión en un PTY):
   también para la rueda del ratón en escritorio.
 - `terminalGeometry` no deja desplazar la scrollback de la pantalla principal
   mientras se está en la alternativa.
+
+## Rendimiento (tras publicar la 1.1.0)
+
+El usuario notó pequeños trompicones al desplazar Claude desde el Pixel.
+
+- Claude Code responde a cada evento de rueda en ~3 ms con ~210 bytes (repinta
+  por diferencias todas las filas visibles): no es el cuello de botella.
+- El pintor del terminal cacheaba la maquetación de cada fila por instancia;
+  al desplazar, la app reescribe todas las filas y se maquetaban todas otra
+  vez en cada evento. Se añade una caché por contenido (las filas que solo se
+  han movido una línea reutilizan su maquetación).
+- Medido en el emulador con `dumpsys gfxinfo`, 12 arrastres sobre un programa
+  que imita a Claude (repinta toda la pantalla por evento), dos pasadas por
+  build: percentil 90 de 48/48 ms → 36/36 ms; "Slow issue draw commands"
+  57/49 → 25/17. El emulador de este PC ya da 32 ms con el scroll local, así
+  que el resto es su propio límite.
+- Lo que queda depende de la red: cada paso espera la ida y vuelta al destino,
+  y el desplazamiento va por líneas enteras en vez de por píxeles.
