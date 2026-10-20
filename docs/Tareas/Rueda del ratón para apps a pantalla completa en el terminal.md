@@ -4,9 +4,9 @@ Estado: En curso
 Resumen: 'Con Claude Code en modo `tui: fullscreen` (pantalla alternativa + ratón activado) deslizar el dedo movía la scrollback local de la pantalla principal (p. ej. el saludo de fastfetch) en vez del historial de la app, y la respuesta de Claude parecía perderse. El emulador pasa a registrar los modos de ratón y el deslizamiento se envía a la app como rueda (SGR/X10) o, sin ratón, como flechas (modo 1007); en pantalla alternativa no se muestra la scrollback principal.'
 Decisiones: 'Ajuste de [[Terminal multipestaña con sesiones simultáneas]].'
 Bloqueada: []
-Versión: ''
+Versión: '1.1.0'
 Fecha de creación: 2026-10-20T09:00:00+02:00
-Última modificación: 2026-10-20T10:45:00+02:00
+Última modificación: 2026-10-20T09:20:00+02:00
 ---
 
 # Rueda del ratón para apps a pantalla completa en el terminal
