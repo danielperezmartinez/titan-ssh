@@ -1,15 +1,16 @@
 ---
 Nombre: 'Actualización automática de la app'
 Número: 25
-Estado: 'Aceptada'
-Resumen: 'Aceptada por el usuario el 2026-10-16, con .deb y .rpm pidiendo la contraseña. Petición del usuario del 2026-10-16: no esperar a winget ni a AUR y que la app se actualice sola, como Claude Code Desktop. En Windows, Linux y Android la app descarga en segundo plano la versión más nueva, betas incluidas, y la instala sola por defecto. En Ajustes se puede cambiar a preguntar antes de instalar. Nunca cierra pestañas abiertas: instala al cerrar o al arrancar la app. Las actualizaciones van firmadas con una clave Ed25519 propia y gratuita, cuya clave pública va dentro de la app. Así no hace falta la firma de SignPath. Se apaga en los canales cuyo gestor es el dueño de los ficheros: Flatpak, AUR y Google Play. Sustituye la parte de ADR-0011 que decía avisar sin descargar ni ejecutar nada.'
+Estado: 'Reemplazada'
+Resumen: 'Reemplazada el 2026-10-20 por ADR-0027 solo en las pre-releases: la estable deja de instalarlas y las pruebas van a una app canary aparte. Todo lo demás sigue vigente. Aceptada por el usuario el 2026-10-16, con .deb y .rpm pidiendo la contraseña. Petición del usuario del 2026-10-16: no esperar a winget ni a AUR y que la app se actualice sola, como Claude Code Desktop. En Windows, Linux y Android la app descarga en segundo plano la versión más nueva, betas incluidas, y la instala sola por defecto. En Ajustes se puede cambiar a preguntar antes de instalar. Nunca cierra pestañas abiertas: instala al cerrar o al arrancar la app. Las actualizaciones van firmadas con una clave Ed25519 propia y gratuita, cuya clave pública va dentro de la app. Así no hace falta la firma de SignPath. Se apaga en los canales cuyo gestor es el dueño de los ficheros: Flatpak, AUR y Google Play. Sustituye la parte de ADR-0011 que decía avisar sin descargar ni ejecutar nada.'
 Decisión: 'La app se actualiza sola en las tres plataformas a partir de un manifiesto firmado con una clave Ed25519 propia y publicado en cada GitHub Release. Por defecto instala sin preguntar y en Ajustes se cambia a preguntar. Incluye las betas. No interrumpe pestañas abiertas y no se usa en Flatpak, AUR ni Play.'
 Consecuencias: 'La clave privada de actualizaciones pasa a ser un secreto crítico de CI, como el keystore: quien la tenga puede hacer que todas las instalaciones ejecuten su código. release.yml firma un manifiesto nuevo. La app necesita un actualizador por plataforma (msiexec por usuario en Windows, sustituir el tar.gz en Linux, pkexec con contraseña para .deb y .rpm, PackageInstaller en Android con el permiso de instalar apps). La primera actualización en Android siempre pide confirmación. ADR-0011 queda sustituida en su política de actualización.'
 Reemplaza:
   - '[[ADR-0011 Distribución y canales de publicación]]'
-Reemplazada por: []
+Reemplazada por:
+  - '[[ADR-0027 Canal canary instalable junto a la app estable]]'
 Fecha de creación: 2026-10-16T09:30:00+02:00
-Última modificación: 2026-10-16T12:20:00+02:00
+Última modificación: 2026-10-20T11:05:00+02:00
 ---
 
 # ADR-0025 · Actualización automática de la app
