@@ -6,7 +6,7 @@ Decisiones: 'Ajuste de [[Terminal multipestaña con sesiones simultáneas]].'
 Bloqueada: []
 Versión: '1.1.0'
 Fecha de creación: 2026-10-20T09:00:00+02:00
-Última modificación: 2026-10-20T10:25:00+02:00
+Última modificación: 2026-10-20T10:40:00+02:00
 ---
 
 # Rueda del ratón para apps a pantalla completa en el terminal
@@ -89,3 +89,4 @@ El usuario notó pequeños trompicones al desplazar Claude desde el Pixel.
   que el resto es su propio límite.
 - Lo que queda depende de la red: cada paso espera la ida y vuelta al destino,
   y el desplazamiento va por líneas enteras en vez de por píxeles.
+- La caché por contenido se publicó en la **1.1.1**; la rueda llegó en la 1.1.0.
