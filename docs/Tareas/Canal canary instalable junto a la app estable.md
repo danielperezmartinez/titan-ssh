@@ -111,9 +111,13 @@ pendiente):
   La primera prueba sacó un fallo: el agente de una build de desarrollo
   (`0.0.0-dev`) deducía el canal de la versión y compartía el estado con la
   estable. Ahora el canal se estampa en el agente con `-X main.channel`.
+- **Primer run real** (2026-10-20, run `39466913391`, todo en verde):
+  publicó *titan-ssh canary 1.2.1-canary.27* como pre-release, con APK, MSI,
+  `tar.gz`, los 13 agentes, `SHA256SUMS` y un `titan-update.json` con
+  `channel: canary`. El Release *latest* sigue siendo `v1.2.0`, y `publish`,
+  `aur` y `winget` se saltaron.
 - **Pendiente**:
-  - el primer run real del workflow al subir a `main` (Release `canary` creado
-    y canary que se actualiza sola);
+  - ver que una canary instalada se actualiza sola a la siguiente build;
   - el MSI de la canary en Windows junto al de la estable;
   - el `tar.gz` de la canary instalado y en marcha en Linux, con la copia de
     secretos desde el almacén del sistema.
