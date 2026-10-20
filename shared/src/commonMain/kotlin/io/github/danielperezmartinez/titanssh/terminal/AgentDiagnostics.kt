@@ -233,8 +233,8 @@ object AgentDiagnostics {
                     "del dispositivo y abre la sesión de nuevo."
             E_UPLOAD ->
                 "no se pudo copiar el agente al destino" to
-                    "Comprueba el espacio libre y los permisos de ~/.local/share/titan-ssh " +
-                    "(%LOCALAPPDATA%\\titan-ssh en Windows)."
+                    "Comprueba el espacio libre y los permisos de ${AgentInstall.DEFAULT_BASE_DIR} " +
+                    "(%LOCALAPPDATA%\\${AgentInstall.WINDOWS_INSTALL_SUBDIR} en Windows)."
             E_CHECKSUM ->
                 "el agente copiado no coincide con el esperado" to
                     "Suele ser un disco lleno o una copia cortada. Se reintenta al abrir la sesión de nuevo."
@@ -248,7 +248,7 @@ object AgentDiagnostics {
             E_STATE_DIR ->
                 "el directorio de estado del agente no es seguro" to
                     "Tiene que ser tuyo y sin permisos para el grupo ni para otros: " +
-                    "chmod 700 ~/.local/state/titan-ssh (%LOCALAPPDATA%\\titan-ssh en Windows)."
+                    "chmod 700 ${AgentInstall.UNIX_STATE_DIR} (%LOCALAPPDATA%\\${AgentInstall.WINDOWS_INSTALL_SUBDIR} en Windows)."
             E_LOCK ->
                 "el sistema de ficheros del home no admite el candado del agente" to
                     "Pasa con algunos home en NFS. Quien administre el destino puede activar el bloqueo " +

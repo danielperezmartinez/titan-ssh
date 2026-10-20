@@ -51,6 +51,11 @@ import (
 // the Gradle build; a plain `go build` reports the development value.
 var version = "0.0.0-dev"
 
+// channel is the app the agent belongs to, stable or canary (ADR-0027), set
+// at build time like version with -ldflags "-X main.channel=..." by the
+// Gradle build. It names the agent's folders (appName).
+var channel = "stable"
+
 func main() {
 	daemon := flag.Bool("daemon", false, "run the persistent session daemon")
 	stop := flag.Bool("stop", false, "stop the user's daemon, closing every session, and exit")

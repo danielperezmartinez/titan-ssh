@@ -15,10 +15,14 @@ import kotlinx.coroutines.launch
  *
  * Kept as a plain multiplatform class (no Android ViewModel) so the same holder
  * drives Android and desktop.
+ *
+ * [prepare] runs once before the first load: the canary uses it to copy the
+ * stable app's configuration on its first start (ADR-0027 §4).
  */
 class ConfigController(
     private val store: ConfigStore,
     private val scope: CoroutineScope,
+    private val prepare: suspend () -> Unit = {},
 ) {
     private val _state = MutableStateFlow(TitanConfig())
     val state: StateFlow<TitanConfig> = _state.asStateFlow()
@@ -31,6 +35,7 @@ class ConfigController(
 
     init {
         scope.launch {
+            runCatching { prepare() }
             try {
                 _state.value = store.load()
             } catch (e: Exception) {
@@ -38,6 +43,16 @@ class ConfigController(
             } finally {
                 _loaded.value = true
             }
+        }
+    }
+
+    /** Reads the stored config again, after something other than this controller replaced it. */
+    suspend fun reload() {
+        try {
+            _state.value = store.load()
+            _lastError.value = null
+        } catch (e: Exception) {
+            _lastError.value = e.message ?: "Failed to load config"
         }
     }
 

@@ -22,9 +22,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import io.github.danielperezmartinez.titanssh.AppChannel
 import io.github.danielperezmartinez.titanssh.ScreenCapturePolicy
 import io.github.danielperezmartinez.titanssh.config.ConfigController
 import io.github.danielperezmartinez.titanssh.config.createConfigStore
+import io.github.danielperezmartinez.titanssh.config.createStableCopier
 import io.github.danielperezmartinez.titanssh.secret.SecretProvisioner
 import io.github.danielperezmartinez.titanssh.secret.createSecretStore
 import io.github.danielperezmartinez.titanssh.ssh.createKnownHostsStore
@@ -66,7 +68,13 @@ private enum class Screen { SESSIONS, CONFIG, ABOUT, AGENT, KEY_BAR }
 fun AppShell() {
     TitanTheme {
         val scope = rememberCoroutineScope()
-        val controller = remember { ConfigController(createConfigStore(), scope) }
+        // ADR-0027: the canary starts with a copy of the stable app's configuration.
+        val stableCopier = remember { createStableCopier() }
+        val controller = remember {
+            ConfigController(createConfigStore(), scope, prepare = {
+                stableCopier?.takeUnless { it.hasOwnConfig() }?.copy()
+            })
+        }
         ScreenCaptureSetting(controller)
         // One SecretStore instance backs both the read side (resolving credentials
         // at connect time) and the write side (provisioning them from the editor).
@@ -263,7 +271,7 @@ private fun AppHeader(current: Screen, onAbout: () -> Unit, onConfig: () -> Unit
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = "titan-ssh",
+            text = AppChannel.displayName,
             style = MaterialTheme.typography.headlineSmall,
             color = TitanColors.Ink,
             modifier = Modifier.weight(1f),

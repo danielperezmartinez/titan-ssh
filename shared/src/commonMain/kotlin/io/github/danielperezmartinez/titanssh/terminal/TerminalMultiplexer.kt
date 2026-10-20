@@ -1,5 +1,6 @@
 package io.github.danielperezmartinez.titanssh.terminal
 
+import io.github.danielperezmartinez.titanssh.AppChannel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -103,12 +104,17 @@ class TerminalMultiplexer(
     }
 
     companion object {
-        /** Stable, shell-safe multiplexer session name for a config session (instance) id. */
+        /**
+         * Stable, shell-safe multiplexer session name for a config session
+         * (instance) id. The canary copies the stable app's sessions with their
+         * ids, so its names carry `canary` and never attach to the stable app's
+         * tmux or screen sessions (ADR-0027).
+         */
         fun nameFor(sessionId: String): String {
             val safe = sessionId.map { if (it.isLetterOrDigit() || it == '-' || it == '_') it else '_' }
                 .joinToString("")
                 .ifEmpty { "session" }
-            return "titan-$safe"
+            return if (AppChannel.isCanary) "titan-canary-$safe" else "titan-$safe"
         }
 
         /**

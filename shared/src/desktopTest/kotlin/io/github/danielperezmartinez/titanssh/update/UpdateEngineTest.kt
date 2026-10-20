@@ -22,14 +22,15 @@ import org.bouncycastle.crypto.signers.Ed25519Signer
  * [UpdateEngine] (ADR-0025): only a package listed in a manifest signed by a
  * key of the app, for a version above the running one, with the right size and
  * SHA-256, is ever handed to the installer; and installing follows the policy
- * without closing open tabs.
+ * without closing open tabs. The stable app never installs a pre-release and
+ * the canary app only its own rolling Release (ADR-0027).
  */
 class UpdateEngineTest {
 
     private val cache: File = Files.createTempDirectory("update-cache").toFile()
     private val key = Ed25519PrivateKeyParameters(SecureRandom())
     private val otherKey = Ed25519PrivateKeyParameters(SecureRandom())
-    private val current = AppVersion.parse("0.1.0-beta.14")!!
+    private val current = AppVersion.parse("1.0.14")!!
 
     @AfterTest
     fun cleanup() {
@@ -38,9 +39,16 @@ class UpdateEngineTest {
 
     // --- Fakes --------------------------------------------------------------
 
-    private class Published(val version: String, val files: Map<String, ByteArray>, val draft: Boolean = false)
+    private class Published(
+        val version: String,
+        val files: Map<String, ByteArray>,
+        val draft: Boolean = false,
+        val tag: String = "v$version",
+        val prerelease: Boolean = version.contains('-'),
+    )
 
-    private inner class FakeHttp(val releases: List<Published>) : UpdateHttp {
+    /** Serves [releases] as a list, or with [single] as `releases/tags/<tag>` does. */
+    private inner class FakeHttp(val releases: List<Published>, val single: Boolean = false) : UpdateHttp {
         var offline = false
 
         private fun body(url: String): ByteArray {
@@ -50,12 +58,16 @@ class UpdateEngineTest {
             return releases.first { it.version == version }.files[name] ?: throw IOException("404 $url")
         }
 
-        private fun releaseList(): ByteArray = releases.joinToString(",", "[", "]") { r ->
+        private fun releaseJson(r: Published): String {
             val assets = r.files.keys.joinToString(",") { name ->
                 """{"name":"$name","browser_download_url":"https://example.test/${r.version}/$name","size":${r.files.getValue(name).size}}"""
             }
-            """{"tag_name":"v${r.version}","draft":${r.draft},"prerelease":${r.version.contains('-')},"assets":[$assets]}"""
-        }.encodeToByteArray()
+            return """{"tag_name":"${r.tag}","draft":${r.draft},"prerelease":${r.prerelease},"assets":[$assets]}"""
+        }
+
+        private fun releaseList(): ByteArray =
+            (if (single) releaseJson(releases.single()) else releases.joinToString(",", "[", "]") { releaseJson(it) })
+                .encodeToByteArray()
 
         override suspend fun get(url: String, maxBytes: Long): ByteArray = body(url)
 
@@ -96,8 +108,9 @@ class UpdateEngineTest {
             generateSignature()
         }
 
-    private fun manifest(version: String, name: String, bytes: ByteArray, sha: String = sha256(bytes)): ByteArray =
-        """{"schema":1,"version":"$version","artifacts":[{"kind":"msi","name":"$name","size":${bytes.size},"sha256":"$sha"},{"kind":"apk","name":"titan-ssh-$version.apk","size":1,"sha256":"00"}]}"""
+    private fun manifest(version: String, name: String, bytes: ByteArray, channel: String?, sha: String = sha256(bytes)): ByteArray =
+        ("""{"schema":1,"version":"$version",""" + (channel?.let { """"channel":"$it",""" } ?: "") +
+            """"artifacts":[{"kind":"msi","name":"$name","size":${bytes.size},"sha256":"$sha"},{"kind":"apk","name":"titan-ssh-$version.apk","size":1,"sha256":"00"}]}""")
             .encodeToByteArray()
 
     /** A Release as the workflow publishes it, with [tamper] applied to its files. */
@@ -105,21 +118,35 @@ class UpdateEngineTest {
         version: String,
         signer: Ed25519PrivateKeyParameters = key,
         manifestVersion: String = version,
+        channel: String? = null,
+        tag: String = "v$version",
+        prerelease: Boolean = version.contains('-'),
         tamper: (MutableMap<String, ByteArray>) -> Unit = {},
     ): Published {
         val name = "titan-ssh-$version-windows-x64.msi"
         val msi = "msi of $version".encodeToByteArray()
-        val m = manifest(manifestVersion, name, msi)
+        val m = manifest(manifestVersion, name, msi, channel)
         val files = mutableMapOf(name to msi, UpdateFiles.MANIFEST to m, UpdateFiles.SIGNATURE to sign(m, signer))
         tamper(files)
-        return Published(version, files)
+        return Published(version, files, tag = tag, prerelease = prerelease)
     }
 
-    private fun engine(http: UpdateHttp, platform: UpdatePlatform, exits: MutableList<Unit> = mutableListOf()) = UpdateEngine(
+    /** The rolling canary Release as the workflow publishes it for [version]. */
+    private fun canaryRelease(version: String, channel: String? = "canary") =
+        release(version, channel = channel, tag = UpdateChannel.CANARY_TAG, prerelease = true)
+
+    private fun engine(
+        http: UpdateHttp,
+        platform: UpdatePlatform,
+        exits: MutableList<Unit> = mutableListOf(),
+        channel: UpdateChannel = UpdateChannel.STABLE,
+        current: AppVersion = this.current,
+    ) = UpdateEngine(
         current = current,
         apiUrl = API,
         keys = listOf(key.generatePublicKey().encoded),
         platform = platform,
+        channel = channel,
         http = http,
         scope = CoroutineScope(Dispatchers.Unconfined),
         exitApp = { exits += Unit },
@@ -136,6 +163,9 @@ class UpdateEngineTest {
         assertNull(AppVersion.parse("0.0.0-dev"))
         assertNull(AppVersion.parse("1.2"))
         assertNull(AppVersion.parse("1.2.3-beta"))
+        assertTrue(AppVersion.parse("1.1.2-canary.57")!! < AppVersion.parse("1.1.2-alpha.1")!!)
+        assertTrue(AppVersion.parse("1.1.2-canary.57")!! < AppVersion.parse("1.1.3-canary.58")!!)
+        assertNull(AppVersion.parse(UpdateChannel.CANARY_TAG))
     }
 
     // --- Signatures ---------------------------------------------------------
@@ -161,37 +191,98 @@ class UpdateEngineTest {
     // --- Checking -----------------------------------------------------------
 
     @Test
-    fun downloads_the_highest_newer_version_betas_included() = runBlocking {
-        val http = FakeHttp(listOf(release("0.1.0-beta.13"), release("0.1.0-beta.16"), release("0.1.0-beta.15")))
+    fun downloads_the_highest_newer_stable_version() = runBlocking {
+        val http = FakeHttp(listOf(release("1.0.13"), release("1.0.16"), release("1.0.15")))
         val updater = engine(http, FakePlatform())
         updater.check()
-        assertEquals(UpdateState.Ready("0.1.0-beta.16"), updater.state.value)
-        val file = File(cache, "update/0.1.0-beta.16/titan-ssh-0.1.0-beta.16-windows-x64.msi")
-        assertEquals("msi of 0.1.0-beta.16", file.readText())
+        assertEquals(UpdateState.Ready("1.0.16"), updater.state.value)
+        val file = File(cache, "update/1.0.16/titan-ssh-1.0.16-windows-x64.msi")
+        assertEquals("msi of 1.0.16", file.readText())
+    }
+
+    @Test
+    fun the_stable_app_never_installs_a_pre_release() = runBlocking {
+        val http = FakeHttp(
+            listOf(
+                release("1.0.15"),
+                release("1.1.0-beta.1"),
+                release("1.0.17", prerelease = true),
+                canaryRelease("1.0.16-canary.40"),
+            ),
+        )
+        val updater = engine(http, FakePlatform())
+        updater.check()
+        assertEquals(UpdateState.Ready("1.0.15"), updater.state.value)
+    }
+
+    @Test
+    fun the_stable_app_rejects_a_canary_manifest() =
+        assertRejected(release("1.0.15", channel = "canary"))
+
+    @Test
+    fun the_canary_app_installs_its_rolling_release() = runBlocking {
+        val updater = engine(
+            FakeHttp(listOf(canaryRelease("1.0.15-canary.41")), single = true),
+            FakePlatform(),
+            channel = UpdateChannel.CANARY,
+            current = AppVersion.parse("1.0.15-canary.40")!!,
+        )
+        updater.check()
+        assertEquals(UpdateState.Ready("1.0.15-canary.41"), updater.state.value)
+    }
+
+    @Test
+    fun the_canary_app_is_up_to_date_with_its_own_build() = runBlocking {
+        val updater = engine(
+            FakeHttp(listOf(canaryRelease("1.0.15-canary.41")), single = true),
+            FakePlatform(),
+            channel = UpdateChannel.CANARY,
+            current = AppVersion.parse("1.0.15-canary.41")!!,
+        )
+        updater.check()
+        assertEquals(UpdateState.UpToDate, updater.state.value)
+    }
+
+    @Test
+    fun the_canary_app_rejects_a_stable_manifest_or_version() = runBlocking {
+        for (published in listOf(canaryRelease("1.0.15-canary.41", channel = null), canaryRelease("1.0.16", channel = "canary"))) {
+            cache.deleteRecursively()
+            val platform = FakePlatform()
+            val updater = engine(
+                FakeHttp(listOf(published), single = true),
+                platform,
+                channel = UpdateChannel.CANARY,
+                current = AppVersion.parse("1.0.15-canary.40")!!,
+            )
+            updater.check()
+            assertIs<UpdateState.Failed>(updater.state.value)
+            updater.beforeExit()
+            assertTrue(platform.installs.isEmpty())
+        }
     }
 
     @Test
     fun nothing_newer_is_up_to_date() = runBlocking {
-        val updater = engine(FakeHttp(listOf(release("0.1.0-beta.14"), release("0.1.0-beta.2"))), FakePlatform())
+        val updater = engine(FakeHttp(listOf(release("1.0.14"), release("1.0.2"))), FakePlatform())
         updater.check()
         assertEquals(UpdateState.UpToDate, updater.state.value)
     }
 
     @Test
     fun ignores_drafts_and_releases_without_a_manifest() = runBlocking {
-        val draft = release("0.1.0-beta.20").let { Published(it.version, it.files, draft = true) }
-        val bare = release("0.1.0-beta.19") { it.remove(UpdateFiles.SIGNATURE) }
-        val updater = engine(FakeHttp(listOf(draft, bare, release("0.1.0-beta.15"))), FakePlatform())
+        val draft = release("1.0.20").let { Published(it.version, it.files, draft = true) }
+        val bare = release("1.0.19") { it.remove(UpdateFiles.SIGNATURE) }
+        val updater = engine(FakeHttp(listOf(draft, bare, release("1.0.15"))), FakePlatform())
         updater.check()
-        assertEquals(UpdateState.Ready("0.1.0-beta.15"), updater.state.value)
+        assertEquals(UpdateState.Ready("1.0.15"), updater.state.value)
     }
 
     @Test
-    fun rejects_a_manifest_signed_by_another_key() = assertRejected(release("0.1.0-beta.15", signer = otherKey))
+    fun rejects_a_manifest_signed_by_another_key() = assertRejected(release("1.0.15", signer = otherKey))
 
     @Test
     fun rejects_a_modified_manifest() = assertRejected(
-        release("0.1.0-beta.15") { files ->
+        release("1.0.15") { files ->
             files[UpdateFiles.MANIFEST] = files.getValue(UpdateFiles.MANIFEST).decodeToString()
                 .replace("\"schema\":1", "\"schema\":1 ").encodeToByteArray()
         },
@@ -199,11 +290,11 @@ class UpdateEngineTest {
 
     @Test
     fun rejects_an_old_signed_manifest_published_under_a_new_tag() =
-        assertRejected(release("0.1.0-beta.15", manifestVersion = "0.1.0-beta.12"))
+        assertRejected(release("1.0.15", manifestVersion = "1.0.12"))
 
     @Test
     fun rejects_a_package_that_does_not_match_the_manifest() = assertRejected(
-        release("0.1.0-beta.15") { it["titan-ssh-0.1.0-beta.15-windows-x64.msi"] = "evil".encodeToByteArray() },
+        release("1.0.15") { it["titan-ssh-1.0.15-windows-x64.msi"] = "evil".encodeToByteArray() },
     )
 
     private fun assertRejected(published: Published) = runBlocking {
@@ -218,26 +309,26 @@ class UpdateEngineTest {
 
     @Test
     fun a_failed_check_keeps_a_ready_update() = runBlocking {
-        val http = FakeHttp(listOf(release("0.1.0-beta.15")))
+        val http = FakeHttp(listOf(release("1.0.15")))
         val updater = engine(http, FakePlatform())
         updater.check()
         http.offline = true
         updater.check()
-        assertEquals(UpdateState.Ready("0.1.0-beta.15"), updater.state.value)
+        assertEquals(UpdateState.Ready("1.0.15"), updater.state.value)
     }
 
     // --- Across restarts ----------------------------------------------------
 
     @Test
     fun a_verified_download_survives_a_restart_and_is_checked_again() = runBlocking {
-        engine(FakeHttp(listOf(release("0.1.0-beta.15"))), FakePlatform()).check()
+        engine(FakeHttp(listOf(release("1.0.15"))), FakePlatform()).check()
 
         val offline = FakeHttp(emptyList())
         val restarted = engine(offline, FakePlatform())
         restarted.start()
-        assertEquals(UpdateState.Ready("0.1.0-beta.15"), restarted.state.value)
+        assertEquals(UpdateState.Ready("1.0.15"), restarted.state.value)
 
-        File(cache, "update/0.1.0-beta.15/titan-ssh-0.1.0-beta.15-windows-x64.msi").writeText("tampered!!!!!!!!!!!!")
+        File(cache, "update/1.0.15/titan-ssh-1.0.15-windows-x64.msi").writeText("tampered!!!!!!!!!!!!")
         val again = engine(offline, FakePlatform())
         again.start()
         assertEquals(UpdateState.Idle, again.state.value)
@@ -247,7 +338,7 @@ class UpdateEngineTest {
     @Test
     fun the_installer_logs_outlive_the_installed_version() = runBlocking {
         val updateDir = File(cache, "update").apply { mkdirs() }
-        File(updateDir, "0.1.0-beta.15").apply { mkdirs() }.resolve("result").writeText("0")
+        File(updateDir, "1.0.15").apply { mkdirs() }.resolve("result").writeText("0")
         listOf("update.log", "helper.log", "relaunch.log", "stray.part").forEach { File(updateDir, it).writeText("x") }
 
         engine(FakeHttp(emptyList()), FakePlatform()).start()
@@ -258,16 +349,16 @@ class UpdateEngineTest {
     @Test
     fun a_package_removed_before_installing_is_downloaded_again() = runBlocking {
         val platform = FakePlatform()
-        val updater = engine(FakeHttp(listOf(release("0.1.0-beta.15"))), platform)
+        val updater = engine(FakeHttp(listOf(release("1.0.15"))), platform)
         updater.check()
-        val file = File(cache, "update/0.1.0-beta.15/titan-ssh-0.1.0-beta.15-windows-x64.msi")
+        val file = File(cache, "update/1.0.15/titan-ssh-1.0.15-windows-x64.msi")
         assertTrue(file.delete())
         updater.beforeExit()
         assertTrue(platform.installs.isEmpty(), "nothing to install")
-        assertEquals(UpdateState.Ready("0.1.0-beta.15"), updater.state.value)
+        assertEquals(UpdateState.Ready("1.0.15"), updater.state.value)
         assertTrue(file.isFile, "downloaded again")
         updater.beforeExit()
-        assertEquals(listOf("0.1.0-beta.15" to false), platform.installs)
+        assertEquals(listOf("1.0.15" to false), platform.installs)
     }
 
     // --- Installing ---------------------------------------------------------
@@ -275,34 +366,34 @@ class UpdateEngineTest {
     @Test
     fun desktop_installs_at_exit_only_with_the_automatic_policy() = runBlocking {
         val platform = FakePlatform()
-        val updater = engine(FakeHttp(listOf(release("0.1.0-beta.15"))), platform)
+        val updater = engine(FakeHttp(listOf(release("1.0.15"))), platform)
         updater.check()
         updater.setPolicy(UpdatePolicy.ASK)
         updater.beforeExit()
         assertTrue(platform.installs.isEmpty())
         updater.setPolicy(UpdatePolicy.AUTO)
         updater.beforeExit()
-        assertEquals(listOf("0.1.0-beta.15" to false), platform.installs)
+        assertEquals(listOf("1.0.15" to false), platform.installs)
         // The installer gets the manifest's digest to check the file once more.
-        assertEquals(listOf(sha256("msi of 0.1.0-beta.15".encodeToByteArray())), platform.digests)
+        assertEquals(listOf(sha256("msi of 1.0.15".encodeToByteArray())), platform.digests)
     }
 
     @Test
     fun install_now_relaunches_and_exits_the_desktop_app() = runBlocking {
         val platform = FakePlatform()
         val exits = mutableListOf<Unit>()
-        val updater = engine(FakeHttp(listOf(release("0.1.0-beta.15"))), platform, exits)
+        val updater = engine(FakeHttp(listOf(release("1.0.15"))), platform, exits)
         updater.check()
         updater.setPolicy(UpdatePolicy.ASK)
         updater.installNow()
-        assertEquals(listOf("0.1.0-beta.15" to true), platform.installs)
+        assertEquals(listOf("1.0.15" to true), platform.installs)
         assertEquals(1, exits.size)
     }
 
     @Test
     fun automatic_installs_stop_after_repeated_failures() = runBlocking {
         val platform = FakePlatform()
-        val updater = engine(FakeHttp(listOf(release("0.1.0-beta.15"))), platform)
+        val updater = engine(FakeHttp(listOf(release("1.0.15"))), platform)
         updater.check()
         repeat(UpdateEngine.MAX_AUTO_ATTEMPTS + 2) { updater.beforeExit() }
         assertEquals(UpdateEngine.MAX_AUTO_ATTEMPTS, platform.installs.size)
@@ -311,7 +402,7 @@ class UpdateEngineTest {
     @Test
     fun android_installs_in_the_background_with_no_tab_open() = runBlocking {
         val platform = FakePlatform(installsInBackground = true)
-        val updater = engine(FakeHttp(listOf(release("0.1.0-beta.15"))), platform)
+        val updater = engine(FakeHttp(listOf(release("1.0.15"))), platform)
         updater.setOpenTabs(2)
         updater.check()
         updater.setForeground(false)
@@ -323,7 +414,7 @@ class UpdateEngineTest {
         updater.setForeground(false)
         assertTrue(platform.installs.isEmpty(), "never when it has to ask")
         updater.setPolicy(UpdatePolicy.AUTO)
-        assertEquals(listOf("0.1.0-beta.15" to false), platform.installs)
+        assertEquals(listOf("1.0.15" to false), platform.installs)
         updater.beforeExit()
         assertEquals(1, platform.installs.size, "Android does not install at exit")
     }
@@ -331,9 +422,9 @@ class UpdateEngineTest {
     @Test
     fun android_waits_for_the_permission_and_the_confirmation() = runBlocking {
         val platform = FakePlatform(installsInBackground = true).apply { permissionMissing = true }
-        val updater = engine(FakeHttp(listOf(release("0.1.0-beta.15"))), platform)
+        val updater = engine(FakeHttp(listOf(release("1.0.15"))), platform)
         updater.check()
-        assertEquals(UpdateState.Ready("0.1.0-beta.15", needsPermission = true), updater.state.value)
+        assertEquals(UpdateState.Ready("1.0.15", needsPermission = true), updater.state.value)
         updater.setForeground(false)
         assertTrue(platform.installs.isEmpty())
 
@@ -341,7 +432,7 @@ class UpdateEngineTest {
         platform.outcome = InstallOutcome.AwaitingUser
         updater.setForeground(true)
         updater.setForeground(false)
-        assertEquals(UpdateState.Ready("0.1.0-beta.15", needsConfirmation = true), updater.state.value)
+        assertEquals(UpdateState.Ready("1.0.15", needsConfirmation = true), updater.state.value)
     }
 
     private companion object {

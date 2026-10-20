@@ -5,7 +5,7 @@ Resumen: 'Workflow de GitHub Actions (gratis en repositorios públicos) disparad
 Decisiones: 'Sigue [[ADR-0011 Distribución y canales de publicación]] §3. Fuente única de artefactos para todos los canales.'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-27T11:55:00+02:00
+Última modificación: 2026-10-20T12:00:00+02:00
 ---
 
 # Pipeline de release en GitHub Actions
@@ -206,3 +206,27 @@ completo: tag, CI, Release, descarga y actualización firmada.
   - Probado con un `workflow_dispatch` el 2026-09-27 (run `36310475296`):
     todos los jobs acaban bien, `agent` en unos 3 min, y el resto empieza
     después de él. Falta verlo publicado con el siguiente tag.
+
+## Canal canary (2026-10-20)
+
+Añadido por [[Canal canary instalable junto a la app estable]]
+([[ADR-0027 Canal canary instalable junto a la app estable]]). El mismo
+`release.yml` construye también la **canary**, otra app que se instala junto a
+la estable:
+
+- **Disparo**: cada push a `main` que no toque solo `docs/` o ficheros `.md`,
+  o un `workflow_dispatch` con `channel = canary` sobre `main`. Un push nuevo
+  cancela el run de canary anterior. Los tags no cambian.
+- **Versión**: la del parche siguiente al último tag estable más
+  `-canary.<run>` (`1.1.2-canary.57`), con `<run>` el número de ejecución del
+  workflow. El job `version` da también `channel` y `app` (`titan-ssh` o
+  `titan-ssh-canary`), y los jobs pasan el canal a Gradle con
+  `ORG_GRADLE_PROJECT_titanChannel`.
+- **Paquetes**: solo APK, MSI y `tar.gz`, con nombres `titan-ssh-canary-…`.
+  Sin AAB, `.deb` ni `.rpm`. El job `test` pasa los tests como build de
+  desarrollo: esperan los nombres de la estable.
+- **Publicación** (job `canary`): `update-manifest.sh … canary` firma un
+  manifiesto con `channel: canary`, y el Release `canary` (pre-release, nunca
+  *latest*) se borra con su tag y se crea de nuevo sobre el commit. Así solo
+  guarda la última build. `publish`, `aur` y `winget` solo corren con tag.
+

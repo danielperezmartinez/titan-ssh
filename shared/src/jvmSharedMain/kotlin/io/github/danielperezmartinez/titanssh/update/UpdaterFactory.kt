@@ -16,5 +16,5 @@ internal fun buildUpdater(platform: () -> UpdatePlatform?, unavailableReason: ()
     unavailableReason()?.let { return UnavailableUpdater(it) }
     val resolved = runCatching { platform() }.getOrNull()
         ?: return UnavailableUpdater("Esta instalación no se puede actualizar desde la app.")
-    return UpdateEngine(current, BuildInfo.UPDATE_API, keys, resolved)
+    return UpdateEngine(current, BuildInfo.UPDATE_API, keys, resolved, UpdateChannel.of(BuildInfo.CHANNEL))
 }

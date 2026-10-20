@@ -5,12 +5,14 @@ import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import io.github.danielperezmartinez.titanssh.App
+import io.github.danielperezmartinez.titanssh.AppChannel
 import io.github.danielperezmartinez.titanssh.update.AppUpdates
 import javax.imageio.ImageIO
 
-// Window/taskbar icon, generated from branding/icon.svg by branding/RenderIcon.java.
+// Window/taskbar icon, generated from branding/icon.svg by branding/RenderIcon.java
+// (the canary's own, ADR-0027).
 private val windowIcon = BitmapPainter(
-    ImageIO.read(checkNotNull(object {}.javaClass.getResource("/titan-ssh.png"))).toComposeImageBitmap(),
+    ImageIO.read(checkNotNull(object {}.javaClass.getResource("/${AppChannel.appName}.png"))).toComposeImageBitmap(),
 )
 
 fun main() = application {
@@ -22,7 +24,7 @@ fun main() = application {
             AppUpdates.updater.beforeExit()
             exitApplication()
         },
-        title = "titan-ssh",
+        title = AppChannel.displayName,
         icon = windowIcon,
     ) {
         App()

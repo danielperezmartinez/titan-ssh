@@ -18,8 +18,16 @@ plugins {
 //   3. the development value DEV_VERSION, which no release can be mistaken for.
 //
 // Accepted form: SemVer core `X.Y.Z` plus an optional pre-release `alpha.N`,
-// `beta.N` or `rc.N` (N in 1..29). Anything else fails the build, so a typo in a
-// tag never ships a package with a nonsensical version.
+// `beta.N` or `rc.N` (N in 1..29), or `canary.N` for the canary app. Anything
+// else fails the build, so a typo in a tag never ships a package with a
+// nonsensical version.
+//
+// Channel (ADR-0027): `-PtitanChannel=canary` builds the canary app, a separate
+// app installed next to the stable one; `stable` is the default. A canary
+// version needs the canary channel and the other way round (a development
+// build fits both). The canary's version is `X.Y.Z-canary.N`, with N the CI run
+// number, and its counters come from N alone: it is another app, so they never
+// meet the stable ones.
 //
 // Derived values (published through rootProject.extra):
 //   titanVersion         full string, shown in the app (versionName, About).
@@ -40,6 +48,10 @@ plugins {
 //                        so a pre-release orders below its final version.
 //   titanRpmVersion      same as titanDebVersion: RPM also sorts `~` first and
 //                        does not allow `-` in a version.
+//   titanChannel         `stable` or `canary`.
+//
+// Canary: titanVersionCode = N and titanMsiVersion = `X.Y.N` (N <= 65535), both
+// increasing with every CI run.
 val DEV_VERSION = "0.0.0-dev"
 
 val titanVersion: String = (findProperty("titanVersion") as String?)?.removePrefix("v")
@@ -58,7 +70,12 @@ fun gitExactTag(): String? = try {
     null
 }
 
-val versionRegex = Regex("""^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?$""")
+val titanChannel: String = (findProperty("titanChannel") as String?)?.takeIf { it.isNotBlank() } ?: "stable"
+if (titanChannel != "stable" && titanChannel != "canary") {
+    throw GradleException("Invalid titanChannel '$titanChannel': expected stable or canary")
+}
+
+val versionRegex = Regex("""^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc|canary)\.(\d+))?$""")
 
 if (titanVersion == DEV_VERSION) {
     extra["titanVersionCode"] = 1
@@ -67,32 +84,42 @@ if (titanVersion == DEV_VERSION) {
     extra["titanDebVersion"] = "0.0.0~dev"
 } else {
     val match = versionRegex.matchEntire(titanVersion)
-        ?: throw GradleException("Invalid titanVersion '$titanVersion': expected X.Y.Z or X.Y.Z-(alpha|beta|rc).N")
+        ?: throw GradleException("Invalid titanVersion '$titanVersion': expected X.Y.Z or X.Y.Z-(alpha|beta|rc|canary).N")
     val (major, minor, patch) = match.groupValues.subList(1, 4).map { it.toInt() }
     val preKind = match.groupValues[4]
     val preNumber = match.groupValues[5].toIntOrNull()
-    val rank = when (preKind) {
-        "" -> 99
-        else -> {
-            require(preNumber in 1..29) { "Pre-release number in '$titanVersion' must be 1..29" }
-            preNumber!! + when (preKind) { "alpha" -> 0; "beta" -> 30; else -> 60 }
-        }
+    if ((preKind == "canary") != (titanChannel == "canary")) {
+        throw GradleException("titanVersion '$titanVersion' does not match titanChannel '$titanChannel': canary versions are only for the canary channel")
     }
     // Tightest of the versionCode and MSI limits documented above.
     require(major <= 255 && minor <= 99 && patch <= 99) {
         "titanVersion '$titanVersion' is out of range (X <= 255, Y <= 99, Z <= 99)"
     }
-    extra["titanVersionCode"] = major * 1_000_000 + minor * 10_000 + patch * 100 + rank
+    if (preKind == "canary") {
+        require(preNumber in 1..65535) { "Canary number in '$titanVersion' must be 1..65535" }
+        extra["titanVersionCode"] = preNumber!!
+        extra["titanMsiVersion"] = "$major.$minor.$preNumber"
+    } else {
+        val rank = when (preKind) {
+            "" -> 99
+            else -> {
+                require(preNumber in 1..29) { "Pre-release number in '$titanVersion' must be 1..29" }
+                preNumber!! + when (preKind) { "alpha" -> 0; "beta" -> 30; else -> 60 }
+            }
+        }
+        extra["titanVersionCode"] = major * 1_000_000 + minor * 10_000 + patch * 100 + rank
+        extra["titanMsiVersion"] = "$major.$minor.${patch * 100 + rank}"
+    }
     extra["titanPackageVersion"] = "$major.$minor.$patch"
-    extra["titanMsiVersion"] = "$major.$minor.${patch * 100 + rank}"
     extra["titanDebVersion"] = if (preKind.isEmpty()) "$major.$minor.$patch" else "$major.$minor.$patch~$preKind.$preNumber"
 }
 extra["titanRpmVersion"] = extra["titanDebVersion"]
 extra["titanVersion"] = titanVersion
+extra["titanChannel"] = titanChannel
 // True for any real version (flag or tag): release-only requirements key off it.
 extra["titanIsRelease"] = titanVersion != DEV_VERSION
 
-val versionValues = listOf("titanVersion", "titanVersionCode", "titanPackageVersion", "titanMsiVersion", "titanDebVersion", "titanRpmVersion")
+val versionValues = listOf("titanVersion", "titanChannel", "titanVersionCode", "titanPackageVersion", "titanMsiVersion", "titanDebVersion", "titanRpmVersion")
     .associateWith { extra[it].toString() }
 tasks.register("printVersion") {
     description = "Prints the resolved app version and every value derived from it."

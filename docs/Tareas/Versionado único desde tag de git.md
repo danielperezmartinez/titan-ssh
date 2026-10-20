@@ -5,7 +5,7 @@ Resumen: 'Una sola versión para Android, escritorio y agente, sacada del tag de
 Decisiones: 'Sigue [[ADR-0011 Distribución y canales de publicación]] §3. El agente comparte la versión de la app (no lleva una propia): se estampa con -ldflags; la compatibilidad entre versiones la da el protocolo en el HELLO. versionCode = X*1000000 + Y*10000 + Z*100 + rango de pre-release (alpha N, beta 30+N, rc 60+N, estable 99). MSI con el rango en el tercer campo (X.Y.Z*100+rango) para que una beta actualice a otra; deb con ~ para el pre-release.'
 Bloqueada: []
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-24T14:00:00+02:00
+Última modificación: 2026-10-20T12:00:00+02:00
 ---
 
 # Versionado único desde tag de git
@@ -104,3 +104,14 @@ Pendiente para otras tareas:
   [[Instalación del agente en destinos Windows y multi-SO]].
 - CI debe pasar `-PtitanVersion=${tag#v}` en
   [[Pipeline de release en GitHub Actions]].
+
+## Canal canary (2026-10-20)
+
+[[ADR-0027 Canal canary instalable junto a la app estable]] añade
+`-PtitanChannel=stable|canary` (por defecto `stable`) y la forma
+`X.Y.Z-canary.N`, solo válida con el canal `canary` y al revés: Gradle falla si
+no casan (un build de desarrollo vale para los dos). La canary es otra app, así
+que sus contadores salen solo de `N`, el número de ejecución de CI:
+`versionCode = N` y MSI `X.Y.N` (`N` ≤ 65535). `printVersion` muestra también
+`titanChannel`. El agente recibe el canal con `-X main.channel=…`, además de la
+versión.

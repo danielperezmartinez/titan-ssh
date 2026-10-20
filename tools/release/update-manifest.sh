@@ -3,9 +3,12 @@
 # lists the version and, for each package the app can install, its kind, name,
 # size and SHA-256; titan-update.json.sig is its raw Ed25519 signature.
 #
-# usage: update-manifest.sh DIST_DIR VERSION KEYS_FILE
+# usage: update-manifest.sh DIST_DIR VERSION KEYS_FILE CHANNEL
 #   DIST_DIR   the Release assets; the two files are written there
 #   KEYS_FILE  shared/update-keys.txt, the public keys the app trusts
+#   CHANNEL    stable | canary (ADR-0027). It is signed with the rest, so a
+#              canary manifest never passes for a stable one; the canary
+#              ships only the APK, the MSI and the tar.gz.
 # The private key (PEM, as `openssl genpkey -algorithm ed25519` writes it)
 # comes from the TITAN_UPDATE_SIGNING_KEY environment variable and is never
 # written anywhere but a temporary file that is removed on exit.
@@ -13,13 +16,19 @@
 # Needs OpenSSL 3 (pkeyutl -rawin) and jq.
 set -euo pipefail
 
-dist=$1 version=$2 keys=$3
+dist=$1 version=$2 keys=$3 channel=$4
 
 # Errors go to stdout: GitHub turns ::error:: into an annotation only there.
 fail() {
     echo "::error::$1"
     exit 1
 }
+
+case "$channel" in
+    stable) required=(msi apk deb rpm tar.gz) ;;
+    canary) required=(msi apk tar.gz) ;;
+    *) fail "Unknown channel '$channel': expected stable or canary" ;;
+esac
 
 if [[ -z "${TITAN_UPDATE_SIGNING_KEY:-}" ]]; then
     fail "Secret TITAN_UPDATE_SIGNING_KEY is not set; the apps could not verify this release"
@@ -62,11 +71,12 @@ for file in *; do
     artifacts+=("$(jq -cn --arg kind "$kind" --arg name "$file" --argjson size "$size" --arg sha "$sha" \
         '{kind: $kind, name: $name, size: $size, sha256: $sha}')")
 done
-for kind in msi apk deb rpm tar.gz; do
+for kind in "${required[@]}"; do
     [[ -n "${seen[$kind]:-}" ]] || fail "No $kind package in $dist"
 done
 
-printf '%s\n' "${artifacts[@]}" | jq -s --arg version "$version" '{schema: 1, version: $version, artifacts: .}' \
+printf '%s\n' "${artifacts[@]}" | jq -s --arg version "$version" --arg channel "$channel" \
+    '{schema: 1, version: $version, channel: $channel, artifacts: .}' \
     >titan-update.json
 openssl pkeyutl -sign -rawin -inkey "$key" -in titan-update.json -out titan-update.json.sig
 openssl pkeyutl -verify -rawin -pubin -inkey "$tmp/pub.pem" -in titan-update.json -sigfile titan-update.json.sig

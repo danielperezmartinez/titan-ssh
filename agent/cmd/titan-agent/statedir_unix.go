@@ -15,13 +15,13 @@ import (
 // relative $XDG_STATE_HOME is ignored, as the XDG spec requires.
 func defaultStateDir() (string, error) {
 	if dir := os.Getenv("XDG_STATE_HOME"); filepath.IsAbs(dir) {
-		return filepath.Join(dir, stateDirName), nil
+		return filepath.Join(dir, stateDirName()), nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".local", "state", stateDirName), nil
+	return filepath.Join(home, ".local", "state", stateDirName()), nil
 }
 
 // ensureStateDir creates dir (0700) if missing and refuses to use it unless it

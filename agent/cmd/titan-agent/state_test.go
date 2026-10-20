@@ -14,7 +14,7 @@ import (
 // Unix it is group/other-readable, which ensureStateDir rightly rejects.
 func testStateDir(t *testing.T) string {
 	t.Helper()
-	dir := filepath.Join(t.TempDir(), stateDirName)
+	dir := filepath.Join(t.TempDir(), stateDirName())
 	if err := ensureStateDir(dir); err != nil {
 		t.Fatal(err)
 	}
@@ -128,5 +128,21 @@ func TestContractLineIsOneLine(t *testing.T) {
 	}
 	if got, want := ae.contractLine(), "TITAN_AGENT_ERROR E_LOCK flock: no locks available"; got != want {
 		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+// The canary app's agent keeps its own state dir and desktop task (ADR-0027).
+func TestAppNameFollowsTheChannel(t *testing.T) {
+	saved := channel
+	t.Cleanup(func() { channel = saved })
+	for c, want := range map[string]string{
+		"stable": "titan-ssh",
+		"":       "titan-ssh",
+		"canary": "titan-ssh-canary",
+	} {
+		channel = c
+		if got := appName(); got != want {
+			t.Errorf("appName() with channel %q = %q, want %q", c, got, want)
+		}
 	}
 }

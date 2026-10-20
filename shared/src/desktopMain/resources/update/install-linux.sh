@@ -56,9 +56,11 @@ status=0
 case "$kind" in
     tar.gz)
         # Unpack next to the current image, then swap the folders, keeping the
-        # old one until the new one is in place.
+        # old one until the new one is in place. The tar.gz holds one folder
+        # named like the launcher: titan-ssh, or titan-ssh-canary (ADR-0027).
+        app=$(basename "$launcher")
         parent=$(dirname "$root")
-        stage=$(mktemp -d "$parent/.titan-ssh-update.XXXXXX") || status=1
+        stage=$(mktemp -d "$parent/.$app-update.XXXXXX") || status=1
         if [ "$status" -eq 0 ]; then
             # The same user owns both files: checked once more, then unpacked.
             if matches "$pkg" "$sha"; then
@@ -67,10 +69,10 @@ case "$kind" in
                 status=3
             fi
         fi
-        if [ "$status" -eq 0 ] && [ -x "$stage/titan-ssh/bin/titan-ssh" ]; then
+        if [ "$status" -eq 0 ] && [ -x "$stage/$app/bin/$app" ]; then
             old="$root.old.$$"
             if mv "$root" "$old"; then
-                if mv "$stage/titan-ssh" "$root"; then
+                if mv "$stage/$app" "$root"; then
                     rm -rf "$old"
                 else
                     mv "$old" "$root"

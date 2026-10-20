@@ -12,10 +12,23 @@ import (
 
 // Names inside the per-user state dir (ADR-0009 §2-3).
 const (
-	stateDirName  = "titan-ssh"  // under the platform's state / app-data root
 	lockFileName  = "agent.lock" // single-instance lock, held by the live daemon
 	stateFileName = "agent.json" // rendezvous record, written by the lock holder
 )
+
+// appName names everything the agent keeps per user: titan-ssh, or
+// titan-ssh-canary for the canary app's agent (ADR-0027), so the two apps'
+// agents never share a state dir, a lock or a desktop helper on a destination.
+func appName() string {
+	if channel == "canary" {
+		return "titan-ssh-canary"
+	}
+	return "titan-ssh"
+}
+
+// stateDirName is the state dir's name under the platform's state or
+// app-data root.
+func stateDirName() string { return appName() }
 
 const (
 	stateSchema = 1

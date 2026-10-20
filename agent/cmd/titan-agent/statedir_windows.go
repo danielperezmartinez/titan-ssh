@@ -14,13 +14,13 @@ import (
 // meant for disposable data), falling back to the profile's AppData\Local.
 func defaultStateDir() (string, error) {
 	if dir := os.Getenv("LOCALAPPDATA"); filepath.IsAbs(dir) {
-		return filepath.Join(dir, stateDirName), nil
+		return filepath.Join(dir, stateDirName()), nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, "AppData", "Local", stateDirName), nil
+	return filepath.Join(home, "AppData", "Local", stateDirName()), nil
 }
 
 // ensureStateDir creates dir if missing, private to the user (acl_windows.go),

@@ -17,7 +17,7 @@ func TestDesktopTaskNameIsChosenOnceAndKept(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(first, desktopTaskPrefix) || len(first) <= len(desktopTaskPrefix)+16 {
+	if !strings.HasPrefix(first, desktopTaskPrefix()) || len(first) <= len(desktopTaskPrefix())+16 {
 		t.Fatalf("task name %q has no random part", first)
 	}
 	again, err := desktopTaskName(dir)

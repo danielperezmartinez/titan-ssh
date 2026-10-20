@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -22,10 +23,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import io.github.danielperezmartinez.titanssh.AppChannel
 import io.github.danielperezmartinez.titanssh.config.ConfigController
 import io.github.danielperezmartinez.titanssh.config.Group
 import io.github.danielperezmartinez.titanssh.config.GroupScope
@@ -34,9 +37,11 @@ import io.github.danielperezmartinez.titanssh.config.Host
 import io.github.danielperezmartinez.titanssh.config.ResilienceLevel
 import io.github.danielperezmartinez.titanssh.config.Session
 import io.github.danielperezmartinez.titanssh.config.SessionType
+import io.github.danielperezmartinez.titanssh.config.StableCopyResult
 import io.github.danielperezmartinez.titanssh.config.LibraryScript
 import io.github.danielperezmartinez.titanssh.config.TitanConfig
 import io.github.danielperezmartinez.titanssh.config.UpdatePolicy
+import io.github.danielperezmartinez.titanssh.config.createStableCopier
 import io.github.danielperezmartinez.titanssh.config.resolve
 import io.github.danielperezmartinez.titanssh.config.sessionsUsing
 import io.github.danielperezmartinez.titanssh.isScreenCaptureControlSupported
@@ -46,6 +51,7 @@ import io.github.danielperezmartinez.titanssh.theme.TitanColors
 import io.github.danielperezmartinez.titanssh.theme.TitanDimens
 import io.github.danielperezmartinez.titanssh.update.AppUpdates
 import io.github.danielperezmartinez.titanssh.update.UpdateState
+import kotlinx.coroutines.launch
 
 private enum class ConfigTab(val label: String) {
     HOSTS("Hosts"),
@@ -524,6 +530,68 @@ private fun LibraryScriptList(
     }
 }
 
+/**
+ * The canary's copy of the stable app's configuration (ADR-0027 §4): it
+ * replaces the canary's own, so it asks first. Absent in the stable app.
+ */
+@Composable
+private fun StableCopySection(controller: ConfigController) {
+    val copier = remember { createStableCopier() } ?: return
+    val scope = rememberCoroutineScope()
+    var confirming by remember { mutableStateOf(false) }
+    var copying by remember { mutableStateOf(false) }
+    var outcome by remember { mutableStateOf<String?>(null) }
+    SectionHeader("App estable")
+    Caption(
+        if (copier.copiesSecrets) {
+            "Copia los hosts, sesiones, scripts, ajustes y hosts conocidos de titan-ssh, con sus " +
+                "contraseñas y claves. La app estable no cambia."
+        } else {
+            "Copia los hosts, sesiones, scripts, ajustes y hosts conocidos de titan-ssh. Las " +
+                "credenciales no salen de la app estable: hay que darlas de alta aquí. La app estable no cambia."
+        },
+    )
+    Spacer(Modifier.height(TitanDimens.SpaceSm))
+    if (!confirming) {
+        TitanButton("[>] Copiar de la app estable", onClick = { confirming = true; outcome = null }, enabled = !copying)
+    } else {
+        Caption("Sustituye toda la configuración de la canary por la de la app estable.")
+        Spacer(Modifier.height(TitanDimens.SpaceSm))
+        Row {
+            TitanButton("[x] Sustituir", kind = ButtonKind.DANGER, onClick = {
+                confirming = false
+                copying = true
+                scope.launch {
+                    val result = copier.copy()
+                    if (result is StableCopyResult.Copied) controller.reload()
+                    outcome = result.describe()
+                    copying = false
+                }
+            })
+            Spacer(Modifier.width(TitanDimens.SpaceSm))
+            TitanButton("[ ] Cancelar", onClick = { confirming = false })
+        }
+    }
+    outcome?.let {
+        Spacer(Modifier.height(TitanDimens.SpaceSm))
+        Caption(it)
+    }
+}
+
+private fun StableCopyResult.describe(): String = when (this) {
+    is StableCopyResult.NotCopied -> "No se ha copiado nada: $reason."
+    is StableCopyResult.Copied -> buildString {
+        append("Copiados ${count(hosts, "host", "hosts")} y ${count(sessions, "sesión", "sesiones")}")
+        if (secrets > 0) append(", con ${count(secrets, "credencial", "credenciales")}")
+        append(".")
+        if (missingSecrets > 0) {
+            append(" ${count(missingSecrets, "credencial no estaba", "credenciales no estaban")} en la app estable.")
+        }
+    }
+}
+
+private fun count(n: Int, one: String, many: String): String = "$n ${if (n == 1) one else many}"
+
 /** App-wide options: updates everywhere, screen capture where the platform controls it. */
 @Composable
 private fun SettingsList(controller: ConfigController, config: TitanConfig, openTabs: () -> Int) {
@@ -540,12 +608,19 @@ private fun SettingsList(controller: ConfigController, config: TitanConfig, open
             )
             Spacer(Modifier.height(TitanDimens.SpaceSm))
             Caption(
-                "La app busca versiones nuevas en GitHub, incluidas las beta, y solo instala las " +
-                    "firmadas por el proyecto. Nunca cierra pestañas abiertas por su cuenta.",
+                if (AppChannel.isCanary) {
+                    "La canary se actualiza con cada build de main que se publica en GitHub, y solo " +
+                        "instala las firmadas por el proyecto. Nunca cierra pestañas abiertas por su cuenta."
+                } else {
+                    "La app busca versiones estables nuevas en GitHub y solo instala las firmadas " +
+                        "por el proyecto. Nunca cierra pestañas abiertas por su cuenta."
+                },
             )
             Spacer(Modifier.height(TitanDimens.SpaceSm))
         }
         UpdateStatus(updater, config.settings.updates, openTabs)
+
+        StableCopySection(controller)
 
         if (isScreenCaptureControlSupported()) {
             SectionHeader("Privacidad")

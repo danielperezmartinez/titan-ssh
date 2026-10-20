@@ -104,7 +104,11 @@ class AgentDownloader(
     }
 
     companion object {
-        /** Base of the Release download URLs; the tag is `v<version>`. */
+        /**
+         * Base of the Release download URLs; the tag is `v<version>`, or the
+         * rolling `canary` for a canary version (ADR-0027), whose assets are
+         * replaced by every canary build: an outdated canary updates first.
+         */
         const val RELEASES_URL = "https://github.com/danielperezmartinez/titan-ssh/releases/download"
 
         /** Upper bound for a download: the agent is a few megabytes. */
@@ -115,7 +119,10 @@ class AgentDownloader(
             "titan-agent-$version-${target.slug}${target.executableSuffix}"
 
         fun downloadUrl(version: String, target: AgentTarget): String =
-            "$RELEASES_URL/v$version/${assetName(version, target)}"
+            "$RELEASES_URL/${releaseTag(version)}/${assetName(version, target)}"
+
+        private fun releaseTag(version: String): String =
+            if ("-canary." in version) "canary" else "v$version"
 
         private suspend fun httpGet(url: String): ByteArray = withContext(Dispatchers.IO) {
             // GitHub answers with a redirect to its download host (https to

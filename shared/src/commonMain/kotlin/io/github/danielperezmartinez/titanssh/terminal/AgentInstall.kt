@@ -1,5 +1,6 @@
 package io.github.danielperezmartinez.titanssh.terminal
 
+import io.github.danielperezmartinez.titanssh.AppChannel
 import io.github.danielperezmartinez.titanssh.ssh.SshSession
 
 /**
@@ -56,18 +57,23 @@ object AgentInstall {
 
     /**
      * Install directory on a Unix destination when its home is unknown (no SFTP):
-     * left to the shell, which expands the `~`.
+     * left to the shell, which expands the `~`. Like every folder here it is
+     * named after [AppChannel.appName], so the canary's agent never meets the
+     * stable one's (ADR-0027).
      */
-    const val DEFAULT_BASE_DIR: String = "~/.local/share/titan-ssh"
+    val DEFAULT_BASE_DIR: String = "~/.local/share/${AppChannel.appName}"
 
     /** Install directory under the Unix home (user space, no root). */
-    const val UNIX_INSTALL_SUBDIR: String = ".local/share/titan-ssh"
+    val UNIX_INSTALL_SUBDIR: String = ".local/share/${AppChannel.appName}"
 
     /**
      * Install directory under `%LOCALAPPDATA%`. It is also the agent's state
      * directory (`agent.lock`, `agent.json`), so cleanup only touches `agent-*`.
      */
-    const val WINDOWS_INSTALL_SUBDIR: String = "titan-ssh"
+    val WINDOWS_INSTALL_SUBDIR: String = AppChannel.appName
+
+    /** The agent's state directory on a Unix destination, as the agent names it. */
+    val UNIX_STATE_DIR: String = "~/.local/state/${AppChannel.appName}"
 
     /**
      * Echoes the architecture and `%LOCALAPPDATA%` on Windows. Under `cmd.exe` the

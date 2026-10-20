@@ -50,6 +50,13 @@ public class RenderIcon {
     static final int[] ICO_SIZES = {16, 20, 24, 32, 40, 48, 64, 128, 256};
     static final int[] PNG_SIZES = {16, 24, 32, 48, 64, 128, 256, 512};
 
+    /**
+     * The canary app (ADR-0027) wears the same icon with its cursor in the app's
+     * orange (TitanColors.Warning) instead of the accent blue.
+     */
+    static final String CANARY_RECT = "cursor";
+    static final Color CANARY_FILL = Color.decode("#ff9f0a");
+
     record Box(String id, double x, double y, double w, double h, double rx,
                Color fill, Color stroke, double strokeWidth) {}
 
@@ -91,7 +98,41 @@ public class RenderIcon {
                         + "    <color name=\"ic_launcher_background\">" + hex(plate.fill()) + "</color>\n"
                         + "</resources>\n").getBytes(StandardCharsets.UTF_8));
 
+        renderCanary(root, plate, glyph);
+
         System.out.println("Icon assets regenerated from branding/icon.svg");
+    }
+
+    /**
+     * The canary's icon assets, next to the stable ones: desktop icons and
+     * hicolor PNGs with a `-canary` suffix, its scalable SVG, and the Android
+     * foreground in `src/canary/res`, which the build overlays only when it
+     * builds the canary (the monochrome layer and the background are shared).
+     */
+    static void renderCanary(Path root, Box plate, List<Box> stableGlyph) throws IOException {
+        if (stableGlyph.stream().noneMatch(b -> b.id().equals(CANARY_RECT))) {
+            throw new IllegalStateException("icon.svg has no rect id=\"" + CANARY_RECT + "\" to recolour");
+        }
+        List<Box> glyph = stableGlyph.stream()
+                .map(b -> !b.id().equals(CANARY_RECT) ? b : new Box(b.id(), b.x(), b.y(), b.w(), b.h(), b.rx(),
+                        CANARY_FILL, b.stroke(), b.strokeWidth()))
+                .toList();
+        Path desktop = root.resolve("desktopApp");
+        List<byte[]> icoImages = new ArrayList<>();
+        for (int size : ICO_SIZES) icoImages.add(png(renderIcon(plate, glyph, size)));
+        write(desktop.resolve("icons/titan-ssh-canary.ico"), ico(ICO_SIZES, icoImages));
+        write(desktop.resolve("icons/titan-ssh-canary.png"), png(renderIcon(plate, glyph, 512)));
+        write(desktop.resolve("src/main/resources/titan-ssh-canary.png"), png(renderIcon(plate, glyph, 256)));
+        Path generated = root.resolve("branding/generated");
+        for (int size : PNG_SIZES) {
+            write(generated.resolve("png/titan-ssh-canary-" + size + ".png"), png(renderIcon(plate, glyph, size)));
+        }
+        String svg = Files.readString(root.resolve("branding/icon.svg"), StandardCharsets.UTF_8);
+        String recoloured = svg.replaceFirst("(<rect id=\"" + CANARY_RECT + "\"[^>]*fill=\")[^\"]*\"",
+                "$1" + hex(CANARY_FILL).toLowerCase(Locale.ROOT) + "\"");
+        if (recoloured.equals(svg)) throw new IllegalStateException("could not recolour the SVG's " + CANARY_RECT);
+        write(generated.resolve("icon-canary.svg"), recoloured.getBytes(StandardCharsets.UTF_8));
+        write(root.resolve("androidApp/src/canary/res/drawable/ic_launcher_foreground.xml"), vector(glyph, null));
     }
 
     static List<Box> parse(Path svg) throws Exception {

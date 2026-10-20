@@ -33,6 +33,7 @@ plugins {
 // The agent carries the single app version (root build file): it is stamped
 // into the binary with -ldflags and drives the versioned install path.
 val titanVersion = rootProject.extra["titanVersion"] as String
+val titanChannel = rootProject.extra["titanChannel"] as String
 val agentModuleDir = rootProject.file("agent")
 val agentBinariesDir = layout.buildDirectory.dir("generated/agentBinaries")
 val agentAllDir = layout.buildDirectory.dir("agentBinaries/all")
@@ -90,7 +91,8 @@ fun resolveGo(): String? {
 //
 // It also carries what the in-app updater trusts (ADR-0025): the Ed25519 public
 // keys of update-keys.txt (one base64 raw key per line, `#` comments) and the
-// Releases API it polls. For a local end-to-end test,
+// Releases API it polls: the list of Releases for the stable app, and only the
+// rolling `canary` Release for the canary app (ADR-0027). For a local end-to-end test,
 // -PtitanUpdateExtraKeys=<base64,...> adds a throwaway key and
 // -PtitanUpdateApi=<url> points it at a local origin; CI passes neither.
 val updateKeysFile = file("update-keys.txt")
@@ -103,11 +105,16 @@ updateKeys.forEach { key ->
     if (raw?.size != 32) throw GradleException("update key '$key' is not a base64 raw Ed25519 public key (32 bytes)")
 }
 val updateApi = (findProperty("titanUpdateApi") as String?)
-    ?: "https://api.github.com/repos/danielperezmartinez/titan-ssh/releases?per_page=10"
+    ?: if (titanChannel == "canary") {
+        "https://api.github.com/repos/danielperezmartinez/titan-ssh/releases/tags/canary"
+    } else {
+        "https://api.github.com/repos/danielperezmartinez/titan-ssh/releases?per_page=10"
+    }
 val buildInfoDir = layout.buildDirectory.dir("generated/buildInfo/commonMain/kotlin")
 val generateBuildInfo by tasks.registering {
     description = "Generates BuildInfo.kt with the single app version."
     inputs.property("titanVersion", titanVersion)
+    inputs.property("titanChannel", titanChannel)
     inputs.property("updateKeys", updateKeys)
     inputs.property("updateApi", updateApi)
     outputs.dir(buildInfoDir)
@@ -126,6 +133,9 @@ val generateBuildInfo by tasks.registering {
             |
             |    /** False for a development build (no release version was resolved). */
             |    const val IS_RELEASE: Boolean = ${titanVersion != "0.0.0-dev"}
+            |
+            |    /** `stable`, or `canary` for the canary app installed next to it (ADR-0027). */
+            |    const val CHANNEL: String = "$titanChannel"
             |
             |    /** Ed25519 public keys (base64, raw) that may sign an update manifest (ADR-0025). */
             |    val UPDATE_KEYS: List<String> = listOf(${updateKeys.joinToString(", ") { "\"$it\"" }})
@@ -245,6 +255,7 @@ val buildAgentBinaries by tasks.registering {
     description = "Builds titan-agent (level-3) for every target, bundles the main ones and pins every digest."
     if (agentPrebuiltDir != null) inputs.dir(agentPrebuiltDir) else inputs.dir(agentModuleDir)
     inputs.property("titanVersion", titanVersion)
+    inputs.property("titanChannel", titanChannel)
     inputs.property("agentTargets", agentTargets.map { "${it.fileName}:${it.bundled}" })
     outputs.dir(agentBinariesDir)
     outputs.dir(agentAllDir)
@@ -273,7 +284,7 @@ val buildAgentBinaries by tasks.registering {
             agentTargets.forEach { t ->
                 val failure = try {
                     val pb = ProcessBuilder(
-                        go, "build", "-trimpath", "-ldflags", "-s -w -X main.version=$titanVersion",
+                        go, "build", "-trimpath", "-ldflags", "-s -w -X main.version=$titanVersion -X main.channel=$titanChannel",
                         "-o", File(allDir, t.fileName).absolutePath, "./cmd/titan-agent",
                     )
                     pb.directory(agentModuleDir)

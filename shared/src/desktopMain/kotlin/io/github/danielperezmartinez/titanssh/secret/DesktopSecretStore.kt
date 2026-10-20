@@ -3,13 +3,15 @@ package io.github.danielperezmartinez.titanssh.secret
 import com.github.javakeyring.BackendNotSupportedException
 import com.github.javakeyring.Keyring
 import com.github.javakeyring.PasswordAccessException
+import io.github.danielperezmartinez.titanssh.AppChannel
 import java.util.Base64
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-actual fun createSecretStore(): SecretStore = DesktopSecretStore(SERVICE_NAMESPACE)
+actual fun createSecretStore(): SecretStore = DesktopSecretStore(AppChannel.appName)
 
-private const val SERVICE_NAMESPACE = "titan-ssh"
+/** The stable app's secrets, which the canary copies from (ADR-0027 §4). */
+internal fun stableSecretStore(): SecretStore = DesktopSecretStore(AppChannel.STABLE_APP_NAME)
 
 /**
  * [SecretStore] backed by the desktop OS secret store (ADR-0001) through

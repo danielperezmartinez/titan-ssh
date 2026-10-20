@@ -31,6 +31,11 @@ dependencies {
 
 val titanVersion = rootProject.extra["titanVersion"] as String
 
+// The canary app (ADR-0027) is a separate app: its own package, install folder,
+// MSI upgrade code, launcher and icons, so it installs next to the stable one.
+val isCanary = rootProject.extra["titanChannel"] == "canary"
+val appName = if (isCanary) "titan-ssh-canary" else "titan-ssh"
+
 // LICENSE and THIRD_PARTY_NOTICES.md shipped as plain files inside every package
 // (MSI, deb, rpm, tar.gz), next to the app. `common/` is the Compose layout for
 // app resources shared by every OS.
@@ -44,7 +49,7 @@ tasks.matching { it.name == "prepareAppResources" }.configureEach { dependsOn(sy
 
 // Windows install folder, under %LOCALAPPDATA% (per-user MSI). Forward slash:
 // Compose writes jpackage's args file unescaped, so `\t` would become a tab.
-val msiInstallationPath = "Programs/titan-ssh"
+val msiInstallationPath = "Programs/$appName"
 
 // jpackage leaves the folders above the app's own (`Programs`) out of the MSI's
 // RemoveFile table, and WiX rejects that in the user profile (ICE64). Its only
@@ -75,7 +80,7 @@ val generateMsiWixTemplate = tasks.register("generateMsiWixTemplate") {
         val components = parents.indices.joinToString("\n") { i ->
             val path = (listOf("TARGETDIR", "LocalAppDataFolder") + parents.take(i + 1)).joinToString("\\")
             val dirId = "dir" + UUID.nameUUIDFromBytes("Folder@${path.lowercase()}".toByteArray()).toString().replace("-", "")
-            val guid = UUID.nameUUIDFromBytes("titan-ssh-msi-parent@${path.lowercase()}".toByteArray())
+            val guid = UUID.nameUUIDFromBytes("$appName-msi-parent@${path.lowercase()}".toByteArray())
             """
             |    <DirectoryRef Id="$dirId">
             |      <Component Id="TitanParentFolder$i" Guid="{$guid}">
@@ -155,7 +160,7 @@ compose.desktop {
         nativeDistributions {
             // macOS/iOS están fuera de alcance (ver ADR-0002).
             targetFormats(TargetFormat.Msi, TargetFormat.Deb, TargetFormat.Rpm)
-            packageName = "titan-ssh"
+            packageName = appName
             // Single app version, resolved in the root build file (ADR-0011 §3),
             // mapped per format to what each installer can order correctly.
             packageVersion = rootProject.extra["titanPackageVersion"] as String
@@ -182,10 +187,11 @@ compose.desktop {
             windows {
                 msiPackageVersion = rootProject.extra["titanMsiVersion"] as String
                 // Generated from branding/icon.svg by branding/RenderIcon.java.
-                iconFile.set(project.file("icons/titan-ssh.ico"))
+                iconFile.set(project.file("icons/$appName.ico"))
                 // Fixed forever: Windows Installer matches upgrades by this code.
-                // Changing it makes new versions install side by side.
-                upgradeUuid = "aa0fe179-f4a1-4db1-92f3-f3b04240e849"
+                // Changing it makes new versions install side by side, which is
+                // what the canary's own code is for.
+                upgradeUuid = if (isCanary) "33d686dd-7a60-40ad-bc76-96f9399e9ba3" else "aa0fe179-f4a1-4db1-92f3-f3b04240e849"
                 // Per-user install under %LOCALAPPDATA%: no admin rights, no UAC.
                 perUserInstall = true
                 // Not %LOCALAPPDATA%\titan-ssh: the agent's state and the app's
@@ -197,12 +203,12 @@ compose.desktop {
                 dirChooser = false
                 shortcut = true
                 menu = true
-                menuGroup = "titan-ssh"
+                menuGroup = appName
             }
             linux {
                 debPackageVersion = rootProject.extra["titanDebVersion"] as String
                 rpmPackageVersion = rootProject.extra["titanRpmVersion"] as String
-                iconFile.set(project.file("icons/titan-ssh.png"))
+                iconFile.set(project.file("icons/$appName.png"))
                 // jpackage prepends the vendor: this is only the address.
                 debMaintainer = "danielperezmartinez@users.noreply.github.com"
                 appCategory = "Network"
@@ -216,7 +222,8 @@ compose.desktop {
 
 // tar.gz of the Linux app image, for AUR and Flatpak (Compose does not build one).
 // Holds `titan-ssh/` (launcher, runtime, app), the desktop entry at the root and
-// the hicolor icon theme under `icons/`, ready to copy into `share/`.
+// the hicolor icon theme under `icons/`, ready to copy into `share/`. The
+// canary's is the same with `titan-ssh-canary` everywhere.
 tasks.register<Tar>("packageTarGz") {
     group = "compose desktop"
     description = "Packs the Linux app image from createDistributable into a tar.gz."
@@ -228,18 +235,30 @@ tasks.register<Tar>("packageTarGz") {
     // Gradle 9 normalizes archive permissions; keep the launcher and the
     // runtime's helpers (jspawnhelper) executable.
     useFileSystemPermissions()
-    archiveFileName.set("titan-ssh-$titanVersion-linux-x64.tar.gz")
+    archiveFileName.set("$appName-$titanVersion-linux-x64.tar.gz")
     destinationDirectory.set(layout.buildDirectory.dir("compose/binaries/main/tar.gz"))
     from(layout.buildDirectory.dir("compose/binaries/main/app"))
-    from(file("packaging/linux/titan-ssh.desktop"))
-    listOf(128, 256, 512).forEach { size ->
-        from(rootProject.file("branding/generated/png/titan-ssh-$size.png")) {
-            into("icons/hicolor/${size}x$size/apps")
-            rename { "titan-ssh.png" }
+    from(file("packaging/linux/titan-ssh.desktop")) {
+        if (isCanary) {
+            rename { "$appName.desktop" }
+            filter { line ->
+                when {
+                    line.startsWith("Name=") -> "Name=titan-ssh canary"
+                    line.startsWith("Exec=") -> "Exec=$appName"
+                    line.startsWith("Icon=") -> "Icon=$appName"
+                    else -> line
+                }
+            }
         }
     }
-    from(rootProject.file("branding/icon.svg")) {
+    listOf(128, 256, 512).forEach { size ->
+        from(rootProject.file("branding/generated/png/$appName-$size.png")) {
+            into("icons/hicolor/${size}x$size/apps")
+            rename { "$appName.png" }
+        }
+    }
+    from(rootProject.file(if (isCanary) "branding/generated/icon-canary.svg" else "branding/icon.svg")) {
         into("icons/hicolor/scalable/apps")
-        rename { "titan-ssh.svg" }
+        rename { "$appName.svg" }
     }
 }

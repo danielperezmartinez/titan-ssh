@@ -197,17 +197,26 @@ herramientas, checklist y cómo trabajar con los avisos privados.
   en [[Versionado único desde tag de git]].
 - **Fase de producto (desde `1.0.0`)**: solo se publican versiones estables,
   que llegan solas a todas las instalaciones con el actualizador de la app
-  ([[ADR-0025 Actualización automática de la app]]). Se sigue SemVer:
+  ([[ADR-0025 Actualización automática de la app]]), que solo instala
+  versiones estables. Se sigue SemVer:
   - `X.Y.Z+1` para arreglos sin cambios visibles de funcionamiento.
   - `X.Y+1.0` para funciones nuevas o cambios de comportamiento compatibles.
   - `X+1.0.0` solo para una ruptura: una configuración que no se puede migrar
     sola o un agente incompatible con las apps anteriores.
   - **No se publican betas** (`-alpha.N`, `-beta.N`, `-rc.N`), aunque el build
-    las sigue aceptando: el actualizador instala las versiones preliminares en
-    todas las instalaciones, así que una beta llegaría a todo el mundo. Volver a
-    publicarlas exige antes un canal beta opcional en Ajustes, desactivado por
-    defecto. Lo que necesite pruebas se prueba durante el desarrollo, antes de
-    cerrar su tarea (ver **Prueba en Android**).
+    las sigue aceptando. Lo que necesite pruebas se prueba durante el
+    desarrollo, antes de cerrar su tarea (ver **Prueba en Android**), y en la
+    canary.
+- **Canary** ([[ADR-0027 Canal canary instalable junto a la app estable]]):
+  otra app (`titan-ssh canary`, icono con el cursor naranja) que se instala
+  junto a la estable en los dispositivos del usuario. CI la construye en cada
+  push a `main` y la publica en el Release rodante `canary`, del que se
+  actualiza sola. Tiene sus propias carpetas, secretos y agente en los
+  destinos, y copia la configuración de la estable en un solo sentido. No es
+  una versión: no lleva tag `vX.Y.Z`, no necesita permiso del usuario y no
+  sustituye a la prueba de cada tarea. Antes de publicar una versión, el
+  usuario puede probar en la canary el commit al que se pondrá el tag.
+  Localmente se construye con `-PtitanChannel=canary`.
 - **Prueba en Android** (al cerrar cada tarea, no al publicar). Los cambios que
   afectan a Android se prueban en el emulador (`Pixel_9_Pro_XL`) con una build
   de debug, no con un Release ni lanzando el workflow a mano. El agente enseña

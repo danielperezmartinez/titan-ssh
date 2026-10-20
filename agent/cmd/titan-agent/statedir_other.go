@@ -15,7 +15,7 @@ func defaultStateDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, "."+stateDirName), nil
+	return filepath.Join(home, "."+stateDirName()), nil
 }
 
 func ensureStateDir(dir string) error { return os.MkdirAll(dir, 0o700) }

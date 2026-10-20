@@ -21,6 +21,14 @@
 # Once the Release exists, the aur and winget jobs hand the new version to
 # those package managers.
 #
+# Canary (ADR-0027): every push to main that touches more than docs (or a
+# manual run with channel=canary on main) builds the canary app, a separate
+# app installed next to the stable one, and publishes it in the rolling
+# `canary` pre-release, replaced as a whole each time. Its version is the patch
+# after the last stable tag plus `-canary.<run number>`; Gradle gets the
+# channel through ORG_GRADLE_PROJECT_titanChannel. Only the APK, the MSI and
+# the tar.gz are built, and nothing goes to AUR or winget.
+#
 # Third-party actions are pinned by commit SHA and the Komac binary by its
 # SHA-256. Secrets are only read by the Android, publish, AUR and winget jobs, and this
 # workflow never runs for pull requests.
@@ -29,10 +37,20 @@ name: Release
 on:
   push:
     tags: ['v*']
+    branches: [main]
+    # Path filters only apply to the branch: a tag always builds.
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
   workflow_dispatch:
     inputs:
+      channel:
+        description: 'stable: build the version below and publish nothing. canary: build and publish the canary (main only).'
+        type: choice
+        options: [stable, canary]
+        default: stable
       version:
-        description: 'Version to build: X.Y.Z or X.Y.Z-(alpha|beta|rc).N (nothing is published)'
+        description: 'Stable version to build: X.Y.Z or X.Y.Z-(alpha|beta|rc).N (ignored for canary)'
         required: true
         default: '0.0.1-alpha.1'
 
@@ -41,7 +59,8 @@ permissions:
 
 concurrency:
   group: release-${{ github.ref }}
-  cancel-in-progress: false
+  # A newer canary supersedes the one being built; a release never stops.
+  cancel-in-progress: ${{ github.ref == 'refs/heads/main' }}
 
 env:
   JAVA_VERSION: '21'
@@ -62,6 +81,8 @@ jobs:
     outputs:
       version: ${{ steps.resolve.outputs.version }}
       prerelease: ${{ steps.resolve.outputs.prerelease }}
+      channel: ${{ steps.resolve.outputs.channel }}
+      app: ${{ steps.resolve.outputs.app }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -69,7 +90,27 @@ jobs:
       - id: resolve
         env:
           RAW: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
+          CANARY: ${{ github.ref_type == 'branch' && (github.event_name == 'push' || inputs.channel == 'canary') }}
         run: |
+          if [[ "$CANARY" == true ]]; then
+            if [[ "$GITHUB_REF" != refs/heads/main ]]; then
+              echo "::error::The canary is only built from main"
+              exit 1
+            fi
+            # The patch after the last stable tag: canary.N of what comes next.
+            last=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+            [[ -n "$last" ]] || { echo "::error::No stable tag to base the canary on"; exit 1; }
+            IFS=. read -r major minor patch <<<"${last#v}"
+            version="$major.$minor.$((patch + 1))-canary.$GITHUB_RUN_NUMBER"
+            {
+              echo "version=$version"
+              echo "prerelease=true"
+              echo "channel=canary"
+              echo "app=titan-ssh-canary"
+            } >> "$GITHUB_OUTPUT"
+            echo "Canary $version"
+            exit 0
+          fi
           version="${RAW#v}"
           # Gradle performs the authoritative check; this only fails fast.
           if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
@@ -82,8 +123,12 @@ jobs:
           fi
           prerelease=false
           [[ "$version" == *-* ]] && prerelease=true
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=$version"
+            echo "prerelease=$prerelease"
+            echo "channel=stable"
+            echo "app=titan-ssh"
+          } >> "$GITHUB_OUTPUT"
           echo "Version $version (pre-release: $prerelease)"
 
   agent:
@@ -93,6 +138,7 @@ jobs:
     timeout-minutes: 20
     env:
       VERSION: ${{ needs.version.outputs.version }}
+      ORG_GRADLE_PROJECT_titanChannel: ${{ needs.version.outputs.channel }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
@@ -122,6 +168,7 @@ jobs:
     timeout-minutes: 30
     env:
       VERSION: ${{ needs.version.outputs.version }}
+      CHANNEL: ${{ needs.version.outputs.channel }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
@@ -140,8 +187,15 @@ jobs:
       - name: Agent tests
         working-directory: agent
         run: go test -race -count=1 ./...
+      # The tests expect the stable app's names, so a canary run tests the
+      # same code as a development build (it builds the agent itself).
       - name: Desktop tests
-        run: ./gradlew :shared:desktopTest "-PtitanVersion=$VERSION" "-PtitanAgentPrebuilt=$RUNNER_TEMP/agent" --console=plain
+        run: |
+          if [[ "$CHANNEL" == canary ]]; then
+            ./gradlew :shared:desktopTest --console=plain
+          else
+            ./gradlew :shared:desktopTest "-PtitanVersion=$VERSION" "-PtitanAgentPrebuilt=$RUNNER_TEMP/agent" --console=plain
+          fi
 
   android:
     name: Android APK and AAB
@@ -150,6 +204,8 @@ jobs:
     timeout-minutes: 45
     env:
       VERSION: ${{ needs.version.outputs.version }}
+      APP: ${{ needs.version.outputs.app }}
+      ORG_GRADLE_PROJECT_titanChannel: ${{ needs.version.outputs.channel }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
@@ -177,7 +233,11 @@ jobs:
           TITAN_KEYSTORE_PASSWORD: ${{ secrets.TITAN_KEYSTORE_PASSWORD }}
           # PKCS12: the key shares the store password.
           TITAN_KEY_PASSWORD: ${{ secrets.TITAN_KEYSTORE_PASSWORD }}
-        run: ./gradlew :androidApp:assembleRelease :androidApp:bundleRelease "-PtitanVersion=$VERSION" "-PtitanAgentPrebuilt=$RUNNER_TEMP/agent" --console=plain
+        run: |
+          # The canary is never on Google Play: no AAB.
+          tasks=(:androidApp:assembleRelease)
+          [[ "$ORG_GRADLE_PROJECT_titanChannel" == canary ]] || tasks+=(:androidApp:bundleRelease)
+          ./gradlew "${tasks[@]}" "-PtitanVersion=$VERSION" "-PtitanAgentPrebuilt=$RUNNER_TEMP/agent" --console=plain
       - name: Remove the keystore
         if: always()
         run: rm -f "$RUNNER_TEMP/release.jks"
@@ -193,8 +253,8 @@ jobs:
             || { echo "::error::The APK is not signed with the release key"; exit 1; }
           # Stable, unambiguous names: Obtainium picks the only .apk asset.
           mkdir dist
-          cp "$apk" "dist/titan-ssh-$VERSION.apk"
-          cp "$aab" "dist/titan-ssh-$VERSION.aab"
+          cp "$apk" "dist/$APP-$VERSION.apk"
+          if [[ -f "$aab" ]]; then cp "$aab" "dist/$APP-$VERSION.aab"; fi
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: android
@@ -212,6 +272,7 @@ jobs:
     timeout-minutes: 30
     env:
       VERSION: ${{ needs.version.outputs.version }}
+      ORG_GRADLE_PROJECT_titanChannel: ${{ needs.version.outputs.channel }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
@@ -231,21 +292,26 @@ jobs:
           fakeroot rpm libx11-6 libxext6 libxi6 libxrender1 libxtst6 libasound2
           libfreetype6 libfontconfig1
       - name: Build
-        run: ./gradlew :desktopApp:packageDeb :desktopApp:packageRpm :desktopApp:packageTarGz "-PtitanVersion=$VERSION" "-PtitanAgentPrebuilt=$RUNNER_TEMP/agent" --console=plain
+        run: |
+          # The canary updates itself from the tar.gz only.
+          tasks=(:desktopApp:packageTarGz)
+          [[ "$ORG_GRADLE_PROJECT_titanChannel" == canary ]] || tasks+=(:desktopApp:packageDeb :desktopApp:packageRpm)
+          ./gradlew "${tasks[@]}" "-PtitanVersion=$VERSION" "-PtitanAgentPrebuilt=$RUNNER_TEMP/agent" --console=plain
       - name: Collect
         run: |
           mkdir dist
-          cp desktopApp/build/compose/binaries/main/deb/*.deb dist/
-          cp desktopApp/build/compose/binaries/main/rpm/*.rpm dist/
+          shopt -s nullglob
+          cp desktopApp/build/compose/binaries/main/deb/*.deb desktopApp/build/compose/binaries/main/rpm/*.rpm dist/ 2>/dev/null || true
           cp desktopApp/build/compose/binaries/main/tar.gz/*.tar.gz dist/
           # GitHub turns `~` into `.` in asset names, which would break
           # SHA256SUMS. The version inside the packages keeps its `~`.
           # (A stable version has no `~`: nullglob skips the loop.)
-          shopt -s nullglob
           for f in dist/*~*; do mv "$f" "${f//\~/-}"; done
           ls -l dist
-          dpkg-deb --field dist/*.deb Depends
-          rpm -qpR dist/*.rpm
+          if [[ "$ORG_GRADLE_PROJECT_titanChannel" != canary ]]; then
+            dpkg-deb --field dist/*.deb Depends
+            rpm -qpR dist/*.rpm
+          fi
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: linux
@@ -259,6 +325,8 @@ jobs:
     timeout-minutes: 30
     env:
       VERSION: ${{ needs.version.outputs.version }}
+      APP: ${{ needs.version.outputs.app }}
+      ORG_GRADLE_PROJECT_titanChannel: ${{ needs.version.outputs.channel }}
     defaults:
       run:
         shell: bash
@@ -280,7 +348,7 @@ jobs:
           # jpackage names the MSI after its internal X.Y.(Z*100+S) version;
           # the published name carries the real one.
           mkdir dist
-          cp desktopApp/build/compose/binaries/main/msi/*.msi "dist/titan-ssh-$VERSION-windows-x64.msi"
+          cp desktopApp/build/compose/binaries/main/msi/*.msi "dist/$APP-$VERSION-windows-x64.msi"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: windows
@@ -289,7 +357,7 @@ jobs:
 
   publish:
     name: Publish the GitHub Release
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref_type == 'tag'
     needs: [version, agent, test, android, linux, windows]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -315,7 +383,7 @@ jobs:
       - name: Update manifest
         env:
           TITAN_UPDATE_SIGNING_KEY: ${{ secrets.TITAN_UPDATE_SIGNING_KEY }}
-        run: bash tools/release/update-manifest.sh dist "$VERSION" shared/update-keys.txt
+        run: bash tools/release/update-manifest.sh dist "$VERSION" shared/update-keys.txt stable
       - name: Checksums
         working-directory: dist
         run: |
@@ -331,6 +399,52 @@ jobs:
             --title "titan-ssh $VERSION" \
             --generate-notes \
             "${flags[@]}"
+
+  # ADR-0027: the rolling canary pre-release. It is deleted with its tag and
+  # created again on this commit, so it only ever holds the newest build; the
+  # canary app reads it through releases/tags/canary. Never "latest", and the
+  # stable app ignores pre-releases.
+  canary:
+    name: Publish the canary
+    if: needs.version.outputs.channel == 'canary'
+    needs: [version, agent, test, android, linux, windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: |
+            tools/release
+            shared/update-keys.txt
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Update manifest
+        env:
+          TITAN_UPDATE_SIGNING_KEY: ${{ secrets.TITAN_UPDATE_SIGNING_KEY }}
+        run: bash tools/release/update-manifest.sh dist "$VERSION" shared/update-keys.txt canary
+      - name: Checksums
+        working-directory: dist
+        run: |
+          sha256sum -- * > SHA256SUMS
+          cat SHA256SUMS
+      - name: Replace the canary release
+        run: |
+          gh release delete canary --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes 2>/dev/null || true
+          gh release create canary dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "titan-ssh canary $VERSION" \
+            --notes "Build canary de main ($GITHUB_SHA) para probar antes de publicar. No es una versión: se sustituye con cada build. Se instala junto a titan-ssh como una app aparte (ADR-0027)." \
+            --prerelease \
+            --latest=false
 
   # ADR-0011 §4: package managers fed from the published Release. Stable
   # versions go to titan-ssh-bin / DanielPerezMartinez.TitanSSH and

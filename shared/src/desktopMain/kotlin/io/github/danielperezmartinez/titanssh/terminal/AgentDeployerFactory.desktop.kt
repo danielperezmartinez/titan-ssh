@@ -1,11 +1,12 @@
 package io.github.danielperezmartinez.titanssh.terminal
 
+import io.github.danielperezmartinez.titanssh.AppChannel
 import java.io.File
 
 /**
  * Desktop deployer: bundled binaries, and downloads cached in the per-user cache
  * directory (Windows `%LOCALAPPDATA%`, otherwise `$XDG_CACHE_HOME` or
- * `~/.cache`), under `titan-ssh/cache/agent`.
+ * `~/.cache`), under `<app>/cache/agent` ([AppChannel.appName]).
  */
 actual fun createAgentDeployer(): AgentDeployer? = bundledAgentDeployer(desktopAgentCacheDirectory())
 
@@ -18,5 +19,5 @@ private fun desktopAgentCacheDirectory(): File {
         System.getenv("XDG_CACHE_HOME")?.takeIf { it.isNotBlank() }?.let(::File)
             ?: File(System.getProperty("user.home"), ".cache")
     }
-    return File(base, "titan-ssh/cache/agent")
+    return File(base, "${AppChannel.appName}/cache/agent")
 }

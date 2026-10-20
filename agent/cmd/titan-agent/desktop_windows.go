@@ -35,10 +35,11 @@ func desktopSession() int {
 // first and keep the user's helper from ever registering. The name is the
 // prefix, the user name for whoever reads the task list, and a random part;
 // it is chosen on the first launch and kept until --remove-desktop.
-const (
-	desktopTaskFile   = "desktop-task.txt"
-	desktopTaskPrefix = "titan-ssh-desktop-"
-)
+const desktopTaskFile = "desktop-task.txt"
+
+// desktopTaskPrefix starts the task name: titan-ssh-desktop-, or
+// titan-ssh-canary-desktop- for the canary app's agent (ADR-0027).
+func desktopTaskPrefix() string { return appName() + "-desktop-" }
 
 // recordedDesktopTask is the task name kept in stateDir, or "" if there is
 // none (or what is there is not a name this agent would have chosen).
@@ -48,7 +49,7 @@ func recordedDesktopTask(stateDir string) string {
 		return ""
 	}
 	name := strings.TrimSpace(string(data))
-	rest, ok := strings.CutPrefix(name, desktopTaskPrefix)
+	rest, ok := strings.CutPrefix(name, desktopTaskPrefix())
 	if !ok || rest == "" || len(name) > 128 || strings.TrimFunc(rest, taskNameRune) != "" {
 		return ""
 	}
@@ -78,7 +79,7 @@ func desktopTaskName(stateDir string) (string, error) {
 	if _, err := rand.Read(random); err != nil {
 		return "", err
 	}
-	name := desktopTaskPrefix + string(user) + "-" + hex.EncodeToString(random)
+	name := desktopTaskPrefix() + string(user) + "-" + hex.EncodeToString(random)
 	f, err := createPrivateTemp(stateDir, ".desktop-task-*.txt")
 	if err != nil {
 		return "", err

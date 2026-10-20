@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import io.github.danielperezmartinez.titanssh.AppChannel
 import io.github.danielperezmartinez.titanssh.BuildInfo
 import io.github.danielperezmartinez.titanssh.LegalText
 import io.github.danielperezmartinez.titanssh.config.ConfigController
@@ -76,7 +77,7 @@ private fun AboutSummary(onBack: () -> Unit, onOpen: (LegalText) -> Unit, update
         TopBar("Acerca de", onBack)
         Hairline()
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bodyPadding())) {
-            Text("titan-ssh", style = MaterialTheme.typography.headlineSmall, color = TitanColors.Ink)
+            Text(AppChannel.displayName, style = MaterialTheme.typography.headlineSmall, color = TitanColors.Ink)
             Caption("Versión ${BuildInfo.VERSION} · ${platformName()}")
             updates()
             Spacer(Modifier.height(TitanDimens.SpaceLg))

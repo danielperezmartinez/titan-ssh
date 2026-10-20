@@ -7,8 +7,8 @@ Estado: "Vigente"
 Ámbito: "Aplicación"
 Fuente: "shared/build.gradle.kts"
 Entrada pública: "io.github.danielperezmartinez.titanssh.BuildInfo"
-Resumen: "Objeto generado en commonMain por la tarea generateBuildInfo con la versión única de la app: VERSION (la misma que versionName de Android, la de los paquetes de escritorio y la estampada en el agente) e IS_RELEASE (false en un build de desarrollo, 0.0.0-dev), más UPDATE_KEYS (claves públicas Ed25519 de shared/update-keys.txt) y UPDATE_API (la API de Releases que consulta el actualizador, ADR-0025). Es la única forma de conocer la versión desde el código; no se escribe la versión a mano en ningún otro sitio. Junto a él, readLegalText(LegalText) lee LICENSE y THIRD_PARTY_NOTICES.md empaquetados como recursos /legal/."
-Última modificación: 2026-10-16T09:30:00+02:00
+Resumen: "Objeto generado en commonMain por la tarea generateBuildInfo con la versión única de la app: VERSION (la misma que versionName de Android, la de los paquetes de escritorio y la estampada en el agente) e IS_RELEASE (false en un build de desarrollo, 0.0.0-dev), más UPDATE_KEYS (claves públicas Ed25519 de shared/update-keys.txt) UPDATE_API (la API de Releases que consulta el actualizador, ADR-0025) y CHANNEL (stable o canary, ADR-0027). Encima, AppChannel da los nombres que dependen del canal (appName titan-ssh o titan-ssh-canary para carpetas, secretos y agente; displayName para la UI). Es la única forma de conocer la versión desde el código; no se escribe la versión a mano en ningún otro sitio. Junto a él, readLegalText(LegalText) lee LICENSE y THIRD_PARTY_NOTICES.md empaquetados como recursos /legal/."
+Última modificación: 2026-10-20T12:00:00+02:00
 ---
 
 # BuildInfo
@@ -28,3 +28,9 @@ Consumidores: la pantalla Acerca de (`ui/AboutScreen.kt`), `AgentBinaries` y
 `AgentInstaller` (ruta versionada del agente). Lo usará también
 [[Actualización automática de la app]]. Decisión en
 [[Versionado único desde tag de git]].
+
+El canal (`-PtitanChannel`, ADR-0027) llega como `BuildInfo.CHANNEL`. Todo lo
+que lo usa pasa por `AppChannel`
+([AppChannel.kt](../../shared/src/commonMain/kotlin/io/github/danielperezmartinez/titanssh/AppChannel.kt)):
+no se escribe `titan-ssh` a mano en una carpeta, un espacio de secretos ni una
+ruta del agente.

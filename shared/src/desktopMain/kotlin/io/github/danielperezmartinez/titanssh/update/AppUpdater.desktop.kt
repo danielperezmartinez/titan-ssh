@@ -1,5 +1,6 @@
 package io.github.danielperezmartinez.titanssh.update
 
+import io.github.danielperezmartinez.titanssh.AppChannel
 import java.io.File
 import java.nio.file.Files
 import java.util.concurrent.TimeUnit
@@ -36,7 +37,7 @@ internal sealed interface DesktopInstall {
             }
         }
 
-        /** `<root>/bin/titan-ssh`: a tar.gz the user owns, or a package of the system. */
+        /** `<root>/bin/<app>`: a tar.gz the user owns, or a package of the system. */
         private fun detectLinux(launcher: File): DesktopInstall {
             val root = launcher.parentFile?.parentFile ?: return Managed("No se reconoce la instalación.")
             val parent = root.parentFile
@@ -152,7 +153,7 @@ internal class DesktopUpdatePlatform(private val install: DesktopInstall.Updatab
             if (kept.isEmpty()) env.remove("LD_LIBRARY_PATH") else env["LD_LIBRARY_PATH"] = kept.joinToString(File.pathSeparator)
         }
 
-        /** `%LOCALAPPDATA%` or `$XDG_CACHE_HOME` (`~/.cache`), under `titan-ssh/cache`. */
+        /** `%LOCALAPPDATA%` or `$XDG_CACHE_HOME` (`~/.cache`), under `<app>/cache` ([AppChannel.appName]). */
         fun desktopCacheDirectory(): File {
             val os = System.getProperty("os.name").orEmpty().lowercase()
             val base: File = if (os.contains("win")) {
@@ -162,7 +163,7 @@ internal class DesktopUpdatePlatform(private val install: DesktopInstall.Updatab
                 System.getenv("XDG_CACHE_HOME")?.takeIf { it.isNotBlank() }?.let(::File)
                     ?: File(System.getProperty("user.home"), ".cache")
             }
-            return File(base, "titan-ssh/cache")
+            return File(base, "${AppChannel.appName}/cache")
         }
     }
 }

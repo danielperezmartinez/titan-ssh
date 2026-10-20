@@ -21,11 +21,13 @@ import kotlinx.coroutines.withTimeoutOrNull
  * The updater of ADR-0025, the same on Android and the desktop; [platform]
  * says which package this install takes and how it is installed.
  *
- * A check reads the Releases list at [apiUrl] and takes the highest version
- * above [current], betas included, that publishes a manifest. The package is
+ * A check reads the Releases at [apiUrl] and picks the one of this build's
+ * [channel] (ADR-0027): for the stable app, the highest stable version above
+ * [current] (pre-releases are never installed); for the canary, the rolling
+ * `canary` Release, whose version only its manifest names. The package is
  * used only if the manifest is signed by one of [keys], names that version and
- * lists a package of this install's kind whose size and SHA-256 match what was
- * downloaded. A verified download waits in [UpdatePlatform.cacheDir] across
+ * channel, and lists a package of this install's kind whose size and SHA-256
+ * match what was downloaded. A verified download waits in [UpdatePlatform.cacheDir] across
  * restarts and is checked again before it is used.
  *
  * Installing never closes a tab: with [UpdatePolicy.AUTO] the desktop installs
@@ -38,6 +40,7 @@ class UpdateEngine(
     private val apiUrl: String,
     private val keys: List<ByteArray>,
     private val platform: UpdatePlatform,
+    private val channel: UpdateChannel = UpdateChannel.STABLE,
     private val http: UpdateHttp = UrlConnectionHttp(),
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
     private val firstCheckDelay: Duration = 15.seconds,
@@ -139,34 +142,48 @@ class UpdateEngine(
     }
 
     private suspend fun checkLocked() {
-        val releases = UpdateFiles.json.decodeFromString<List<GithubRelease>>(
-            http.get(apiUrl, MAX_LIST_BYTES).decodeToString(),
-        )
-        val best = releases
-            .filter { !it.draft }
-            .mapNotNull { release -> AppVersion.parse(release.tagName)?.let { it to release } }
-            .filter { (version, release) ->
-                version > current &&
+        val releases = UpdateFiles.decodeReleases(http.get(apiUrl, MAX_LIST_BYTES).decodeToString())
+            .filter { release ->
+                !release.draft &&
                     release.assets.any { it.name == UpdateFiles.MANIFEST } &&
                     release.assets.any { it.name == UpdateFiles.SIGNATURE }
             }
-            .maxByOrNull { it.first }
+        // The version a Release claims before its manifest is read: its tag for
+        // stable versions, none for the rolling canary Release.
+        val best: Pair<AppVersion?, GithubRelease>? = when (channel) {
+            UpdateChannel.STABLE -> releases
+                .filter { !it.prerelease }
+                .mapNotNull { release -> AppVersion.parse(release.tagName)?.let { it to release } }
+                .filter { (version, _) -> channel.accepts(version) && version > current }
+                .maxByOrNull { it.first }
+            UpdateChannel.CANARY -> releases.firstOrNull { it.tagName == UpdateChannel.CANARY_TAG }?.let { null to it }
+        }
         val ready = pending
-        if (best == null || (ready != null && ready.version >= best.first)) {
-            if (ready != null) publishReady(ready) else _state.value = UpdateState.UpToDate
+        val claimed = best?.first
+        if (best == null || (ready != null && claimed != null && ready.version >= claimed)) {
+            upToDate(ready)
             return
         }
-        val (version, release) = best
+        val release = best.second
+        val label = claimed?.toString() ?: release.tagName
         fun asset(name: String) = release.assets.first { it.name == name }
 
         val manifestBytes = http.get(asset(UpdateFiles.MANIFEST).url, MAX_MANIFEST_BYTES)
         val signature = http.get(asset(UpdateFiles.SIGNATURE).url, MAX_SIGNATURE_BYTES)
         if (!UpdateSignature.verify(manifestBytes, signature, keys)) {
-            throw UpdateException("la firma de la versión $version no es válida")
+            throw UpdateException("la firma de la versión $label no es válida")
         }
         val manifest = UpdateFiles.json.decodeFromString<UpdateManifest>(manifestBytes.decodeToString())
-        if (AppVersion.parse(manifest.version) != version) {
-            throw UpdateException("el manifiesto no corresponde a la versión $version")
+        val version = AppVersion.parse(manifest.version)
+        if (version == null || (claimed != null && version != claimed)) {
+            throw UpdateException("el manifiesto no corresponde a la versión $label")
+        }
+        if (manifest.channel != channel.id || !channel.accepts(version)) {
+            throw UpdateException("la versión $version es de otro canal")
+        }
+        if (version <= current || (ready != null && ready.version >= version)) {
+            upToDate(ready)
+            return
         }
         val artifact = manifest.artifacts.firstOrNull { it.kind == platform.artifactKind }
             ?: throw UpdateException("la versión $version no trae un paquete ${platform.artifactKind}")
@@ -231,12 +248,18 @@ class UpdateEngine(
         val signature = File(dir, UpdateFiles.SIGNATURE).takeIf { it.isFile }?.readBytes() ?: return null
         if (!UpdateSignature.verify(manifestBytes, signature, keys)) return null
         val manifest = UpdateFiles.json.decodeFromString<UpdateManifest>(manifestBytes.decodeToString())
-        val version = AppVersion.parse(manifest.version)?.takeIf { it > current && it.toString() == dir.name } ?: return null
+        if (manifest.channel != channel.id) return null
+        val version = AppVersion.parse(manifest.version)
+            ?.takeIf { channel.accepts(it) && it > current && it.toString() == dir.name } ?: return null
         val artifact = manifest.artifacts.firstOrNull { it.kind == platform.artifactKind } ?: return null
         if (!UpdateFiles.isSafeName(artifact.name)) return null
         val file = File(dir, artifact.name).takeIf { it.isFile && it.length() == artifact.size } ?: return null
         if (!UpdateFiles.sha256Hex(file).equals(artifact.sha256, ignoreCase = true)) return null
         return Pending(version, dir, file, artifact.sha256.lowercase())
+    }
+
+    private fun upToDate(ready: Pending?) {
+        if (ready != null) publishReady(ready) else _state.value = UpdateState.UpToDate
     }
 
     private fun removeOtherVersions(keep: File) {

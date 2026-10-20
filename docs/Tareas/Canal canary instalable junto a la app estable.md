@@ -6,7 +6,7 @@ Decisiones: 'El 2026-10-20 el usuario elige la opción de una app canary aparte,
 Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-20T10:40:00+02:00
-Última modificación: 2026-10-20T11:05:00+02:00
+Última modificación: 2026-10-20T12:00:00+02:00
 ---
 
 # Canal canary instalable junto a la app estable
@@ -74,8 +74,71 @@ Diseño en [[ADR-0027 Canal canary instalable junto a la app estable]].
 
 ## Verificación
 
-<Se rellena al completar: pruebas, build, comprobación real.>
+Hecho el 2026-10-20 en la rama `canary-channel` (falta lo marcado como
+pendiente):
+
+- **Tests**: los 460 de escritorio y los del agente en Go. Nuevos:
+  - la estable no instala pre-releases, ni el Release `canary`, ni un
+    manifiesto con `channel: canary`;
+  - la canary instala su Release rodante, no se reinstala la misma build y
+    rechaza un manifiesto o una versión estables;
+  - `AppVersion` ordena `canary` y no acepta el tag `canary`;
+  - `FileStableCopier` copia config, `known_hosts` y secretos sin tocar los
+    ficheros de la estable, y no cambia nada si la estable falta o no se puede
+    leer;
+  - el agente toma su carpeta del canal.
+
+  En modo canary fallan 12 tests que esperan los nombres de la estable, como
+  debe ser: CI pasa los tests como build de desarrollo.
+- **Gradle**: `printVersion` con `1.1.2-canary.57` da `versionCode 57` y MSI
+  `1.1.57`. Una versión canary con el canal estable falla.
+- **Paquetes**: el `tar.gz` de la canary lleva `titan-ssh-canary/`, su
+  `.desktop` e iconos naranjas. El de la estable sale igual que antes.
+  `update-manifest.sh … canary` firma con `channel: canary` y exige solo APK,
+  MSI y `tar.gz`. actionlint 1.7.7 no da errores en `release.yml`.
+- **Emulador** (estable y canary de debug instaladas a la vez, capturas
+  enseñadas al usuario):
+  - la canary arranca como *titan-ssh canary*, con el icono del cursor
+    naranja, y en el primer arranque copia los hosts y la sesión de la
+    estable. El botón *Copiar de la app estable* de Ajustes pide confirmación
+    y vuelve a copiar;
+  - el proveedor de la estable rechaza a quien no tiene el permiso de firma
+    (`adb shell content call` da `SecurityException`);
+  - sin secretos: la canary pide la contraseña del host. Con ella conecta a
+    nivel 3. En el destino corren dos daemons separados, `titan-ssh` y
+    `titan-ssh-canary`, y la estable conserva sus sesiones.
+
+  La primera prueba sacó un fallo: el agente de una build de desarrollo
+  (`0.0.0-dev`) deducía el canal de la versión y compartía el estado con la
+  estable. Ahora el canal se estampa en el agente con `-X main.channel`.
+- **Pendiente**:
+  - el primer run real del workflow al subir a `main` (Release `canary` creado
+    y canary que se actualiza sola);
+  - el MSI de la canary en Windows junto al de la estable;
+  - el `tar.gz` de la canary instalado y en marcha en Linux, con la copia de
+    secretos desde el almacén del sistema.
 
 ## Resultado
 
-<Se rellena al completar: qué se hizo finalmente.>
+- **Canal de build** `-PtitanChannel` → `BuildInfo.CHANNEL` y `AppChannel`.
+  Los nombres de carpetas, el espacio de secretos, las carpetas del agente, la
+  tarea del ayudante de escritorio y las sesiones de tmux/screen
+  (`titan-canary-<id>`) salen de ahí.
+- **Android**: `applicationId` `….canary`, etiqueta *titan-ssh canary* y la
+  capa del icono de `src/canary/res`. `StableConfigProvider` está exportado
+  solo en la estable, tras el permiso `signature` `READ_STABLE_CONFIG`, que
+  declaran las dos apps.
+- **Escritorio**: paquete `titan-ssh-canary`, MSI con su propio
+  `upgradeUuid` en `Programs\titan-ssh-canary`, y `tar.gz`, `.desktop` e
+  iconos propios. `install-linux.sh` toma el nombre de la carpeta del lanzador.
+- **Actualizador**: `UpdateChannel`. La estable solo instala estables; la
+  canary lee `releases/tags/canary`. El manifiesto firma el `channel`.
+- **Agente**: carpetas `titan-ssh-canary` en el destino, y descarga de
+  binarios del Release `canary`.
+- **Copia de la estable**: `StableCopier` (al primer arranque y desde Ajustes).
+  En escritorio lleva secretos; en Android no.
+- **CI**: `release.yml` construye y publica la canary en cada push a `main`.
+- **Iconos**: `RenderIcon.java` genera también los de la canary.
+- **Documentación**: regla 4 del README,
+  [[Pipeline de release en GitHub Actions]],
+  [[Versionado único desde tag de git]] y [[BuildInfo]].
