@@ -113,6 +113,12 @@ data class TerminalSnapshot(
     val applicationCursorKeys: Boolean = false,
     /** Pasted text must be wrapped in `ESC [200~` … `ESC [201~` (`CSI ?2004h`). */
     val bracketedPaste: Boolean = false,
+    /** The remote asked for mouse reports (`CSI ?1000h`, `?1002h` or `?1003h`); the wheel goes to it. */
+    val mouseTracking: Boolean = false,
+    /** Mouse reports use the SGR encoding (`CSI ?1006h`) instead of the X10 bytes. */
+    val sgrMouse: Boolean = false,
+    /** On the alternate screen without mouse reports, the wheel sends arrow keys (`CSI ?1007h`, on by default). */
+    val alternateScroll: Boolean = true,
     /**
      * Lines the scrollback's size cap has evicted from its top so far. Added to
      * an index into scrollback + screen, it gives a line number that stays put

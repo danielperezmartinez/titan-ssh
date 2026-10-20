@@ -33,6 +33,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -87,6 +88,7 @@ import io.github.danielperezmartinez.titanssh.terminal.TabPhase
 import io.github.danielperezmartinez.titanssh.terminal.TerminalKeys
 import io.github.danielperezmartinez.titanssh.terminal.TerminalMultiplexer
 import io.github.danielperezmartinez.titanssh.terminal.TerminalText
+import io.github.danielperezmartinez.titanssh.terminal.TerminalWheel
 import io.github.danielperezmartinez.titanssh.terminal.TunnelState
 import io.github.danielperezmartinez.titanssh.terminal.TunnelStatus
 import io.github.danielperezmartinez.titanssh.terminal.isAndroidRuntime
@@ -191,6 +193,24 @@ fun TerminalView(
                 send(bytes)
             }
         }
+    }
+
+    // Scrolling over a full-screen app goes to it as wheel steps (TerminalWheel),
+    // one per line's height dragged; otherwise it moves the local scrollback.
+    val wheelCarry = remember(tab.id) { mutableFloatStateOf(0f) }
+    fun scrollPane(delta: Float, lineHeight: Float): Float {
+        val snap = tab.snapshot.value
+        if (!TerminalWheel.goesToRemote(snap) || lineHeight <= 0f) {
+            wheelCarry.floatValue = 0f
+            return viewport.scrollBy(delta)
+        }
+        val carry = wheelCarry.floatValue + delta
+        val notches = (carry / lineHeight).toInt()
+        wheelCarry.floatValue = carry - notches * lineHeight
+        TerminalWheel.bytes(snap, notches, column = 0, row = snap.rows / 2)?.let { bytes ->
+            scope.launch { tab.sendBytes(bytes) }
+        }
+        return delta
     }
 
     // The grid is painted cell by cell (TerminalCanvas), so the column count only
@@ -368,10 +388,11 @@ fun TerminalView(
                         Modifier
                     },
                 )
-                // Drag or wheel through the scrollback; new input returns to the bottom.
+                // Drag or wheel through the scrollback, or a full-screen app's own
+                // history; new input returns to the bottom.
                 .scrollable(
                     orientation = Orientation.Vertical,
-                    state = rememberScrollableState { delta -> viewport.scrollBy(delta) },
+                    state = rememberScrollableState { delta -> scrollPane(delta, cell.height) },
                 )
                 // Desktop: the click focuses the pane. No ripple: a Material
                 // indication would break the flat, chrome-free terminal aesthetic.

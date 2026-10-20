@@ -219,7 +219,9 @@ internal fun terminalGeometry(
     val bottomAligned = !snap.altScreen && scrollback + snap.contentRows - first >= fit
     val y0 = if (bottomAligned) height - fit * ch else 0f
 
-    val maxScroll = maxOf(0f, first * ch - y0)
+    // The alternate screen has no scrollback: the one kept belongs to the main
+    // screen, and showing it above a full-screen app hides the app's own history.
+    val maxScroll = if (snap.altScreen) 0f else maxOf(0f, first * ch - y0)
     return TerminalGeometry(
         first = first,
         y0 = y0,

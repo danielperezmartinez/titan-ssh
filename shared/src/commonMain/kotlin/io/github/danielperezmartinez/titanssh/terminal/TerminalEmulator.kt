@@ -17,7 +17,8 @@ package io.github.danielperezmartinez.titanssh.terminal
  * underline, inverse, invisible, strikethrough, the 16 ANSI colours, `38/48;5`
  * indexed and `38/48;2` true colour), save/restore cursor (`DECSC/DECRC`,
  * `CSI s/u`), reverse index, cursor visibility (`DECTCEM`), application cursor
- * keys (`DECCKM`), bracketed paste, and the status reports a shell may wait
+ * keys (`DECCKM`), bracketed paste, the mouse modes the wheel needs
+ * (`1000/1002/1003`, SGR `1006`, alternate scroll `1007`; see [TerminalWheel]), and the status reports a shell may wait
  * for (`DSR`, primary `DA`), answered through [takeResponses].
  *
  * Lines that wrap at the right margin are marked ([TerminalRow.wrapped]), so
@@ -96,6 +97,12 @@ class TerminalEmulator(
     private var cursorVisible = true
     private var applicationCursorKeys = false
     private var bracketedPaste = false
+
+    // Mouse reporting: the modes that ask for reports (1000/1002/1003), whose
+    // union is what matters for the wheel, and how to encode them (1006).
+    private val mouseModes = HashSet<Int>()
+    private var sgrMouse = false
+    private var alternateScroll = true
 
     // Current rendition (SGR state), shared by every cell written with it.
     private var style = CellStyle.Default
@@ -334,6 +341,9 @@ class TerminalEmulator(
                 }
                 25 -> cursorVisible = set
                 2004 -> bracketedPaste = set
+                1000, 1002, 1003 -> if (set) mouseModes.add(mode) else mouseModes.remove(mode)
+                1006 -> sgrMouse = set
+                1007 -> alternateScroll = set
                 // 1049 also saves/restores the cursor around the switch; 47/1047
                 // switch buffers without the cursor dance.
                 1049 -> if (set) enterAltScreen(saveCursor = true) else exitAltScreen(restoreCursor = true)
@@ -979,6 +989,9 @@ class TerminalEmulator(
         cursorVisible = true
         applicationCursorKeys = false
         bracketedPaste = false
+        mouseModes.clear()
+        sgrMouse = false
+        alternateScroll = true
         style = CellStyle.Default
         state = State.GROUND
         utf8Carry = ByteArray(0)
@@ -1001,6 +1014,9 @@ class TerminalEmulator(
         contentRows = maxOf(cursorRow, lastContentRow(screen)) + 1,
         applicationCursorKeys = applicationCursorKeys,
         bracketedPaste = bracketedPaste,
+        mouseTracking = mouseModes.isNotEmpty(),
+        sgrMouse = sgrMouse,
+        alternateScroll = alternateScroll,
         droppedLines = droppedLines,
         layoutEpoch = layoutEpoch,
     )
