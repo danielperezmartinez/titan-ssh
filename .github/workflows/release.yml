@@ -21,7 +21,8 @@
 # Once the Release exists, the aur and winget jobs hand the new version to
 # those package managers.
 #
-# Canary (ADR-0027): every push to main that touches more than docs (or a
+# Canary (ADR-0027): every push to main that touches more than docs and the
+# product page in site/ (or a
 # manual run with channel=canary on main) builds the canary app, a separate
 # app installed next to the stable one, and publishes it in the rolling
 # `canary` pre-release, replaced as a whole each time. Its version is the patch
@@ -42,6 +43,8 @@ on:
     paths-ignore:
       - 'docs/**'
       - '**.md'
+      - 'site/**'
+      - '.github/workflows/pages.yml'
   workflow_dispatch:
     inputs:
       channel:

@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>titan-ssh</title>
+<meta name="description" content="A free, open-source SSH client for Linux, Windows and Android whose sessions survive network drops.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#201d1d">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preload" href="fonts/jetbrainsmono_regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#main" data-i18n="skip">Skip to content</a>
+
+<header class="top">
+  <div class="wrap top-row">
+    <a class="brand" href="#top" aria-label="titan-ssh">
+      <svg class="logo" viewBox="0 0 512 512" aria-hidden="true">
+        <rect x="4" y="4" width="504" height="504" rx="96" fill="#201d1d" stroke="#3a3636" stroke-width="8"/>
+        <rect x="120" y="116" width="272" height="56" fill="#fdfcfc"/>
+        <rect x="228" y="172" width="56" height="124" fill="#fdfcfc"/>
+        <rect x="228" y="328" width="56" height="68" fill="#0a84ff"/>
+      </svg>
+      <span>titan-ssh</span>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="#why" data-i18n="nav.why">Why</a>
+      <a href="#features" data-i18n="nav.features">Features</a>
+      <a href="#download" data-i18n="nav.download">Download</a>
+      <a href="https://github.com/danielperezmartinez/titan-ssh">GitHub</a>
+    </nav>
+    <div class="lang" role="group" aria-label="Language">
+      <button type="button" data-set-lang="en" aria-pressed="true">en</button>
+      <button type="button" data-set-lang="es" aria-pressed="false">es</button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero" id="top">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <h1><span data-i18n="hero.title">SSH sessions that survive the network.</span><span class="cursor" aria-hidden="true"></span></h1>
+        <p class="lede" data-i18n="hero.lede">A free, open-source SSH client for Linux, Windows and Android. When the Wi-Fi drops or you change networks, your session comes back where it was, with your programs still running.</p>
+        <div class="cta">
+          <a class="btn primary" id="hero-download" href="https://github.com/danielperezmartinez/titan-ssh/releases/latest" data-i18n="hero.cta">Download titan-ssh</a>
+          <a class="link" href="#download" data-i18n="hero.other">Other platforms</a>
+        </div>
+        <p class="meta" id="hero-meta" data-i18n="hero.meta">Linux, Windows and Android. GPL-3.0-or-later.</p>
+      </div>
+
+      <figure class="demo" aria-labelledby="demo-caption">
+        <div class="term" id="term">
+          <div class="tabs" aria-hidden="true">
+            <span class="tab active"><span class="mark ok" id="tab-mark">[+]</span> build-box</span>
+            <span class="tab"><span class="mark ok">[+]</span> home-nas</span>
+          </div>
+          <pre class="screen" id="screen" aria-hidden="true"></pre>
+          <div class="strip" id="strip" role="status" aria-live="polite"><span class="mark ok">[+]</span> <span id="strip-text" data-i18n="demo.connected">connected</span></div>
+        </div>
+        <figcaption id="demo-caption">
+          <span data-i18n="demo.caption">The connection dropped for a few seconds. The tests kept running on the server, and the tab shows what you missed.</span>
+          <button type="button" class="link" id="replay" data-i18n="demo.replay">Drop the connection again</button>
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section" id="why" aria-labelledby="why-title">
+    <div class="wrap">
+      <h2 id="why-title" data-i18n="why.title">Why titan-ssh exists</h2>
+      <div class="pair">
+        <article>
+          <h3 data-i18n="why.a.title">A network hiccup shouldn't cost you your work.</h3>
+          <p data-i18n="why.a.body">Most clients close the session at the first micro-cut. You reconnect, go back to the project folder and restart whatever was running. titan-ssh reconnects on its own, and with its agent on the server your shell and its processes never stop.</p>
+        </article>
+        <article>
+          <h3 data-i18n="why.b.title">Startup scripts shouldn't be a paid feature.</h3>
+          <p data-i18n="why.b.body">Open a session straight in a project folder, start your tools or a service, run any chain of commands. Each saved session has its own steps, and they run again after a reconnect if you want them to.</p>
+        </article>
+      </div>
+
+      <h3 class="sub" data-i18n="layers.title">Three layers, used automatically</h3>
+      <ol class="layers">
+        <li>
+          <span class="n">1</span>
+          <div>
+            <h4 data-i18n="layers.1.title">Reconnect</h4>
+            <p data-i18n="layers.1.body">The tab keeps its screen and scrollback, retries until the network is back and runs your startup steps again.</p>
+          </div>
+        </li>
+        <li>
+          <span class="n">2</span>
+          <div>
+            <h4 data-i18n="layers.2.title">tmux or screen</h4>
+            <p data-i18n="layers.2.body">If the server has tmux or screen, the shell lives there and outlasts the connection.</p>
+          </div>
+        </li>
+        <li>
+          <span class="n">3</span>
+          <div>
+            <h4 data-i18n="layers.3.title">titan-agent</h4>
+            <p data-i18n="layers.3.body">A small agent installed in your user account on the server keeps a real terminal alive and replays what you missed. No root needed. Runs on Linux, macOS, FreeBSD and Windows servers.</p>
+          </div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="section" id="features" aria-labelledby="features-title">
+    <div class="wrap">
+      <h2 id="features-title" data-i18n="features.title">What else it does</h2>
+      <dl class="spec">
+        <div><dt data-i18n="f.tabs.t">Tabs</dt><dd data-i18n="f.tabs.d">Several sessions at once, including parallel copies of the same saved session. Rename them and drag them into order.</dd></div>
+        <div><dt data-i18n="f.hosts.t">Hosts and sessions</dt><dd data-i18n="f.hosts.d">Save hosts and sessions, sort them into folders, and reuse the same scripts and tunnels across sessions.</dd></div>
+        <div><dt data-i18n="f.tunnels.t">Tunnels</dt><dd data-i18n="f.tunnels.d">Local, remote and SOCKS forwards that open with the session and come back after a reconnect.</dd></div>
+        <div><dt data-i18n="f.files.t">Files</dt><dd data-i18n="f.files.d">Browse the server over SFTP from an open session, and download or upload files.</dd></div>
+        <div><dt data-i18n="f.secrets.t">Keys and passwords</dt><dd data-i18n="f.secrets.d">Kept in your system's secure store: Android Keystore, Windows Credential Manager or Secret Service on Linux. Never in plain text. On Android, keys can live in the hardware keystore and never leave it.</dd></div>
+        <div><dt data-i18n="f.touch.t">On a phone</dt><dd data-i18n="f.touch.d">A key bar you arrange by dragging, and select, copy and paste in the terminal.</dd></div>
+        <div><dt data-i18n="f.updates.t">Updates</dt><dd data-i18n="f.updates.d">Updates itself on every platform, and only installs a package listed in a manifest signed with the project's key.</dd></div>
+        <div><dt data-i18n="f.privacy.t">Privacy</dt><dd data-i18n="f.privacy.d">No account and no tracking. The only request it makes on its own is the update check to GitHub.</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="section" id="download" aria-labelledby="download-title">
+    <div class="wrap">
+      <h2 id="download-title" data-i18n="dl.title">Download</h2>
+      <p class="release" id="release-line" data-i18n="dl.loading">Looking up the latest version…</p>
+
+      <div class="platforms" id="platforms">
+        <article class="platform" data-os="linux">
+          <h3>Linux</h3>
+          <p class="yours" data-i18n="dl.yours" hidden>Your system</p>
+          <ul class="files">
+            <li><a class="file" data-asset="deb" href="https://github.com/danielperezmartinez/titan-ssh/releases/latest"><span class="fname">.deb</span><span class="fdesc" data-i18n="dl.deb">Debian, Ubuntu and derivatives</span><span class="fsize"></span></a></li>
+            <li><a class="file" data-asset="rpm" href="https://github.com/danielperezmartinez/titan-ssh/releases/latest"><span class="fname">.rpm</span><span class="fdesc" data-i18n="dl.rpm">Fedora and derivatives</span><span class="fsize"></span></a></li>
+            <li><a class="file" data-asset="tar" href="https://github.com/danielperezmartinez/titan-ssh/releases/latest"><span class="fname">.tar.gz</span><span class="fdesc" data-i18n="dl.tar">Any distribution</span><span class="fsize"></span></a></li>
+          </ul>
+          <pre class="cmd"><code>sudo apt install ./titan-ssh_<span class="v">X.Y.Z</span>_amd64.deb
+sudo dnf install ./titan-ssh-<span class="v">X.Y.Z</span>-1.x86_64.rpm</code></pre>
+          <p class="note" data-i18n="dl.linux.note">The tar.gz needs no install: unpack it and run titan-ssh/bin/titan-ssh.</p>
+        </article>
+
+        <article class="platform" data-os="windows">
+          <h3>Windows</h3>
+          <p class="yours" data-i18n="dl.yours" hidden>Your system</p>
+          <ul class="files">
+            <li><a class="file" data-asset="msi" href="https://github.com/danielperezmartinez/titan-ssh/releases/latest"><span class="fname">.msi</span><span class="fdesc" data-i18n="dl.msi">Windows 10 and 11, 64-bit</span><span class="fsize"></span></a></li>
+          </ul>
+          <p class="note" data-i18n="dl.win.note">Installs for your user, without administrator rights. The installer isn't signed yet, so SmartScreen warns you: choose More info, then Run anyway.</p>
+        </article>
+
+        <article class="platform" data-os="android">
+          <h3>Android</h3>
+          <p class="yours" data-i18n="dl.yours" hidden>Your system</p>
+          <ul class="files">
+            <li><a class="file" data-asset="apk" href="https://github.com/danielperezmartinez/titan-ssh/releases/latest"><span class="fname">.apk</span><span class="fdesc" data-i18n="dl.apk">Android 8 or later</span><span class="fsize"></span></a></li>
+            <li><a class="file" href="https://github.com/ImranR98/Obtainium"><span class="fname">Obtainium</span><span class="fdesc" data-i18n="dl.obtainium">Add the repository URL as a new app</span><span class="fsize"></span></a></li>
+          </ul>
+          <p class="note" data-i18n="dl.android.note">Every published APK is signed with the same key. SHA-256 of the certificate:</p>
+          <p class="fingerprint">39:29:D8:99:7A:C2:B2:3F:61:51:7A:05:61:BB:B1:0F:E3:D9:E4:A0:A6:54:7E:E2:8E:70:3C:87:C3:EC:DE:AB</p>
+        </article>
+      </div>
+
+      <p class="after" data-i18n="dl.after">After the first install, titan-ssh updates itself. You can switch to asking first in Settings.</p>
+      <p class="after">
+        <a class="link" id="sums" href="https://github.com/danielperezmartinez/titan-ssh/releases/latest" data-i18n="dl.sums">SHA256SUMS</a>
+        <a class="link" id="all-files" href="https://github.com/danielperezmartinez/titan-ssh/releases/latest" data-i18n="dl.all">All files of this release on GitHub</a>
+      </p>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-row">
+    <p data-i18n="foot.license">titan-ssh is free software under the GNU GPL, version 3 or later.</p>
+    <p class="foot-links">
+      <a href="https://github.com/danielperezmartinez/titan-ssh" data-i18n="foot.source">Source code</a>
+      <a href="https://github.com/danielperezmartinez/titan-ssh/blob/main/SECURITY.md" data-i18n="foot.security">Report a vulnerability</a>
+      <a href="https://github.com/danielperezmartinez/titan-ssh/blob/main/THIRD_PARTY_NOTICES.md" data-i18n="foot.notices">Third-party notices</a>
+    </p>
+  </div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

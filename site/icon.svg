@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  titan-ssh app icon: single source for every generated icon asset.
+  A T whose stem is cut and carries on in the accent colour, like the cursor
+  that keeps going after a network micro-cut.
+
+  Contract with RenderIcon.java: only <rect> elements with numeric attributes.
+  id="plate" is the rounded background; every other rect is the glyph, which is
+  centred on (256, 256) so it can be rescaled into Android's adaptive safe zone.
+  Regenerate the outputs with:  java branding/RenderIcon.java
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect id="plate" x="4" y="4" width="504" height="504" rx="96" fill="#201d1d" stroke="#3a3636" stroke-width="8"/>
+  <rect id="bar" x="120" y="116" width="272" height="56" fill="#fdfcfc"/>
+  <rect id="stem" x="228" y="172" width="56" height="124" fill="#fdfcfc"/>
+  <rect id="cursor" x="228" y="328" width="56" height="68" fill="#0a84ff"/>
+</svg>
