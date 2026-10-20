@@ -6,7 +6,7 @@ Decisiones: 'Página estática sin framework ni build, en site/, desplegada con 
 Bloqueada: []
 Versión: ''
 Fecha de creación: '2026-10-20T12:00:00+02:00'
-Última modificación: '2026-10-20T20:25:00+02:00'
+Última modificación: '2026-10-20T20:40:00+02:00'
 ---
 
 # Página de producto en GitHub Pages
@@ -58,3 +58,8 @@ descargas salen de `releases/latest` en el navegador, así que publicar una
 versión no necesita tocar la web. Cuando winget, AUR, Flathub o IzzyOnDroid
 estén publicados, se añaden a la sección de descargas de `index.html` y a
 los textos de `app.js`.
+
+La web también está enlazada al principio de "Instalar" en el `README.md` y
+es el *Website* del apartado "About" del repositorio, que ahora lleva la
+descripción "SSH sessions that survive the network. A free, open-source SSH
+client for Linux, Windows and Android."
