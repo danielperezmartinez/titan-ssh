@@ -1,12 +1,12 @@
 ---
 Nombre: 'Canal canary instalable junto a la app estable'
-Estado: 'En curso'
+Estado: 'Hecha'
 Resumen: 'Crear la variante canary de la app según ADR-0027. Es otra app que se instala junto a la estable en Android, Windows y Linux. CI la construye en cada push a main y la publica en el Release rodante canary, y se actualiza sola desde él. Copia de la estable hosts y configuración, con secretos solo en escritorio. Tiene sus propias carpetas, su espacio de secretos y su agente en los destinos. Incluye que el actualizador de la estable deje de instalar pre-releases.'
 Decisiones: 'El 2026-10-20 el usuario elige la opción de una app canary aparte, frente a una rama develop con PR o un canal beta en Ajustes, y pide compartir los hosts si no supone un problema de seguridad. Decisión en [[ADR-0027 Canal canary instalable junto a la app estable]], aceptada el 2026-10-20. Icono: el de la estable con la parte azul de la T en el naranja de la app. En Android no se pasan secretos a la canary (lo que interesaba eran las claves hardware, que no se pueden).'
 Bloqueada: []
 Versión: '1.3.0'
 Fecha de creación: 2026-10-20T10:40:00+02:00
-Última modificación: 2026-10-20T22:00:00+02:00
+Última modificación: 2026-10-20T22:30:00+02:00
 ---
 
 # Canal canary instalable junto a la app estable
@@ -123,10 +123,12 @@ pendiente):
     estable no está instalada. Causa probable: la estable del Pixel es la
     v1.2.0, sin `StableConfigProvider`. Sigue en
     [[Copia de la estable a la canary en Android con estables antiguas]].
-- **Pendiente**:
-  - ver que una canary instalada se actualiza sola a la siguiente build;
-  - la copia en Android con la estable 1.3.0, la primera publicada con el
-    proveedor (tarea de arriba).
+- **Cierre en el Pixel** (2026-10-20, según el usuario):
+  - la canary instalada (`1.2.1-canary.27`) se actualizó sola a una build
+    posterior del Release `canary`;
+  - con la estable 1.3.0, la primera publicada con el proveedor, la canary
+    copia hosts y sesiones
+    ([[Copia de la estable a la canary en Android con estables antiguas]]).
 
 ## Resultado
 

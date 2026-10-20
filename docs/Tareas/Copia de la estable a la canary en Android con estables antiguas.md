@@ -1,12 +1,12 @@
 ---
 Nombre: 'Copia de la estable a la canary en Android con estables antiguas'
-Estado: 'En curso'
-Resumen: 'En el Pixel del usuario, la canary 1.2.1-canary.27 no copió los hosts ni las sesiones de la estable, ni al arrancar ni con el botón Copiar de la app estable, que dice que la estable no está instalada aunque sí lo está. Causa: la estable instalada es la v1.2.0, anterior al StableConfigProvider, así que la canary no encuentra el proveedor y lo toma por app ausente (confirmado en el emulador). El mensaje ya distingue estable ausente, anterior al proveedor, firmada con otra clave y sin configuración, y está probado en el emulador con una estable v1.2.0. Publicada la estable 1.3.0 con el proveedor el 2026-10-20; falta comprobar la copia en el Pixel cuando le llegue.'
+Estado: 'Hecha'
+Resumen: 'En el Pixel del usuario, la canary 1.2.1-canary.27 no copió los hosts ni las sesiones de la estable, ni al arrancar ni con el botón Copiar de la app estable, que dice que la estable no está instalada aunque sí lo está. Causa: la estable instalada es la v1.2.0, anterior al StableConfigProvider, así que la canary no encuentra el proveedor y lo toma por app ausente (confirmado en el emulador). El mensaje ya distingue estable ausente, anterior al proveedor, firmada con otra clave y sin configuración, y está probado en el emulador con una estable v1.2.0. Publicada la estable 1.3.0 con el proveedor el 2026-10-20; con ella, la canary del Pixel ya copia hosts y sesiones (confirmado por el usuario).'
 Decisiones: 'El 2026-10-20 el usuario acepta corregir el mensaje y publicar una estable con el proveedor, y pide hacerlo en una sesión nueva.'
 Bloqueada: []
 Versión: '1.3.0'
 Fecha de creación: 2026-10-20T20:30:00+02:00
-Última modificación: 2026-10-20T22:00:00+02:00
+Última modificación: 2026-10-20T22:30:00+02:00
 ---
 
 # Copia de la estable a la canary en Android con estables antiguas
@@ -95,8 +95,8 @@ stableconfig` no debería mostrar ningún proveedor.
   del proveedor). Solo se da con una build de debug al lado de una publicada.
 - **Publicada la 1.3.0** (2026-10-20, run `39484979343`, todo en verde):
   Release `v1.3.0` con sus assets, no pre-release.
-- **Pendiente**: con la 1.3.0 en el Pixel, *Copiar de la app estable* en la
-  canary (punto 4 del alcance).
+- **Pixel** (2026-10-20): con la estable 1.3.0 instalada por el
+  actualizador, la canary copia hosts y sesiones, según el usuario.
 
 ## Resultado
 
