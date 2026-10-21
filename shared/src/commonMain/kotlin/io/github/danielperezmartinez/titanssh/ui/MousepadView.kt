@@ -284,7 +284,7 @@ fun MousepadView(
                 RemoteScreenCanvas(
                     screenView,
                     viewport,
-                    dimmed = status.phase != TabPhase.CONNECTED,
+                    dimmed = status.phase != TabPhase.CONNECTED || pad.blocked,
                     showCursor = !hovering,
                     cursorMinScale = density.density,
                 )
@@ -499,6 +499,9 @@ private fun SurfaceMessage(status: TabStatus, pad: MousepadStatus, remote: Boole
             "Reconectando… La imagen es la última que llegó." to TitanColors.Warning
         status.phase != TabPhase.CONNECTED || !pad.ready ->
             "Preparando el escritorio del destino…" to TitanColors.Mute
+        pad.blocked && remote ->
+            ("El PC está bloqueado o muestra un aviso de seguridad (UAC). El escritorio remoto no ve esa " +
+                "pantalla: desbloquéalo en el PC. La imagen es la última que llegó.") to TitanColors.Warning
         pad.blocked ->
             ("El PC está bloqueado o muestra un aviso de seguridad (UAC). El mouse pad no llega a esa " +
                 "pantalla: desbloquéalo en el PC.") to TitanColors.Warning

@@ -3,8 +3,7 @@ Nombre: 'Escritorio remoto en destinos Linux Wayland'
 Estado: 'Pendiente'
 Resumen: 'Subtarea del escritorio remoto: ver y controlar un escritorio Linux con Wayland en KDE, GNOME y otros con portal de escritorio remoto. Vía decidida en ADR-0031: una sola sesión de los portales RemoteDesktop y ScreenCast por un cliente D-Bus propio, con el agente registrado con su app-id; los fotogramas por un cliente PipeWire propio en Go puro (sin cgo, búferes memfd/SHM); todos los monitores compuestos; entrada con las llamadas Notify del portal. Consentimiento con el diálogo del portal recordado con su token, y acceso desatendido solo con un ajuste explícito (en KDE, permiso kde-authorized). Los compositores wlroots van en su propia tarea.'
 Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño general en [[ADR-0029 Escritorio remoto propio a través del agente]] y, para Wayland, en [[ADR-0031 Escritorio remoto en Wayland, Windows y casos de borde]]. El usuario elige el 2026-10-21 el cliente PipeWire en Go puro (el ayudante con cgo queda de plan B) y el acceso desatendido solo con un ajuste explícito. Los compositores wlroots pasan a [[Escritorio remoto en destinos Linux wlroots]]. Comparte el portal RemoteDesktop y el cliente D-Bus con [[Mouse pad en destinos Linux Wayland]].'
-Bloqueada:
-  - "[[Sesión gráfica del destino y errores del escritorio remoto]]"
+Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-21T10:50:00+02:00
 Última modificación: 2026-10-21T19:00:00+02:00

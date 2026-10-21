@@ -182,8 +182,31 @@ botones y teclas que quedaran pulsados.
 - **Vida y control**: el ayudante no se cierra solo. Termina al cerrar la
   sesión de Windows o con `--remove-desktop`, que además borra la tarea y las
   copias. `--status --json` lo incluye en `desktop`.
-- Fuera de Windows, `--input` termina con `E_INPUT_UNSUPPORTED` (X11 y
-  Wayland tienen sus tareas).
+- En Linux con X11, `--input` inyecta desde el propio proceso con XTEST, sin
+  ayudante. En Wayland y el resto de sistemas termina con
+  `E_INPUT_UNSUPPORTED`.
+
+### Escritorio remoto (ADR-0029, ADR-0031)
+
+`titan-agent --screen` manda la pantalla en baldosas y recibe la entrada por
+el mismo canal. Solo lo sirve el agente de la canary (etiqueta de Go
+`canary`); el estable responde `E_SCREEN_UNSUPPORTED`.
+
+- **Sesión gráfica** (`internal/graphical`): se busca en logind
+  (`/run/systemd/sessions`), que dice si es X11 o Wayland, el escritorio, si
+  está en un asiento local o es remota y si está en pantalla; las variables
+  (`DISPLAY`, `WAYLAND_DISPLAY`, `XAUTHORITY`, bus de sesión) salen de los
+  procesos con su `XDG_SESSION_ID`. Sin logind, o si no la conoce, del entorno
+  de los procesos del usuario. `--input` usa la misma búsqueda.
+- **Vías**: X11 con el cliente X11 propio (`screen_linux.go`). Wayland prueba
+  el portal (`screen_portal.go`, KDE y GNOME) y los protocolos wlroots
+  (`screen_wlroots.go`), cada uno en su tarea; si ninguno aplica,
+  `E_SCREEN_UNSUPPORTED` con el escritorio en el mensaje. Windows, desde el
+  ayudante de escritorio, en su tarea.
+- **Bloqueo**: un capturador que pierde la pantalla (`screen.Blocker`) deja de
+  capturar y lo avisa con `INPUT_READY`, como el mouse pad.
+- **Varios monitores**: `screen.Composite` junta las fuentes en una imagen, y
+  `Locate` lleva un punto de ella al monitor que le toca.
 
 ### Programas en el escritorio del usuario (ADR-0019)
 
@@ -222,7 +245,10 @@ en stderr: `TITAN_AGENT_ERROR <código> <mensaje>`. Códigos de este binario:
 tarea `Nivel 3 portable a todos los destinos`). Los del mouse pad:
 `E_INPUT_UNSUPPORTED`, `E_NO_DESKTOP` (no arrancó el ayudante: nadie tiene la
 sesión iniciada, o el ayudante dejó su error en `desktop-error.txt`) y
-`E_DESKTOP_TASK` (no se pudo crear o lanzar la tarea).
+`E_DESKTOP_TASK` (no se pudo crear o lanzar la tarea). Los del escritorio
+remoto (ADR-0031 §6): `E_SCREEN_UNSUPPORTED`, `E_NO_DESKTOP` (sin sesión
+gráfica, o solo la pantalla de inicio), `E_DESKTOP_INACTIVE` (la sesión
+existe pero no está en pantalla), `E_SCREEN_CONSENT` y `E_SCREEN_CAPTURE`.
 
 ## Build / test
 

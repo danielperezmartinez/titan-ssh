@@ -5,6 +5,8 @@ package x11
 import (
 	"os"
 	"testing"
+
+	"github.com/danielperezmartinez/titan-ssh/agent/internal/graphical"
 )
 
 // TestLiveDisplay runs against the user's real X session when
@@ -15,14 +17,18 @@ func TestLiveDisplay(t *testing.T) {
 	if os.Getenv("TITAN_X11_LIVE") != "1" {
 		t.Skip("set TITAN_X11_LIVE=1 to run against the user's X session")
 	}
-	s, err := FindSession()
+	s, err := graphical.Find()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Wayland {
-		t.Skip("Wayland session")
+	if s.Kind != graphical.X11 {
+		t.Skip("not an X11 session: " + s.Describe())
 	}
-	x, err := Dial(s.Display, s.Xauthority)
+	d, err := ParseDisplay(s.Display)
+	if err != nil {
+		t.Fatal(err)
+	}
+	x, err := Dial(d, s.Xauthority)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +38,7 @@ func TestLiveDisplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	w, h := int(g.Width), int(g.Height)
-	t.Logf("display :%s %dx%d depth %d vendor %q", s.Display.Number, w, h, g.Depth, x.Setup.Vendor)
+	t.Logf("display %s %dx%d depth %d vendor %q", s.Display, w, h, g.Depth, x.Setup.Vendor)
 	px := make([]uint32, w*h)
 	if err := x.GetImage(0, 0, w, h, px); err != nil {
 		t.Fatal(err)

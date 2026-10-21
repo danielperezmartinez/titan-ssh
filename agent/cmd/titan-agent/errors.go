@@ -28,6 +28,11 @@ const (
 
 	// Remote desktop (--screen, ADR-0029): no capturer for this system yet.
 	codeScreenUnsupported = "E_SCREEN_UNSUPPORTED"
+
+	// Remote desktop and mouse pad errors of ADR-0031 §6.
+	codeDesktopInactive = "E_DESKTOP_INACTIVE" // the user's session exists but is not on screen
+	codeScreenConsent   = "E_SCREEN_CONSENT"   // the portal's dialog was refused or not answered
+	codeScreenCapture   = "E_SCREEN_CAPTURE"   // the way exists but failed (portal, PipeWire, Desktop Duplication)
 )
 
 // agentError is a failure tagged with its error-contract code. main prints it

@@ -95,6 +95,20 @@ class AgentDiagnosticsTest {
         assertTrue(AgentDiagnostics.describe(AgentIssue(AgentDiagnostics.E_SYSTEMD_KILL)).startsWith("Aviso del nivel 3"))
     }
 
+    @Test
+    fun describes_the_remote_desktop_codes() {
+        for (code in listOf("E_SCREEN_UNSUPPORTED", "E_NO_DESKTOP", "E_DESKTOP_INACTIVE", "E_SCREEN_CONSENT", "E_SCREEN_CAPTURE")) {
+            val text = AgentDiagnostics.describeDesktop(AgentIssue(code, "why"))
+            assertTrue(text.startsWith("El escritorio remoto no está disponible: "), text)
+            assertTrue(text.endsWith("($code)"), text)
+            assertFalse(text.contains("desconocido"), "$code has no message of its own: $text")
+        }
+        // Which desktop the destination runs is in the agent's detail.
+        val unsupported = AgentDiagnostics.describeDesktop(AgentIssue("E_SCREEN_UNSUPPORTED", "KDE (Wayland) is not supported yet"))
+        assertTrue(unsupported.contains("Detalle: KDE (Wayland)"), unsupported)
+        assertTrue(AgentDiagnostics.describeDesktop(AgentIssue("E_SCREEN_CAPTURE", "pipewire: no format")).contains("Detalle: pipewire"))
+    }
+
     /** An agent channel that plays back [frames] and [stderr], then ends with [exitStatus]. */
     private class ScriptedExec(
         frames: List<AgentFrame>,

@@ -57,30 +57,6 @@ func TestXauthorityPicksThisHostsCookie(t *testing.T) {
 	}
 }
 
-func TestChooseSession(t *testing.T) {
-	envs := []procEnv{
-		{display: ":1", xauthority: "/x/auth1"},
-		{display: ":0"},
-		{display: ":1"},
-		{display: "localhost:10.0"}, // SSH X11 forwarding: not the desktop
-	}
-	s, err := chooseSession(envs, "", "/home/u")
-	if err != nil || s.Display.Number != "1" || s.Xauthority != "/x/auth1" || s.Wayland {
-		t.Errorf("session = %+v, %v", s, err)
-	}
-	s, err = chooseSession([]procEnv{{display: ":0"}}, "", "/home/u")
-	if err != nil || s.Xauthority != "/home/u/.Xauthority" {
-		t.Errorf("default Xauthority: %+v, %v", s, err)
-	}
-	s, _ = chooseSession([]procEnv{{display: ":0", wayland: "wayland-0"}}, "", "/home/u")
-	if !s.Wayland {
-		t.Error("a Wayland session with XWayland was not seen as Wayland")
-	}
-	if _, err := chooseSession(nil, "localhost:10.0", "/home/u"); err != ErrNoSession {
-		t.Errorf("no session: %v", err)
-	}
-}
-
 // fakeServer answers the connection setup and then one GetImage of 2x1 pixels.
 func fakeServer(t *testing.T, srv net.Conn, wantCookie string) {
 	t.Helper()

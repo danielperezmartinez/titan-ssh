@@ -1043,7 +1043,10 @@ class SessionTab(
             DesktopQuality.HIGH -> ScreenCodec.QUALITY_LOSSLESS
             DesktopQuality.LOW -> ScreenCodec.QUALITY_LOW
         }
-        val transport = ScreenTransport(opened, launch, screen, quality) {
+        val transport = ScreenTransport(
+            opened, launch, screen, quality,
+            onBlocked = { blocked -> _mousepad.value = MousepadStatus(ready = true, blocked = blocked) },
+        ) {
             if (_status.value.phase != TabPhase.CONNECTED) markConnected()
             _mousepad.value = MousepadStatus(ready = true)
         }

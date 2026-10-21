@@ -79,7 +79,7 @@ object AgentDiagnostics {
     /** Mouse pad: the destination has no input injector yet (Windows and Linux X11 have one). */
     const val E_INPUT_UNSUPPORTED = "E_INPUT_UNSUPPORTED"
 
-    /** Remote desktop (ADR-0029): the destination has no screen capturer yet (only Linux X11 has one). */
+    /** Remote desktop (ADR-0029): the destination's system or desktop has no screen capturer yet. */
     const val E_SCREEN_UNSUPPORTED = "E_SCREEN_UNSUPPORTED"
 
     /** Mouse pad: the desktop helper did not start, most often because nobody is signed in. */
@@ -87,6 +87,15 @@ object AgentDiagnostics {
 
     /** Mouse pad, Windows: the helper's scheduled task could not be created or run. */
     const val E_DESKTOP_TASK = "E_DESKTOP_TASK"
+
+    /** Remote desktop and mouse pad (ADR-0031): the user's session exists but is not on screen. */
+    const val E_DESKTOP_INACTIVE = "E_DESKTOP_INACTIVE"
+
+    /** Remote desktop, Wayland: the portal's dialog was refused or nobody answered it. */
+    const val E_SCREEN_CONSENT = "E_SCREEN_CONSENT"
+
+    /** Remote desktop: the destination has a way to capture its screen, but it failed. */
+    const val E_SCREEN_CAPTURE = "E_SCREEN_CAPTURE"
 
     // --- client side ---
 
@@ -287,15 +296,24 @@ object AgentDiagnostics {
                 "el destino todavía no admite el mouse pad" to
                     "Por ahora funciona con destinos Windows y Linux con X11 (no con Wayland)."
             E_SCREEN_UNSUPPORTED ->
-                "el destino todavía no admite el escritorio remoto" to
-                    "Por ahora funciona con destinos Linux con X11 (no con Wayland); Windows llegará después."
+                "el escritorio del destino todavía no admite el escritorio remoto" to
+                    "Por ahora funciona con destinos Linux con X11; el detalle dice qué escritorio tiene el destino."
             E_PROTOCOL ->
                 "el agente envió una imagen que esta versión de la app no entiende" to
                     "Actualiza la app; si ya está al día, revisa el detalle."
             E_NO_DESKTOP ->
                 "no hay nadie con la sesión iniciada en el escritorio del destino" to
-                    "Inicia sesión en el escritorio de ese PC (Windows, también por escritorio remoto, " +
-                    "o Linux con X11) y reconecta."
+                    "Inicia sesión en el escritorio de ese PC con tu usuario (también vale por escritorio remoto) " +
+                    "y reconecta."
+            E_DESKTOP_INACTIVE ->
+                "tu sesión en el destino no está en la pantalla" to
+                    "Otro usuario tiene el escritorio, o tu sesión está desconectada (un escritorio remoto " +
+                    "cerrado sin cerrar sesión). Vuelve a tu sesión en ese PC y reconecta."
+            E_SCREEN_CONSENT ->
+                "no se aceptó en el destino el permiso para compartir la pantalla" to
+                    "La primera vez alguien tiene que aceptar el aviso en la pantalla del destino."
+            E_SCREEN_CAPTURE ->
+                "el destino no pudo capturar la pantalla" to UNKNOWN_TODO
             E_DESKTOP_TASK ->
                 "no se pudo preparar la tarea programada que lanza el ayudante de escritorio" to
                     "Revisa el detalle. La tarea se puede quitar desde el panel del agente."
@@ -306,7 +324,10 @@ object AgentDiagnostics {
     private const val UNKNOWN_TODO = "Revisa el detalle."
 
     /** The codes whose message depends on the agent's own words (unknown codes show it too). */
-    private val SHOWS_DETAIL = setOf(E_AGENT_EXIT, E_PTY, E_UPLOAD, E_DAEMON_START, E_DESKTOP_TASK, E_NO_DESKTOP, E_PROTOCOL)
+    private val SHOWS_DETAIL = setOf(
+        E_AGENT_EXIT, E_PTY, E_UPLOAD, E_DAEMON_START, E_DESKTOP_TASK, E_NO_DESKTOP, E_PROTOCOL,
+        E_SCREEN_UNSUPPORTED, E_DESKTOP_INACTIVE, E_SCREEN_CAPTURE,
+    )
 
     /** A contract code: `E_` and upper-case words. */
     private val CODE = Regex("^E_[A-Z0-9_]+$")

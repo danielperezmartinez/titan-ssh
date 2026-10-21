@@ -37,6 +37,14 @@ type Cursor struct {
 	Pixels        []uint32
 }
 
+// Blocker is a Capturer that can lose the screen for a while: Windows while
+// the lock screen, UAC or Ctrl+Alt+Del is up (ADR-0031 §4). While Blocked,
+// Serve neither captures nor sends the cursor, and tells the client with
+// INPUT_READY (blocked set, then clear again), as the mouse pad does.
+type Blocker interface {
+	Blocked() bool
+}
+
 // InputHandler applies the client's input frames (an *inject.Handler).
 type InputHandler interface {
 	Handle(protocol.Frame) error
@@ -142,12 +150,36 @@ func Serve(conn io.ReadWriter, cap Capturer, input InputHandler, opt Options) er
 		cursorSent bool
 		lastChange = time.Now()
 		interval   = opt.Interval
+		blocked    bool
 	)
+	blocker, _ := cap.(Blocker)
 	for {
 		select {
 		case <-s.done:
 			return nil
 		default:
+		}
+
+		if blocker != nil {
+			if now := blocker.Blocked(); now != blocked {
+				blocked = now
+				if err := emit(protocol.Frame{Type: protocol.TypeInputReady, Blocked: now}); err != nil {
+					return err
+				}
+				if err := w.Flush(); err != nil {
+					return err
+				}
+			}
+			if blocked {
+				timer := time.NewTimer(opt.IdleInterval)
+				select {
+				case <-s.done:
+					timer.Stop()
+					return nil
+				case <-timer.C:
+				}
+				continue
+			}
 		}
 
 		// The cursor goes out whenever it changes, credit or not: it is what

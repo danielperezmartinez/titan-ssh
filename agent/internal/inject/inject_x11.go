@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/danielperezmartinez/titan-ssh/agent/internal/graphical"
 	"github.com/danielperezmartinez/titan-ssh/agent/internal/protocol"
 	"github.com/danielperezmartinez/titan-ssh/agent/internal/x11"
 )
@@ -14,14 +15,18 @@ import (
 // New connects to the user's X11 session and returns its injector. A Wayland
 // session has none yet (ADR-0016 §5, ADR-0029 §5).
 func New() (Injector, error) {
-	s, err := x11.FindSession()
+	s, err := graphical.Find()
 	if err != nil {
 		return nil, err
 	}
-	if s.Wayland {
-		return nil, fmt.Errorf("%w: the desktop runs Wayland", ErrUnsupported)
+	if s.Kind != graphical.X11 {
+		return nil, fmt.Errorf("%w: %s", ErrUnsupported, s.Describe())
 	}
-	x, err := x11.Dial(s.Display, s.Xauthority)
+	d, err := x11.ParseDisplay(s.Display)
+	if err != nil {
+		return nil, err
+	}
+	x, err := x11.Dial(d, s.Xauthority)
 	if err != nil {
 		return nil, err
 	}

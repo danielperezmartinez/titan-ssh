@@ -13,7 +13,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  * --screen` over [session], asks for [quality] with `SCREEN_HELLO`, feeds the
  * screen frames into [screen] and acknowledges each frame once applied, which
  * is what lets the agent send the next ones. Input frames go the other way on
- * the same channel ([send]).
+ * the same channel ([send]). While the destination's screen is out of reach
+ * (Windows locked, UAC), the agent says so with `INPUT_READY` ([onBlocked]).
  *
  * There is no replay: a new connection starts with the screen's size and a
  * whole frame, and [screen] keeps showing the last image meanwhile.
@@ -23,7 +24,13 @@ class ScreenTransport(
     private val agent: AgentLaunch,
     private val screen: RemoteScreen,
     private val quality: Int,
-    /** Called on the first frame of this connection, on the reader: it must not block. */
+    /** Called when the screen goes out of reach and comes back, on the reader: it must not block. */
+    private val onBlocked: (blocked: Boolean) -> Unit = {},
+    /**
+     * Called on the first frame of this connection, or on the first blocked
+     * state if the screen is out of reach from the start, on the reader: it
+     * must not block.
+     */
     private val onReady: () -> Unit,
 ) {
     private val stateMutex = Mutex()
@@ -57,12 +64,14 @@ class ScreenTransport(
                         if (!ready) refusal = frame.reason.orEmpty()
                         continue
                     }
+                    if (frame is AgentFrame.InputReady) {
+                        markReady()
+                        onBlocked(frame.blocked)
+                        continue
+                    }
                     val ack = screen.apply(frame)
                     if (ack != null) {
-                        if (!ready) {
-                            ready = true
-                            onReady()
-                        }
+                        markReady()
                         send(AgentFrame.ScreenAck(ack))
                     }
                 }
@@ -81,6 +90,13 @@ class ScreenTransport(
                 ?: AgentDiagnostics.classifyFrontExit(stderr.toString(), status)
         }
         stderrJob.cancel()
+    }
+
+    private fun markReady() {
+        if (!ready) {
+            ready = true
+            onReady()
+        }
     }
 
     /** Sends [frame] if the channel is open; drops it otherwise. */

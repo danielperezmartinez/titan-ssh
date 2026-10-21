@@ -3,8 +3,7 @@ Nombre: 'Escritorio remoto en destinos Windows'
 Estado: 'Pendiente'
 Resumen: 'Subtarea del escritorio remoto: capturar la pantalla de un destino Windows desde el ayudante de escritorio de ADR-0016, que ya corre en la sesión interactiva del usuario. El front --screen llega a él por loopback con una marca nueva del apretón de manos de ADR-0018; el ayudante captura primero con GDI (escritorio virtual entero, funciona en todo) y después con DXGI Desktop Duplication por COM desde Go sin cgo, con GDI de respaldo, y reutiliza SendInput añadiendo la posición absoluta. Bloqueo y UAC dan el estado blocked; una sesión desconectada, E_DESKTOP_INACTIVE. Necesita un destino Windows real para probarse.'
 Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño en [[ADR-0029 Escritorio remoto propio a través del agente]], concretado en [[ADR-0031 Escritorio remoto en Wayland, Windows y casos de borde]] (2026-10-21): GDI primero, escritorio virtual entero con todos los monitores.'
-Bloqueada:
-  - "[[Sesión gráfica del destino y errores del escritorio remoto]]"
+Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-21T10:50:00+02:00
 Última modificación: 2026-10-21T19:00:00+02:00
