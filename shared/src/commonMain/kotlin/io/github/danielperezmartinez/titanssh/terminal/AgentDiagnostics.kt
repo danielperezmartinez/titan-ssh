@@ -297,7 +297,8 @@ object AgentDiagnostics {
                     "Por ahora funciona con destinos Windows y Linux con X11 (no con Wayland)."
             E_SCREEN_UNSUPPORTED ->
                 "el escritorio del destino todavía no admite el escritorio remoto" to
-                    "Por ahora funciona con destinos Linux con X11; el detalle dice qué escritorio tiene el destino."
+                    "Por ahora funciona con destinos Linux con X11 y con Wayland en sway, Hyprland y otros " +
+                    "escritorios wlroots; el detalle dice qué escritorio tiene el destino."
             E_PROTOCOL ->
                 "el agente envió una imagen que esta versión de la app no entiende" to
                     "Actualiza la app; si ya está al día, revisa el detalle."

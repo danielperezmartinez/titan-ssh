@@ -143,34 +143,31 @@ func (w *Wlroots) refresh() error {
 
 // layout places the outputs in the image: in their logical layout, each
 // stretch of it as wide (and tall) as the most physical pixels any output
-// over it has. Side by side monitors stay side by side with their own
-// pixels, whatever their scales, without gaps or overlaps.
+// over it has, counting along each axis only the outputs beside the one
+// being placed (those that share some of its other axis). Side by side
+// monitors stay side by side with their own pixels, whatever their scales,
+// without gaps or overlaps.
 func layout(outs []wayland.Output) (xs, ys []int) {
-	axis := func(lo, hi func(wayland.Output) int, size func(wayland.Output) int) []int {
+	type span struct{ lo, hi, size int }
+	place := func(spans []span, i int) int {
 		var edges []int
-		for _, o := range outs {
-			edges = append(edges, lo(o), hi(o))
+		for _, s := range spans {
+			edges = append(edges, s.lo, s.hi)
 		}
 		sort.Ints(edges)
 		edges = slices.Compact(edges)
-		pos := map[int]float64{edges[0]: 0}
 		at := 0.0
-		for i := 1; i < len(edges); i++ {
-			a, b := edges[i-1], edges[i]
-			stretch := 0.0
-			for _, o := range outs {
-				if lo(o) <= a && hi(o) >= b && hi(o) > lo(o) {
-					stretch = max(stretch, float64(b-a)*float64(size(o))/float64(hi(o)-lo(o)))
+		for k := 1; k < len(edges) && edges[k-1] < spans[i].lo; k++ {
+			a, b := edges[k-1], edges[k]
+			stretch := float64(b - a)
+			for _, s := range spans {
+				if s.lo <= a && s.hi >= b && s.hi > s.lo {
+					stretch = max(stretch, float64(b-a)*float64(s.size)/float64(s.hi-s.lo))
 				}
 			}
 			at += math.Ceil(stretch)
-			pos[b] = at
 		}
-		out := make([]int, len(outs))
-		for i, o := range outs {
-			out[i] = int(pos[lo(o)])
-		}
-		return out
+		return int(at)
 	}
 	phys := func(o wayland.Output) (int, int) {
 		if o.Transform&1 == 1 {
@@ -178,10 +175,35 @@ func layout(outs []wayland.Output) (xs, ys []int) {
 		}
 		return o.Width, o.Height
 	}
-	xs = axis(func(o wayland.Output) int { return o.Logical.Min.X }, func(o wayland.Output) int { return o.Logical.Max.X },
-		func(o wayland.Output) int { w, _ := phys(o); return w })
-	ys = axis(func(o wayland.Output) int { return o.Logical.Min.Y }, func(o wayland.Output) int { return o.Logical.Max.Y },
-		func(o wayland.Output) int { _, h := phys(o); return h })
+	xs, ys = make([]int, len(outs)), make([]int, len(outs))
+	for i, o := range outs {
+		var hs, vs []span
+		ih, iv := 0, 0
+		for j, p := range outs {
+			pw, ph := phys(p)
+			if p.Logical.Min.Y < o.Logical.Max.Y && o.Logical.Min.Y < p.Logical.Max.Y {
+				if j == i {
+					ih = len(hs)
+				}
+				hs = append(hs, span{p.Logical.Min.X, p.Logical.Max.X, pw})
+			}
+			if p.Logical.Min.X < o.Logical.Max.X && o.Logical.Min.X < p.Logical.Max.X {
+				if j == i {
+					iv = len(vs)
+				}
+				vs = append(vs, span{p.Logical.Min.Y, p.Logical.Max.Y, ph})
+			}
+		}
+		// The layout's own origin counts from the leftmost and topmost
+		// output, so every row and column starts at the same place.
+		minX, minY := o.Logical.Min.X, o.Logical.Min.Y
+		for _, p := range outs {
+			minX, minY = min(minX, p.Logical.Min.X), min(minY, p.Logical.Min.Y)
+		}
+		hs = append(hs, span{minX, minX, 0})
+		vs = append(vs, span{minY, minY, 0})
+		xs[i], ys[i] = place(hs, ih), place(vs, iv)
+	}
 	return xs, ys
 }
 

@@ -149,7 +149,11 @@ func TestLiveWlrootsPointerAndCursor(t *testing.T) {
 		if err := c.Roundtrip(); err != nil {
 			t.Fatal(err)
 		}
-		if os.Getenv("TITAN_WAYLAND_PAINT_CURSOR") == "1" {
+		if w.pointer == 0 {
+			// The cursor is painted into the image: it damages where it lands.
+			if !damagedNear(t, w, p) {
+				t.Errorf("pointer to %v: no damage there", p)
+			}
 			continue
 		}
 		deadline := time.Now().Add(2 * time.Second)
@@ -242,9 +246,100 @@ func focused(tree []byte, name string) bool {
 	return start >= 0 && strings.Contains(s[start:i], `"focused": true`)
 }
 
+// damagedNear waits for damage at p.
+func damagedNear(t *testing.T, w *Wlroots, p image.Point) bool {
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		grab(t, w)
+		d, _ := w.Damage()
+		for _, r := range d {
+			if p.In(r.Inset(-2)) {
+				return true
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return false
+}
+
 func abs(v int) int {
 	if v < 0 {
 		return -v
 	}
 	return v
+}
+
+func swaymsg(t *testing.T, args ...string) {
+	t.Helper()
+	if b, err := exec.Command("swaymsg", args...).CombinedOutput(); err != nil {
+		t.Fatalf("swaymsg %v: %v: %s", args, err, b)
+	}
+}
+
+// waitSize waits for the desktop to become w×h.
+func waitSize(t *testing.T, cap *Wlroots, w, h int) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	var sw, sh int
+	for time.Now().Before(deadline) {
+		px, gw, gh := grab(t, cap)
+		sw, sh = gw, gh
+		_ = px
+		if sw == w && sh == h {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("desktop %dx%d, want %dx%d", sw, sh, w, h)
+}
+
+func TestLiveWlrootsFollowsOutputChanges(t *testing.T) {
+	_, _, w := liveWlroots(t)
+	waitSize(t, w, 2304, 800)
+	// A new resolution on the first monitor moves the second one.
+	swaymsg(t, "output", "HEADLESS-1", "resolution", "1024x600")
+	defer swaymsg(t, "output", "HEADLESS-1", "resolution", "1280x800")
+	swaymsg(t, "output", "HEADLESS-2", "position", "1024", "0")
+	defer swaymsg(t, "output", "HEADLESS-2", "position", "1280", "0")
+	waitSize(t, w, 1024+1024, 768)
+
+	// A third monitor plugged in below the first one, then unplugged.
+	before := map[string]bool{}
+	for _, o := range outputNames(t) {
+		before[o] = true
+	}
+	swaymsg(t, "create_output")
+	var added string
+	for _, o := range outputNames(t) {
+		if !before[o] {
+			added = o
+		}
+	}
+	if added == "" {
+		t.Fatal("create_output added no output")
+	}
+	unplugged := false
+	t.Cleanup(func() {
+		if !unplugged {
+			_ = exec.Command("swaymsg", "output", added, "unplug").Run()
+		}
+	})
+	swaymsg(t, "output", added, "resolution", "800x600", "position", "0", "600", "scale", "1")
+	waitSize(t, w, 2048, 1200)
+	swaymsg(t, "output", added, "unplug")
+	unplugged = true
+	waitSize(t, w, 2048, 768)
+}
+
+func outputNames(t *testing.T) []string {
+	t.Helper()
+	b, err := exec.Command("swaymsg", "-t", "get_outputs", "-r").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, part := range strings.Split(string(b), `"name": "`)[1:] {
+		names = append(names, part[:strings.Index(part, `"`)])
+	}
+	return names
 }

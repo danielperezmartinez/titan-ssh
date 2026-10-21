@@ -15,13 +15,13 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
 /**
- * A remote desktop (ADR-0029) against a real X11 destination, such as the
- * container of tools/test-x11: the agent installs, `--screen` sends the whole
+ * A remote desktop (ADR-0029) against a real destination, such as the
+ * containers of tools/test-x11 (X11) and tools/test-wlroots (sway): the agent installs, `--screen` sends the whole
  * screen and keeps it up to date, the pointer goes where it is told and comes
  * back as the cursor's position, and after a drop a new connection starts
  * with a whole frame again. Opt-in: TITAN_SSH_TEST_HOST/USER (+ _PORT),
- * TITAN_SSH_TEST_KEY or _PASSWORD, TITAN_AGENT_BIN, and TITAN_SSH_TEST_X11=1
- * (the host has an X11 session for that user).
+ * TITAN_SSH_TEST_KEY or _PASSWORD, TITAN_AGENT_BIN, and TITAN_SSH_TEST_DESKTOP=1
+ * (the host has a desktop session for that user; TITAN_SSH_TEST_X11=1 too).
  */
 class ScreenTransportIntegrationTest {
 
@@ -39,9 +39,9 @@ class ScreenTransportIntegrationTest {
         val password = System.getenv("TITAN_SSH_TEST_PASSWORD")
         val bin = System.getenv("TITAN_AGENT_BIN")
         if (host == null || user == null || (key == null && password == null) || bin == null ||
-            System.getenv("TITAN_SSH_TEST_X11") != "1"
+            (System.getenv("TITAN_SSH_TEST_DESKTOP") != "1" && System.getenv("TITAN_SSH_TEST_X11") != "1")
         ) {
-            println("[integration] remote desktop skipped: set TITAN_SSH_TEST_HOST/USER, _KEY or _PASSWORD, TITAN_AGENT_BIN and TITAN_SSH_TEST_X11=1")
+            println("[integration] remote desktop skipped: set TITAN_SSH_TEST_HOST/USER, _KEY or _PASSWORD, TITAN_AGENT_BIN and TITAN_SSH_TEST_DESKTOP=1")
             return null
         }
         val port = System.getenv("TITAN_SSH_TEST_PORT")?.toIntOrNull() ?: 22
@@ -59,7 +59,7 @@ class ScreenTransportIntegrationTest {
         createSshConnector().connect(endpoint, creds(), { true }, keepAliveSeconds = 0)
 
     @Test
-    fun sees_and_points_at_an_x11_desktop() {
+    fun sees_and_points_at_a_desktop() {
         val (endpoint, creds, bin) = env() ?: return
         val bytes = bin.readBytes()
         val surfaces = mutableListOf<Surface>()
