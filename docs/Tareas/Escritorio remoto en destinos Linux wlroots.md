@@ -1,12 +1,12 @@
 ---
 Nombre: 'Escritorio remoto en destinos Linux wlroots'
-Estado: 'En curso'
+Estado: 'Hecha'
 Resumen: 'Escritorio remoto en compositores Wayland basados en wlroots y afines (Sway, Hyprland, labwc, river), cuyo portal no tiene RemoteDesktop. Vía de ADR-0031: un cliente Wayland propio y mínimo en Go puro que captura con ext-image-copy-capture-v1 (o wlr-screencopy en los que aún no lo tienen) en búferes shm y mete la entrada con wlr-virtual-pointer y virtual-keyboard, sin diálogo, como X11. Se prueba con sway headless en un contenedor.'
-Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño en [[ADR-0031 Escritorio remoto en Wayland, Windows y casos de borde]] (2026-10-21). 2026-10-21: cliente en internal/wayland; monitores de escalas distintas uno al lado de otro con sus píxeles físicos; screen.Damager opcional para comparar solo lo dañado; el mouse pad en wlroots solo en la canary por ahora (decisión del usuario); Hyprland no se puede probar sin GPU.'
+Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño en [[ADR-0031 Escritorio remoto en Wayland, Windows y casos de borde]] (2026-10-21). 2026-10-21: cliente en internal/wayland; monitores de escalas distintas uno al lado de otro con sus píxeles físicos; screen.Damager opcional para comparar solo lo dañado; el mouse pad en wlroots solo en la canary por ahora (decisión del usuario); Hyprland no se puede probar sin GPU. Hecha el 2026-10-22, probada por el usuario en la app de escritorio.'
 Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-21T18:55:00+02:00
-Última modificación: 2026-10-22T00:30:00+02:00
+Última modificación: 2026-10-22T01:00:00+02:00
 ---
 
 # Escritorio remoto en destinos Linux wlroots
@@ -81,7 +81,7 @@ de la familia wlroots.
 
 ## Verificación
 
-2026-10-21/22 (en curso):
+2026-10-21/22:
 
 - `go test -race ./...` y `go vet` (también `-tags canary`, FreeBSD, macOS,
   Windows y arm64) en verde; tests del cliente contra un compositor falso.
@@ -98,7 +98,22 @@ de la familia wlroots.
   con acuse y reconexión tras un corte.
 - `--input` en el contenedor: el agente canary responde `INPUT_READY`; el
   estable, `E_INPUT_UNSUPPORTED`.
+- **Android** (emulador, APK canary de debug, destino por `adb reverse` en
+  `127.0.0.1:2228`): los dos monitores (el HiDPI más bajo, a la derecha), el
+  cursor dibujado por la app, el gesto de un dedo moviendo el cursor, el
+  toque como clic para dar el foco al terminal y `echo hola` tecleado con su
+  salida. Con zoom 2×/3× la imagen tapaba la cabecera: no es de esta vía, se
+  arregló en la base (recorte de la vista).
+- **App de escritorio** canary contra el contenedor: probada por el usuario,
+  todo bien.
 
 ## Resultado
 
-<Se rellena al completar.>
+El escritorio remoto funciona en compositores wlroots con un cliente Wayland
+propio en Go puro (`internal/wayland`), sin cgo ni dependencias: captura con
+`ext-image-copy-capture-v1` (cursor en su sesión) o `wlr-screencopy-unstable-v1`
+(cursor pintado), daños, varios monitores con escalas distintas, salidas
+giradas, cambios de resolución y de monitores; entrada con puntero y teclado
+virtuales y un mapa XKB propio. El mouse pad en wlroots está solo en la
+canary. Destino de pruebas en `tools/test-wlroots`. Hyprland queda sin probar
+(necesita GPU).
