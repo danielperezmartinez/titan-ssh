@@ -46,5 +46,23 @@ Los tests de túneles (`SshjForwardingIntegrationTest`) también comprueban los
 rechazos si se desactiva (`AllowTcpForwarding no`) y se pasa
 `-PtitanSshTestNoForwarding=true`.
 
+## Casos de error de la instalación de claves
+
+`key-install-scenarios.sh` crea, a partir de esta imagen, un contenedor
+desechable por cada caso de `KeyInstallIntegrationTest` (instalar la clave en
+el host desde la app): contraseña desactivada, solo `keyboard-interactive`
+(PAM), home con escritura para el grupo, home de solo lectura, disco lleno,
+`PubkeyAuthentication no`, `AuthorizedKeysFile` fuera de la home, `~/.ssh` de
+root y un destino al que solo se llega por salto. Escuchan en `127.0.0.1`,
+puertos 2240-2249 (la lista está en el script); `titan-test-sshd` no se toca.
+
+```sh
+tools/test-sshd/key-install-scenarios.sh up
+./gradlew :shared:desktopTest --tests '*KeyInstallIntegrationTest' -PtitanKeyInstallTest=1
+tools/test-sshd/key-install-scenarios.sh down
+```
+
+Desde el emulador se llega a ellos por `10.0.2.2:<puerto>`.
+
 No sustituye a las pruebas contra destinos reales (otros sistemas, Windows,
 redes reales): sirve para probar la app y su interfaz.

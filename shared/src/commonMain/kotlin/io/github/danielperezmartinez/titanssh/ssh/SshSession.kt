@@ -354,8 +354,11 @@ class SshHop(
 sealed class SshException(message: String, cause: Throwable? = null) :
     Exception(message, cause)
 
-/** The transport could not be established (DNS, refused, timeout, protocol). */
-class SshConnectFailed(message: String, cause: Throwable? = null) :
+/**
+ * The transport could not be established (DNS, refused, timeout, protocol).
+ * [host] is the endpoint that could not be reached, when the engine knows it.
+ */
+class SshConnectFailed(message: String, cause: Throwable? = null, val host: String? = null) :
     SshException(message, cause)
 
 /** A kind of algorithm the two ends of an SSH connection negotiate. */
@@ -372,9 +375,24 @@ class SshNoCommonAlgorithm(val host: String, val kind: SshAlgorithmKind, message
 class SshHostKeyRejected(message: String, cause: Throwable? = null) :
     SshException(message, cause)
 
-/** Authentication was rejected by the server. */
-class SshAuthFailed(message: String, cause: Throwable? = null) :
-    SshException(message, cause)
+/**
+ * Authentication was rejected by the server, as seen when it gave up: what it
+ * still offered ([allowedMethods], e.g. `publickey`), whether a method was only
+ * a first factor ([partialSuccess]), the `keyboard-interactive` prompts left
+ * unanswered because they did not ask for the password ([unansweredPrompts]),
+ * and whether the server asked to change an expired password
+ * ([passwordChangeRequested]). [host] is the endpoint that refused, which on a
+ * connection through jump hosts may be one of them.
+ */
+class SshAuthFailed(
+    message: String,
+    cause: Throwable? = null,
+    val host: String? = null,
+    val allowedMethods: List<String> = emptyList(),
+    val partialSuccess: Boolean = false,
+    val unansweredPrompts: List<String> = emptyList(),
+    val passwordChangeRequested: Boolean = false,
+) : SshException(message, cause)
 
 /**
  * The SFTP server answered a request with an error of its own (no such file,

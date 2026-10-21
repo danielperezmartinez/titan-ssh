@@ -21,7 +21,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import io.github.danielperezmartinez.titanssh.AppChannel
 import io.github.danielperezmartinez.titanssh.config.ConfigController
+import io.github.danielperezmartinez.titanssh.config.ConfigResolutionException
 import io.github.danielperezmartinez.titanssh.config.GroupScope
 import io.github.danielperezmartinez.titanssh.config.Host
 import io.github.danielperezmartinez.titanssh.config.HostAuth
@@ -30,6 +32,13 @@ import io.github.danielperezmartinez.titanssh.config.Ids
 import io.github.danielperezmartinez.titanssh.config.TerminalAppearance
 import io.github.danielperezmartinez.titanssh.config.TitanConfig
 import io.github.danielperezmartinez.titanssh.config.canJumpThrough
+import io.github.danielperezmartinez.titanssh.config.jumpChain
+import io.github.danielperezmartinez.titanssh.keyinstall.HostKeyQuestion
+import io.github.danielperezmartinez.titanssh.keyinstall.KeyInstallProblem
+import io.github.danielperezmartinez.titanssh.keyinstall.KeyInstallResult
+import io.github.danielperezmartinez.titanssh.keyinstall.KeyInstallStep
+import io.github.danielperezmartinez.titanssh.keyinstall.KeyInstaller
+import io.github.danielperezmartinez.titanssh.keyinstall.StepState
 import io.github.danielperezmartinez.titanssh.secret.SecretProvisioner
 import io.github.danielperezmartinez.titanssh.secret.SecretRef
 import io.github.danielperezmartinez.titanssh.secret.SshKeyType
@@ -57,18 +66,25 @@ private enum class AuthKind(val label: String) {
  *   action generates (or reuses) the non-exportable key under it and shows its
  *   `authorized_keys` line to enroll on the server. The key never leaves the
  *   hardware (ADR-0005); on desktop v1 the action is unavailable.
+ *
+ * With a [keyInstaller] (the canary, ADR-0030) both key methods can also put
+ * the key on the host themselves and switch the host to it once it logs in.
  */
 @Composable
 fun HostEditor(
     controller: ConfigController,
     hostId: String?,
     provisioner: SecretProvisioner,
+    /** Installs the key on the host (ADR-0030); null where it is not offered. */
+    keyInstaller: KeyInstaller? = null,
     /** The group a new host starts in (created from a folder's actions). */
     initialGroupId: String? = null,
     onDone: () -> Unit,
 ) {
     val config by controller.state.collectAsState()
     val existing = remember(hostId) { config.hosts.firstOrNull { it.id == hostId } }
+    // Fixed up front: installing the key saves the host before the editor does.
+    val id = remember(hostId) { existing?.id ?: Ids.host() }
 
     var alias by remember { mutableStateOf(existing?.alias ?: "") }
     var hostname by remember { mutableStateOf(existing?.hostname ?: "") }
@@ -127,6 +143,14 @@ fun HostEditor(
     var pemInput by remember { mutableStateOf("") }
     var passphraseInput by remember { mutableStateOf("") }
     var hwLine by remember { mutableStateOf("") }
+    var installKey by remember { mutableStateOf(false) }
+    val installer = keyInstaller?.takeIf { keyInstallOffered }
+    // A password the host held before, which the summary offers to delete once the key works.
+    var storedPasswordRef by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(existing) {
+        storedPasswordRef = (existing?.auth as? HostAuth.Password)?.secretRef
+            ?.takeIf { runCatching { provisioner.has(SecretRef(it)) }.getOrDefault(false) }
+    }
 
     // Clear transient feedback when the method changes; each method owns its own.
     LaunchedEffect(authKind) { statusMsg = null }
@@ -163,26 +187,71 @@ fun HostEditor(
         AuthKind.HARDWARE_KEY -> HostAuth.HardwareKey(keyType, alias2.trim())
     }
 
+    fun buildHost(auth: HostAuth = buildAuth()) = Host(
+        id = id,
+        alias = alias.trim(),
+        hostname = hostname.trim(),
+        port = portInt ?: 22,
+        username = username.trim(),
+        auth = auth,
+        hostKeyPolicy = hostKeyPolicy,
+        keepAliveSeconds = keepAlive.toIntOrNull() ?: 30,
+        proxyJumpHostId = proxyJumpHostId,
+        appearance = fontSize.toIntOrNull()?.let { TerminalAppearance(fontSize = it) },
+        groupId = groupId,
+        tags = tags.split(",").map { it.trim() }.filter { it.isNotEmpty() },
+        marker = marker.ifBlank { "[+]" },
+    )
+
     fun save() {
-        val id = existing?.id ?: Ids.host()
-        controller.upsertHost(
-            Host(
-                id = id,
-                alias = alias.trim(),
-                hostname = hostname.trim(),
-                port = portInt ?: 22,
-                username = username.trim(),
-                auth = buildAuth(),
-                hostKeyPolicy = hostKeyPolicy,
-                keepAliveSeconds = keepAlive.toIntOrNull() ?: 30,
-                proxyJumpHostId = proxyJumpHostId,
-                appearance = fontSize.toIntOrNull()?.let { TerminalAppearance(fontSize = it) },
-                groupId = groupId,
-                tags = tags.split(",").map { it.trim() }.filter { it.isNotEmpty() },
-                marker = marker.ifBlank { "[+]" },
-            ),
-        )
+        controller.upsertHost(buildHost())
         onDone()
+    }
+
+    /**
+     * Installs the key on the host (ADR-0030): prepares it (generated or
+     * reused), installs it, and on success saves the host with it, keeping the
+     * form in step with what was saved.
+     */
+    suspend fun installOnHost(
+        password: CharArray,
+        askHostKey: (HostKeyQuestion) -> Unit,
+        onStep: (KeyInstallStep, StepState) -> Unit,
+    ): KeyInstallResult {
+        val keyInstaller = installer ?: error("not offered")
+        onStep(KeyInstallStep.KEY, StepState.RUNNING)
+        val prepared = try {
+            if (authKind == AuthKind.HARDWARE_KEY) {
+                val line = ensureHardwareKey(alias2.trim())
+                hwLine = line
+                line to HostAuth.HardwareKey(keyTypeOf(line) ?: SshKeyType.ECDSA_P256, alias2.trim())
+            } else {
+                val passRef = passphraseRef.trim().ifBlank { null }
+                val (line, _) = provisioner.ensureSoftwareKey(SecretRef(secretRef.trim()), passRef?.let { SecretRef(it) }, AppChannel.appName)
+                line to HostAuth.SoftwareKey(keyTypeOf(line) ?: SshKeyType.ED25519, secretRef.trim(), passRef)
+            }
+        } catch (e: Exception) {
+            onStep(KeyInstallStep.KEY, StepState.FAILED)
+            return KeyInstallResult.Failed(KeyInstallStep.KEY, KeyInstallProblem.KEY_UNAVAILABLE, e.message)
+        }
+        val (line, auth) = prepared
+        (auth as? HostAuth.SoftwareKey)?.let { keyType = it.keyType }
+        (auth as? HostAuth.HardwareKey)?.let { keyType = it.keyType }
+        onStep(KeyInstallStep.KEY, StepState.DONE)
+        val host = buildHost(auth)
+        val jumps = try {
+            config.jumpChain(host)
+        } catch (e: ConfigResolutionException) {
+            onStep(KeyInstallStep.CONNECT, StepState.FAILED)
+            return KeyInstallResult.Failed(KeyInstallStep.CONNECT, KeyInstallProblem.UNEXPECTED, e.message)
+        }
+        val result = keyInstaller.install(host, jumps, password, line, auth, askHostKey, onStep)
+        if (result is KeyInstallResult.Installed) {
+            onStep(KeyInstallStep.SAVE, StepState.RUNNING)
+            controller.upsertHost(host)
+            onStep(KeyInstallStep.SAVE, StepState.DONE)
+        }
+        return result
     }
 
     EditorScaffold(
@@ -231,41 +300,62 @@ fun HostEditor(
                     TitanTextField("Referencia de la clave privada (SecretStore)", secretRef, { secretRef = it }, placeholder = "casa.key")
                     Gap()
                     TitanTextField("Referencia de la passphrase (opcional)", passphraseRef, { passphraseRef = it })
-                    Gap()
-                    TitanTextField(
-                        "Clave privada PEM (se guarda en el almacén)",
-                        pemInput,
-                        { pemInput = it },
-                        placeholder = "-----BEGIN OPENSSH PRIVATE KEY-----",
-                        singleLine = false,
-                    )
-                    Gap()
-                    TitanTextField("Passphrase de la clave (opcional)", passphraseInput, { passphraseInput = it }, password = true)
-                    Gap()
-                    TitanButton(
-                        "[ok] Importar clave al almacén",
-                        onClick = {
-                            val trimmedPassRef = passphraseRef.trim()
-                            provision({
-                                "Clave privada importada bajo '${secretRef.trim()}'" +
-                                    if (trimmedPassRef.isNotBlank() && passphraseInput.isNotBlank()) " (+ passphrase)." else "."
-                            }) {
-                                provisioner.importPrivateKey(
-                                    keyRef = SecretRef(secretRef.trim()),
-                                    pem = pemInput.toCharArray(),
-                                    passphraseRef = trimmedPassRef.ifBlank { null }?.let { SecretRef(it) },
-                                    passphrase = passphraseInput.ifBlank { null }?.toCharArray(),
-                                )
-                                pemInput = ""
-                                passphraseInput = ""
-                            }
-                        },
-                        kind = ButtonKind.PRIMARY,
-                        enabled = !busy && secretRef.isNotBlank() && pemInput.isNotBlank(),
-                    )
-                    ProvisionStatus(statusMsg, statusOk)
-                    Gap()
-                    Caption("Se custodia solo la clave privada; enrola tú su .pub en el servidor. Generar un par nuevo llegará más adelante.")
+                    if (installer != null) {
+                        Gap()
+                        KeyInstallPanel(
+                            checked = installKey,
+                            onCheckedChange = { installKey = it },
+                            target = installTarget(username, hostname),
+                            hardware = false,
+                            canStart = !busy && hostname.isNotBlank() && username.isNotBlank() && portInt in 1..65535 && secretRef.isNotBlank(),
+                            previousPasswordRef = storedPasswordRef,
+                            run = ::installOnHost,
+                            deletePassword = { provisioner.remove(SecretRef(it)) },
+                        )
+                    }
+                    if (installer == null || !installKey) {
+                        Gap()
+                        TitanTextField(
+                            "Clave privada PEM (se guarda en el almacén)",
+                            pemInput,
+                            { pemInput = it },
+                            placeholder = "-----BEGIN OPENSSH PRIVATE KEY-----",
+                            singleLine = false,
+                        )
+                        Gap()
+                        TitanTextField("Passphrase de la clave (opcional)", passphraseInput, { passphraseInput = it }, password = true)
+                        Gap()
+                        TitanButton(
+                            "[ok] Importar clave al almacén",
+                            onClick = {
+                                val trimmedPassRef = passphraseRef.trim()
+                                provision({
+                                    "Clave privada importada bajo '${secretRef.trim()}'" +
+                                        if (trimmedPassRef.isNotBlank() && passphraseInput.isNotBlank()) " (+ passphrase)." else "."
+                                }) {
+                                    provisioner.importPrivateKey(
+                                        keyRef = SecretRef(secretRef.trim()),
+                                        pem = pemInput.toCharArray(),
+                                        passphraseRef = trimmedPassRef.ifBlank { null }?.let { SecretRef(it) },
+                                        passphrase = passphraseInput.ifBlank { null }?.toCharArray(),
+                                    )
+                                    pemInput = ""
+                                    passphraseInput = ""
+                                }
+                            },
+                            kind = ButtonKind.PRIMARY,
+                            enabled = !busy && secretRef.isNotBlank() && pemInput.isNotBlank(),
+                        )
+                        ProvisionStatus(statusMsg, statusOk)
+                        Gap()
+                        Caption(
+                            if (installer != null) {
+                                "Se custodia solo la clave privada; enrola tú su .pub en el servidor, o marca la casilla de arriba para que la app genere un par y lo instale."
+                            } else {
+                                "Se custodia solo la clave privada; enrola tú su .pub en el servidor. Generar un par nuevo llegará más adelante."
+                            },
+                        )
+                    }
                 }
                 AuthKind.HARDWARE_KEY -> {
                     TitanSegmented("Tipo de clave", listOf(SshKeyType.ECDSA_P256, SshKeyType.ED25519), keyType, { keyType = it }, optionLabel = { it.sshName })
@@ -274,7 +364,20 @@ fun HostEditor(
                     Gap()
                     Caption("La clave hardware no exportable no pasa por el SecretStore; se referencia por alias (ADR-0005).")
                     Gap()
-                    TitanButton(
+                    if (installer != null && hwSupported) {
+                        KeyInstallPanel(
+                            checked = installKey,
+                            onCheckedChange = { installKey = it },
+                            target = installTarget(username, hostname),
+                            hardware = true,
+                            canStart = !busy && hostname.isNotBlank() && username.isNotBlank() && portInt in 1..65535 && alias2.isNotBlank(),
+                            previousPasswordRef = storedPasswordRef,
+                            run = ::installOnHost,
+                            deletePassword = { provisioner.remove(SecretRef(it)) },
+                        )
+                        Gap()
+                    }
+                    if (installer == null || !hwSupported || !installKey) TitanButton(
                         "[>] Generar / mostrar clave",
                         onClick = {
                             provision({ "Clave lista en el almacén del SO. Enrola la línea de abajo en authorized_keys." }) {
@@ -348,6 +451,16 @@ internal fun hostDeleteWarning(config: TitanConfig, hostId: String): String? {
         usingSessions.takeIf { it > 0 }?.let { if (it == 1) "1 sesión se queda sin host" else "$it sesiones se quedan sin host" },
         jumpingHosts.takeIf { it > 0 }?.let { if (it == 1) "1 host deja de saltar por él" else "$it hosts dejan de saltar por él" },
     ).joinToString(" · ").ifEmpty { null }
+}
+
+/** `user@host` for the install texts, with placeholders while the form is empty. */
+private fun installTarget(username: String, hostname: String): String =
+    "${username.trim().ifBlank { "<usuario>" }}@${hostname.trim().ifBlank { "<host>" }}"
+
+/** The key type of an `authorized_keys` line, if it is one the app models. */
+private fun keyTypeOf(line: String): SshKeyType? {
+    val type = line.trim().substringBefore(' ')
+    return SshKeyType.entries.firstOrNull { it.sshName == type } ?: if (type == "ssh-rsa") SshKeyType.RSA_3072_PLUS else null
 }
 
 /** Transient success/error line for a provisioning action (color = real state). */

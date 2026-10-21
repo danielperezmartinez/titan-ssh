@@ -373,6 +373,9 @@ tasks.withType<Test>().configureEach {
         // "1" when the test host has an X11 session for the user (the
         // tools/test-x11 container), for ScreenTransportIntegrationTest.
         "titanSshTestX11" to "TITAN_SSH_TEST_X11",
+        // "1" once tools/test-sshd/key-install-scenarios.sh is up, for
+        // KeyInstallIntegrationTest (installing the key on the host, ADR-0030).
+        "titanKeyInstallTest" to "TITAN_KEY_INSTALL_TEST",
         // The embedded RDP client end to end (RdpIntegrationTest, ADR-0028):
         // the built library and the desktop account of tools/test-rdp.
         "titanRdpTestLibrary" to "TITAN_RDP_TEST_LIBRARY",

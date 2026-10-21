@@ -1,12 +1,12 @@
 ---
 Nombre: 'Instalar la clave pública en el host desde la app'
-Estado: 'Planificando'
+Estado: 'Hecha'
 Resumen: 'Casilla en el editor de host que genera la clave, pide la contraseña una sola vez, copia la línea pública en authorized_keys del servidor (como ssh-copy-id, también en Windows con administrators_authorized_keys), comprueba que la clave entra y solo entonces cambia el host a autenticación por clave. Texto previo que explica cada paso y catálogo cerrado de errores. Incluye generar pares ed25519 por software (escritorio y Android) y keyboard-interactive en el motor. Primero solo en la canary.'
 Decisiones: 'Sigue [[ADR-0030 Instalación de la clave pública en el host con una contraseña de un solo uso]]. Acordado con el usuario el 2026-10-21: solo canary al principio; ed25519 por software en escritorio; la casilla va en el editor de host; si el host tenía contraseña guardada, el resumen ofrece borrarla (no se borra sola).'
 Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-21T18:00:00+02:00
-Última modificación: 2026-10-21T18:00:00+02:00
+Última modificación: 2026-10-21T19:45:00+02:00
 ---
 
 # Instalar la clave pública en el host desde la app
@@ -134,8 +134,62 @@ Continúa el pendiente de generar pares por software de
 
 ## Verificación
 
-<Se rellena al completar.>
+**Tests (escritorio, `:shared:desktopTest`, 525 sin fallos):**
+
+- `KeyInstallScriptsTest` (11): el script de Unix corre con el `/bin/sh` de
+  la máquina sobre una home temporal: crea `~/.ssh` 700 y `authorized_keys`
+  600, no duplica una clave ya puesta (aunque cambie el comentario), añade el
+  salto de línea que falta, corrige permisos, avisa de una home con escritura
+  para el grupo sin tocarla, `~/.ssh` que es un fichero, fichero sin permiso de
+  escritura, home inexistente, comillas en la línea; y la lectura de
+  respuestas, el `authorized_keys` por SFTP y los ayudantes de Windows.
+- `SoftwareKeysTest` (5): par ed25519 en formato OpenSSH que sshj vuelve a
+  leer a la misma pública; identidad de una línea con opciones y comentario.
+- `KeyInstallerTest` (13): servidores falsos para el flujo, la contraseña
+  copiada y borrada, clave de host nueva / rechazada / cambiada / STRICT, cada
+  rechazo de contraseña, saltos, la comprobación final, cuentas sin shell por
+  SFTP y Windows (usuario, administrador con `icacls`, `sshd_config` sin la
+  regla, fallos de escritura y de ACL).
+- `KeyInstallIntegrationTest` (7, opt-in) contra sshd reales
+  (`tools/test-sshd/key-install-scenarios.sh`): instala y no duplica, entra
+  solo con `keyboard-interactive` (PAM), pasa por un salto, y da el error
+  correcto con contraseña incorrecta, contraseña desactivada, clave de host
+  rechazada y cambiada, home de solo lectura, disco lleno, `~/.ssh` de root,
+  home con escritura para el grupo (StrictModes), `PubkeyAuthentication no` y
+  `AuthorizedKeysFile` fuera de la home.
+
+**Emulador** (`Pixel_9_Pro_XL`, build de debug canary, 2026-10-21): host
+`demo-docker` contra `titan-test-sshd` que entraba con contraseña guardada;
+se pasó a clave hardware con la casilla, se aceptó la clave del servidor en
+el propio flujo, los seis pasos salieron `[ok]`, se borró la contraseña
+guardada desde el resumen y una sesión nueva del host entró con la clave. Con
+un contenedor sin acceso por contraseña (clave software), el error «El
+servidor no acepta contraseña» con los métodos que ofrece y «La contraseña no
+ha llegado a enviarse».
+
+**Sin probar contra un servidor real:** Windows (no hay destino Windows en
+este equipo; cubierto con servidores falsos) y el segundo factor (cubierto con
+servidores falsos). La interfaz de escritorio comparte el código de la de
+Android y no se ha mirado aparte.
 
 ## Resultado
 
-<Se rellena al completar.>
+- **Motor** (`SshjConnector`, `SshjPasswordAuth.kt`): con contraseña prueba
+  `password` y después `keyboard-interactive`, respondiendo solo a una
+  pregunta de contraseña; `SshAuthFailed` lleva el host que rechazó, los
+  métodos que ofrecía, el éxito parcial, las preguntas sin responder y la
+  petición de cambiar la contraseña. Beneficia también a las sesiones normales.
+- **Claves por software** (`SoftwareKeys.kt`): `generateEd25519KeyPair`,
+  `publicLineOfPrivateKey` y `SecretProvisioner.ensureSoftwareKey`, que genera
+  en una referencia vacía y reutiliza la que ya tenga clave.
+- **Instalador** (`keyinstall/`): `KeyInstaller`, el catálogo
+  `KeyInstallProblem` y `KeyInstallScripts`. Ficha
+  [[Instalador de clave en el host]].
+- **Interfaz**: `KeyInstallPanel` en las secciones de clave software y
+  hardware del editor de host, solo en la canary (`keyInstallOffered`): la
+  casilla, el texto de los seis pasos, la contraseña de un solo uso, los pasos
+  en vivo, la pregunta de clave de host y el resumen con el botón para borrar
+  la contraseña que el host tenía guardada. El host se guarda con la clave
+  solo tras la comprobación.
+- **Pruebas**: `tools/test-sshd/key-install-scenarios.sh` crea los
+  contenedores de cada caso (puertos 2240-2249).

@@ -35,8 +35,9 @@ import net.schmizz.sshj.sftp.OpenMode
 import net.schmizz.sshj.sftp.Response
 import net.schmizz.sshj.sftp.SFTPException
 import net.schmizz.sshj.sftp.SFTPClient
-import net.schmizz.sshj.userauth.UserAuthException
 import net.schmizz.sshj.userauth.keyprovider.KeyProvider
+import net.schmizz.sshj.userauth.method.AuthKeyboardInteractive
+import net.schmizz.sshj.userauth.method.AuthPassword
 import net.schmizz.sshj.userauth.password.PasswordUtils
 
 /** sshj-backed [SshConnector] (ADR-0004). Pure-Java, shared by Android and desktop. */
@@ -104,24 +105,33 @@ internal class SshjConnector : SshConnector {
                 )
             }
             val how = if (through == null) "" else " through the jump host"
-            throw SshConnectFailed("Could not connect to ${endpoint.host}:${endpoint.port}$how", e)
+            throw SshConnectFailed("Could not connect to ${endpoint.host}:${endpoint.port}$how", e, host = endpoint.host)
         }
 
         if (keepAliveSeconds > 0) {
             ssh.connection.keepAlive.keepAliveInterval = keepAliveSeconds
         }
 
+        val passwordAnswers = PasswordAnswers()
         try {
-            authenticate(ssh, endpoint.username, credentials)
+            authenticate(ssh, endpoint.username, credentials, passwordAnswers)
         } catch (e: SshHardwareKeyUnavailable) {
             runCatching { ssh.disconnect() }
             throw e // let the caller fall back to a software key
-        } catch (e: UserAuthException) {
-            runCatching { ssh.disconnect() }
-            throw SshAuthFailed("Authentication failed for ${endpoint.username}@${endpoint.host}", e)
         } catch (e: Throwable) {
+            // What the server said while refusing, read before the disconnect drops it.
+            val allowed = runCatching { ssh.userAuth.allowedMethods.toList() }.getOrDefault(emptyList())
+            val partial = runCatching { ssh.userAuth.hadPartialSuccess() }.getOrDefault(false)
             runCatching { ssh.disconnect() }
-            throw SshAuthFailed("Authentication failed for ${endpoint.username}@${endpoint.host}", e)
+            throw SshAuthFailed(
+                "Authentication failed for ${endpoint.username}@${endpoint.host}",
+                e,
+                host = endpoint.host,
+                allowedMethods = allowed,
+                partialSuccess = partial,
+                unansweredPrompts = passwordAnswers.unanswered.toList(),
+                passwordChangeRequested = passwordAnswers.changeRequested,
+            )
         }
         return ssh
     }
@@ -152,10 +162,18 @@ internal class SshjConnector : SshConnector {
                     .distinct()
         }
 
-    private fun authenticate(ssh: SSHClient, username: String, credentials: SshCredentials) {
+    private fun authenticate(ssh: SSHClient, username: String, credentials: SshCredentials, answers: PasswordAnswers) {
         when (credentials) {
-            is SshCredentials.Password ->
-                ssh.authPassword(username, String(credentials.password))
+            // `password` first; many PAM servers only take the same password
+            // through `keyboard-interactive`, so that is the second try.
+            is SshCredentials.Password -> {
+                val finder = OneOffPassword(credentials.password)
+                ssh.auth(
+                    username,
+                    AuthPassword(finder, answers),
+                    AuthKeyboardInteractive(PasswordPrompts(credentials.password, answers)),
+                )
+            }
 
             is SshCredentials.PrivateKey -> {
                 val keys: KeyProvider =

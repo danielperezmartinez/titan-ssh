@@ -45,6 +45,7 @@ import io.github.danielperezmartinez.titanssh.config.createStableCopier
 import io.github.danielperezmartinez.titanssh.config.resolve
 import io.github.danielperezmartinez.titanssh.config.sessionsUsing
 import io.github.danielperezmartinez.titanssh.isScreenCaptureControlSupported
+import io.github.danielperezmartinez.titanssh.keyinstall.KeyInstaller
 import io.github.danielperezmartinez.titanssh.secret.SecretProvisioner
 import io.github.danielperezmartinez.titanssh.terminal.AgentHost
 import io.github.danielperezmartinez.titanssh.theme.TitanColors
@@ -86,6 +87,8 @@ fun ConfigArea(
     controller: ConfigController,
     provisioner: SecretProvisioner,
     onBack: () -> Unit,
+    /** Installs a key on its host from the host editor (ADR-0030); null where not offered. */
+    keyInstaller: KeyInstaller? = null,
     editSessionId: String? = null,
     openOnSessions: Boolean = false,
     /** Deletes a saved session; the app also terminates it on its destination. */
@@ -105,7 +108,7 @@ fun ConfigArea(
     val closeEditor = { if (editSessionId != null) onBack() else editor = null }
 
     when (val current = editor) {
-        is Editor.HostEdit -> HostEditor(controller, current.id, provisioner, initialGroupId = current.groupId) { editor = null }
+        is Editor.HostEdit -> HostEditor(controller, current.id, provisioner, keyInstaller, initialGroupId = current.groupId) { editor = null }
         is Editor.SessionEdit -> SessionEditor(
             controller,
             current.id,

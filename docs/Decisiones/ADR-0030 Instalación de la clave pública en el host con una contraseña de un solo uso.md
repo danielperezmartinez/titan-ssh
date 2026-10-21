@@ -1,14 +1,14 @@
 ---
 Nombre: 'Instalación de la clave pública en el host con una contraseña de un solo uso'
 Número: 30
-Estado: 'Propuesta'
+Estado: 'Aceptada'
 Resumen: 'La app instala ella misma la clave pública de un host en el servidor, como ssh-copy-id: genera la clave (hardware no exportable en Android, ed25519 por software en el SecretStore en escritorio y como opción en Android), pide la contraseña del host una sola vez, conecta con ella (password o keyboard-interactive) con la verificación de host habitual y los saltos del host, añade la línea a authorized_keys sin duplicarla y con los permisos que exige StrictModes (en Windows, al fichero que use Win32-OpenSSH con sus ACL), y vuelve a conectar solo con la clave. El host pasa a autenticar con clave únicamente si esa verificación entra; si algo falla, no cambia nada y se muestra un error concreto de un catálogo cerrado. La contraseña nunca se guarda. Primero solo en la canary.'
 Decisión: 'Añadir al editor de host una casilla que genera la clave, la instala en el servidor con una contraseña que solo vive en memoria durante la operación, verifica que la clave entra y solo entonces cambia la autenticación del host; nunca se persiste la contraseña.'
 Consecuencias: 'Pasar de contraseña a clave deja de exigir herramientas de terceros o la sesión SFTP. La app escribe por primera vez en ficheros de configuración del usuario remoto (~/.ssh, authorized_keys, en Windows administrators_authorized_keys y sus ACL), así que la operación debe ser idempotente, tocar solo eso y explicarlo antes. El motor gana keyboard-interactive. Se añade la generación de pares ed25519 por software. Hay que mantener un catálogo de errores con su texto.'
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-10-21T18:00:00+02:00
-Última modificación: 2026-10-21T18:00:00+02:00
+Última modificación: 2026-10-21T19:45:00+02:00
 ---
 
 # ADR-0030 · Instalación de la clave pública en el host con una contraseña de un solo uso

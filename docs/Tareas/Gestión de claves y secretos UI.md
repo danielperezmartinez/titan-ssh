@@ -5,7 +5,7 @@ Resumen: 'Aprovisionar material de autenticación desde la app. ENTREGADO y veri
 Decisiones: Consume [[ADR-0001 Credenciales en almacén nativo del SO]] y [[ADR-0005 Autenticación SSH y verificación de host]]. Se apoya en la fundación de [[Almacenamiento seguro de credenciales]] y el signer de [[Autenticación SSH signer en hardware y verificación de host]].
 Bloqueada: []
 Fecha de creación: 2026-09-18T16:10:00+02:00
-Última modificación: 2026-09-18T18:20:00+02:00
+Última modificación: 2026-10-21T19:45:00+02:00
 ---
 
 # Gestión de claves y secretos (UI)
@@ -112,5 +112,7 @@ Aprovisionamiento de material de autenticación cerrado en la UI de producto
   en el classpath de `jvmShared`, pero serializar a mano el PEM OpenSSH de la
   privada es frágil; se deja para una iteración futura. La importación de una clave
   existente cubre el caso software de la v1.
+  Generar el par in-app llegó después con
+  [[Instalar la clave pública en el host desde la app]] (`ensureSoftwareKey`).
 - La pantalla de depuración `HardwareSignerTestScreen` (alias fijo) se conserva en
   el árbol como banco de pruebas; la funcionalidad de producto vive en el editor.

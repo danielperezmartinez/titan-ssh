@@ -1,5 +1,8 @@
 package io.github.danielperezmartinez.titanssh.secret
 
+import io.github.danielperezmartinez.titanssh.ssh.generateEd25519KeyPair
+import io.github.danielperezmartinez.titanssh.ssh.publicLineOfPrivateKey
+
 /**
  * Writes authentication material into the [SecretStore] so the reference-only
  * [HostAuth][io.github.danielperezmartinez.titanssh.config.HostAuth] of a host resolves to live
@@ -57,6 +60,41 @@ class SecretProvisioner(private val store: SecretStore) {
         if (passphraseRef != null && passphrase != null && passphrase.isNotEmpty()) {
             putChars(passphraseRef, passphrase)
         }
+    }
+
+    /**
+     * The `authorized_keys` line of the software key under [keyRef], generating
+     * an ed25519 pair there first when the reference holds nothing (ADR-0030).
+     * An existing key is reused, never replaced: other hosts may use it. Its
+     * passphrase, if any, is read from [passphraseRef].
+     *
+     * @return the public line and whether the key was generated now.
+     * @throws InvalidMaterial if the stored key cannot be read.
+     */
+    suspend fun ensureSoftwareKey(keyRef: SecretRef, passphraseRef: SecretRef?, comment: String): Pair<String, Boolean> {
+        val stored = store.get(keyRef)
+        if (stored != null) {
+            val pem = stored.decodeToString().toCharArray()
+            val passphrase = passphraseRef?.let { store.get(it) }?.let { bytes ->
+                bytes.decodeToString().toCharArray().also { bytes.wipe() }
+            }
+            stored.wipe()
+            try {
+                return publicLineOfPrivateKey(pem, passphrase) to false
+            } catch (e: IllegalArgumentException) {
+                throw InvalidMaterial("The key stored under '${keyRef.value}' cannot be read: ${e.message}")
+            } finally {
+                pem.fill(' ')
+                passphrase?.fill(' ')
+            }
+        }
+        val pair = generateEd25519KeyPair(comment)
+        try {
+            putChars(keyRef, pair.privateKeyPem)
+        } finally {
+            pair.privateKeyPem.fill(' ')
+        }
+        return pair.publicLine to true
     }
 
     /** Whether a secret is already stored under [ref]. */
