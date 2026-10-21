@@ -264,7 +264,7 @@ private fun SessionForm(
                     SessionType.MOUSEPAD -> "mouse pad"
                     SessionType.SFTP -> "sftp"
                     SessionType.DESKTOP -> "escritorio"
-                    SessionType.RDP -> "escritorio"
+                    SessionType.RDP -> "rdp"
                 }
             })
             if (type == SessionType.DESKTOP) {
@@ -325,7 +325,7 @@ private fun SessionForm(
                 return@Column
             }
             if (type == SessionType.RDP) {
-                RdpFields(rdp, onRdp, provisioner, suggestedRef = name.trim().ifBlank { "escritorio" } + ".rdp.password")
+                RdpFields(rdp, onRdp, provisioner, suggestedRef = name.trim().ifBlank { "rdp" } + ".rdp.password")
                 SectionHeader("Organización")
                 GroupPicker(controller, GroupScope.SESSIONS, config.sessionGroups, groupId, onGroupId)
                 Gap()
