@@ -35,7 +35,10 @@ func TestServeComparesOnlyDamage(t *testing.T) {
 	cp := &damaging{fakeCapturer: &fakeCapturer{w: w, h: h, px: px}, known: true}
 	cli, srv := net.Pipe()
 	defer cli.Close()
-	go func() { _ = Serve(srv, cp, nil, Options{Interval: 5 * time.Millisecond, RefineAfter: time.Hour}); srv.Close() }()
+	go func() {
+		_ = Serve(srv, cp, nil, Options{Interval: 5 * time.Millisecond, RefineAfter: time.Hour})
+		srv.Close()
+	}()
 	r := &reader{t: t, c: cli}
 	ack := func(seq uint32) {
 		_, _ = cli.Write(protocol.Encode(protocol.Frame{Type: protocol.TypeScreenAck, Seq: seq}))

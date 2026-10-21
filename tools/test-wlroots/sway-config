@@ -1,0 +1,12 @@
+# sway for the test destination: two outputs side by side, the second one
+# HiDPI (scale 2: 1024x768 physical, 512x384 logical), a solid background,
+# a clock on the first output and a terminal on the second.
+xwayland disable
+output HEADLESS-1 resolution 1280x800 position 0 0 scale 1 bg #3a6ea5 solid_color
+output HEADLESS-2 resolution 1024x768 position 1280 0 scale 2 bg #6a8f3a solid_color
+default_border normal
+font monospace 12
+workspace 1 output HEADLESS-1
+workspace 2 output HEADLESS-2
+exec foot --title reloj --font monospace:size=28 /usr/local/bin/clock.sh
+exec swaymsg 'workspace 2; exec foot --title terminal; workspace 1'
