@@ -108,6 +108,9 @@ type statusReport struct {
 	// Screens are the remote desktop sessions (--screen, ADR-0029) running
 	// now; the CLI adds them, whatever state the daemon is in.
 	Screens []screenViewer `json:"screens,omitempty"`
+	// RemoteDesktop is the remote desktop's consent on this destination
+	// (ADR-0031 §3), for the canary's agent with a graphical session.
+	RemoteDesktop *remoteDesktopReport `json:"remoteDesktop,omitempty"`
 	// SessionHosts says the daemon keeps each session in its own host process
 	// (ADR-0022), so --restart updates it without closing any session.
 	SessionHosts bool `json:"sessionHosts,omitempty"`

@@ -9,7 +9,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -84,6 +83,11 @@ func openPortalScreen(s graphical.Session) (*screenSource, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), portalConsentTimeout+time.Minute)
 	defer cancel()
+	ensureDesktopEntry()
+	if screenUnattended && s.Family() == graphical.FamilyKDE {
+		// Best effort: without it the dialog shows, as by default.
+		_ = setUnattended(ctx, bus, s)
+	}
 	sess, err := portal.Open(ctx, bus, portal.Options{
 		AppID:          portalAppID(),
 		RestoreToken:   readPortalToken(),
@@ -193,11 +197,7 @@ func readPortalToken() string {
 	if screenStateDir == "" {
 		return ""
 	}
-	data, err := os.ReadFile(filepath.Join(screenStateDir, portalTokenFile))
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(data))
+	return readTokenFile(screenStateDir)
 }
 
 // writePortalToken saves the token the portal returned (tokens are

@@ -78,6 +78,8 @@ func main() {
 	input := flag.Bool("input", false, "connect a mouse pad session to the user's desktop helper")
 	desktop := flag.Bool("desktop", false, "run the desktop helper that injects mouse pad input")
 	screenFlag := flag.Bool("screen", false, "serve a remote desktop session: the screen out, input in (ADR-0029)")
+	unattended := flag.Bool("unattended", false, "with --screen: pre-authorize the agent first, where the desktop allows it (ADR-0031 §3)")
+	remoteDesktop := flag.String("remote-desktop", "", "change the remote desktop's consent: unattended-on, unattended-off or forget, and exit")
 	removeDesk := flag.Bool("remove-desktop", false, "stop the desktop helper and delete its scheduled task, and exit")
 	desktopRun := flag.Bool("desktop-run", false, "start the program named after the flags on the user's desktop, print its PID, and exit")
 	cwd := flag.String("cwd", "", "with --desktop-run: the program's working directory (default: the current one)")
@@ -101,6 +103,7 @@ func main() {
 		closeID: *closeID, previewID: *previewID,
 		renameID: *renameID, nameBase64: *nameB64,
 		input: *input, desktop: *desktop, removeDesktop: *removeDesk, screen: *screenFlag,
+		unattended: *unattended, remoteDesktop: *remoteDesktop,
 		desktopRun: *desktopRun, cwd: *cwd, args: flag.Args(),
 	}, *bufCap)
 	if err != nil {
@@ -124,7 +127,8 @@ type mode struct {
 	closeID, previewID            string
 	renameID, nameBase64          string
 	input, desktop, removeDesktop bool
-	screen                        bool
+	screen, unattended            bool
+	remoteDesktop                 string // the --remote-desktop action
 	desktopRun                    bool
 	cwd                           string
 	args                          []string // with desktopRun: the program and its arguments
@@ -157,6 +161,7 @@ func run(stateDir string, m mode, bufCap int) error {
 			st.Desktop = &d
 		}
 		st.Screens = screenViewers(stateDir)
+		st.RemoteDesktop = queryRemoteDesktop(stateDir)
 		if m.json {
 			return json.NewEncoder(os.Stdout).Encode(st)
 		}
@@ -195,7 +200,10 @@ func run(stateDir string, m mode, bufCap int) error {
 		return runDaemon(stateDir, bufCap)
 	case m.input:
 		return runInput(stateDir)
+	case m.remoteDesktop != "":
+		return runRemoteDesktop(stateDir, m.remoteDesktop)
 	case m.screen:
+		screenUnattended = m.unattended
 		return runScreen(stateDir)
 	case m.desktop:
 		return runDesktop(stateDir)
