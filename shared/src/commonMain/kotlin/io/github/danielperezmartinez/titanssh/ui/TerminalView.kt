@@ -820,11 +820,55 @@ private fun AndroidInputBar(
 }
 
 /**
+ * What [SoftKeyboardCapture] sends for each change of its field: every change
+ * is compared with the text the field held before it, so the keyboard's own
+ * edits (a composing word replaced, a suggestion picked) become backspaces and
+ * the new characters.
+ *
+ * The field is not reset on every key: key events that arrive before the next
+ * recomposition each build on the text of the previous one, not on the reset
+ * value, and diffing them against the reset value sent every earlier character
+ * again (fast typing came out as "eececho"). It is reset to the anchor only now
+ * and then (a line break, a long line, the anchor deleted); a change built on
+ * the text from just before that reset is diffed against that text instead.
+ */
+internal class SoftKeyboardEdits {
+    /** Backspaces to send, then the [added] text; [reset] puts the field back to [empty]. */
+    data class Edit(val backspaces: Int, val added: String, val reset: Boolean)
+
+    /** Zero-width anchor, so a backspace on an "empty" field still changes it. */
+    private val anchor = "​"
+    val empty = TextFieldValue(anchor, TextRange(anchor.length))
+
+    private var shown = anchor
+    private var beforeReset: String? = null
+
+    fun change(text: String): Edit {
+        val (backspaces, added) = listOfNotNull(shown, beforeReset)
+            .map { base -> diff(base, text) }
+            .minBy { (backspaces, added) -> backspaces + added.length }
+        val reset = !text.startsWith(anchor) || text.length > MAX_KEPT ||
+            text.any { it == '\n' || it == '\r' }
+        beforeReset = if (reset) text else null
+        shown = if (reset) anchor else text
+        return Edit(backspaces, added.replace(anchor, ""), reset)
+    }
+
+    private fun diff(base: String, text: String): Pair<Int, String> {
+        val common = base.commonPrefixWith(text).length
+        return (base.length - common) to text.substring(common)
+    }
+
+    private companion object {
+        const val MAX_KEPT = 64
+    }
+}
+
+/**
  * A near-invisible text field that raises the Android soft keyboard and forwards
- * typed characters using the sentinel-anchor trick (the field always holds one
- * zero-width anchor; growth = typed text, shrink = a backspace). IME prediction
- * can interfere, so this is best-effort and complements the accessory bar; it is
- * only mounted on Android.
+ * typed characters (see [SoftKeyboardEdits]). IME prediction can interfere, so
+ * this is best-effort and complements the accessory bar; it is only mounted on
+ * Android.
  */
 @Composable
 internal fun SoftKeyboardCapture(
@@ -833,35 +877,31 @@ internal fun SoftKeyboardCapture(
     onEnter: () -> Unit,
     onBackspace: () -> Unit,
 ) {
-    val anchor = "​"
-    var value by remember { mutableStateOf(TextFieldValue(anchor, TextRange(anchor.length))) }
+    val edits = remember { SoftKeyboardEdits() }
+    var value by remember { mutableStateOf(edits.empty) }
     BasicTextField(
         value = value,
         onValueChange = { new ->
-            val text = new.text
-            if (text.length > anchor.length) {
-                // Multi-line field, so the IME shows a real return key (↵): a
-                // newline in the added text is an Enter, and the keyboard stays up.
-                // Text longer than a key press may come from the IME clipboard,
-                // so it is filtered like any other paste.
-                val added = TerminalKeys.pastedText(text.substring(anchor.length))
-                val buf = StringBuilder()
-                added.forEach { ch ->
-                    if (ch == '\n' || ch == '\r') {
-                        if (buf.isNotEmpty()) {
-                            onText(buf.toString())
-                            buf.clear()
-                        }
-                        onEnter()
-                    } else {
-                        buf.append(ch)
+            val edit = edits.change(new.text)
+            repeat(edit.backspaces) { onBackspace() }
+            // Multi-line field, so the IME shows a real return key (↵): a
+            // newline in the added text is an Enter, and the keyboard stays up.
+            // Text longer than a key press may come from the IME clipboard,
+            // so it is filtered like any other paste.
+            val buf = StringBuilder()
+            TerminalKeys.pastedText(edit.added).forEach { ch ->
+                if (ch == '\n' || ch == '\r') {
+                    if (buf.isNotEmpty()) {
+                        onText(buf.toString())
+                        buf.clear()
                     }
+                    onEnter()
+                } else {
+                    buf.append(ch)
                 }
-                if (buf.isNotEmpty()) onText(buf.toString())
-            } else if (text.length < anchor.length) {
-                onBackspace()
             }
-            value = TextFieldValue(anchor, TextRange(anchor.length))
+            if (buf.isNotEmpty()) onText(buf.toString())
+            value = if (edit.reset) edits.empty else new
         },
         singleLine = false,
         keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
