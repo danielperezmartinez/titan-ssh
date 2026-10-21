@@ -339,27 +339,27 @@ func (m *monitor) start() error {
 	if m.w.extMgr == 0 {
 		return m.armCopy()
 	}
-	m.sourceID = c.NewID(nil)
-	if err := c.Request(m.w.srcMgr, 0, wayland.NewID(m.sourceID), wayland.Object(m.out.ID)); err != nil { // create_source
+	var err error
+	if m.sourceID, err = c.Create(nil, m.w.srcMgr, 0, wayland.New{}, wayland.Object(m.out.ID)); err != nil { // create_source
 		return err
 	}
 	var options uint32 = 1 // paint_cursors
 	if m.w.pointer != 0 {
 		options = 0
 	}
-	m.main = newExtCapture(m, m.mainReady, m.mainSize)
-	if err := c.Request(m.w.extMgr, 0, wayland.NewID(m.main.session), wayland.Object(m.sourceID), options); err != nil { // create_session
+	m.main = &extCapture{m: m, onReady: m.mainReady}
+	if m.main.session, err = c.Create(m.main.sessionEvent, m.w.extMgr, 0, wayland.New{}, wayland.Object(m.sourceID), options); err != nil { // create_session
 		return err
 	}
 	if m.w.pointer == 0 {
 		return nil
 	}
-	m.cursorSess = c.NewID(m.cursorEvent)
-	if err := c.Request(m.w.extMgr, 1, wayland.NewID(m.cursorSess), wayland.Object(m.sourceID), wayland.Object(m.w.pointer)); err != nil { // create_pointer_cursor_session
+	if m.cursorSess, err = c.Create(m.cursorEvent, m.w.extMgr, 1, wayland.New{}, wayland.Object(m.sourceID), wayland.Object(m.w.pointer)); err != nil { // create_pointer_cursor_session
 		return err
 	}
-	m.cursorOn = newExtCapture(m, m.cursorReady, nil)
-	return c.Request(m.cursorSess, 1, wayland.NewID(m.cursorOn.session)) // get_capture_session
+	m.cursorOn = &extCapture{m: m, onReady: m.cursorReady}
+	m.cursorOn.session, err = c.Create(m.cursorOn.sessionEvent, m.cursorSess, 1, wayland.New{}) // get_capture_session
+	return err
 }
 
 // stop ends the capture of an output that went away.
@@ -414,13 +414,21 @@ func (m *monitor) resize(w, h int) {
 	m.damage = append(m.damage[:0], image.Rect(0, 0, w, h))
 }
 
-func (m *monitor) mainSize(w, h int) { m.resize(w, h) }
+// mainReady copies a new frame's damage into the image, turned upright by
+// transform. Under mu.
+func (m *monitor) mainReady(b *wayland.ShmBuffer, rects []image.Rectangle, transform int) {
+	m.copyIn(b, rects, false, transform)
+}
 
-// mainReady copies a new frame's damage into the image. Under mu.
-func (m *monitor) mainReady(b *wayland.ShmBuffer, rects []image.Rectangle) {
-	m.resize(b.Width, b.Height)
+// copyIn takes the damaged rectangles of b into the image. Under mu.
+func (m *monitor) copyIn(b *wayland.ShmBuffer, rects []image.Rectangle, yInvert bool, transform int) {
+	w, h := b.Width, b.Height
+	if transform&1 == 1 {
+		w, h = h, w
+	}
+	m.resize(w, h)
 	for _, r := range rects {
-		r = convert(m.img, m.iw, b, r, false)
+		r = convert(m.img, m.iw, b, r, yInvert, transform)
 		if !r.Empty() {
 			m.damage = append(m.damage, r)
 		}
@@ -430,7 +438,7 @@ func (m *monitor) mainReady(b *wayland.ShmBuffer, rects []image.Rectangle) {
 }
 
 // cursorReady takes a new cursor image. Under mu.
-func (m *monitor) cursorReady(b *wayland.ShmBuffer, _ []image.Rectangle) {
+func (m *monitor) cursorReady(b *wayland.ShmBuffer, _ []image.Rectangle, _ int) {
 	if b.Width*b.Height == 0 {
 		return
 	}
@@ -528,7 +536,7 @@ func (m *monitor) Cursor() (Cursor, error) {
 type extCapture struct {
 	m       *monitor
 	session uint32
-	onReady func(*wayland.ShmBuffer, []image.Rectangle)
+	onReady func(b *wayland.ShmBuffer, damage []image.Rectangle, transform int)
 	onSize  func(w, h int)
 
 	pw, ph   int
@@ -538,14 +546,10 @@ type extCapture struct {
 	realloc  bool // constraints changed while a frame was in flight
 	frame    uint32
 	fdamage  []image.Rectangle
-	fails    int
-	stopped  bool
-}
-
-func newExtCapture(m *monitor, onReady func(*wayland.ShmBuffer, []image.Rectangle), onSize func(int, int)) *extCapture {
-	e := &extCapture{m: m, onReady: onReady, onSize: onSize}
-	e.session = m.w.c.NewID(e.sessionEvent)
-	return e
+	// ftransform is the frame's transform (wl_output.transform).
+	ftransform int
+	fails      int
+	stopped    bool
 }
 
 func (e *extCapture) sessionEvent(op uint16, msg *wayland.Message) {
@@ -612,10 +616,9 @@ func (e *extCapture) arm() {
 		return
 	}
 	c := e.m.w.c
-	e.frame = c.NewID(e.frameEvent)
 	e.fdamage = e.fdamage[:0]
-	_ = c.Request(e.session, 0, wayland.NewID(e.frame)) // create_frame
-	_ = c.Request(e.frame, 1, wayland.Object(e.buf.ID)) // attach_buffer
+	e.frame, _ = c.Create(e.frameEvent, e.session, 0, wayland.New{}) // create_frame
+	_ = c.Request(e.frame, 1, wayland.Object(e.buf.ID))              // attach_buffer
 	if e.fresh {
 		_ = c.Request(e.frame, 2, int32(0), int32(0), int32(e.buf.Width), int32(e.buf.Height)) // damage_buffer
 		e.fresh = false
@@ -634,6 +637,8 @@ func (e *extCapture) frameEvent(op uint16, msg *wayland.Message) {
 	e.m.mu.Lock()
 	defer e.m.mu.Unlock()
 	switch op {
+	case 0: // transform
+		e.ftransform = int(msg.Uint())
 	case 1: // damage
 		x, y, w, h := int(msg.Int()), int(msg.Int()), int(msg.Int()), int(msg.Int())
 		e.fdamage = append(e.fdamage, image.Rect(x, y, x+w, y+h))
@@ -641,7 +646,7 @@ func (e *extCapture) frameEvent(op uint16, msg *wayland.Message) {
 		e.endFrame()
 		e.fails = 0
 		if !e.m.stopped {
-			e.onReady(e.buf, e.fdamage)
+			e.onReady(e.buf, e.fdamage, e.ftransform)
 		}
 	case 4: // failed
 		reason := msg.Uint()
@@ -702,9 +707,10 @@ func (m *monitor) armCopy() error {
 		return nil
 	}
 	c := m.w.c
-	m.copyFrame = c.NewID(m.copyEvent)
 	m.copyState = screencopyFrame{}
-	return c.Request(m.w.copyMgr, 0, wayland.NewID(m.copyFrame), int32(1), wayland.Object(m.out.ID)) // capture_output
+	var err error
+	m.copyFrame, err = c.Create(m.copyEvent, m.w.copyMgr, 0, wayland.New{}, int32(1), wayland.Object(m.out.ID)) // capture_output
+	return err
 }
 
 func (m *monitor) copyEvent(op uint16, msg *wayland.Message) {
@@ -739,15 +745,12 @@ func (m *monitor) copyEvent(op uint16, msg *wayland.Message) {
 			rects = []image.Rectangle{image.Rect(0, 0, b.Width, b.Height)}
 			m.copyFirst = false
 		}
-		m.resize(b.Width, b.Height)
-		for _, r := range rects {
-			r = convert(m.img, m.iw, b, r, st.yInvert)
-			if !r.Empty() {
-				m.damage = append(m.damage, r)
-			}
+		// wlr-screencopy copies the output as its buffer is, not upright.
+		transform := m.out.Transform
+		if o, ok := m.w.outs.Get(m.out.Global); ok {
+			transform = o.Transform // the output may have turned since the last refresh
 		}
-		m.frames++
-		m.arrive(true)
+		m.copyIn(b, rects, st.yInvert, transform)
 		if m.w.copyVer >= 2 {
 			_ = m.armCopy()
 		}
@@ -831,29 +834,67 @@ func preferFormat(a, b uint32) bool {
 }
 
 // convert copies rectangle r of shm buffer b into img (width iw) as
-// 0x00RRGGBB, flipping it if yInvert. It returns r clipped to the buffer.
-func convert(img []uint32, iw int, b *wayland.ShmBuffer, r image.Rectangle, yInvert bool) image.Rectangle {
-	r = r.Intersect(image.Rect(0, 0, min(b.Width, iw), b.Height))
+// 0x00RRGGBB, flipped if yInvert and turned upright by transform. It
+// returns where r landed in img.
+func convert(img []uint32, iw int, b *wayland.ShmBuffer, r image.Rectangle, yInvert bool, transform int) image.Rectangle {
+	r = r.Intersect(image.Rect(0, 0, b.Width, b.Height))
 	if r.Empty() {
 		return r
 	}
 	swap := b.Format == wayland.FormatXBGR8888 || b.Format == wayland.FormatABGR8888
-	for y := r.Min.Y; y < r.Max.Y; y++ {
-		sy := y
-		if yInvert {
-			sy = b.Height - 1 - y
+	pixel := func(src []byte) uint32 {
+		p := uint32(src[0]) | uint32(src[1])<<8 | uint32(src[2])<<16
+		if swap {
+			p = p>>16&0xff | p&0xff00 | (p&0xff)<<16
 		}
-		src := b.Data[sy*b.Stride+r.Min.X*4 : sy*b.Stride+r.Max.X*4]
-		dst := img[y*iw+r.Min.X : y*iw+r.Max.X]
-		for i := range dst {
-			p := uint32(src[i*4]) | uint32(src[i*4+1])<<8 | uint32(src[i*4+2])<<16
-			if swap {
-				p = p>>16&0xff | p&0xff00 | (p&0xff)<<16
+		return p
+	}
+	row := func(y int) []byte {
+		if yInvert {
+			y = b.Height - 1 - y
+		}
+		return b.Data[y*b.Stride:]
+	}
+	if transform == 0 {
+		r = r.Intersect(image.Rect(0, 0, iw, len(img)/max(1, iw)))
+		for y := r.Min.Y; y < r.Max.Y; y++ {
+			src, dst := row(y), img[y*iw:]
+			for x := r.Min.X; x < r.Max.X; x++ {
+				dst[x] = pixel(src[x*4:])
 			}
-			dst[i] = p
+		}
+		return r
+	}
+	ih := len(img) / max(1, iw)
+	for y := r.Min.Y; y < r.Max.Y; y++ {
+		src := row(y)
+		for x := r.Min.X; x < r.Max.X; x++ {
+			ix, iy := upright(transform, x, y, b.Width, b.Height)
+			if ix < iw && iy < ih {
+				img[iy*iw+ix] = pixel(src[x*4:])
+			}
 		}
 	}
-	return r
+	x0, y0 := upright(transform, r.Min.X, r.Min.Y, b.Width, b.Height)
+	x1, y1 := upright(transform, r.Max.X-1, r.Max.Y-1, b.Width, b.Height)
+	return image.Rect(min(x0, x1), min(y0, y1), max(x0, x1)+1, max(y0, y1)+1)
+}
+
+// upright takes pixel x, y of a w×h buffer of an output with this
+// wl_output.transform to where it shows on the output.
+func upright(transform, x, y, w, h int) (int, int) {
+	if transform&4 != 0 { // flipped: mirrored around the vertical axis first
+		x = w - 1 - x
+	}
+	switch transform & 3 {
+	case 1: // 90
+		return h - 1 - y, x
+	case 2: // 180
+		return w - 1 - x, h - 1 - y
+	case 3: // 270
+		return y, w - 1 - x
+	}
+	return x, y
 }
 
 // convertARGB reads a whole buffer as ARGB with its alpha.

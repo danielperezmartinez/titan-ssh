@@ -109,8 +109,11 @@ func (o *Outputs) add(g Global) error {
 	o.outs[g.Name] = st
 	o.mu.Unlock()
 	if o.xdgMgr != 0 {
-		st.xdg = o.c.NewID(func(op uint16, m *Message) { o.xdgEvent(st, op, m) })
-		return o.c.Request(o.xdgMgr, 1, NewID(st.xdg), Object(id)) // get_xdg_output
+		o.mu.Lock()
+		defer o.mu.Unlock()
+		var err error
+		st.xdg, err = o.c.Create(func(op uint16, m *Message) { o.xdgEvent(st, op, m) }, o.xdgMgr, 1, New{}, Object(id)) // get_xdg_output
+		return err
 	}
 	return nil
 }
@@ -208,6 +211,17 @@ func (o *Outputs) List() ([]Output, uint64) {
 	return out, o.gen
 }
 
+// Get is the output with this global name as described now.
+func (o *Outputs) Get(global uint32) (Output, bool) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	st, ok := o.outs[global]
+	if !ok || !st.ready {
+		return Output{}, false
+	}
+	return st.cur, true
+}
+
 // Shm formats the capture uses.
 const (
 	FormatARGB8888 = 0
@@ -233,15 +247,14 @@ func NewShmBuffer(c *Conn, shm uint32, w, h, stride int, format uint32) (*ShmBuf
 	if err != nil {
 		return nil, err
 	}
-	pool := c.NewID(nil)
-	if err := c.Request(shm, 0, NewID(pool), Fd(mem.Fd), int32(size)); err != nil { // create_pool
+	pool, err := c.Create(nil, shm, 0, New{}, Fd(mem.Fd), int32(size)) // create_pool
+	if err != nil {
 		mem.Close()
 		return nil, err
 	}
 	b := &ShmBuffer{Width: w, Height: h, Stride: stride, Format: format, Data: mem.Data, mem: mem, c: c}
-	b.ID = c.NewID(nil)
-	err = c.Request(pool, 0, NewID(b.ID), int32(0), int32(w), int32(h), int32(stride), format) // create_buffer
-	_ = c.Request(pool, 1)                                                                     // destroy
+	b.ID, err = c.Create(nil, pool, 0, New{}, int32(0), int32(w), int32(h), int32(stride), format) // create_buffer
+	_ = c.Request(pool, 1)                                                                         // destroy
 	c.Forget(pool)
 	if err != nil {
 		mem.Close()

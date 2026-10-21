@@ -103,8 +103,7 @@ func Dial(path string) (*Conn, error) {
 	}
 	c.handlers[displayID] = c.displayEvent
 	go c.read()
-	c.registry = c.NewID(c.registryEvent)
-	if err := c.Request(displayID, 1, NewID(c.registry)); err != nil { // get_registry
+	if c.registry, err = c.Create(c.registryEvent, displayID, 1, New{}); err != nil { // get_registry
 		c.Close()
 		return nil, err
 	}
@@ -140,9 +139,10 @@ func (c *Conn) fail(err error) {
 	}
 }
 
-// NewID allocates a client object that h serves (h may be nil for objects
-// without events).
-func (c *Conn) NewID(h Handler) uint32 {
+// newID allocates a client object that h serves (h may be nil for objects
+// without events). Only Create calls it, under wmu: a fresh id must reach
+// the compositor in order.
+func (c *Conn) newID(h Handler) uint32 {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	var id uint32
@@ -176,14 +176,31 @@ type (
 	Fd int
 	// Fixed is a 24.8 fixed-point number.
 	Fixed float64
-	// NewID is a new object's id, typed by the request.
-	NewID uint32
+	// New stands for the id of the object a Create makes.
+	New struct{}
 	// Object is an object argument (0 is null).
 	Object uint32
 )
 
 // Request sends a request to object: opcode and its arguments in order.
 func (c *Conn) Request(object uint32, opcode uint16, args ...any) error {
+	c.wmu.Lock()
+	defer c.wmu.Unlock()
+	return c.request(object, opcode, 0, args)
+}
+
+// Create sends a request that makes a new object, served by h: the New
+// among args is its id, which it returns. The compositor wants new ids in
+// the order they were allocated, so both happen under one lock.
+func (c *Conn) Create(h Handler, object uint32, opcode uint16, args ...any) (uint32, error) {
+	c.wmu.Lock()
+	defer c.wmu.Unlock()
+	id := c.newID(h)
+	return id, c.request(object, opcode, id, args)
+}
+
+// request writes one request, with id for its New. Called under wmu.
+func (c *Conn) request(object uint32, opcode uint16, id uint32, args []any) error {
 	b := make([]byte, 8, 64)
 	var fds []int
 	for _, a := range args {
@@ -194,8 +211,8 @@ func (c *Conn) Request(object uint32, opcode uint16, args ...any) error {
 			b = ne.AppendUint32(b, uint32(v))
 		case int:
 			b = ne.AppendUint32(b, uint32(int32(v)))
-		case NewID:
-			b = ne.AppendUint32(b, uint32(v))
+		case New:
+			b = ne.AppendUint32(b, id)
 		case Object:
 			b = ne.AppendUint32(b, uint32(v))
 		case Fixed:
@@ -223,8 +240,6 @@ func (c *Conn) Request(object uint32, opcode uint16, args ...any) error {
 	if err := c.Err(); err != nil {
 		return err
 	}
-	c.wmu.Lock()
-	defer c.wmu.Unlock()
 	var oob []byte
 	if len(fds) > 0 {
 		oob = unix.UnixRights(fds...)
@@ -244,12 +259,11 @@ func pad(b []byte) []byte {
 // far and the events they caused have been delivered.
 func (c *Conn) Roundtrip() error {
 	got := make(chan struct{})
-	cb := c.NewID(func(op uint16, _ *Message) {
+	if _, err := c.Create(func(op uint16, _ *Message) {
 		if op == 0 { // done
 			close(got)
 		}
-	})
-	if err := c.Request(displayID, 0, NewID(cb)); err != nil { // sync
+	}, displayID, 0, New{}); err != nil { // sync
 		return err
 	}
 	select {
@@ -392,8 +406,7 @@ func (c *Conn) WatchGlobals(f func(Global, bool)) {
 // served by h.
 func (c *Conn) Bind(g Global, version uint32, h Handler) (uint32, uint32, error) {
 	version = min(version, g.Version)
-	id := c.NewID(h)
-	err := c.Request(c.registry, 0, g.Name, g.Interface, version, NewID(id)) // bind
+	id, err := c.Create(h, c.registry, 0, g.Name, g.Interface, version, New{}) // bind
 	return id, version, err
 }
 

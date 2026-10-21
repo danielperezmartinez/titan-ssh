@@ -70,12 +70,10 @@ func NewWayland(c *wayland.Conn) (*Wayland, error) {
 	if err != nil {
 		return nil, err
 	}
-	w.pointer = c.NewID(nil)
-	if err := c.Request(pmID, 0, wayland.Object(w.seat), wayland.NewID(w.pointer)); err != nil { // create_virtual_pointer
+	if w.pointer, err = c.Create(nil, pmID, 0, wayland.Object(w.seat), wayland.New{}); err != nil { // create_virtual_pointer
 		return nil, err
 	}
-	w.kbd = c.NewID(nil)
-	if err := c.Request(kmID, 0, wayland.Object(w.seat), wayland.NewID(w.kbd)); err != nil { // create_virtual_keyboard
+	if w.kbd, err = c.Create(nil, kmID, 0, wayland.Object(w.seat), wayland.New{}); err != nil { // create_virtual_keyboard
 		return nil, err
 	}
 	if err := w.sendKeymap(); err != nil {
@@ -99,8 +97,8 @@ func (w *Wayland) Pointer() uint32 {
 	if err := w.c.Roundtrip(); err != nil || w.caps&1 == 0 {
 		return 0
 	}
-	id := w.c.NewID(nil)
-	if err := w.c.Request(w.seat, 0, wayland.NewID(id)); err != nil { // get_pointer
+	id, err := w.c.Create(nil, w.seat, 0, wayland.New{}) // get_pointer
+	if err != nil {
 		return 0
 	}
 	return id

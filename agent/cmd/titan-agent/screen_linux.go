@@ -81,6 +81,13 @@ func directInput(stateDir string) (bool, error) {
 		return true, err
 	}
 	if s.Kind != graphical.X11 {
+		// The wlroots family through its virtual pointer and keyboard, only
+		// in the canary for now, like the remote desktop that brought it.
+		if screenServed {
+			if err := wlrootsInput(s); !errors.Is(err, errNoWay) {
+				return true, err
+			}
+		}
 		return true, withCode(codeInputUnsupported, errors.New("the mouse pad does not support "+s.Describe()+" yet"))
 	}
 	x, err := dialX11(s)

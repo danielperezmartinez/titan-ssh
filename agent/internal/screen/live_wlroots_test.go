@@ -343,3 +343,58 @@ func outputNames(t *testing.T) []string {
 	}
 	return names
 }
+
+// partOf is where the named output sits in the image.
+func partOf(t *testing.T, w *Wlroots, name string) (int, int) {
+	t.Helper()
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for i, m := range w.parts {
+		if m.output().Name == name {
+			p := w.comp.Parts[i]
+			return p.X - w.comp.minX, p.Y - w.comp.minY
+		}
+	}
+	t.Fatalf("no output %s", name)
+	return 0, 0
+}
+
+func TestLiveWlrootsTurnedOutputs(t *testing.T) {
+	_, _, w := liveWlroots(t)
+	defer swaymsg(t, "output", "HEADLESS-1", "transform", "normal")
+	for _, tr := range []string{"90", "180", "270", "flipped-90", "normal"} {
+		swaymsg(t, "output", "HEADLESS-1", "transform", tr)
+		want := 1280
+		if strings.HasSuffix(tr, "90") || strings.HasSuffix(tr, "270") {
+			want = 800
+		}
+		shot := grim(t, "HEADLESS-1")
+		deadline := time.Now().Add(5 * time.Second)
+		var same, total, lastPW int
+		for time.Now().Before(deadline) {
+			px, sw, _ := grab(t, w)
+			ox, oy := partOf(t, w, "HEADLESS-1")
+			w.mu.Lock()
+			pw := 0
+			for _, m := range w.parts {
+				if m.output().Name == "HEADLESS-1" {
+					pw, _ = m.imageSize()
+				}
+			}
+			w.mu.Unlock()
+			lastPW = pw
+			if pw == want && shot.Bounds().Dx() == want {
+				same, total = matching(shot, px, sw, ox, oy)
+				if float64(same) >= 0.97*float64(total) {
+					break
+				}
+			}
+			time.Sleep(200 * time.Millisecond)
+			shot = grim(t, "HEADLESS-1")
+		}
+		if total == 0 || float64(same) < 0.97*float64(total) {
+			t.Errorf("transform %s: %d of %d pixels as grim sees them (captured %d wide, grim %d, want %d)",
+				tr, same, total, lastPW, shot.Bounds().Dx(), want)
+		}
+	}
+}
