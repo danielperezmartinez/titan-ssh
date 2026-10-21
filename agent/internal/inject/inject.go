@@ -20,6 +20,9 @@ var ErrUnsupported = errors.New("input injection is not supported on this system
 type Injector interface {
 	// Move moves the pointer by dx, dy pixels.
 	Move(dx, dy int) error
+	// MoveTo puts the pointer at (x, y) of the captured screen (ADR-0029):
+	// the root window on X11, the primary monitor on Windows.
+	MoveTo(x, y int) error
 	// Button presses or releases a protocol.Button*.
 	Button(button uint8, down bool) error
 	// Scroll scrolls by dx, dy in 1/120 of a notch; dy > 0 is up, dx > 0 right.
@@ -133,6 +136,8 @@ func Serve(conn io.ReadWriter, inj Injector, mu *sync.Mutex) error {
 // are not input (a stray BYE, say) are ignored.
 func apply(inj Injector, h *held, f protocol.Frame) error {
 	switch f.Type {
+	case protocol.TypePointerTo:
+		return inj.MoveTo(f.X, f.Y)
 	case protocol.TypePointerMove:
 		return inj.Move(int(f.DX), int(f.DY))
 	case protocol.TypePointerButton:
@@ -155,6 +160,35 @@ func apply(inj Injector, h *held, f protocol.Frame) error {
 		return inj.Key(f.Key, f.Mods, f.Action)
 	}
 	return nil
+}
+
+// Handler applies the input frames of one connection that also carries other
+// frames (a remote desktop session, ADR-0029), keeping what it left pressed.
+// Call Release when the connection ends.
+type Handler struct {
+	inj  Injector
+	mu   *sync.Mutex
+	held *held
+}
+
+// NewHandler returns a Handler driving inj under mu, the lock shared by every
+// connection to the same injector.
+func NewHandler(inj Injector, mu *sync.Mutex) *Handler {
+	return &Handler{inj: inj, mu: mu, held: newHeld()}
+}
+
+// Handle applies f if it is an input frame; other frames are ignored.
+func (h *Handler) Handle(f protocol.Frame) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return apply(h.inj, h.held, f)
+}
+
+// Release lets go of the buttons and keys this connection left pressed.
+func (h *Handler) Release() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.held.releaseAll(h.inj)
 }
 
 // held is what a connection has pressed and not yet released.

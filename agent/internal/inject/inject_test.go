@@ -24,6 +24,7 @@ func (f *fakeInjector) log(format string, a ...any) error {
 	return nil
 }
 func (f *fakeInjector) Move(dx, dy int) error           { return f.log("move %d %d", dx, dy) }
+func (f *fakeInjector) MoveTo(x, y int) error           { return f.log("moveto %d %d", x, y) }
 func (f *fakeInjector) Button(b uint8, down bool) error { return f.log("button %d %v", b, down) }
 func (f *fakeInjector) Scroll(dx, dy int) error         { return f.log("scroll %d %d", dx, dy) }
 func (f *fakeInjector) Text(s string) error             { return f.log("text %q", s) }

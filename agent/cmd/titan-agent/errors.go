@@ -25,6 +25,9 @@ const (
 	codeInputUnsupported = "E_INPUT_UNSUPPORTED" // no injector for this system yet
 	codeNoDesktop        = "E_NO_DESKTOP"        // the desktop helper did not start: nobody signed in
 	codeDesktopTask      = "E_DESKTOP_TASK"      // the helper's scheduled task cannot be created or run
+
+	// Remote desktop (--screen, ADR-0029): no capturer for this system yet.
+	codeScreenUnsupported = "E_SCREEN_UNSUPPORTED"
 )
 
 // agentError is a failure tagged with its error-contract code. main prints it

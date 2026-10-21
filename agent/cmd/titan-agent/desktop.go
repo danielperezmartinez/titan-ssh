@@ -372,6 +372,9 @@ func runInput(stateDir string) error {
 	if err := ensureStateDir(stateDir); err != nil {
 		return withCode(codeStateDir, err)
 	}
+	if handled, err := directInput(stateDir); handled {
+		return err
+	}
 	conn, err := connectDesktop(stateDir, func() error { return launchDesktop(stateDir) })
 	if err != nil {
 		return err

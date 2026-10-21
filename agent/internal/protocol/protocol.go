@@ -51,6 +51,16 @@ const (
 	TypeText          Type = 12 // client -> agent
 	TypeKey           Type = 13 // client -> agent
 	TypeInputReady    Type = 14 // agent -> client
+
+	// Screen frames (screen.go), on a `--screen` connection only.
+	TypeScreenHello    Type = 15 // client -> agent
+	TypeScreenSize     Type = 16 // agent -> client
+	TypeScreenTile     Type = 17 // agent -> client
+	TypeScreenFrameEnd Type = 18 // agent -> client
+	TypeScreenAck      Type = 19 // client -> agent
+	TypeCursorShape    Type = 20 // agent -> client
+	TypeCursorPos      Type = 21 // agent -> client
+	TypePointerTo      Type = 22 // client -> agent
 )
 
 // ErrUnknownType and ErrFrameTooLarge are protocol violations from a peer.
@@ -100,6 +110,21 @@ type Frame struct {
 	// InputReady: input cannot reach the desktop right now (it is locked, or
 	// a secure desktop such as UAC is in front).
 	Blocked bool
+
+	// Screen frames (screen.go).
+	// ScreenHello: the client's protocol version and quality.
+	Version uint8
+	Quality uint8
+	// ScreenSize, ScreenTile, CursorShape: a size; ScreenTile, PointerTo,
+	// CursorPos, CursorShape (hot spot): a position.
+	X, Y          int
+	Width, Height int
+	// ScreenTile: how Bytes is encoded (Encoding*).
+	Encoding uint8
+	// ScreenFrameEnd, ScreenAck: the frame's sequence number.
+	Seq uint32
+	// CursorPos: whether the cursor is shown.
+	Visible bool
 }
 
 // Encode serializes f (header + payload) into a new byte slice.
@@ -182,7 +207,7 @@ func encodePayload(f Frame) []byte {
 		}
 		return nil
 	default:
-		return nil
+		return encodeScreen(f)
 	}
 }
 
@@ -262,6 +287,9 @@ func decodePayload(t Type, payload []byte) (Frame, error) {
 		// An optional flags byte; unknown bits are room for later flags.
 		f.Blocked = len(payload) > 0 && payload[0]&inputReadyBlocked != 0
 	default:
+		if isScreen(t) {
+			return decodeScreen(f, payload)
+		}
 		return f, fmt.Errorf("%w: %d", ErrUnknownType, t)
 	}
 	return f, nil

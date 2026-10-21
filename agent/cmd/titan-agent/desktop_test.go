@@ -30,6 +30,7 @@ func (r *recordingInjector) Move(dx, dy int) error {
 	r.moves++
 	return nil
 }
+func (r *recordingInjector) MoveTo(int, int) error          { return nil }
 func (r *recordingInjector) Button(uint8, bool) error       { return nil }
 func (r *recordingInjector) Scroll(int, int) error          { return nil }
 func (r *recordingInjector) Text(string) error              { return nil }

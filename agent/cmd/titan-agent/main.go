@@ -32,6 +32,10 @@
 // injects the input. --remove-desktop stops the helper and deletes its task.
 // --desktop-run asks the same helper to start a program on the user's desktop
 // (ADR-0019): `titan-agent --desktop-run [--cwd <dir>] <program> [args...]`.
+// On Linux X11 there is no helper: --input injects from this process.
+//
+// A remote desktop session (ADR-0029) is --screen: the screen goes out as
+// tiles and the input comes in, on the same exec channel.
 //
 // When the front cannot give the client a daemon connection it exits non-zero
 // with one stderr line, `TITAN_AGENT_ERROR <code> <message>` (see errors.go).
@@ -73,6 +77,7 @@ func main() {
 	nameB64 := flag.String("name-base64", "", "with --rename-session: the new name, UTF-8 in unpadded base64url")
 	input := flag.Bool("input", false, "connect a mouse pad session to the user's desktop helper")
 	desktop := flag.Bool("desktop", false, "run the desktop helper that injects mouse pad input")
+	screenFlag := flag.Bool("screen", false, "serve a remote desktop session: the screen out, input in (ADR-0029)")
 	removeDesk := flag.Bool("remove-desktop", false, "stop the desktop helper and delete its scheduled task, and exit")
 	desktopRun := flag.Bool("desktop-run", false, "start the program named after the flags on the user's desktop, print its PID, and exit")
 	cwd := flag.String("cwd", "", "with --desktop-run: the program's working directory (default: the current one)")
@@ -95,7 +100,7 @@ func main() {
 		daemon: *daemon, stop: *stop, status: *status, json: *asJSON,
 		closeID: *closeID, previewID: *previewID,
 		renameID: *renameID, nameBase64: *nameB64,
-		input: *input, desktop: *desktop, removeDesktop: *removeDesk,
+		input: *input, desktop: *desktop, removeDesktop: *removeDesk, screen: *screenFlag,
 		desktopRun: *desktopRun, cwd: *cwd, args: flag.Args(),
 	}, *bufCap)
 	if err != nil {
@@ -119,6 +124,7 @@ type mode struct {
 	closeID, previewID            string
 	renameID, nameBase64          string
 	input, desktop, removeDesktop bool
+	screen                        bool
 	desktopRun                    bool
 	cwd                           string
 	args                          []string // with desktopRun: the program and its arguments
@@ -150,6 +156,7 @@ func run(stateDir string, m mode, bufCap int) error {
 			d := queryDesktop(stateDir)
 			st.Desktop = &d
 		}
+		st.Screens = screenViewers(stateDir)
 		if m.json {
 			return json.NewEncoder(os.Stdout).Encode(st)
 		}
@@ -188,6 +195,8 @@ func run(stateDir string, m mode, bufCap int) error {
 		return runDaemon(stateDir, bufCap)
 	case m.input:
 		return runInput(stateDir)
+	case m.screen:
+		return runScreen(stateDir)
 	case m.desktop:
 		return runDesktop(stateDir)
 	case m.removeDesktop:

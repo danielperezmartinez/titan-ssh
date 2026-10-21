@@ -174,6 +174,25 @@ func (w *windowsInjector) Move(dx, dy int) error {
 	return nil
 }
 
+// MoveTo puts the pointer at (x, y) of the primary monitor, whose top-left
+// corner is (0, 0) of the virtual desktop (ADR-0029: the remote desktop
+// captures the primary monitor).
+func (w *windowsInjector) MoveTo(x, y int) error {
+	vx, vy := metric(smXVirtualScreen), metric(smYVirtualScreen)
+	vw, vh := metric(smCXVirtualScreen), metric(smCYVirtualScreen)
+	if vw <= 0 || vh <= 0 {
+		return errors.New("no virtual desktop")
+	}
+	to := clampToMonitor(point{X: int32(x), Y: int32(y)})
+	in := mouseEvent(mouseMove | mouseAbsolute | mouseVirtualDesk)
+	in.mi.dx, in.mi.dy = int32(normalize(int(to.X)-vx, vw)), int32(normalize(int(to.Y)-vy, vh))
+	if err := send([]mouseInput{in}); err != nil {
+		return err
+	}
+	w.moveTo, w.movedAt = to, time.Now()
+	return nil
+}
+
 // clampToMonitor keeps p inside the monitor nearest to it.
 func clampToMonitor(p point) point {
 	const monitorDefaultToNearest = 2

@@ -1,7 +1,7 @@
-//go:build !windows
+//go:build !windows && !linux
 
 package inject
 
-// New has no backend outside Windows yet: X11 and Wayland come with their own
-// tasks (ADR-0016 §5).
+// New has no backend outside Windows and Linux X11 yet (ADR-0016 §5,
+// ADR-0029 §5).
 func New() (Injector, error) { return nil, ErrUnsupported }

@@ -105,6 +105,9 @@ type statusReport struct {
 	// Desktop is the mouse pad's desktop helper, on systems that have one
 	// (Windows); the CLI adds it, whatever state the daemon is in.
 	Desktop *desktopReport `json:"desktop,omitempty"`
+	// Screens are the remote desktop sessions (--screen, ADR-0029) running
+	// now; the CLI adds them, whatever state the daemon is in.
+	Screens []screenViewer `json:"screens,omitempty"`
 	// SessionHosts says the daemon keeps each session in its own host process
 	// (ADR-0022), so --restart updates it without closing any session.
 	SessionHosts bool `json:"sessionHosts,omitempty"`
@@ -475,6 +478,9 @@ func queryPreview(stateDir, id string) (previewReport, error) {
 // printStatus writes st for a person.
 func printStatus(w io.Writer, st statusReport) {
 	printDaemonStatus(w, st)
+	if line := describeViewers(st.Screens); line != "" {
+		fmt.Fprintln(w, line)
+	}
 	if d := st.Desktop; d != nil {
 		switch {
 		case d.State == stateRunning:
