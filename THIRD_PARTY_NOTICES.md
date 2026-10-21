@@ -49,7 +49,8 @@ fichero `NOTICE` que haya que reproducir.
 ## Cliente RDP embebido (`rdp/`, Rust)
 
 La biblioteca nativa `titan_rdp` (ADR-0028) va dentro de la APK y de los
-paquetes de escritorio. Inventario revisado el 2026-10-21 sobre
+paquetes de escritorio de titan-ssh canary; la app estable no la lleva.
+Inventario revisado el 2026-10-21 sobre
 `cargo tree -e normal` de `rdp/Cargo.lock` (230 crates); todas las licencias
 son compatibles con la GPLv3. Los textos completos acompañan a cada crate en
 crates.io.

@@ -4,11 +4,11 @@ Número: 28
 Estado: 'Propuesta'
 Resumen: 'Nuevo tipo de sesión RDP: titan-ssh abre un canal direct-tcpip de la conexión SSH hacia el servidor RDP del destino (localhost:3389 por defecto) y pinta el escritorio con un cliente RDP embebido. El motor es IronRDP (Rust, MIT/Apache-2.0), en una biblioteca nativa propia (crate rdp/) con una superficie JNI mínima escrita con jni-rs, sin callbacks hacia la JVM ni puerto local. Se compila con cargo desde Gradle para Android (arm64-v8a y x86_64) y escritorio (Linux x64 y Windows x64 en CI), igual que el agente: opcional en desarrollo y obligatoria en una release. El certificado TLS del servidor se confirma por su huella SHA-256 antes de enviar ninguna credencial, como la clave de host de ADR-0005, y la contraseña vive en el SecretStore (ADR-0001). NLA es el modo por defecto; el inicio de sesión TLS sin NLA (xrdp) es opcional por sesión.'
 Decisión: 'Sesión SessionType.RDP con un cliente IronRDP embebido vía JNI (jni-rs), transportado por un canal direct-tcpip de la conexión SSH, con huella del certificado confirmada por el usuario y contraseña en el SecretStore.'
-Consecuencias: 'El proyecto pasa a tener código nativo: Rust y el NDK entran en la cadena de build local y de CI, y cada paquete lleva la biblioteca de su plataforma (unos 6-7 MB por ABI). No hay puerto local que otras apps puedan usar. El escritorio de Windows y xrdp funcionan sin instalar nada en el destino. Portapapeles, audio, unidades y multimonitor quedan fuera por ahora. Android de 32 bits no tiene RDP.'
+Consecuencias: 'El proyecto pasa a tener código nativo: Rust y el NDK entran en la cadena de build local y de CI, y cada paquete de la canary lleva la biblioteca de su plataforma (unos 6-7 MB por ABI). Mientras se compara con la opción D solo la canary la lleva y ofrece el tipo; la estable no. No hay puerto local que otras apps puedan usar. El escritorio de Windows y xrdp funcionan sin instalar nada en el destino. Portapapeles, audio, unidades y multimonitor quedan fuera por ahora. Android de 32 bits no tiene RDP.'
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-10-21T11:00:00+02:00
-Última modificación: 2026-10-21T11:00:00+02:00
+Última modificación: 2026-10-21T14:30:00+02:00
 ---
 
 # ADR-0028 · Cliente RDP embebido con IronRDP por un túnel SSH
@@ -107,9 +107,16 @@ pesado que el de esta superficie tan pequeña.
 - **Como el agente** (ADR-0010): en desarrollo, sin Rust o sin NDK el build
   sigue con un aviso y la app dice que esa build no tiene RDP; una build de
   release falla si no puede compilar la biblioteca.
-- **CI** (`release.yml`): los jobs `android`, `linux` y `windows` instalan la
-  toolchain de Rust y los targets que necesitan; el de Android instala además
-  el NDK fijado. La canary usa los mismos jobs, así que la recibe igual. La
+- **Solo en la canary** mientras se compara con la opción D: las tareas de
+  `:androidApp` y `:desktopApp` solo compilan la biblioteca con
+  `titanChannel == "canary"` (el mismo criterio que usa la opción D para el
+  agente). Una build estable, de desarrollo o de release, no la lleva ni
+  necesita Rust, y `SessionType.RDP` es `experimental`, así que el editor de
+  la estable no ofrece el tipo.
+- **CI** (`release.yml`): en un run de la canary, los jobs `android`, `linux`
+  y `windows` instalan la toolchain de Rust y los targets que necesitan, y el
+  de Android además el NDK fijado. En un run estable esos pasos se saltan. El
+  job `test` pasa los tests del motor (`cargo test`) en los dos canales. La
   versión de Rust se fija en `rdp/rust-toolchain.toml`.
 
 ### 5. Empaquetado
@@ -155,7 +162,25 @@ configuración** (como `MOUSEPAD` en ADR-0016). De la sesión solo se usan el
 host SSH y los ajustes RDP; scripts, túneles, nivel de resiliencia y carpeta
 se conservan sin usarse, como en el mouse pad y SFTP.
 
-### 8. Fuera de alcance por ahora
+### 8. Comparación en la canary y retirada
+
+La canary lleva a la vez esta opción y la D, cada una como un tipo de sesión
+propio, para que el usuario las pruebe en sus dispositivos. La estable solo
+llevará la que elija, ya limpia. El mecanismo común es
+`SessionType.experimental` (un tipo experimental solo se ofrece si
+`AppChannel.isCanary`).
+
+- **Si se elige C**: `RDP` deja de ser `experimental` y las tareas de Gradle y
+  los pasos de CI compilan la biblioteca en todos los canales. Esta ADR pasa a
+  `Aceptada`.
+- **Si se descarta C**: se borran `rdp/`, `SessionType.RDP` y `RdpSettings`
+  (con una migración que lea y descarte el campo `rdp` de las sesiones
+  guardadas en la canary), el código de `rdp/` en `shared`, las tareas de
+  Gradle, los pasos de Rust y NDK de CI, `tools/test-rdp/`, la sección de
+  IronRDP de `THIRD_PARTY_NOTICES.md` y sus entradas del catálogo técnico.
+  Esta ADR pasa a `Rechazada`.
+
+### 9. Fuera de alcance por ahora
 
 Portapapeles, audio, redirección de unidades e impresoras, varios monitores,
 Kerberos, la puerta de enlace RD Gateway y los códecs GFX/H.264. Se pueden
@@ -202,4 +227,8 @@ añadir con los crates de IronRDP que ya existen (`ironrdp-cliprdr`,
     anchura no coincide con la del rectángulo (la pantalla de inicio de sesión
     de xrdp se ve torcida). Con NLA o con el inicio directo de §6 no aparece;
     queda para comunicarlo aguas arriba.
+  - xrdp 0.10 cambia el tamaño del escritorio con un Deactivate All PDU que
+    solo trae la cabecera Share Control, sin el `shareId` que IronRDP espera
+    (FreeRDP lo acepta). El motor lo reconoce y hace la reactivación él mismo;
+    también queda para comunicarlo aguas arriba.
 - Relacionada: [[Sesión RDP embebida con IronRDP]].

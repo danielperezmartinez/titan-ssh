@@ -232,11 +232,13 @@ jobs:
           path: ${{ runner.temp }}/agent
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
       # The embedded RDP client (ADR-0028): the Rust toolchain and targets
-      # pinned in rdp/rust-toolchain.toml.
+      # pinned in rdp/rust-toolchain.toml. Only the canary carries it.
       - name: Rust toolchain
+        if: needs.version.outputs.channel == 'canary'
         working-directory: rdp
         run: rustup toolchain install && cargo --version
       - name: Android NDK
+        if: needs.version.outputs.channel == 'canary'
         # The version androidApp/build.gradle.kts pins (RDP_NDK_VERSION).
         run: |
           ndk="$(sed -n 's/^val RDP_NDK_VERSION = "\(.*\)"$/\1/p' androidApp/build.gradle.kts)"
@@ -311,8 +313,9 @@ jobs:
           path: ${{ runner.temp }}/agent
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
       # The embedded RDP client (ADR-0028): the Rust toolchain and targets
-      # pinned in rdp/rust-toolchain.toml.
+      # pinned in rdp/rust-toolchain.toml. Only the canary carries it.
       - name: Rust toolchain
+        if: needs.version.outputs.channel == 'canary'
         working-directory: rdp
         run: rustup toolchain install && cargo --version
       # jpackage only declares the libraries it finds installed, so they are
@@ -373,8 +376,9 @@ jobs:
           path: ${{ runner.temp }}/agent
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
       # The embedded RDP client (ADR-0028): the Rust toolchain and targets
-      # pinned in rdp/rust-toolchain.toml.
+      # pinned in rdp/rust-toolchain.toml. Only the canary carries it.
       - name: Rust toolchain
+        if: needs.version.outputs.channel == 'canary'
         working-directory: rdp
         run: rustup toolchain install && cargo --version
       - name: Build

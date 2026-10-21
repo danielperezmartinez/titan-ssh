@@ -133,6 +133,8 @@ dependencies {
 // with the NDK's clang, and hands the libraries to AGP as generated jniLibs.
 // Like the agent: in development a missing Rust toolchain or NDK only warns
 // (RDP tabs then say this build has no RDP client); a release build fails.
+// RDP is still being compared in the canary, so only the canary carries it: a
+// stable build leaves the libraries out.
 // -PtitanRdpAbis=x86_64 builds fewer ABIs, e.g. for the emulator only.
 
 abstract class CargoAndroidBuild : DefaultTask() {
@@ -145,6 +147,9 @@ abstract class CargoAndroidBuild : DefaultTask() {
 
     @get:Input
     abstract val minSdk: Property<Int>
+
+    @get:Input
+    abstract val bundled: Property<Boolean>
 
     @get:Input
     abstract val required: Property<Boolean>
@@ -168,6 +173,7 @@ abstract class CargoAndroidBuild : DefaultTask() {
         val out = outputDir.get().asFile
         out.deleteRecursively()
         out.mkdirs()
+        if (!bundled.get()) return
         val cargo = resolveCargo() ?: return problem("titan-rdp: Rust (cargo) not found; the RDP client is NOT bundled.")
         val ndk = runCatching { ndkDir.get().asFile }.getOrNull()?.takeIf { it.isDirectory }
             ?: return problem("titan-rdp: Android NDK not found; the RDP client is NOT bundled.")
@@ -226,7 +232,8 @@ val buildRdpAndroid = tasks.register<CargoAndroidBuild>("buildRdpAndroid") {
     sources.from(rdpCrate.dir("src"), rdpCrate.file("Cargo.toml"), rdpCrate.file("Cargo.lock"), rdpCrate.file("rust-toolchain.toml"))
     abis.set(((findProperty("titanRdpAbis") as String?) ?: "arm64-v8a,x86_64").split(',').map { it.trim() }.filter { it.isNotEmpty() })
     minSdk.set(libs.versions.android.minSdk.get().toInt())
-    required.set(rootProject.extra["titanIsRelease"] as Boolean)
+    bundled.set(isCanary)
+    required.set(isCanary && rootProject.extra["titanIsRelease"] as Boolean)
     crateDir.set(rdpCrate)
     ndkDir.set(androidComponents.sdkComponents.ndkDirectory)
     outputDir.set(layout.buildDirectory.dir("generated/rdpJniLibs"))

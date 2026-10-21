@@ -42,15 +42,18 @@ val appName = if (isCanary) "titan-ssh-canary" else "titan-ssh"
 // the package; it ships in the app resources below, from where the app loads it
 // (`compose.application.resources.dir`). Like the agent: in development a
 // missing Rust toolchain only warns (RDP tabs then say this build has no RDP
-// client); a release build fails.
+// client); a release build fails. RDP is still being compared in the canary,
+// so only the canary carries it: a stable build leaves the library out.
 val rdpCrate = rootProject.layout.projectDirectory.dir("rdp")
 val rdpNativeDir = layout.buildDirectory.dir("generated/rdpNative")
-val rdpRequired = rootProject.extra["titanIsRelease"] as Boolean
+val rdpBundled = rootProject.extra["titanChannel"] == "canary"
+val rdpRequired = rdpBundled && rootProject.extra["titanIsRelease"] as Boolean
 val hostIsWindows = System.getProperty("os.name").startsWith("Windows")
 val buildRdpNative = tasks.register("buildRdpNative") {
     description = "Builds the embedded RDP client (rdp/) for this OS."
     inputs.files(rdpCrate.dir("src"), rdpCrate.file("Cargo.toml"), rdpCrate.file("Cargo.lock"), rdpCrate.file("rust-toolchain.toml"))
         .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.property("bundled", rdpBundled)
     inputs.property("required", rdpRequired)
     outputs.dir(rdpNativeDir)
     val crate = rdpCrate.asFile
@@ -63,6 +66,7 @@ val buildRdpNative = tasks.register("buildRdpNative") {
         val dir = out.get().asFile
         dir.deleteRecursively()
         dir.mkdirs()
+        if (!rdpBundled) return@doLast
         val home = System.getProperty("user.home")
         val cargo = listOfNotNull(System.getenv("CARGO"), "cargo", "$home/.cargo/bin/cargo", "$home/.cargo/bin/cargo.exe")
             .firstOrNull { c ->

@@ -6,7 +6,7 @@ Decisiones: 'Decisión técnica en [[ADR-0028 Cliente RDP embebido con IronRDP p
 Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-21T11:00:00+02:00
-Última modificación: 2026-10-21T11:00:00+02:00
+Última modificación: 2026-10-21T14:30:00+02:00
 ---
 
 # Sesión RDP embebida con IronRDP
@@ -35,6 +35,26 @@ tarea.
 - Probado contra el contenedor de pruebas (NLA y TLS) en escritorio y en el
   emulador, con capturas.
 - CI de release y canary con la toolchain de Rust y el NDK.
+
+## Avance
+
+- 2026-10-21: el escritorio sigue el tamaño del panel en la app de escritorio
+  (Display Control), también con xrdp (ver la consecuencia de
+  [[ADR-0028 Cliente RDP embebido con IronRDP por un túnel SSH]]). Los 11 tests
+  de integración RDP pasan contra `tools/test-rdp`.
+- 2026-10-21: el usuario decide que la estable no lleve nada de las opciones C
+  y D hasta elegir una. `SessionType.RDP` es `experimental` (mecanismo común con
+  la opción D, que solo ofrece el tipo en la canary), la biblioteca nativa
+  solo se compila con `titanChannel=canary` y CI solo instala Rust y el NDK en
+  los runs de la canary. En el editor el tipo se llama «rdp», para no
+  confundirse con el «escritorio» de la opción D. Retirada prevista en §8 de la
+  ADR.
+- 2026-10-21: probado en el emulador con una build de debug de la canary
+  (x86_64) contra xrdp por `10.0.2.2:2231`: editor, confianza en la clave de
+  host y en el certificado antes de mandar credenciales, escritorio pintado,
+  teclado del sistema y touchpad.
+- Pendiente: la prueba manual en la app de escritorio, el job de Windows en CI
+  (solo se puede comprobar en un run de la canary) y el rebase sobre `main`.
 
 ## Verificación
 
