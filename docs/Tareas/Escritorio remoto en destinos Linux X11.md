@@ -76,7 +76,8 @@ confirmación del usuario en un escritorio X11 real.
     pantalla) y `ScreenViewport`.
   - `ScreenTransportIntegrationTest` por SSH real contra el contenedor
     (`-PtitanSshTestHost=127.0.0.1 -PtitanSshTestPort=2224 -PtitanSshTestUser=demo
-    -PtitanSshTestPassword=demo -PtitanSshTestX11=1 -PtitanAgentBin=<binario>`):
+    -PtitanSshTestPassword=demo -PtitanSshTestX11=1 -PtitanAgentBin=<binario>`, con un
+    agente compilado con `-tags canary`):
     instala el agente, primer fotograma en ~40 ms, `POINTER_TO` vuelve como
     posición del cursor, siguen llegando fotogramas y tras cortar la conexión
     la siguiente empieza con un fotograma entero.

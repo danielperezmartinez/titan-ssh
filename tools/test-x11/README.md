@@ -21,6 +21,17 @@ docker run -d --name titan-test-x11 -p 127.0.0.1:2224:22 titan-test-x11
 - Desde este equipo: `127.0.0.1:2224`.
 - Desde el emulador de Android: `10.0.2.2:2224`.
 
+## Probar el escritorio remoto
+
+El escritorio remoto está a prueba en la canary: solo la app y el agente del
+canal canary lo ofrecen.
+
+- App: build con `-PtitanChannel=canary` (en el emulador, la de debug con
+  `./gradlew :androidApp:assembleDebug -PtitanChannel=canary`).
+- Agente suelto para `TITAN_AGENT_BIN`:
+  `cd agent && CGO_ENABLED=0 go build -tags canary -o <ruta>/titan-agent ./cmd/titan-agent`.
+  Sin `-tags canary`, `--screen` responde `E_SCREEN_UNSUPPORTED`.
+
 ## Mirar y tocar el escritorio desde dentro
 
 ```sh

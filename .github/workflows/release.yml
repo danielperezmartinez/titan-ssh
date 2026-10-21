@@ -189,7 +189,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
       - name: Agent tests
         working-directory: agent
-        run: go test -race -count=1 ./...
+        # The canary agent is built with -tags canary (ADR-0029): vet that too.
+        run: |
+          go test -race -count=1 ./...
+          go vet -tags canary ./...
       # The tests expect the stable app's names, so a canary run tests the
       # same code as a development build (it builds the agent itself).
       - name: Desktop tests

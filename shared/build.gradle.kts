@@ -283,9 +283,14 @@ val buildAgentBinaries by tasks.registering {
             }
             agentTargets.forEach { t ->
                 val failure = try {
+                    // The canary agent also serves what is on trial there (the
+                    // remote desktop, ADR-0029); the stable one leaves it out.
+                    val tags = if (titanChannel == "canary") listOf("-tags", "canary") else emptyList()
                     val pb = ProcessBuilder(
-                        go, "build", "-trimpath", "-ldflags", "-s -w -X main.version=$titanVersion -X main.channel=$titanChannel",
-                        "-o", File(allDir, t.fileName).absolutePath, "./cmd/titan-agent",
+                        listOf(go, "build", "-trimpath") + tags + listOf(
+                            "-ldflags", "-s -w -X main.version=$titanVersion -X main.channel=$titanChannel",
+                            "-o", File(allDir, t.fileName).absolutePath, "./cmd/titan-agent",
+                        ),
                     )
                     pb.directory(agentModuleDir)
                     // Static, self-contained binaries: nothing to install on the destination.

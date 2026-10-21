@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -28,6 +29,9 @@ type screenViewer struct {
 
 // runScreen is the --screen mode.
 func runScreen(stateDir string) error {
+	if !screenServed {
+		return withCode(codeScreenUnsupported, errors.New("this agent does not serve the remote desktop: it is only in titan-ssh canary"))
+	}
 	if err := ensureStateDir(stateDir); err != nil {
 		return withCode(codeStateDir, err)
 	}

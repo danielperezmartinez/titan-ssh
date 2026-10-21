@@ -108,7 +108,10 @@ Lo que ya hay y se reutiliza:
   opciones), y `SessionType.offered` solo lo ofrece si
   `AppChannel.isCanary`. La app estable no lo lista en el editor y, si recibe
   una sesión de ese tipo (una configuración importada de la canary), la
-  enseña pero no la abre. Cuando el usuario elija, la opción ganadora deja de
+  enseña pero no la abre. Nada de la prueba llega a la estable: el modo
+  `--screen` solo se compila en el agente de la canary (etiqueta de Go
+  `canary`, que Gradle pone cuando `titanChannel` es `canary`), y el agente
+  estable responde `E_SCREEN_UNSUPPORTED`. Cuando el usuario elija, la opción ganadora deja de
   ser experimental y la otra se retira entera: tipo, código, agente, CI y
   documentación, con su ADR en `Rechazada`.
 
