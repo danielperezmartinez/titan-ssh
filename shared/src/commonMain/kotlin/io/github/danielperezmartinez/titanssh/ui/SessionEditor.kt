@@ -517,6 +517,15 @@ private fun DesktopFields(settings: DesktopSettings, onChange: (DesktopSettings)
             DesktopQuality.LOW -> "Más comprimido, para conexiones lentas. El texto sigue exacto."
         },
     )
+    Spacer(Modifier.height(TitanDimens.SpaceSm))
+    TitanCheck("Permitir sin nadie delante", settings.unattended) {
+        onChange(settings.copy(unattended = it))
+    }
+    Caption(
+        "En KDE con Wayland, el destino no pregunta antes de compartir la pantalla: el agente " +
+            "se autoriza al conectar. Se ve y se quita en el panel del agente. En los demás " +
+            "escritorios no cambia nada.",
+    )
 }
 
 /**

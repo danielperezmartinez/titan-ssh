@@ -1045,6 +1045,7 @@ class SessionTab(
         }
         val transport = ScreenTransport(
             opened, launch, screen, quality,
+            unattended = resolved.session.desktop.unattended,
             onBlocked = { blocked -> _mousepad.value = MousepadStatus(ready = true, blocked = blocked) },
         ) {
             if (_status.value.phase != TabPhase.CONNECTED) markConnected()

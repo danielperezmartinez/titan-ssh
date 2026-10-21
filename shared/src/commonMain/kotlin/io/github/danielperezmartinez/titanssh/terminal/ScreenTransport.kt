@@ -24,6 +24,8 @@ class ScreenTransport(
     private val agent: AgentLaunch,
     private val screen: RemoteScreen,
     private val quality: Int,
+    /** Asks the agent to pre-authorize itself first, where the desktop allows it (ADR-0031 §3). */
+    private val unattended: Boolean = false,
     /** Called when the screen goes out of reach and comes back, on the reader: it must not block. */
     private val onBlocked: (blocked: Boolean) -> Unit = {},
     /**
@@ -49,7 +51,8 @@ class ScreenTransport(
 
     /** Opens the `--screen` channel and reads the agent's frames until it closes. */
     suspend fun run() = coroutineScope {
-        val ch = session.exec(agent.command("--screen"))
+        val args = if (unattended) arrayOf("--screen", "--unattended") else arrayOf("--screen")
+        val ch = session.exec(agent.command(*args))
         stateMutex.withLock { channel = ch }
         val stderr = StringBuilder()
         val stderrJob = launch {

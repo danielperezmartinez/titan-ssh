@@ -12,6 +12,11 @@ import kotlin.io.encoding.Base64
  * connection.
  */
 class AgentControl(private val session: SshSession, private val launch: AgentLaunch) {
+    companion object {
+        const val RD_UNATTENDED_ON = "unattended-on"
+        const val RD_UNATTENDED_OFF = "unattended-off"
+        const val RD_FORGET = "forget"
+    }
 
     /** `--status --json`: the daemon and its sessions as they are now. */
     suspend fun status(): AgentStatusReport {
@@ -85,6 +90,16 @@ class AgentControl(private val session: SshSession, private val launch: AgentLau
      */
     suspend fun removeDesktop() {
         run("--remove-desktop").requireSuccess("--remove-desktop")
+    }
+
+    /**
+     * `--remote-desktop`: changes the remote desktop's consent on the
+     * destination (ADR-0031 §3). [action] is [RD_UNATTENDED_ON],
+     * [RD_UNATTENDED_OFF] or [RD_FORGET] (the kept permission, the unattended
+     * access and the agent's desktop entry, so the next session asks again).
+     */
+    suspend fun remoteDesktop(action: String) {
+        run("--remote-desktop", action).requireSuccess("--remote-desktop")
     }
 
     private suspend fun run(vararg args: String): ExecResult = session.execCollect(launch.command(*args))

@@ -350,6 +350,12 @@ enum class DesktopQuality {
 @Serializable
 data class DesktopSettings(
     val quality: DesktopQuality = DesktopQuality.AUTO,
+    /**
+     * Pre-authorize the agent on each connection where the destination's
+     * desktop allows it, so its consent dialog never shows (ADR-0031 §3; KDE
+     * Wayland). The agent panel shows it and takes it away.
+     */
+    val unattended: Boolean = false,
 )
 
 /**

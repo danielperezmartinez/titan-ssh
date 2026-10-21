@@ -32,6 +32,7 @@ import io.github.danielperezmartinez.titanssh.config.TitanConfig
 import io.github.danielperezmartinez.titanssh.config.resolve
 import io.github.danielperezmartinez.titanssh.formatLocalDateTime
 import io.github.danielperezmartinez.titanssh.terminal.AgentDesktopReport
+import io.github.danielperezmartinez.titanssh.terminal.AgentRemoteDesktopReport
 import io.github.danielperezmartinez.titanssh.terminal.AgentHost
 import io.github.danielperezmartinez.titanssh.terminal.AgentInsights
 import io.github.danielperezmartinez.titanssh.terminal.AgentManager
@@ -75,6 +76,8 @@ private sealed interface PanelConfirm {
     data object Stop : PanelConfirm
     data object Update : PanelConfirm
     data object RemoveDesktop : PanelConfirm
+    data object Unattended : PanelConfirm
+    data object ForgetRemoteDesktop : PanelConfirm
 }
 
 /**
@@ -287,6 +290,34 @@ fun AgentPanel(
                     Hairline()
                 }
             }
+            val remote = report?.remoteDesktop
+            if (remote != null && remote.asksConsent) {
+                item {
+                    Spacer(Modifier.height(TitanDimens.SpaceMd))
+                    RemoteDesktopRow(
+                        remote = remote,
+                        expanded = expandedId == REMOTE_DESKTOP_ROW_ID,
+                        onToggle = {
+                            expandedId = if (expandedId == REMOTE_DESKTOP_ROW_ID) null else REMOTE_DESKTOP_ROW_ID
+                            confirming = null
+                        },
+                        confirming = confirming,
+                        busy = isBusy,
+                        onAsk = { confirming = it },
+                        onUnattendedOff = { agents.setUnattended(host, false) },
+                        onConfirm = { which ->
+                            when (which) {
+                                PanelConfirm.Unattended -> agents.setUnattended(host, true)
+                                PanelConfirm.ForgetRemoteDesktop -> agents.forgetRemoteDesktop(host)
+                                else -> Unit
+                            }
+                            confirming = null
+                        },
+                        onCancel = { confirming = null },
+                    )
+                    Hairline()
+                }
+            }
             if (report != null && (report.isRunning || report.state == AgentStatusReport.STATE_LEGACY)) {
                 item {
                     Spacer(Modifier.height(TitanDimens.SpaceMd))
@@ -320,6 +351,92 @@ fun AgentPanel(
 
 /** [expandedId] of the desktop helper's row; session ids start with "titan-". */
 private const val DESKTOP_ROW_ID = "desktop-helper"
+
+/** [expandedId] of the remote desktop's row. */
+private const val REMOTE_DESKTOP_ROW_ID = "remote-desktop"
+
+/**
+ * The remote desktop's consent on a destination whose desktop asks for it
+ * (ADR-0031 §3: KDE, GNOME and other Wayland desktops with a portal): whether
+ * the permission is kept and whether the agent is pre-authorized, with the
+ * ways to change both. Pre-authorizing asks first; taking it away does not.
+ */
+@Composable
+private fun RemoteDesktopRow(
+    remote: AgentRemoteDesktopReport,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    confirming: PanelConfirm?,
+    busy: Boolean,
+    onAsk: (PanelConfirm) -> Unit,
+    onUnattendedOff: () -> Unit,
+    onConfirm: (PanelConfirm) -> Unit,
+    onCancel: () -> Unit,
+) {
+    when (confirming) {
+        PanelConfirm.Unattended -> {
+            ConfirmRow(
+                question = "¿Permitir el escritorio remoto sin nadie delante?",
+                subtitle = "${remote.desktop} dejará de preguntar en el destino antes de compartir la " +
+                    "pantalla y el control con este agente. Se quita desde aquí",
+                confirmLabel = "[>] Sí",
+                marker = "[!]",
+                markerColor = TitanColors.Warning,
+                onConfirm = { onConfirm(PanelConfirm.Unattended) },
+                onCancel = onCancel,
+            )
+            return
+        }
+        PanelConfirm.ForgetRemoteDesktop -> {
+            ConfirmRow(
+                question = "¿Olvidar el permiso del escritorio remoto?",
+                subtitle = "Se cierran los escritorios remotos abiertos en este destino y el siguiente " +
+                    "vuelve a preguntar en su pantalla",
+                confirmLabel = "[x] Sí",
+                marker = "[x]",
+                markerColor = TitanColors.Danger,
+                onConfirm = { onConfirm(PanelConfirm.ForgetRemoteDesktop) },
+                onCancel = onCancel,
+            )
+            return
+        }
+        else -> Unit
+    }
+    val state = when {
+        remote.unattended -> "sin nadie delante: no pregunta nunca"
+        remote.remembered -> "permiso recordado: no vuelve a preguntar"
+        else -> "preguntará en la pantalla del destino"
+    }
+    ListRow(
+        marker = if (remote.unattended) "[!]" else if (remote.remembered) "[+]" else "[-]",
+        markerColor = if (expanded) TitanColors.Accent else if (remote.unattended) TitanColors.Warning else TitanColors.Mute,
+        title = "Escritorio remoto",
+        subtitle = "${remote.desktop} · $state",
+        onClick = onToggle,
+        onLongClick = onToggle,
+        onMarkerClick = onToggle,
+        expanded = expanded,
+        expandedContent = {
+            Column(Modifier.fillMaxWidth().padding(vertical = TitanDimens.SpaceSm, horizontal = TitanDimens.SpaceXs)) {
+                if (remote.unattendedAvailable) {
+                    if (remote.unattended) {
+                        Caption("El escritorio del destino comparte la pantalla con este agente sin preguntar.")
+                        TitanButton("[-] Volver a preguntar", onClick = onUnattendedOff, kind = ButtonKind.SECONDARY, enabled = !busy)
+                    } else {
+                        Caption("Sin nadie delante, el destino no pregunta antes de compartir la pantalla.")
+                        TitanButton("[>] Permitir sin nadie delante", onClick = { onAsk(PanelConfirm.Unattended) }, kind = ButtonKind.SECONDARY, enabled = !busy)
+                    }
+                } else {
+                    Caption("Este escritorio pregunta en su pantalla la primera vez y recuerda la respuesta.")
+                }
+                if (remote.isPresent) {
+                    Spacer(Modifier.height(TitanDimens.SpaceSm))
+                    TitanButton("[x] Olvidar el permiso", onClick = { onAsk(PanelConfirm.ForgetRemoteDesktop) }, kind = ButtonKind.SECONDARY, enabled = !busy)
+                }
+            }
+        },
+    )
+}
 
 /**
  * The desktop helper on a Windows destination and its scheduled task

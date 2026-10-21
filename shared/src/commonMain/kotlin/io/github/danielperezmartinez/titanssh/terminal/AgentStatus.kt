@@ -34,6 +34,11 @@ data class AgentStatusReport(
      */
     val desktop: AgentDesktopReport? = null,
     /**
+     * The remote desktop's consent on the destination (ADR-0031 §3), from the
+     * canary's agent with a graphical session; null elsewhere.
+     */
+    val remoteDesktop: AgentRemoteDesktopReport? = null,
+    /**
      * The daemon keeps each session in its own host process (ADR-0022), so
      * `--restart` updates it without closing any session. False from agents
      * that predate it, which only `--stop` replaces.
@@ -83,6 +88,36 @@ data class AgentDesktopReport(
 
     /** Something of the helper is left on the destination that the user can remove. */
     val isPresent: Boolean get() = task || state != AgentStatusReport.STATE_STOPPED || runs.isNotEmpty()
+}
+
+/**
+ * How the destination's desktop consents to the remote desktop (ADR-0031 §3).
+ * Mirrors `remoteDesktopReport` in `agent/cmd/titan-agent/remotedesktop_linux.go`.
+ */
+@Serializable
+data class AgentRemoteDesktopReport(
+    /** The user's graphical session, "KDE (Wayland)". */
+    val desktop: String = "",
+    /** [CONSENT_NONE] (X11, wlroots) or [CONSENT_DIALOG] (the portal asks the desktop's user). */
+    val consent: String = CONSENT_NONE,
+    /** A previous session's permission is kept, so the dialog will not show. */
+    val remembered: Boolean = false,
+    /** The agent's hidden desktop entry, which names it to the portal, is installed. */
+    val entry: Boolean = false,
+    /** The agent is pre-authorized: the dialog never shows. */
+    val unattended: Boolean = false,
+    /** This desktop lets the agent be pre-authorized (KDE). */
+    val unattendedAvailable: Boolean = false,
+) {
+    val asksConsent: Boolean get() = consent == CONSENT_DIALOG
+
+    /** Something of the agent's is kept on the desktop that the user can take away. */
+    val isPresent: Boolean get() = remembered || entry || unattended
+
+    companion object {
+        const val CONSENT_NONE = "none"
+        const val CONSENT_DIALOG = "dialog"
+    }
 }
 
 /**

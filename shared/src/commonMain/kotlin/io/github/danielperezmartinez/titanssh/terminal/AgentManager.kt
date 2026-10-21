@@ -217,6 +217,30 @@ class AgentManager(
         access.withAgent(host) { it.removeDesktop() }
     }
 
+    /**
+     * Turns the remote desktop's unattended access on [host] on or off
+     * (ADR-0031 §3): with it, the destination's desktop does not ask before
+     * sharing its screen with the agent.
+     */
+    fun setUnattended(host: AgentHost, on: Boolean) = launchOn(host) {
+        access.withAgent(host) {
+            it.remoteDesktop(if (on) AgentControl.RD_UNATTENDED_ON else AgentControl.RD_UNATTENDED_OFF)
+        }
+    }
+
+    /**
+     * Forgets the remote desktop's permission on [host]: the next session asks
+     * the destination's desktop again (ADR-0031 §3). The remote desktop tabs
+     * on that host close first.
+     */
+    fun forgetRemoteDesktop(host: AgentHost) = launchOn(host) {
+        config.state.value.sessions
+            .filter { it.type == SessionType.DESKTOP }
+            .filter { s -> runCatching { AgentKey.of(config.state.value.resolve(s).endpoint) == host.key }.getOrDefault(false) }
+            .forEach { sessions.closeTabsOf(it.id) }
+        access.withAgent(host) { it.remoteDesktop(AgentControl.RD_FORGET) }
+    }
+
     private fun launchOn(host: AgentHost, work: suspend () -> Unit) {
         val id = host.key.id
         _busy.value += id
