@@ -79,3 +79,35 @@ func savePNG(t *testing.T, path string, px []uint32, w, h int, alpha bool) {
 		t.Fatal(err)
 	}
 }
+
+// TestLiveDuplication captures the real desktop with Desktop Duplication, on
+// request like TestLiveGDI. TITAN_SCREEN_LIVE_DXGI=1 makes it fail when the
+// duplication falls back to GDI.
+func TestLiveDuplication(t *testing.T) {
+	if os.Getenv("TITAN_SCREEN_LIVE") != "1" {
+		t.Skip("captures the real desktop; set TITAN_SCREEN_LIVE=1 to run")
+	}
+	d, err := NewDuplication()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	w, h, err := d.Size()
+	if err != nil {
+		t.Fatal(err)
+	}
+	px := make([]uint32, w*h)
+	for i := range 5 {
+		if err := d.Capture(px, w, h); err != nil {
+			t.Fatal(err)
+		}
+		rects, ok := d.Damage()
+		t.Logf("capture %d: duplicating=%v err=%v damage=%v (%v)", i, d.Duplicating(), d.Err, rects, ok)
+	}
+	if os.Getenv("TITAN_SCREEN_LIVE_DXGI") == "1" && !d.Duplicating() {
+		t.Fatalf("fell back to GDI: %v", d.Err)
+	}
+	if path := os.Getenv("TITAN_SCREEN_LIVE_PNG"); path != "" {
+		savePNG(t, path+".dxgi.png", px, w, h, false)
+	}
+}
