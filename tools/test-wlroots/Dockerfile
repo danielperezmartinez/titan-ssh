@@ -17,7 +17,7 @@ ARG ALPINE=edge
 FROM alpine:${ALPINE}
 
 RUN apk add --no-cache openssh bash sway foot font-dejavu wayland-utils \
-        wlr-randr grim libcap-setcap \
+        wlr-randr grim swaybg libcap-setcap \
  && setcap -r /usr/bin/sway \
  && ssh-keygen -A \
  && adduser -D -s /bin/bash demo \
