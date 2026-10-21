@@ -323,6 +323,13 @@ enum class SessionType(val experimental: Boolean = false) {
      * terminal fields are kept, as with [MOUSEPAD].
      */
     DESKTOP(experimental = true),
+
+    /**
+     * The desktop of an RDP server the destination reaches, through a
+     * `direct-tcpip` channel of the SSH connection (ADR-0028). Only the host
+     * and [Session.rdp] apply; the terminal fields are kept, as with [MOUSEPAD].
+     */
+    RDP,
 }
 
 /** How sharp a remote desktop's image is against the bandwidth it takes (ADR-0029). */
@@ -372,10 +379,33 @@ data class MousepadSettings(
 )
 
 /**
+ * How an RDP session reaches and signs in to its desktop (ADR-0028). The
+ * password is in the SecretStore under [passwordRef], never here.
+ */
+@Serializable
+data class RdpSettings(
+    /** The RDP server as the SSH destination sees it: `localhost` is the destination itself. */
+    val targetHost: String = "localhost",
+    val targetPort: Int = 3389,
+    /** The desktop user; null signs in as the session's SSH user. */
+    val username: String? = null,
+    /** The Windows domain, if any. */
+    val domain: String? = null,
+    /** SecretStore reference of the desktop password. */
+    val passwordRef: String? = null,
+    /**
+     * Also accepts TLS security without NLA, for servers that cannot do NLA
+     * (xrdp): the credentials then reach the server after the TLS handshake,
+     * without CredSSP binding them to its certificate.
+     */
+    val allowTlsWithoutNla: Boolean = false,
+)
+
+/**
  * A session: what to do on connect. References a [Host] and adds its own
  * scripts, tunnels, working directory, resilience level and appearance, and may
- * override the host's username/port. Its [type] says whether it opens a terminal
- * or a mouse pad.
+ * override the host's username/port. Its [type] says what it opens: a terminal,
+ * a mouse pad, a file browser or a remote desktop.
  */
 @Serializable
 data class Session(
@@ -399,6 +429,8 @@ data class Session(
     val mousepad: MousepadSettings = MousepadSettings(),
     /** A field with a default, so the configuration version does not change (ADR-0029). */
     val desktop: DesktopSettings = DesktopSettings(),
+    /** A field with a default: documents written before it read with the defaults. */
+    val rdp: RdpSettings = RdpSettings(),
     /** What launching it again does while it has instances (ADR-0020). */
     val reopen: ReopenMode = ReopenMode.ASK,
 )

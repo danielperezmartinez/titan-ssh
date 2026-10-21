@@ -36,14 +36,73 @@ val titanVersion = rootProject.extra["titanVersion"] as String
 val isCanary = rootProject.extra["titanChannel"] == "canary"
 val appName = if (isCanary) "titan-ssh-canary" else "titan-ssh"
 
+// --- Embedded RDP client (ADR-0028) -------------------------------------------
+//
+// Builds the Rust crate in `rdp/` (IronRDP behind JNI) for the OS that builds
+// the package; it ships in the app resources below, from where the app loads it
+// (`compose.application.resources.dir`). Like the agent: in development a
+// missing Rust toolchain only warns (RDP tabs then say this build has no RDP
+// client); a release build fails.
+val rdpCrate = rootProject.layout.projectDirectory.dir("rdp")
+val rdpNativeDir = layout.buildDirectory.dir("generated/rdpNative")
+val rdpRequired = rootProject.extra["titanIsRelease"] as Boolean
+val hostIsWindows = System.getProperty("os.name").startsWith("Windows")
+val buildRdpNative = tasks.register("buildRdpNative") {
+    description = "Builds the embedded RDP client (rdp/) for this OS."
+    inputs.files(rdpCrate.dir("src"), rdpCrate.file("Cargo.toml"), rdpCrate.file("Cargo.lock"), rdpCrate.file("rust-toolchain.toml"))
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.property("required", rdpRequired)
+    outputs.dir(rdpNativeDir)
+    val crate = rdpCrate.asFile
+    val out = rdpNativeDir
+    doLast {
+        fun problem(message: String) {
+            if (rdpRequired) throw GradleException("$message (a release build must include the RDP client)")
+            logger.warn(message)
+        }
+        val dir = out.get().asFile
+        dir.deleteRecursively()
+        dir.mkdirs()
+        val home = System.getProperty("user.home")
+        val cargo = listOfNotNull(System.getenv("CARGO"), "cargo", "$home/.cargo/bin/cargo", "$home/.cargo/bin/cargo.exe")
+            .firstOrNull { c ->
+                runCatching {
+                    ProcessBuilder(c, "--version").directory(crate).redirectErrorStream(true).start().run {
+                        inputStream.readBytes()
+                        waitFor() == 0
+                    }
+                }.getOrDefault(false)
+            }
+        if (cargo == null) {
+            problem("titan-rdp: Rust (cargo) not found; the RDP client is NOT bundled.")
+            return@doLast
+        }
+        val process = ProcessBuilder(cargo, "build", "--release", "--locked", "--lib")
+            .directory(crate)
+            .redirectErrorStream(true)
+            .start()
+        val log = process.inputStream.bufferedReader().readText()
+        if (process.waitFor() != 0) {
+            problem("titan-rdp: cargo failed: ${log.takeLast(2000)}")
+            return@doLast
+        }
+        val name = System.mapLibraryName("titan_rdp")
+        File(crate, "target/release/$name").copyTo(File(dir, name), overwrite = true)
+    }
+}
+
 // LICENSE and THIRD_PARTY_NOTICES.md shipped as plain files inside every package
-// (MSI, deb, rpm, tar.gz), next to the app. `common/` is the Compose layout for
-// app resources shared by every OS.
+// (MSI, deb, rpm, tar.gz), next to the app, and the RDP library of this OS.
+// `common/` is the Compose layout for app resources shared by every OS, and
+// `<os>-<arch>/` for those of one.
 val appResourcesDir = layout.buildDirectory.dir("generated/appResources")
+val hostResourcesFolder = (if (hostIsWindows) "windows" else "linux") + "-" +
+    (if (System.getProperty("os.arch") in listOf("aarch64", "arm64")) "arm64" else "x64")
 val syncAppResources = tasks.register<Sync>("syncAppResources") {
-    description = "Collects the legal texts shipped inside every desktop package."
-    from(rootProject.file("LICENSE"), rootProject.file("THIRD_PARTY_NOTICES.md"))
-    into(appResourcesDir.map { it.dir("common") })
+    description = "Collects the legal texts and the RDP library shipped inside every desktop package."
+    from(listOf(rootProject.file("LICENSE"), rootProject.file("THIRD_PARTY_NOTICES.md"))) { into("common") }
+    from(buildRdpNative) { into(hostResourcesFolder) }
+    into(appResourcesDir)
 }
 tasks.matching { it.name == "prepareAppResources" }.configureEach { dependsOn(syncAppResources) }
 

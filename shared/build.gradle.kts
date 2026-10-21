@@ -373,6 +373,12 @@ tasks.withType<Test>().configureEach {
         // "1" when the test host has an X11 session for the user (the
         // tools/test-x11 container), for ScreenTransportIntegrationTest.
         "titanSshTestX11" to "TITAN_SSH_TEST_X11",
+        // The embedded RDP client end to end (RdpIntegrationTest, ADR-0028):
+        // the built library and the desktop account of tools/test-rdp.
+        "titanRdpTestLibrary" to "TITAN_RDP_TEST_LIBRARY",
+        "titanRdpTestUser" to "TITAN_RDP_TEST_USER",
+        "titanRdpTestPassword" to "TITAN_RDP_TEST_PASSWORD",
+        "titanRdpTestPort" to "TITAN_RDP_TEST_PORT",
     ).forEach { (prop, env) ->
         (project.findProperty(prop) as String?)?.let { environment(env, it) }
     }

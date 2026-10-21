@@ -438,7 +438,41 @@ fn describe(error: &dyn std::error::Error) -> String {
         let _ = write!(text, ": {cause}");
         source = cause.source();
     }
-    text
+    without_locations(&text)
+}
+
+/// IronRDP's errors carry the source file they come from (`[context @
+/// /path/to/file.rs:12]`); the app shows messages, not build paths.
+fn without_locations(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find(" @ ") {
+        out.push_str(&rest[..at]);
+        match rest[at..].find(']') {
+            Some(end) => rest = &rest[at + end..],
+            None => {
+                rest = "";
+                break;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::without_locations;
+
+    #[test]
+    fn locations_are_left_out_of_messages() {
+        assert_eq!(
+            without_locations("[CredSSP @ /x/y/connector.rs:107] CredSSP: denied"),
+            "[CredSSP] CredSSP: denied"
+        );
+        assert_eq!(without_locations("plain"), "plain");
+        assert_eq!(without_locations("[a @ b] x [c @ d] y"), "[a] x [c] y");
+    }
 }
 
 impl From<ConnectorError> for Failure {
