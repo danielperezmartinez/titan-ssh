@@ -46,6 +46,28 @@ fichero `NOTICE` que haya que reproducir.
 | Biblioteca estándar y toolchain de Go | 1.26+ | BSD-3-Clause |
 | `golang.org/x/sys` (proyecto Go) | 0.48.0 | BSD-3-Clause |
 
+## Cliente RDP embebido (`rdp/`, Rust)
+
+La biblioteca nativa `titan_rdp` (ADR-0028) va dentro de la APK y de los
+paquetes de escritorio. Inventario revisado el 2026-10-21 sobre
+`cargo tree -e normal` de `rdp/Cargo.lock` (230 crates); todas las licencias
+son compatibles con la GPLv3. Los textos completos acompañan a cada crate en
+crates.io.
+
+| Componente | Versión | Licencia |
+| --- | --- | --- |
+| IronRDP (`ironrdp-connector`, `-session`, `-graphics`, `-input`, `-pdu`, `-core`, `-tokio`, `-async`, `-dvc`, `-displaycontrol`, `-svc`, `-bulk`, `-error`) | 0.2–0.11 | MIT OR Apache-2.0 |
+| sspi (Devolutions, CredSSP/NTLM) | 0.21.3 | MIT OR Apache-2.0 |
+| rustls, tokio-rustls | 0.23.46, 0.26 | Apache-2.0 OR ISC OR MIT |
+| ring | 0.17.14 | Apache-2.0 AND ISC |
+| rustls-webpki, untrusted, libloading, iso7816-tlv | varias | ISC |
+| tokio, bytes, tracing, nom, bitvec y otras | varias | MIT |
+| curve25519-dalek, ed25519-dalek, x25519-dalek, subtle | varias | BSD-3-Clause |
+| cryptoki, cryptoki-sys, flagset | varias | Apache-2.0 |
+| ICU4X (`icu_*`, `zerovec`, `yoke`, `tinystr`…) | varias | Unicode-3.0 |
+| jni (jni-rs) | 0.21.1 | MIT OR Apache-2.0 |
+| Resto (unos 175 crates) | varias | MIT OR Apache-2.0, y alguna con Zlib, BSD-2-Clause o Unlicense como alternativa |
+
 ## Mantenimiento
 
 Al añadir o actualizar una dependencia de ejecución, se revisa su licencia (y

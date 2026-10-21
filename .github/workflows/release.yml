@@ -193,6 +193,14 @@ jobs:
         run: |
           go test -race -count=1 ./...
           go vet -tags canary ./...
+      # The embedded RDP client (ADR-0028): the Rust toolchain and targets
+      # pinned in rdp/rust-toolchain.toml.
+      - name: Rust toolchain
+        working-directory: rdp
+        run: rustup toolchain install && cargo --version
+      - name: RDP engine tests
+        working-directory: rdp
+        run: cargo test --locked --lib
       # The tests expect the stable app's names, so a canary run tests the
       # same code as a development build (it builds the agent itself).
       - name: Desktop tests
@@ -223,6 +231,18 @@ jobs:
           name: agent
           path: ${{ runner.temp }}/agent
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+      # The embedded RDP client (ADR-0028): the Rust toolchain and targets
+      # pinned in rdp/rust-toolchain.toml.
+      - name: Rust toolchain
+        working-directory: rdp
+        run: rustup toolchain install && cargo --version
+      - name: Android NDK
+        # The version androidApp/build.gradle.kts pins (RDP_NDK_VERSION).
+        run: |
+          ndk="$(sed -n 's/^val RDP_NDK_VERSION = "\(.*\)"$/\1/p' androidApp/build.gradle.kts)"
+          test -n "$ndk" || { echo "::error::RDP_NDK_VERSION not found"; exit 1; }
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ndk" > /dev/null
+          test -d "$ANDROID_HOME/ndk/$ndk"
       - name: Restore the signing keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.TITAN_KEYSTORE_BASE64 }}
@@ -290,6 +310,11 @@ jobs:
           name: agent
           path: ${{ runner.temp }}/agent
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+      # The embedded RDP client (ADR-0028): the Rust toolchain and targets
+      # pinned in rdp/rust-toolchain.toml.
+      - name: Rust toolchain
+        working-directory: rdp
+        run: rustup toolchain install && cargo --version
       # jpackage only declares the libraries it finds installed, so they are
       # installed explicitly instead of relying on the runner image.
       - name: Install packaging tools and the app's libraries
@@ -347,6 +372,11 @@ jobs:
           name: agent
           path: ${{ runner.temp }}/agent
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+      # The embedded RDP client (ADR-0028): the Rust toolchain and targets
+      # pinned in rdp/rust-toolchain.toml.
+      - name: Rust toolchain
+        working-directory: rdp
+        run: rustup toolchain install && cargo --version
       - name: Build
         run: ./gradlew :desktopApp:packageMsi "-PtitanVersion=$VERSION" "-PtitanAgentPrebuilt=$RUNNER_TEMP/agent" --console=plain
       - name: Collect
