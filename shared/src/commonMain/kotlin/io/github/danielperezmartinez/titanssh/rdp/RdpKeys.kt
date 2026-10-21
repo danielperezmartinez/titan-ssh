@@ -59,6 +59,22 @@ object RdpKeys {
         0x31, 0x18, 0x19, 0x10, 0x13, 0x1F, 0x14, 0x16, 0x2F, 0x11, 0x2D, 0x15, 0x2C,
     )
 
+    /**
+     * The key that types [c] on any Latin layout, and whether it takes Shift:
+     * ASCII letters and digits, space, Enter and Tab. Null for the rest, whose
+     * key depends on the server's layout and go as Unicode.
+     */
+    fun forChar(c: Char): Pair<Int, Boolean>? = when (c) {
+        in 'a'..'z' -> LETTERS[c - 'a'] to false
+        in 'A'..'Z' -> LETTERS[c - 'A'] to true
+        '0' -> 0x0B to false
+        in '1'..'9' -> 0x02 + (c - '1') to false
+        ' ' -> 0x39 to false
+        '\n', '\r' -> 0x1C to false
+        '\t' -> 0x0F to false
+        else -> null
+    }
+
     /** The modifier keys of `MOD_*` [modifiers], in the order they go down. */
     fun modifierScancodes(modifiers: Int): List<Int> = buildList {
         if (modifiers and InputKeys.MOD_CTRL != 0) add(CTRL)

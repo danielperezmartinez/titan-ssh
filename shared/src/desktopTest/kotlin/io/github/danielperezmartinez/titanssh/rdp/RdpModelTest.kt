@@ -42,6 +42,18 @@ class RdpModelTest {
     }
 
     @Test
+    fun plain_characters_type_as_keys_and_the_rest_as_unicode() {
+        assertEquals(0x1E to false, RdpKeys.forChar('a'))
+        assertEquals(0x1E to true, RdpKeys.forChar('A'))
+        assertEquals(0x0B to false, RdpKeys.forChar('0'))
+        assertEquals(0x0A to false, RdpKeys.forChar('9'))
+        assertEquals(0x39 to false, RdpKeys.forChar(' '))
+        assertEquals(0x1C to false, RdpKeys.forChar('\n'))
+        assertNull(RdpKeys.forChar('ñ'))
+        assertNull(RdpKeys.forChar('-'))
+    }
+
+    @Test
     fun wheel_steps_never_exceed_a_notch() {
         assertEquals(listOf(120, 120, 60), wheelSteps(300))
         assertEquals(listOf(-40), wheelSteps(-40))

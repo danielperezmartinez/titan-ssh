@@ -75,7 +75,11 @@ class RdpScreen {
         native?.input(RdpInput.KEY, scancode, if (down) 1 else 0)
     }
 
-    /** Types [text] as Unicode characters, the way a soft keyboard does. */
+    /**
+     * Types [text]. Letters, digits, space, Enter and Tab go as the keys that
+     * make them ([RdpKeys.forChar]), which every server understands; the rest
+     * as Unicode characters, which Windows takes but X11 servers often ignore.
+     */
     fun text(text: String) {
         val session = native ?: return
         var i = 0
@@ -87,8 +91,17 @@ class RdpScreen {
             } else {
                 high.code
             }
-            session.input(RdpInput.UNICODE, code, 1)
-            session.input(RdpInput.UNICODE, code, 0)
+            val key = if (code <= 0xFFFF) RdpKeys.forChar(code.toChar()) else null
+            if (key != null) {
+                val (scancode, shift) = key
+                if (shift) session.input(RdpInput.KEY, RdpKeys.SHIFT, 1)
+                session.input(RdpInput.KEY, scancode, 1)
+                session.input(RdpInput.KEY, scancode, 0)
+                if (shift) session.input(RdpInput.KEY, RdpKeys.SHIFT, 0)
+            } else {
+                session.input(RdpInput.UNICODE, code, 1)
+                session.input(RdpInput.UNICODE, code, 0)
+            }
             i++
         }
     }
