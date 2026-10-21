@@ -34,6 +34,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
@@ -225,6 +226,8 @@ fun MousepadView(
             Modifier
                 .weight(1f)
                 .fillMaxWidth()
+                // A zoomed remote screen draws past the surface: keep it inside.
+                .clipToBounds()
                 .focusRequester(surfaceFocus)
                 .focusable()
                 .onPreviewKeyEvent { event ->
