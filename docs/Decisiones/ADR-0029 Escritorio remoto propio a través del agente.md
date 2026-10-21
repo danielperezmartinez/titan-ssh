@@ -8,7 +8,7 @@ Consecuencias: 'Ver y controlar el escritorio del destino desde Android y escrit
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-10-21T10:45:00+02:00
-Última modificación: 2026-10-21T10:45:00+02:00
+Última modificación: 2026-10-21T14:30:00+02:00
 ---
 
 # ADR-0029 · Escritorio remoto propio a través del agente
@@ -102,6 +102,15 @@ Lo que ya hay y se reutiliza:
   hacen scroll, mantener pulsado arrastra), con el cursor remoto dibujado
   sobre la imagen y un zoom de 1x a 3x que sigue al cursor. Teclado y barra de
   teclas, los del mouse pad.
+- **Solo en la canary mientras se compara** con el cliente RDP embebido
+  ([[ADR-0028 Cliente RDP embebido con IronRDP por un túnel SSH]]): `DESKTOP` es un tipo
+  `experimental` (`SessionType.experimental`, mecanismo común a las dos
+  opciones), y `SessionType.offered` solo lo ofrece si
+  `AppChannel.isCanary`. La app estable no lo lista en el editor y, si recibe
+  una sesión de ese tipo (una configuración importada de la canary), la
+  enseña pero no la abre. Cuando el usuario elija, la opción ganadora deja de
+  ser experimental y la otra se retira entera: tipo, código, agente, CI y
+  documentación, con su ADR en `Rechazada`.
 
 ### 2. Modo `--screen` y protocolo
 

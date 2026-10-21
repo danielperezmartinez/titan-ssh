@@ -2,11 +2,11 @@
 Nombre: 'Escritorio remoto a través del agente'
 Estado: 'En curso'
 Resumen: 'Tarea paraguas de un tipo de sesión nuevo, escritorio remoto (opción D): ver y controlar la pantalla del destino desde titan-ssh sin RDP ni VNC de terceros, sobre la conexión SSH y titan-agent. Añade la mitad que le falta al mouse pad: captura en el destino, codificación por baldosas, transporte por el canal exec con control de flujo por acuses, decodificación y pintado en Compose. Se divide por sistema: Linux X11 primero (se puede probar entero aquí con Xvfb en Docker), después Windows y Linux Wayland.'
-Decisiones: 'Diseño en [[ADR-0029 Escritorio remoto propio a través del agente]] (Propuesta, 2026-10-21): baldosas FILL/ZLIB/JPEG con la biblioteca estándar, sin vídeo ni dependencias nuevas; un solo canal --screen para imagen y entrada; como mucho dos fotogramas sin acuse. Reutiliza [[ADR-0016 Sesión mouse pad y ayudante de escritorio en Windows]] y [[ADR-0018 Autenticación mutua en el punto de encuentro del agente]]. Independiente del cliente RDP embebido (opción C) que lleva otra línea de trabajo.'
+Decisiones: 'Diseño en [[ADR-0029 Escritorio remoto propio a través del agente]] (Propuesta, 2026-10-21): baldosas FILL/ZLIB/JPEG con la biblioteca estándar, sin vídeo ni dependencias nuevas; un solo canal --screen para imagen y entrada; como mucho dos fotogramas sin acuse. Reutiliza [[ADR-0016 Sesión mouse pad y ayudante de escritorio en Windows]] y [[ADR-0018 Autenticación mutua en el punto de encuentro del agente]]. Independiente del cliente RDP embebido (opción C) que lleva otra línea de trabajo. Las dos opciones van a la vez a la canary para compararlas: DESKTOP es un tipo experimental que solo ofrece la canary (mecanismo común SessionType.experimental/offered, acordado con la opción C el 2026-10-21); la estable llevará solo la elegida y la otra se retira entera.'
 Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-21T10:50:00+02:00
-Última modificación: 2026-10-21T10:50:00+02:00
+Última modificación: 2026-10-21T14:30:00+02:00
 ---
 
 # Escritorio remoto a través del agente
