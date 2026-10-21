@@ -90,6 +90,10 @@ type Session struct {
 	CursorMode uint32
 	// Version is the RemoteDesktop portal's version.
 	Version uint32
+	// Registered tells whether the portal took the app id. It refuses one
+	// without an installed .desktop file, and older portals have no
+	// Registry: the permission then goes under the empty app id.
+	Registered bool
 }
 
 // Open starts a remote desktop session on the bus conn: pointer and
@@ -101,15 +105,13 @@ func Open(ctx context.Context, conn *dbus.Conn, opt Options) (*Session, error) {
 	if err != nil {
 		return nil, unavailable(err)
 	}
+	s := &Session{conn: conn, Version: version}
 	if opt.AppID != "" {
-		if err := register(ctx, conn, opt.AppID); err != nil {
-			return nil, err
-		}
+		s.Registered = register(ctx, conn, opt.AppID) == nil
 	}
 	if opt.ConsentTimeout <= 0 {
 		opt.ConsentTimeout = 2 * time.Minute
 	}
-	s := &Session{conn: conn, Version: version}
 
 	modes, err := propertyU32(ctx, conn, ifaceCast, "AvailableCursorModes")
 	if err != nil {
@@ -230,14 +232,9 @@ func unavailable(err error) error {
 }
 
 // register identifies the agent to the portal by app id, before any other
-// portal call on this connection. Portals older than the Registry lack it,
-// and the permission then goes under the empty app id.
+// portal call on this connection.
 func register(ctx context.Context, conn *dbus.Conn, appID string) error {
 	_, err := conn.Call(ctx, busName, objectPath, ifaceReg, "Register", "sa{sv}", appID, map[string]dbus.Variant{})
-	var e *dbus.Error
-	if errors.As(err, &e) && (strings.HasSuffix(e.Name, ".UnknownMethod") || strings.HasSuffix(e.Name, ".UnknownInterface") || strings.HasSuffix(e.Name, ".UnknownObject")) {
-		return nil
-	}
 	if err != nil {
 		return fmt.Errorf("portal: Registry.Register: %w", err)
 	}

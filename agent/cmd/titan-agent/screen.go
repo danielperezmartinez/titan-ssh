@@ -27,6 +27,10 @@ type screenViewer struct {
 	StartedMs int64 `json:"startedMs"`
 }
 
+// screenStateDir is the state dir of the running --screen, for the ways that
+// keep something there (the portal's restore token).
+var screenStateDir string
+
 // runScreen is the --screen mode.
 func runScreen(stateDir string) error {
 	if !screenServed {
@@ -35,6 +39,7 @@ func runScreen(stateDir string) error {
 	if err := ensureStateDir(stateDir); err != nil {
 		return withCode(codeStateDir, err)
 	}
+	screenStateDir = stateDir
 	release := registerViewer(stateDir)
 	defer release()
 	if relayed, err := relayScreen(stateDir); relayed {

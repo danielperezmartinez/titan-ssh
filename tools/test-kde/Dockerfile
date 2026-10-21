@@ -13,7 +13,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
         openssh-server dbus dbus-daemon dbus-bin \
-        kwin-wayland xdg-desktop-portal xdg-desktop-portal-kde \
+        kwin-wayland kwin-common breeze-cursor-theme xdg-desktop-portal xdg-desktop-portal-kde \
         pipewire pipewire-bin wireplumber \
         foot kdialog qml6-module-qtquick-controls xwayland qt6-wayland \
         fonts-dejavu-core procps psmisc python3 \
