@@ -88,14 +88,20 @@ Lo que ya hay y se reutiliza:
 - `SessionType` gana `DESKTOP` ("Escritorio remoto"). Es un valor nuevo de un
   campo que ya tiene valor por defecto: **la versión de la configuración no
   cambia**. Como el mouse pad, usa su host y los campos de organización; los de
-  terminal se ocultan sin borrarse.
+  terminal se ocultan sin borrarse. Igual que pasó con `SFTP`, una app anterior
+  no sabe leer una configuración con una sesión `DESKTOP` (importarla en ella
+  falla); la app nueva lee todas las anteriores.
 - Guarda sus ajustes en `desktop: DesktopSettings`, con valor por defecto: la
-  calidad (`AUTO`, `HIGH` = sin pérdida, `LOW` = JPEG más comprimido).
-- Se ofrece en todas las plataformas. En escritorio se usa con el ratón y el
-  teclado físicos (posición absoluta); en Android, con gestos sobre la imagen
-  (tocar es clic, pulsación larga es clic derecho, arrastrar con un dedo
-  arrastra, con dos dedos hace scroll, pellizcar amplía) y el mismo teclado y
-  barra de teclas del mouse pad.
+  calidad (`AUTO`, `HIGH` = sin pérdida, `LOW` = JPEG más comprimido). Usa
+  también los ajustes del puntero del mouse pad.
+- Se ofrece en todas las plataformas, con la misma vista que el mouse pad y la
+  pantalla detrás de su superficie. Con un ratón (la app de escritorio, o un
+  ratón en el móvil) se apunta directamente a la imagen: posición absoluta,
+  botones y rueda. Con el dedo se usan los gestos del touchpad del mouse pad,
+  que el usuario ya conoce (un dedo mueve el cursor, tocar es clic, dos dedos
+  hacen scroll, mantener pulsado arrastra), con el cursor remoto dibujado
+  sobre la imagen y un zoom de 1x a 3x que sigue al cursor. Teclado y barra de
+  teclas, los del mouse pad.
 
 ### 2. Modo `--screen` y protocolo
 
@@ -113,7 +119,7 @@ u32 y carga), big-endian; la disposición exacta vive en `screen.go` (Go) y en
 | `SCREEN_FRAME_END` | agente → app | secuencia u32: el fotograma está completo y se puede enseñar |
 | `SCREEN_ACK` | app → agente | secuencia u32: la app ya pintó ese fotograma |
 | `CURSOR_SHAPE` | agente → app | ancho u16, alto u16, punto activo x u16 e y u16, ARGB comprimido con deflate |
-| `CURSOR_POS` | agente → app | x u16, y u16, visible u8 |
+| `CURSOR_POS` | agente → app | x i16, y i16 (el punto activo puede salirse por arriba o por la izquierda), visible u8 |
 | `POINTER_TO` | app → agente | x u16, y u16: el puntero a esa posición de la pantalla capturada |
 
 Codificaciones de una baldosa (de 64×64 píxeles, menos en los bordes):
@@ -192,9 +198,9 @@ que lo que se queda en pantalla se vea nítido.
 - No da nada que una shell del mismo usuario no pudiera conseguir (podría
   lanzar `xwd` o un programa de capturas), pero sí lo hace cómodo, y una
   pantalla puede enseñar datos de otras personas. Por eso: cada sesión de
-  pantalla se anota en el directorio de estado del usuario (inicio, fin), y
-  `--status` dice cuántas hay abiertas para que el panel del agente las
-  enseñe.
+  pantalla abierta tiene un candado en el directorio de estado del usuario
+  (`screen-<pid>.lock`, con su hora de inicio), y `--status` las lista para
+  que el panel del agente las enseñe.
 - Un aviso visible en la pantalla del destino mientras alguien la mira
   (en X11 y Windows; Wayland ya lo pone el portal) queda como decisión abierta
   con el usuario.
