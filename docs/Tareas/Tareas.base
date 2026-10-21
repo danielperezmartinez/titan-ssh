@@ -79,6 +79,8 @@ views:
       - Bloqueada
       - formula.created_display
       - formula.updated_display
+    columnSize:
+      file.name: 498
   - type: table
     name: Hecha
     filters:
