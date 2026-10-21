@@ -35,13 +35,16 @@ func runScreen(stateDir string) error {
 	if err := ensureStateDir(stateDir); err != nil {
 		return withCode(codeStateDir, err)
 	}
+	release := registerViewer(stateDir)
+	defer release()
+	if relayed, err := relayScreen(stateDir); relayed {
+		return err
+	}
 	src, err := openScreen()
 	if err != nil {
 		return err
 	}
 	defer src.close()
-	release := registerViewer(stateDir)
-	defer release()
 	return screen.Serve(stdio(), src.capturer, src.input, screen.Options{})
 }
 

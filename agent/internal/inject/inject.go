@@ -21,7 +21,7 @@ type Injector interface {
 	// Move moves the pointer by dx, dy pixels.
 	Move(dx, dy int) error
 	// MoveTo puts the pointer at (x, y) of the captured screen (ADR-0029):
-	// the root window on X11, the primary monitor on Windows.
+	// the root window on X11, the whole virtual desktop on Windows.
 	MoveTo(x, y int) error
 	// Button presses or releases a protocol.Button*.
 	Button(button uint8, down bool) error

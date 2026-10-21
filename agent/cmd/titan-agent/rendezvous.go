@@ -27,9 +27,9 @@ import (
 // the front, on the destination, knows it.
 //
 // Each kind of connection has its own magic, which the proofs cover: a session,
-// a control request (control.go), and the desktop helper's input, control and
-// run connections (desktop.go, desktoprun.go), which have their own listener
-// and token.
+// a control request (control.go), and the desktop helper's input, control,
+// run and screen connections (desktop.go, desktoprun.go), which have their own
+// listener and token.
 //
 // The first handshake, which sent the raw token (magics ending in 1), is gone
 // since 0.1.0-beta.14: an agent of 0.1.0-beta.10 or older still running is
@@ -40,6 +40,7 @@ const (
 	desktopMagic        = "TTNADSK2"
 	desktopControlMagic = "TTNADCT2"
 	desktopRunMagic     = "TTNADRN2"
+	desktopScreenMagic  = "TTNADSC2"
 )
 
 const (

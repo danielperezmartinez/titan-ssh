@@ -14,6 +14,8 @@ import (
 	"syscall"
 
 	"golang.org/x/sys/windows"
+
+	"github.com/danielperezmartinez/titan-ssh/agent/internal/screen"
 )
 
 // desktopSupported says whether this system has a desktop helper, and so a
@@ -274,4 +276,19 @@ func oneLine(out []byte) string {
 		return r
 	}, string(out))
 	return strings.Join(strings.Fields(text), " ")
+}
+
+// openDesktopScreen opens the helper's capturer of the virtual desktop
+// (ADR-0031 §4). A disconnected session has no screen to capture:
+// E_DESKTOP_INACTIVE.
+func openDesktopScreen() (screen.Capturer, func(), error) {
+	if screen.SessionDisconnected() {
+		return nil, nil, withCode(codeDesktopInactive, errors.New(
+			"the Windows session is disconnected: sign in to it again on the PC, or over remote desktop"))
+	}
+	c, err := screen.NewGDI()
+	if err != nil {
+		return nil, nil, withCode(codeScreenCapture, err)
+	}
+	return c, c.Close, nil
 }

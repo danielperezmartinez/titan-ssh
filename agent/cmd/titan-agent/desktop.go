@@ -41,7 +41,9 @@ const (
 )
 
 type desktopReply struct {
-	Error   string `json:"error,omitempty"`
+	Error string `json:"error,omitempty"`
+	// Code is Error's contract code, on a screen connection's answer.
+	Code    string `json:"code,omitempty"`
 	Agent   string `json:"agent,omitempty"`
 	PID     int    `json:"pid,omitempty"`
 	Session int    `json:"session,omitempty"`
@@ -173,7 +175,7 @@ func (h *desktopHelper) serve() {
 		go func() {
 			defer h.conns.Done()
 			defer conn.Close()
-			magic, err := acceptMagics(conn, h.token, []string{desktopMagic, desktopControlMagic, desktopRunMagic})
+			magic, err := acceptMagics(conn, h.token, []string{desktopMagic, desktopControlMagic, desktopRunMagic, desktopScreenMagic})
 			h.slots.release()
 			if err != nil {
 				return
@@ -184,6 +186,9 @@ func (h *desktopHelper) serve() {
 				return
 			case desktopRunMagic:
 				h.serveRun(conn)
+				return
+			case desktopScreenMagic:
+				h.serveScreen(conn)
 				return
 			}
 			_ = inject.Serve(conn, h.inj, &h.injMu)

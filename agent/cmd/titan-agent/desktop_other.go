@@ -2,7 +2,11 @@
 
 package main
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/danielperezmartinez/titan-ssh/agent/internal/screen"
+)
 
 // Outside Windows there is no desktop helper yet: X11 and Wayland get their
 // own injectors in their tasks (ADR-0016 §5).
@@ -20,3 +24,7 @@ func startProgram(runRequest) (int, error) {
 
 func desktopTaskExists(string) bool  { return false }
 func deleteDesktopTask(string) error { return nil }
+
+func openDesktopScreen() (screen.Capturer, func(), error) {
+	return nil, nil, withCode(codeScreenUnsupported, errors.New("no desktop helper serves the remote desktop on this system"))
+}

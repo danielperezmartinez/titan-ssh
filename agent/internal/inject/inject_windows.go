@@ -174,16 +174,16 @@ func (w *windowsInjector) Move(dx, dy int) error {
 	return nil
 }
 
-// MoveTo puts the pointer at (x, y) of the primary monitor, whose top-left
-// corner is (0, 0) of the virtual desktop (ADR-0029: the remote desktop
-// captures the primary monitor).
+// MoveTo puts the pointer at (x, y) of the captured image: the whole virtual
+// desktop, whose top-left corner is (0, 0) of the image (ADR-0031 §5). A point
+// between monitors of different sizes goes to the nearest monitor.
 func (w *windowsInjector) MoveTo(x, y int) error {
 	vx, vy := metric(smXVirtualScreen), metric(smYVirtualScreen)
 	vw, vh := metric(smCXVirtualScreen), metric(smCYVirtualScreen)
 	if vw <= 0 || vh <= 0 {
 		return errors.New("no virtual desktop")
 	}
-	to := clampToMonitor(point{X: int32(x), Y: int32(y)})
+	to := clampToMonitor(point{X: int32(x + vx), Y: int32(y + vy)})
 	in := mouseEvent(mouseMove | mouseAbsolute | mouseVirtualDesk)
 	in.mi.dx, in.mi.dy = int32(normalize(int(to.X)-vx, vw)), int32(normalize(int(to.Y)-vy, vh))
 	if err := send([]mouseInput{in}); err != nil {
