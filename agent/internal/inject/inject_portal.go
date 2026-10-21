@@ -44,13 +44,6 @@ func NewPortal(dev PortalDevice, locate PortalLocator, scale float64) *Portal {
 	return &Portal{dev: dev, locate: locate, scale: scale}
 }
 
-// evdev button codes (linux/input-event-codes.h).
-const (
-	btnLeft   = 0x110
-	btnRight  = 0x111
-	btnMiddle = 0x112
-)
-
 // Move moves the pointer by dx, dy captured pixels.
 func (p *Portal) Move(dx, dy int) error {
 	return p.dev.PointerMotion(float64(dx)/p.scale, float64(dy)/p.scale)

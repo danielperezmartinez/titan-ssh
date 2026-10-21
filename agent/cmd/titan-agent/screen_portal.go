@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image"
 	"math"
 	"os"
 	"path/filepath"
@@ -164,6 +165,7 @@ type portalPart struct {
 	node     uint32
 	scale    float64
 	embedded bool // the cursor is drawn into the frames
+	read     bool // the last Capture read a frame
 }
 
 func (p *portalPart) Size() (int, int, error) {
@@ -177,8 +179,24 @@ func (p *portalPart) Size() (int, int, error) {
 // Capture reads the last frame; one of another size (the monitor just
 // changed) leaves dst as it was, and the next Size gives the new one.
 func (p *portalPart) Capture(dst []uint32, w, h int) error {
-	p.stream.Read(dst, w, h)
+	p.read = p.stream.Read(dst, w, h)
 	return nil
+}
+
+// Damage is what the compositor said changed (its VideoDamage metadata).
+func (p *portalPart) Damage() ([]image.Rectangle, bool) {
+	if !p.read {
+		return nil, false
+	}
+	rects, ok := p.stream.Damage()
+	if !ok {
+		return nil, false
+	}
+	out := make([]image.Rectangle, len(rects))
+	for i, r := range rects {
+		out[i] = image.Rect(r.X, r.Y, r.X+r.W, r.Y+r.H)
+	}
+	return out, true
 }
 
 func (p *portalPart) Cursor() (screen.Cursor, error) {

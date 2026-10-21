@@ -137,16 +137,22 @@ type Stream struct {
 	formatSet  bool
 	rtStarted  bool
 
-	frameMu  sync.Mutex
-	frame    []byte // the last frame, rows of width*4 bytes
-	frameW   int
-	frameH   int
-	frameF   uint32
-	frames   uint64 // counts frames received
-	cursor   Cursor
-	damage   []Rect
-	damageK  bool // damage is known since the last TakeDamage
-	newFrame chan struct{}
+	frameMu sync.Mutex
+	frame   []byte // the last frame, rows of width*4 bytes
+	frameW  int
+	frameH  int
+	frameF  uint32
+	frames  uint64 // counts frames received
+	cursor  Cursor
+	// damage gathers what the frames since the last Read changed (damageK:
+	// every one of them said); Read moves it to readDamage, what that Read
+	// changed against the one before.
+	damage      []Rect
+	damageK     bool
+	readDamage  []Rect
+	readDamageK bool
+	readOnce    bool
+	newFrame    chan struct{}
 
 	endOnce sync.Once
 	err     error
@@ -848,7 +854,7 @@ func (s *Stream) consume(b *buffer) {
 			copy(s.frame[y*row+r.X*4:y*row+(r.X+r.W)*4], src[so:so+r.W*4])
 		}
 	}
-	if s.frames == 0 || !known {
+	if !known {
 		s.damageK = false
 	} else if s.damageK {
 		s.damage = append(s.damage, rects...)
@@ -1006,22 +1012,24 @@ func (s *Stream) Read(dst []uint32, w, h int) bool {
 			dst[i] = toARGB(s.frameF, le.Uint32(src[i*4:])) & 0xffffff
 		}
 	}
-	// What Read hands out from now on is measured against this frame.
+	s.readDamage = append(s.readDamage[:0], s.damage...)
+	s.readDamageK = s.damageK && s.readOnce
+	s.readOnce = true
 	s.damage = s.damage[:0]
 	s.damageK = true
 	return true
 }
 
-// TakeDamage returns the areas that changed since the last Read, in frame
-// pixels; known is false when the producer does not say (compare
-// everything).
-func (s *Stream) TakeDamage() ([]Rect, bool) {
+// Damage returns what the last Read changed against the Read before it, in
+// frame pixels; known is false when the producer did not say for every frame
+// in between (compare everything).
+func (s *Stream) Damage() ([]Rect, bool) {
 	s.frameMu.Lock()
 	defer s.frameMu.Unlock()
-	if !s.damageK {
+	if !s.readDamageK {
 		return nil, false
 	}
-	return append([]Rect(nil), s.damage...), true
+	return append([]Rect(nil), s.readDamage...), true
 }
 
 // Cursor is the cursor as last reported.
