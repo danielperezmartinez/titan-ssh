@@ -2,10 +2,10 @@
 Nombre: 'Capturar la pantalla del escritorio del usuario desde el destino'
 Estado: 'Planificando'
 Resumen: 'En Windows, la shell de una sesión de titan-ssh corre en la sesión 0 y no puede capturar la pantalla del escritorio del usuario. Esto impide, por ejemplo, que un agente de IA que trabaja en el PC desde una sesión de titan-ssh compruebe cómo se ve la app de escritorio que acaba de abrir con --desktop-run (ADR-0019). Idea: una orden del agente, titan-agent --desktop-capture, que pide la captura al ayudante de escritorio y la guarda como PNG. Queda fuera de ADR-0019 porque tiene su propio análisis de privacidad. Pendiente de decidir alcance, destino del fichero y garantías.'
-Decisiones: 'El usuario pide el 2026-10-07 dejarla en planificación aparte de [[ADR-0019 Abrir programas en el escritorio del usuario desde el destino]].'
+Decisiones: 'El usuario pide el 2026-10-07 dejarla en planificación aparte de [[ADR-0019 Abrir programas en el escritorio del usuario desde el destino]]. Desde el 2026-10-21, [[Escritorio remoto a través del agente]] ([[ADR-0029 Escritorio remoto propio a través del agente]]) escribe los capturadores de pantalla por sistema; esta orden puede reutilizarlos.'
 Bloqueada: []
 Fecha de creación: 2026-10-07T10:59:12+02:00
-Última modificación: 2026-10-07T10:59:12+02:00
+Última modificación: 2026-10-21T10:50:00+02:00
 ---
 
 # Capturar la pantalla del escritorio del usuario desde el destino
