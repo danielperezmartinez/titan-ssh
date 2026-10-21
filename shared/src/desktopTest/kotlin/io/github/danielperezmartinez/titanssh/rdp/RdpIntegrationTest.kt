@@ -28,6 +28,7 @@ import kotlinx.coroutines.withTimeout
  *   TITAN_SSH_TEST_KEY: the container's SSH server.
  * - TITAN_RDP_TEST_USER and TITAN_RDP_TEST_PASSWORD: the desktop's account.
  * - TITAN_RDP_TEST_PORT: the NLA server as the container sees it (3390 there).
+ * - TITAN_RDP_TEST_TLS_PORT, optional: the xrdp server without NLA (3389 there).
  */
 class RdpIntegrationTest {
 
@@ -133,6 +134,50 @@ class RdpIntegrationTest {
                 run.cancel()
                 asked.cancel()
             }
+            setup.ssh.close()
+        }
+    }
+
+    /**
+     * xrdp (TITAN_RDP_TEST_TLS_PORT, 3389 in the container): TLS without NLA
+     * signs in straight away with the credentials, and the desktop follows a
+     * resize through the Display Control channel.
+     */
+    @Test
+    fun tls_login_signs_in_and_follows_a_resize() {
+        val tlsPort = System.getenv("TITAN_RDP_TEST_TLS_PORT")?.toIntOrNull() ?: return
+        val setup = setup() ?: return
+        runBlocking {
+            val screen = RdpScreen()
+            val prompt = launch { screen.certificate.filterNotNull().first().accept() }
+            val tls = RdpConnectParams(
+                username = setup.user,
+                password = setup.password.encodeToByteArray(),
+                domain = null,
+                serverName = "localhost",
+                width = 1024,
+                height = 768,
+                allowTlsWithoutNla = true,
+                clientName = "titan-test",
+            )
+            val run = async { screen.run(setup.engine, setup.ssh.openDirect("localhost", tlsPort), tls, store(), "tls") }
+            val first = withTimeout(30_000) { screen.frame.filterNotNull().first() }
+            println("[rdp] xrdp desktop ${first.width}x${first.height}")
+            assertEquals(1024, first.width)
+            // The Display Control channel opens a moment after the desktop.
+            val resized = withTimeout(30_000) {
+                var frame = screen.frame.value
+                while (frame == null || frame.width != 1280) {
+                    screen.resizeDesktop(1280, 720)
+                    kotlinx.coroutines.delay(1_000)
+                    frame = screen.frame.value
+                }
+                frame
+            }
+            println("[rdp] xrdp resized to ${resized.width}x${resized.height}")
+            assertEquals(720, resized.height)
+            run.cancel()
+            prompt.cancel()
             setup.ssh.close()
         }
     }

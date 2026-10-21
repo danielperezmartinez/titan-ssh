@@ -72,7 +72,9 @@ import io.github.danielperezmartinez.titanssh.terminal.TabStatus
 import io.github.danielperezmartinez.titanssh.terminal.isAndroidRuntime
 import io.github.danielperezmartinez.titanssh.theme.TitanColors
 import io.github.danielperezmartinez.titanssh.theme.TitanDimens
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 /**
  * An RDP tab (ADR-0028): the remote desktop, scaled to fit, with the server's
@@ -200,6 +202,17 @@ fun RdpView(
             }
         }
         LaunchedEffect(tab.id) { if (!android) surfaceFocus.requestFocus() }
+        // On the desktop app the remote desktop follows the pane's size, once
+        // the user stops resizing, if the server can change it (Display Control).
+        if (!android) {
+            LaunchedEffect(surface, current?.width, current?.height, status.phase) {
+                val shown = current ?: return@LaunchedEffect
+                if (status.phase != TabPhase.CONNECTED || surface.width < MIN_DESKTOP || surface.height < MIN_DESKTOP) return@LaunchedEffect
+                if (abs(surface.width - shown.width) < RESIZE_SLACK && abs(surface.height - shown.height) < RESIZE_SLACK) return@LaunchedEffect
+                delay(RESIZE_SETTLE_MILLIS)
+                screen.resizeDesktop(surface.width, surface.height)
+            }
+        }
         DisposableEffect(tab.id) { onDispose { screen.releaseAll() } }
 
         if (android) {
@@ -279,6 +292,11 @@ private fun Modifier.desktopMouse(
 }
 
 private const val NOTCH = 120
+
+/** The smallest desktop worth asking for, and how far the pane may differ before it is resized. */
+private const val MIN_DESKTOP = 200
+private const val RESIZE_SLACK = 8
+private const val RESIZE_SETTLE_MILLIS = 600L
 
 /** The phone's screen as a touchpad over the desktop, with the mouse pad's gestures. */
 private fun Modifier.touchpad(tab: SessionTab, screen: RdpScreen, density: Float): Modifier = pointerInput(tab.id) {

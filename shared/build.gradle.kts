@@ -379,6 +379,7 @@ tasks.withType<Test>().configureEach {
         "titanRdpTestUser" to "TITAN_RDP_TEST_USER",
         "titanRdpTestPassword" to "TITAN_RDP_TEST_PASSWORD",
         "titanRdpTestPort" to "TITAN_RDP_TEST_PORT",
+        "titanRdpTestTlsPort" to "TITAN_RDP_TEST_TLS_PORT",
     ).forEach { (prop, env) ->
         (project.findProperty(prop) as String?)?.let { environment(env, it) }
     }

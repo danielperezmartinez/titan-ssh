@@ -24,6 +24,7 @@ use ironrdp_displaycontrol::client::DisplayControlClient;
 use ironrdp_displaycontrol::pdu::MonitorLayoutEntry;
 use ironrdp_graphics::image_processing::PixelFormat;
 use ironrdp_input::{Database, MouseButton, MousePosition, Operation, Scancode, WheelRotations};
+use ironrdp_pdu::Action;
 use ironrdp_pdu::gcc::KeyboardType;
 use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
 use ironrdp_pdu::rdp::client_info::{PerformanceFlags, TimezoneInfo};
@@ -462,7 +463,21 @@ fn without_locations(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::without_locations;
+    use super::{is_short_deactivate_all, without_locations};
+
+    #[test]
+    fn the_short_deactivate_all_of_xrdp_is_recognised() {
+        // Captured from xrdp 0.10 when it resizes the desktop.
+        let short = [
+            0x03, 0x00, 0x00, 0x14, 0x02, 0xf0, 0x80, 0x68, 0x00, 0x04, 0x03, 0xeb, 0x70, 0x06,
+            0x06, 0x00, 0x16, 0x00, 0xed, 0x03,
+        ];
+        assert!(is_short_deactivate_all(&short));
+        let mut other_type = short;
+        other_type[16] = 0x17;
+        assert!(!is_short_deactivate_all(&other_type));
+        assert!(!is_short_deactivate_all(&short[..19]));
+    }
 
     #[test]
     fn locations_are_left_out_of_messages() {
@@ -696,6 +711,23 @@ fn operations(
     Some(db.apply([op]))
 }
 
+/// xrdp resizes the desktop with a Deactivate All PDU that is only a Share
+/// Control header, without the share id IronRDP expects (FreeRDP accepts it).
+/// `payload` is the whole X.224 frame: TPKT, X.224 data, then an MCS Send Data
+/// Indication whose user data is that 6-byte header.
+fn is_short_deactivate_all(payload: &[u8]) -> bool {
+    const SEND_DATA_INDICATION: u8 = 26 << 2;
+    const PDUTYPE_DEACTIVATEALLPDU: u16 = 0x6;
+    // TPKT (4) + X.224 data (3) + MCS choice (1) + initiator (2) + channel (2)
+    // + priority and segmentation (1) + a one-byte PER length (1) + 6.
+    if payload.len() != 20 || payload[7] != SEND_DATA_INDICATION || payload[13] != 6 {
+        return false;
+    }
+    let header = &payload[14..];
+    u16::from_le_bytes([header[0], header[1]]) == 6
+        && u16::from_le_bytes([header[2], header[3]]) & 0xF == PDUTYPE_DEACTIVATEALLPDU
+}
+
 async fn active_session(
     result: ConnectionResult,
     framed: Upgraded,
@@ -734,6 +766,9 @@ async fn active_session(
                         describe(&e),
                     )),
                 };
+                if action == Action::X224 && is_short_deactivate_all(&payload) {
+                    vec![ActiveStageOutput::DeactivateAll]
+                } else {
                 let mut frame = shared.frame.lock().unwrap_or_else(|e| e.into_inner());
                 let image = frame.image.as_mut().expect("set before the loop");
                 match stage.process(image, action, &payload) {
@@ -741,6 +776,7 @@ async fn active_session(
                     // Servers end the connection in many ways once asked to.
                     Err(_) if closing => return Ok(()),
                     Err(e) => return Err(e.into()),
+                }
                 }
             }
             event = input.recv() => {
