@@ -5,6 +5,7 @@ import io.github.danielperezmartinez.titanssh.config.HostKeyPolicy
 import io.github.danielperezmartinez.titanssh.config.ResilienceLevel
 import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
 import io.github.danielperezmartinez.titanssh.config.SessionScript
+import io.github.danielperezmartinez.titanssh.config.DesktopQuality
 import io.github.danielperezmartinez.titanssh.config.SessionType
 import io.github.danielperezmartinez.titanssh.config.jumpEndpoint
 import io.github.danielperezmartinez.titanssh.sftp.DownloadStore
@@ -128,7 +129,7 @@ internal fun needsConnection(
 ): Boolean {
     if (phase != TabPhase.CONNECTED && phase != TabPhase.RECONNECTING) return false
     return when (type) {
-        SessionType.MOUSEPAD -> false
+        SessionType.MOUSEPAD, SessionType.DESKTOP -> false
         SessionType.SFTP -> downloading
         SessionType.TERMINAL -> hasTunnels || when (level) {
             EffectiveLevel.BASE -> true
@@ -228,6 +229,12 @@ data class ChangedHostKey(val presented: HostKeyInfo, val stored: List<KnownHost
  * [mousepad] says whether they reach the desktop. No tunnels, scripts or
  * emulator output are involved.
  *
+ * ## Remote desktop (ADR-0029)
+ * A [SessionType.DESKTOP] session is a mouse pad that also sees the screen: it
+ * drives `titan-agent --screen` ([ScreenTransport]), whose frames update
+ * [remoteScreen], and the same [sendInput] and [mousepad] serve its input. On
+ * a drop the last image stays until the reconnection brings a whole frame.
+ *
  * ## SFTP (ADR-0021)
  * A [SessionType.SFTP] session also keeps the lifecycle, and on each connection
  * opens an SFTP channel and hands it to [sftp], the browser, until the
@@ -314,6 +321,13 @@ class SessionTab(
     /** Whether this tab is a mouse pad rather than a terminal (ADR-0016). */
     val isMousepad: Boolean get() = resolved.session.type == SessionType.MOUSEPAD
 
+    /** Whether this tab is a remote desktop (ADR-0029). */
+    val isDesktop: Boolean get() = resolved.session.type == SessionType.DESKTOP
+
+    /** The screen of a remote desktop tab (ADR-0029); null for the other types. */
+    val remoteScreen: RemoteScreen? =
+        if (resolved.session.type == SessionType.DESKTOP) RemoteScreen(::createScreenSurface) else null
+
     /** Whether this tab is a terminal: not a mouse pad nor a file browser. */
     val isTerminal: Boolean get() = resolved.session.type == SessionType.TERMINAL
 
@@ -327,11 +341,14 @@ class SessionTab(
 
     private val _mousepad = MutableStateFlow(MousepadStatus())
 
-    /** A mouse pad tab's input state, for its view. */
+    /** A mouse pad or remote desktop tab's input state, for its view. */
     val mousepad: StateFlow<MousepadStatus> = _mousepad.asStateFlow()
 
     /** The live `--input` channel of a mouse pad tab; null while not connected. */
     private var input: InputTransport? = null
+
+    /** The live `--screen` channel of a remote desktop tab; null while not connected. */
+    private var screenLink: ScreenTransport? = null
 
     /**
      * Input events in order, from the UI to the channel. Whatever is still
@@ -556,6 +573,7 @@ class SessionTab(
         // Say goodbye to the agent first, so it keeps the session as is.
         runCatching { agent?.close() }
         runCatching { input?.close() }
+        runCatching { screenLink?.close() }
         runCatching { shell?.close() }
         runCatching { session?.close() }
     }
@@ -726,6 +744,7 @@ class SessionTab(
             // Paused while it connected: [pause] found no connection to close.
             if (paused.value) return AttemptResult.DROPPED
             if (isMousepad) return runMousepad(opened)
+            remoteScreen?.let { return runDesktop(it, opened) }
             sftp?.let { return runSftp(it, opened) }
             // Tunnels ride the SSH connection itself, whatever carries the PTY.
             sessionTunnels.open(opened)
@@ -975,6 +994,49 @@ class SessionTab(
         }
     }
 
+    /**
+     * The remote desktop on [opened]: install the agent and drive `titan-agent
+     * --screen` until its channel closes, like [runMousepad] with the screen.
+     */
+    private suspend fun runDesktop(screen: RemoteScreen, opened: SshSession): AttemptResult {
+        val deployer = agentDeployer ?: return desktopFailed(
+            AgentIssue(AgentDiagnostics.E_NO_BINARY, "this build has no agent"),
+        )
+        val launch = when (val deployment = deployer.ensureInstalled(opened)) {
+            is AgentDeployment.Unavailable -> return desktopFailed(deployment.issue)
+            is AgentDeployment.Ready -> deployment.launch
+        }
+        while (inputQueue.tryReceive().isSuccess) {
+            continue
+        }
+        val quality = when (resolved.session.desktop.quality) {
+            DesktopQuality.AUTO -> ScreenCodec.QUALITY_AUTO
+            DesktopQuality.HIGH -> ScreenCodec.QUALITY_LOSSLESS
+            DesktopQuality.LOW -> ScreenCodec.QUALITY_LOW
+        }
+        val transport = ScreenTransport(opened, launch, screen, quality) {
+            if (_status.value.phase != TabPhase.CONNECTED) markConnected()
+            _mousepad.value = MousepadStatus(ready = true)
+        }
+        screenLink = transport
+        val pump = scope.launch { for (frame in inputQueue) transport.send(frame) }
+        try {
+            transport.run()
+        } finally {
+            pump.cancel()
+            screenLink = null
+        }
+        transport.unavailable?.let { return desktopFailed(it) }
+        _mousepad.value = MousepadStatus()
+        return if (droppedWithin(opened)) AttemptResult.DROPPED else AttemptResult.CLEAN_EXIT
+    }
+
+    private fun desktopFailed(issue: AgentIssue): AttemptResult {
+        _mousepad.value = MousepadStatus(issue = issue)
+        _status.value = TabStatus(TabPhase.FAILED, AgentDiagnostics.describeDesktop(issue))
+        return AttemptResult.FATAL
+    }
+
     private fun mousepadFailed(issue: AgentIssue): AttemptResult {
         _mousepad.value = MousepadStatus(issue = issue)
         _status.value = TabStatus(TabPhase.FAILED, AgentDiagnostics.describeMousepad(issue))
@@ -986,7 +1048,7 @@ class SessionTab(
      * their order; while the tab is not connected they are dropped.
      */
     fun sendInput(frame: AgentFrame) {
-        if (input == null) return
+        if (input == null && screenLink == null) return
         inputQueue.trySend(frame)
     }
 
@@ -1287,6 +1349,7 @@ class SessionTab(
         tunnelRetryJob?.cancel()
         sessionTunnels.close()
         runCatching { input?.close() }
+        runCatching { screenLink?.close() }
         runCatching { agent?.close() }
         runCatching { shell?.close() }
         runCatching { session?.close() }

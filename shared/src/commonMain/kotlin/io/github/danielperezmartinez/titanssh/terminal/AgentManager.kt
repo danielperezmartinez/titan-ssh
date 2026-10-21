@@ -211,7 +211,7 @@ class AgentManager(
      */
     fun removeDesktop(host: AgentHost) = launchOn(host) {
         config.state.value.sessions
-            .filter { it.type == SessionType.MOUSEPAD }
+            .filter { it.type == SessionType.MOUSEPAD || it.type == SessionType.DESKTOP }
             .filter { s -> runCatching { AgentKey.of(config.state.value.resolve(s).endpoint) == host.key }.getOrDefault(false) }
             .forEach { sessions.closeTabsOf(it.id) }
         access.withAgent(host) { it.removeDesktop() }

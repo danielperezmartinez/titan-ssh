@@ -1,5 +1,6 @@
 package io.github.danielperezmartinez.titanssh.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -48,10 +49,24 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.utf16CodePoint
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.isPrimaryPressed
+import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import io.github.danielperezmartinez.titanssh.terminal.ScreenView
+import io.github.danielperezmartinez.titanssh.terminal.ScreenViewport
+import io.github.danielperezmartinez.titanssh.terminal.imageBitmap
+import kotlin.math.roundToInt
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -70,13 +85,20 @@ import io.github.danielperezmartinez.titanssh.terminal.SessionTab
 import io.github.danielperezmartinez.titanssh.terminal.TabPhase
 import io.github.danielperezmartinez.titanssh.terminal.TabStatus
 import io.github.danielperezmartinez.titanssh.terminal.isAndroidRuntime
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import io.github.danielperezmartinez.titanssh.theme.TitanColors
 import io.github.danielperezmartinez.titanssh.theme.TitanDimens
 
 /**
- * A mouse pad tab (ADR-0016): the phone as the destination's touchpad and
- * keyboard. The surface takes the gestures of a laptop touchpad:
+ * A mouse pad tab (ADR-0016), or a remote desktop tab (ADR-0029), which is
+ * the same with the destination's screen behind the surface: there a mouse
+ * points straight at the screen (its position, buttons and wheel), while touch
+ * keeps the touchpad gestures below, with the remote cursor drawn on the image
+ * and a zoom that follows it.
+ *
+ * The mouse pad is the phone as the destination's touchpad and keyboard. The
+ * surface takes the gestures of a laptop touchpad:
  *
  * - one finger moves the pointer, and a tap is a left click;
  * - two fingers scroll, and a two-finger tap is a right click (three, middle);
@@ -107,6 +129,22 @@ fun MousepadView(
     val clipboard = LocalClipboardManager.current
     val keyboardFocus = remember { FocusRequester() }
     val surfaceFocus = remember { FocusRequester() }
+
+    // Remote desktop only (ADR-0029): the screen, how it fits the surface and
+    // whether a mouse hovers it (then its own pointer stands for the cursor).
+    val remote = tab.remoteScreen
+    val noScreen = remember { MutableStateFlow(ScreenView()) }
+    val screenView by (remote?.view ?: noScreen).collectAsState()
+    var surfaceSize by remember { mutableStateOf(IntSize.Zero) }
+    var zoom by remember(tab.id) { mutableIntStateOf(1) }
+    var hovering by remember { mutableStateOf(false) }
+    val viewport = screenView.surface?.let { s ->
+        ScreenViewport(
+            surfaceSize.width.toFloat(), surfaceSize.height.toFloat(), s.width, s.height,
+            zoom = zoom.toFloat(), focusX = screenView.cursorX.toFloat(), focusY = screenView.cursorY.toFloat(),
+        )
+    }
+    val currentViewport by rememberUpdatedState(viewport)
 
     // Sticky modifiers (InputKeys.MOD_*) for the next key or character.
     var sticky by remember(tab.id) { mutableIntStateOf(0) }
@@ -173,6 +211,9 @@ fun MousepadView(
             onReconnect = { tab.reconnectNow() },
             causeOpen = causeOpen && cause != null,
             onToggleCause = if (cause != null) ({ causeOpen = !causeOpen }) else null,
+            // Zoom is for touch: a mouse points at the screen itself.
+            zoom = if (remote != null && isAndroidRuntime()) zoom else null,
+            onZoom = { zoom = if (zoom >= MAX_ZOOM) 1 else zoom + 1 },
         )
         Hairline()
         if (causeOpen && cause != null) {
@@ -191,11 +232,28 @@ fun MousepadView(
                     frames.forEach(::send)
                     true
                 }
+                .onSizeChanged { surfaceSize = it }
+                .then(
+                    if (remote != null) {
+                        Modifier.pointerInput(tab.id) {
+                            mouseOnScreen(
+                                viewport = { currentViewport },
+                                onHover = { hovering = it },
+                                onPress = { surfaceFocus.requestFocus() },
+                                send = ::send,
+                            )
+                        }
+                    } else {
+                        Modifier
+                    },
+                )
                 .pointerInput(tab.id) {
                     val slop = viewConfiguration.touchSlop
                     val holdMillis = viewConfiguration.longPressTimeoutMillis
                     awaitEachGesture {
                         val first = awaitFirstDown(requireUnconsumed = false)
+                        // On a remote desktop a mouse points at the screen (mouseOnScreen).
+                        if (remote != null && first.type == PointerType.Mouse) return@awaitEachGesture
                         if (!isAndroidRuntime()) surfaceFocus.requestFocus()
                         motion.reset()
                         when (val start = decideGesture(slop, holdMillis)) {
@@ -222,27 +280,46 @@ fun MousepadView(
                 },
             contentAlignment = Alignment.Center,
         ) {
-            SurfaceMessage(status, pad)
+            if (remote != null) {
+                RemoteScreenCanvas(
+                    screenView,
+                    viewport,
+                    dimmed = status.phase != TabPhase.CONNECTED,
+                    showCursor = !hovering,
+                    cursorMinScale = density.density,
+                )
+                // Over the image, only what keeps it from being live.
+                if (status.phase != TabPhase.CONNECTED || !pad.ready || pad.blocked) {
+                    Box(Modifier.background(TitanColors.TerminalBg.copy(alpha = 0.85f))) {
+                        SurfaceMessage(status, pad, remote = true)
+                    }
+                }
+            } else {
+                SurfaceMessage(status, pad)
+            }
         }
         LaunchedEffect(tab.id) { if (!isAndroidRuntime()) surfaceFocus.requestFocus() }
 
         Hairline()
-        Row(Modifier.fillMaxWidth().height(56.dp)) {
-            listOf(
-                "izquierdo" to InputKeys.BUTTON_LEFT,
-                "central" to InputKeys.BUTTON_MIDDLE,
-                "derecho" to InputKeys.BUTTON_RIGHT,
-            ).forEachIndexed { i, (label, button) ->
-                if (i > 0) Box(Modifier.width(TitanDimens.Hairline).fillMaxHeight().background(TitanColors.HairlineStrong))
-                MouseButton(
-                    label,
-                    onDown = { send(AgentFrame.PointerButton(button, pressed = true)) },
-                    onUp = { send(AgentFrame.PointerButton(button, pressed = false)) },
-                    modifier = Modifier.weight(if (button == InputKeys.BUTTON_MIDDLE) 0.6f else 1f).fillMaxSize(),
-                )
+        // A remote desktop with a mouse has its buttons already.
+        if (remote == null || isAndroidRuntime()) {
+            Row(Modifier.fillMaxWidth().height(56.dp)) {
+                listOf(
+                    "izquierdo" to InputKeys.BUTTON_LEFT,
+                    "central" to InputKeys.BUTTON_MIDDLE,
+                    "derecho" to InputKeys.BUTTON_RIGHT,
+                ).forEachIndexed { i, (label, button) ->
+                    if (i > 0) Box(Modifier.width(TitanDimens.Hairline).fillMaxHeight().background(TitanColors.HairlineStrong))
+                    MouseButton(
+                        label,
+                        onDown = { send(AgentFrame.PointerButton(button, pressed = true)) },
+                        onUp = { send(AgentFrame.PointerButton(button, pressed = false)) },
+                        modifier = Modifier.weight(if (button == InputKeys.BUTTON_MIDDLE) 0.6f else 1f).fillMaxSize(),
+                    )
+                }
             }
+            Hairline()
         }
-        Hairline()
 
         val ime = WindowInsets.ime
         val keyboardVisible by remember(ime, density) { derivedStateOf { ime.getBottom(density) > 0 } }
@@ -360,6 +437,8 @@ private fun MousepadStatusStrip(
     onReconnect: () -> Unit,
     causeOpen: Boolean,
     onToggleCause: (() -> Unit)?,
+    zoom: Int? = null,
+    onZoom: () -> Unit = {},
 ) {
     val (marker, color, label) = when {
         status.phase == TabPhase.CONNECTED && pad.blocked -> Triple("[!]", TitanColors.Warning, "Escritorio bloqueado")
@@ -388,6 +467,14 @@ private fun MousepadStatusStrip(
                 .weight(1f)
                 .then(if (onToggleCause != null) Modifier.clickable(onClick = onToggleCause) else Modifier),
         )
+        if (zoom != null) {
+            Text(
+                "zoom ${zoom}x",
+                style = MaterialTheme.typography.labelSmall,
+                color = TitanColors.Accent,
+                modifier = Modifier.clickable(onClick = onZoom).padding(horizontal = TitanDimens.SpaceXs),
+            )
+        }
         if (status.phase == TabPhase.RECONNECTING || status.phase == TabPhase.DISCONNECTED || status.phase == TabPhase.FAILED) {
             Text(
                 "reconectar",
@@ -399,12 +486,17 @@ private fun MousepadStatusStrip(
     }
 }
 
-/** What the surface says: the gestures, or why input does not reach the desktop. */
+/**
+ * What the surface says: the gestures, or why input does not reach the
+ * desktop. Over a [remote] screen, a drop says the image is the last one seen.
+ */
 @Composable
-private fun SurfaceMessage(status: TabStatus, pad: MousepadStatus) {
+private fun SurfaceMessage(status: TabStatus, pad: MousepadStatus, remote: Boolean = false) {
     val (text, color) = when {
         status.phase == TabPhase.FAILED || status.phase == TabPhase.DISCONNECTED ->
             (status.detail ?: "Sin conexión con el destino.") to TitanColors.Danger
+        remote && status.phase == TabPhase.RECONNECTING ->
+            "Reconectando… La imagen es la última que llegó." to TitanColors.Warning
         status.phase != TabPhase.CONNECTED || !pad.ready ->
             "Preparando el escritorio del destino…" to TitanColors.Mute
         pad.blocked ->
@@ -422,6 +514,113 @@ private fun SurfaceMessage(status: TabStatus, pad: MousepadStatus) {
         modifier = Modifier.padding(TitanDimens.SpaceXl),
     )
 }
+
+/** The touch zoom steps of a remote desktop: 1x (whole screen) to this. */
+private const val MAX_ZOOM = 3
+
+/**
+ * The remote screen (ADR-0029) fitted into the surface by [viewport], with the
+ * remote cursor on top when [showCursor]. The cursor is drawn at least
+ * [cursorMinScale] view pixels per screen pixel, so it stays visible on a
+ * phone that shows a large screen small. [dimmed] while not connected: it is
+ * the last image seen, not the live one.
+ */
+@Composable
+private fun RemoteScreenCanvas(
+    view: ScreenView,
+    viewport: ScreenViewport?,
+    dimmed: Boolean,
+    showCursor: Boolean,
+    cursorMinScale: Float,
+) {
+    Canvas(Modifier.fillMaxSize()) {
+        val image = view.surface?.imageBitmap() ?: return@Canvas
+        val vp = viewport ?: return@Canvas
+        if (vp.scale <= 0f) return@Canvas
+        drawImage(
+            image,
+            dstOffset = IntOffset(vp.offsetX.roundToInt(), vp.offsetY.roundToInt()),
+            dstSize = IntSize((image.width * vp.scale).roundToInt(), (image.height * vp.scale).roundToInt()),
+            alpha = if (dimmed) 0.45f else 1f,
+            filterQuality = if (vp.scale < 1f) FilterQuality.Medium else FilterQuality.Low,
+        )
+        val cursor = view.cursor
+        val cursorImage = cursor?.surface?.imageBitmap()
+        if (showCursor && view.cursorVisible && cursor != null && cursorImage != null) {
+            val s = maxOf(vp.scale, cursorMinScale)
+            val x = vp.offsetX + view.cursorX * vp.scale - cursor.hotX * s
+            val y = vp.offsetY + view.cursorY * vp.scale - cursor.hotY * s
+            drawImage(
+                cursorImage,
+                dstOffset = IntOffset(x.roundToInt(), y.roundToInt()),
+                dstSize = IntSize((cursorImage.width * s).roundToInt(), (cursorImage.height * s).roundToInt()),
+                filterQuality = FilterQuality.Low,
+            )
+        }
+    }
+}
+
+/**
+ * A mouse over a remote screen (ADR-0029): moves put the remote pointer under
+ * it ([AgentFrame.PointerTo]), its buttons and wheel go as they are. Touch is
+ * left to the touchpad gestures.
+ */
+private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.mouseOnScreen(
+    viewport: () -> ScreenViewport?,
+    onHover: (Boolean) -> Unit,
+    onPress: () -> Unit,
+    send: (AgentFrame) -> Unit,
+) = awaitPointerEventScope {
+    var buttons = 0
+    var lastX = -1
+    var lastY = -1
+    while (true) {
+        val event = awaitPointerEvent()
+        val change = event.changes.firstOrNull() ?: continue
+        if (change.type != PointerType.Mouse) continue
+        when (event.type) {
+            PointerEventType.Enter -> onHover(true)
+            PointerEventType.Exit -> {
+                onHover(false)
+                continue
+            }
+        }
+        val vp = viewport() ?: continue
+        if (event.type == PointerEventType.Scroll) {
+            val d = change.scrollDelta
+            val dx = (d.x * WHEEL_NOTCH).roundToInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+            val dy = (-d.y * WHEEL_NOTCH).roundToInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+            if (dx != 0 || dy != 0) send(AgentFrame.Scroll(dx, dy))
+            change.consume()
+            continue
+        }
+        onHover(true)
+        val (x, y) = vp.toScreen(change.position.x, change.position.y)
+        if (x != lastX || y != lastY) {
+            send(AgentFrame.PointerTo(x, y))
+            lastX = x
+            lastY = y
+        }
+        val now = (if (event.buttons.isPrimaryPressed) 1 else 0) or
+            (if (event.buttons.isSecondaryPressed) 2 else 0) or
+            (if (event.buttons.isTertiaryPressed) 4 else 0)
+        if (now and buttons.inv() != 0) onPress()
+        for ((bit, button) in MOUSE_BUTTONS) {
+            if ((now xor buttons) and bit != 0) send(AgentFrame.PointerButton(button, pressed = now and bit != 0))
+        }
+        buttons = now
+        event.changes.forEach { it.consume() }
+    }
+}
+
+/** A wheel notch in the protocol's units. */
+private const val WHEEL_NOTCH = 120f
+
+private val MOUSE_BUTTONS = listOf(
+    1 to InputKeys.BUTTON_LEFT,
+    2 to InputKeys.BUTTON_RIGHT,
+    4 to InputKeys.BUTTON_MIDDLE,
+)
 
 /** A mouse button: down while the finger is on it, so it can be held to drag. */
 @Composable

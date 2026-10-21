@@ -76,8 +76,11 @@ object AgentDiagnostics {
     /** The PTY or its shell could not be started. */
     const val E_PTY = "E_PTY"
 
-    /** Mouse pad: the destination has no input injector yet (only Windows has one). */
+    /** Mouse pad: the destination has no input injector yet (Windows and Linux X11 have one). */
     const val E_INPUT_UNSUPPORTED = "E_INPUT_UNSUPPORTED"
+
+    /** Remote desktop (ADR-0029): the destination has no screen capturer yet (only Linux X11 has one). */
+    const val E_SCREEN_UNSUPPORTED = "E_SCREEN_UNSUPPORTED"
 
     /** Mouse pad: the desktop helper did not start, most often because nobody is signed in. */
     const val E_NO_DESKTOP = "E_NO_DESKTOP"
@@ -101,6 +104,9 @@ object AgentDiagnostics {
 
     /** The destination will not run the binary (`noexec` home, AppLocker/WDAC). */
     const val E_NOEXEC = "E_NOEXEC"
+
+    /** Remote desktop: the agent sent a screen frame this app cannot use. */
+    const val E_PROTOCOL = "E_PROTOCOL"
 
     /** The agent ended without serving the session, for a reason it did not name. */
     const val E_AGENT_EXIT = "E_AGENT_EXIT"
@@ -211,6 +217,9 @@ object AgentDiagnostics {
     /** [describe] for a mouse pad tab, which needs the agent to inject its input (ADR-0016). */
     fun describeMousepad(issue: AgentIssue): String = render("El mouse pad no está disponible: ", issue)
 
+    /** [describe] for a remote desktop tab, which needs the agent to capture the screen (ADR-0029). */
+    fun describeDesktop(issue: AgentIssue): String = render("El escritorio remoto no está disponible: ", issue)
+
     private fun render(prefix: String, issue: AgentIssue): String {
         val (what, todo) = explain(issue)
         val unknown = todo == UNKNOWN_TODO
@@ -276,10 +285,17 @@ object AgentDiagnostics {
                     "Comprueba que la shell de tu usuario en el destino arranca."
             E_INPUT_UNSUPPORTED ->
                 "el destino todavía no admite el mouse pad" to
-                    "Por ahora solo funciona con destinos Windows."
+                    "Por ahora funciona con destinos Windows y Linux con X11 (no con Wayland)."
+            E_SCREEN_UNSUPPORTED ->
+                "el destino todavía no admite el escritorio remoto" to
+                    "Por ahora funciona con destinos Linux con X11 (no con Wayland); Windows llegará después."
+            E_PROTOCOL ->
+                "el agente envió una imagen que esta versión de la app no entiende" to
+                    "Actualiza la app; si ya está al día, revisa el detalle."
             E_NO_DESKTOP ->
                 "no hay nadie con la sesión iniciada en el escritorio del destino" to
-                    "Inicia sesión en Windows en ese PC (también vale por escritorio remoto) y reconecta."
+                    "Inicia sesión en el escritorio de ese PC (Windows, también por escritorio remoto, " +
+                    "o Linux con X11) y reconecta."
             E_DESKTOP_TASK ->
                 "no se pudo preparar la tarea programada que lanza el ayudante de escritorio" to
                     "Revisa el detalle. La tarea se puede quitar desde el panel del agente."
@@ -290,7 +306,7 @@ object AgentDiagnostics {
     private const val UNKNOWN_TODO = "Revisa el detalle."
 
     /** The codes whose message depends on the agent's own words (unknown codes show it too). */
-    private val SHOWS_DETAIL = setOf(E_AGENT_EXIT, E_PTY, E_UPLOAD, E_DAEMON_START, E_DESKTOP_TASK, E_NO_DESKTOP)
+    private val SHOWS_DETAIL = setOf(E_AGENT_EXIT, E_PTY, E_UPLOAD, E_DAEMON_START, E_DESKTOP_TASK, E_NO_DESKTOP, E_PROTOCOL)
 
     /** A contract code: `E_` and upper-case words. */
     private val CODE = Regex("^E_[A-Z0-9_]+$")

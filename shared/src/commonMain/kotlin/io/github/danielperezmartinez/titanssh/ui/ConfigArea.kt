@@ -419,6 +419,7 @@ private fun SessionList(
             SessionType.TERMINAL -> "$hostLabel  ·  ${scripts} script(s)  ·  ${session.resilienceLevel.name.lowercase()}"
             SessionType.MOUSEPAD -> "$hostLabel  ·  mouse pad"
             SessionType.SFTP -> "$hostLabel  ·  sftp"
+            SessionType.DESKTOP -> "$hostLabel  ·  escritorio remoto"
         }
         // A mouse pad or an SFTP browser keeps nothing alive in the agent's daemon.
         val agent = runCatching { config.resolve(session) }.getOrNull()

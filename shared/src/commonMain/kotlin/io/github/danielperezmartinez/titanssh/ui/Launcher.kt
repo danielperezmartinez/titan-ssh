@@ -144,6 +144,7 @@ internal fun Launcher(
                         SessionType.TERMINAL -> ""
                         SessionType.MOUSEPAD -> "mouse pad · "
                         SessionType.SFTP -> "sftp · "
+                        SessionType.DESKTOP -> "escritorio · "
                     } +
                         "${resolved.endpoint.username}@${resolved.endpoint.host}:${resolved.endpoint.port}"
                 } else if (config.hosts.any { it.id == session.hostId }) {

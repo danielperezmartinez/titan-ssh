@@ -304,7 +304,33 @@ enum class SessionType {
      * in; the other terminal fields are kept, as with [MOUSEPAD].
      */
     SFTP,
+
+    /**
+     * The destination's screen, seen and controlled through `titan-agent
+     * --screen` (ADR-0029): the mouse pad's input plus the image. Only
+     * [Session.desktop] and the mouse pad's pointer settings apply; the
+     * terminal fields are kept, as with [MOUSEPAD].
+     */
+    DESKTOP,
 }
+
+/** How sharp a remote desktop's image is against the bandwidth it takes (ADR-0029). */
+enum class DesktopQuality {
+    /** JPEG for photos and gradients, its quality following the link; text stays lossless. */
+    AUTO,
+
+    /** Everything lossless: exact, and more bandwidth on photos and video. */
+    HIGH,
+
+    /** JPEG at a low quality: for slow links. */
+    LOW,
+}
+
+/** A remote desktop session's own settings (ADR-0029). */
+@Serializable
+data class DesktopSettings(
+    val quality: DesktopQuality = DesktopQuality.AUTO,
+)
 
 /**
  * What launching a saved session does when it already has instances open in
@@ -360,6 +386,8 @@ data class Session(
     /** A field with a default: documents written before it read as terminals. */
     val type: SessionType = SessionType.TERMINAL,
     val mousepad: MousepadSettings = MousepadSettings(),
+    /** A field with a default, so the configuration version does not change (ADR-0029). */
+    val desktop: DesktopSettings = DesktopSettings(),
     /** What launching it again does while it has instances (ADR-0020). */
     val reopen: ReopenMode = ReopenMode.ASK,
 )

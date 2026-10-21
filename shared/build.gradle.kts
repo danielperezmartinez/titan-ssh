@@ -365,6 +365,9 @@ tasks.withType<Test>().configureEach {
         // Path to a built titan-agent binary matching the test host's arch, for
         // AgentInstallerIntegrationTest (level-3 agent install, ADR-0008).
         "titanAgentBin" to "TITAN_AGENT_BIN",
+        // "1" when the test host has an X11 session for the user (the
+        // tools/test-x11 container), for ScreenTransportIntegrationTest.
+        "titanSshTestX11" to "TITAN_SSH_TEST_X11",
     ).forEach { (prop, env) ->
         (project.findProperty(prop) as String?)?.let { environment(env, it) }
     }

@@ -57,6 +57,17 @@ object AgentProtocol {
         TEXT(12),
         KEY(13),
         INPUT_READY(14),
+
+        // Screen frames of a remote desktop session (ADR-0029), on `--screen`
+        // only; the input frames above travel on the same connection.
+        SCREEN_HELLO(15),
+        SCREEN_SIZE(16),
+        SCREEN_TILE(17),
+        SCREEN_FRAME_END(18),
+        SCREEN_ACK(19),
+        CURSOR_SHAPE(20),
+        CURSOR_POS(21),
+        POINTER_TO(22),
         ;
 
         companion object {
@@ -142,6 +153,27 @@ object AgentProtocol {
         Type.INPUT_READY -> AgentFrame.InputReady(
             blocked = payload.isNotEmpty() && (payload[0].toInt() and INPUT_READY_BLOCKED) != 0,
         )
+        Type.SCREEN_HELLO -> AgentFrame.ScreenHello(payload[0].toInt() and 0xFF, payload[1].toInt() and 0xFF)
+        Type.SCREEN_SIZE -> AgentFrame.ScreenSize(readU16(payload, 0), readU16(payload, 2))
+        Type.SCREEN_TILE -> AgentFrame.ScreenTile(
+            x = readU16(payload, 0),
+            y = readU16(payload, 2),
+            width = readU16(payload, 4),
+            height = readU16(payload, 6),
+            encoding = payload[8].toInt() and 0xFF,
+            data = payload.copyOfRange(9, payload.size),
+        )
+        Type.SCREEN_FRAME_END -> AgentFrame.ScreenFrameEnd(readU32(payload, 0).toLong() and 0xFFFFFFFFL)
+        Type.SCREEN_ACK -> AgentFrame.ScreenAck(readU32(payload, 0).toLong() and 0xFFFFFFFFL)
+        Type.CURSOR_SHAPE -> AgentFrame.CursorShape(
+            width = readU16(payload, 0),
+            height = readU16(payload, 2),
+            hotX = readU16(payload, 4),
+            hotY = readU16(payload, 6),
+            data = payload.copyOfRange(8, payload.size),
+        )
+        Type.CURSOR_POS -> AgentFrame.CursorPos(readI16(payload, 0), readI16(payload, 2), payload[4].toInt() != 0)
+        Type.POINTER_TO -> AgentFrame.PointerTo(readU16(payload, 0), readU16(payload, 2))
     }
 
     private const val HEADER_SIZE = 5
@@ -186,6 +218,24 @@ object AgentProtocol {
             it[3] = action.toByte()
         }
         is AgentFrame.InputReady -> if (blocked) byteArrayOf(INPUT_READY_BLOCKED.toByte()) else ByteArray(0)
+        is AgentFrame.ScreenHello -> byteArrayOf(version.toByte(), quality.toByte())
+        is AgentFrame.ScreenSize -> ByteArray(4).also { writeU16(it, 0, width); writeU16(it, 2, height) }
+        is AgentFrame.ScreenTile -> ByteArray(9 + data.size).also {
+            writeU16(it, 0, x); writeU16(it, 2, y); writeU16(it, 4, width); writeU16(it, 6, height)
+            it[8] = encoding.toByte()
+            data.copyInto(it, 9)
+        }
+        is AgentFrame.ScreenFrameEnd -> ByteArray(4).also { writeU32(it, 0, seq.toInt()) }
+        is AgentFrame.ScreenAck -> ByteArray(4).also { writeU32(it, 0, seq.toInt()) }
+        is AgentFrame.CursorShape -> ByteArray(8 + data.size).also {
+            writeU16(it, 0, width); writeU16(it, 2, height); writeU16(it, 4, hotX); writeU16(it, 6, hotY)
+            data.copyInto(it, 8)
+        }
+        is AgentFrame.CursorPos -> ByteArray(5).also {
+            writeI16(it, 0, x); writeI16(it, 2, y)
+            it[4] = if (visible) 1 else 0
+        }
+        is AgentFrame.PointerTo -> ByteArray(4).also { writeU16(it, 0, x); writeU16(it, 2, y) }
     }
 
     // --- big-endian fixed-width helpers -------------------------------------
@@ -348,6 +398,79 @@ sealed interface AgentFrame {
      */
     data class InputReady(val blocked: Boolean = false) : AgentFrame {
         override val type get() = AgentProtocol.Type.INPUT_READY
+    }
+
+    // --- Screen frames of a remote desktop session (ADR-0029) ----------------
+    // Like input, nothing is replayed: a new connection starts with
+    // [ScreenSize] and a whole frame. Mirror of agent/internal/protocol/screen.go.
+
+    /**
+     * Client → agent, first frame of `--screen`: the protocol [version] the
+     * client speaks and the [quality] it wants ([ScreenCodec.QUALITY_LOSSLESS],
+     * 1..100 or [ScreenCodec.QUALITY_AUTO]). Sent again to change the quality.
+     */
+    data class ScreenHello(val version: Int, val quality: Int) : AgentFrame {
+        override val type get() = AgentProtocol.Type.SCREEN_HELLO
+    }
+
+    /** Agent → client. The screen's size; a whole frame follows. */
+    data class ScreenSize(val width: Int, val height: Int) : AgentFrame {
+        override val type get() = AgentProtocol.Type.SCREEN_SIZE
+    }
+
+    /** Agent → client. One rectangle of the next frame, [data] in [encoding] (`ScreenCodec.ENCODING_*`). */
+    data class ScreenTile(
+        val x: Int,
+        val y: Int,
+        val width: Int,
+        val height: Int,
+        val encoding: Int,
+        val data: ByteArray,
+    ) : AgentFrame {
+        override val type get() = AgentProtocol.Type.SCREEN_TILE
+        override fun equals(other: Any?): Boolean =
+            this === other || (other is ScreenTile && x == other.x && y == other.y && width == other.width &&
+                height == other.height && encoding == other.encoding && data.contentEquals(other.data))
+        override fun hashCode(): Int = ((x * 31 + y) * 31 + width) * 31 + data.contentHashCode()
+    }
+
+    /** Agent → client. Frame [seq] is complete: show it, then acknowledge it with [ScreenAck]. */
+    data class ScreenFrameEnd(val seq: Long) : AgentFrame {
+        override val type get() = AgentProtocol.Type.SCREEN_FRAME_END
+    }
+
+    /** Client → agent. Frame [seq] was shown; the agent sends at most two frames ahead of this. */
+    data class ScreenAck(val seq: Long) : AgentFrame {
+        override val type get() = AgentProtocol.Type.SCREEN_ACK
+    }
+
+    /**
+     * Agent → client. The cursor's image: [width]×[height] ARGB pixels (straight
+     * alpha, u32 big-endian) compressed with zlib in [data]; ([hotX], [hotY]) is
+     * the pixel that points.
+     */
+    data class CursorShape(
+        val width: Int,
+        val height: Int,
+        val hotX: Int,
+        val hotY: Int,
+        val data: ByteArray,
+    ) : AgentFrame {
+        override val type get() = AgentProtocol.Type.CURSOR_SHAPE
+        override fun equals(other: Any?): Boolean =
+            this === other || (other is CursorShape && width == other.width && height == other.height &&
+                hotX == other.hotX && hotY == other.hotY && data.contentEquals(other.data))
+        override fun hashCode(): Int = (width * 31 + height) * 31 + data.contentHashCode()
+    }
+
+    /** Agent → client. Where the cursor's hot spot is on the screen, and whether it shows. */
+    data class CursorPos(val x: Int, val y: Int, val visible: Boolean) : AgentFrame {
+        override val type get() = AgentProtocol.Type.CURSOR_POS
+    }
+
+    /** Client → agent. Puts the pointer at ([x], [y]) of the captured screen. */
+    data class PointerTo(val x: Int, val y: Int) : AgentFrame {
+        override val type get() = AgentProtocol.Type.POINTER_TO
     }
 }
 

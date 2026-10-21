@@ -280,7 +280,10 @@ private fun leftoverList(partials: List<String>): String {
     return if (partials.size == 1) names + where else "${partials.size} archivos a medias ($names)$where"
 }
 
-/** A tab's pane: its terminal, its mouse pad (ADR-0016) or its file browser (ADR-0021). */
+/**
+ * A tab's pane: its terminal, its mouse pad (ADR-0016), its remote desktop
+ * (the mouse pad with the screen, ADR-0029) or its file browser (ADR-0021).
+ */
 @Composable
 private fun TabContent(
     tab: SessionTab,
@@ -290,7 +293,7 @@ private fun TabContent(
     onConfigureKeyBar: () -> Unit,
 ) {
     val sftp = tab.sftp
-    if (tab.isMousepad) {
+    if (tab.isMousepad || tab.isDesktop) {
         MousepadView(tab, modifier, keyBar = keyBar, onConfigureKeyBar = onConfigureKeyBar)
     } else if (sftp != null) {
         SftpView(tab, sftp, modifier)

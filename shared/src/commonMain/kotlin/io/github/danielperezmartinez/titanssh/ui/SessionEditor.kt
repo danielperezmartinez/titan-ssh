@@ -20,6 +20,8 @@ import androidx.compose.ui.Modifier
 import io.github.danielperezmartinez.titanssh.config.ConfigController
 import io.github.danielperezmartinez.titanssh.config.GroupScope
 import io.github.danielperezmartinez.titanssh.config.Ids
+import io.github.danielperezmartinez.titanssh.config.DesktopQuality
+import io.github.danielperezmartinez.titanssh.config.DesktopSettings
 import io.github.danielperezmartinez.titanssh.config.MousepadSettings
 import io.github.danielperezmartinez.titanssh.config.ReopenMode
 import io.github.danielperezmartinez.titanssh.config.ResilienceLevel
@@ -84,6 +86,7 @@ fun SessionEditor(
 
     var type by remember { mutableStateOf(existing?.type ?: SessionType.TERMINAL) }
     var mousepad by remember { mutableStateOf(existing?.mousepad ?: MousepadSettings()) }
+    var desktop by remember { mutableStateOf(existing?.desktop ?: DesktopSettings()) }
     var scripts by remember { mutableStateOf(existing?.scripts ?: emptyList()) }
     var tunnels by remember { mutableStateOf(existing?.tunnels ?: emptyList()) }
     var subEditor by remember { mutableStateOf<SubEditor?>(null) }
@@ -147,6 +150,7 @@ fun SessionEditor(
             name = name, onName = { name = it },
             type = type, onType = { type = it },
             mousepad = mousepad, onMousepad = { mousepad = it },
+            desktop = desktop, onDesktop = { desktop = it },
             hostId = hostId, onHostId = { hostId = it },
             usernameOverride = usernameOverride, onUsernameOverride = { usernameOverride = it },
             portOverride = portOverride, onPortOverride = { portOverride = it },
@@ -175,6 +179,7 @@ private fun SessionForm(
     name: String, onName: (String) -> Unit,
     type: SessionType, onType: (SessionType) -> Unit,
     mousepad: MousepadSettings, onMousepad: (MousepadSettings) -> Unit,
+    desktop: DesktopSettings, onDesktop: (DesktopSettings) -> Unit,
     hostId: String?, onHostId: (String) -> Unit,
     usernameOverride: String, onUsernameOverride: (String) -> Unit,
     portOverride: String, onPortOverride: (String) -> Unit,
@@ -217,6 +222,7 @@ private fun SessionForm(
                 colorHex = existing?.colorHex,
                 type = type,
                 mousepad = mousepad,
+                desktop = desktop,
             ),
         )
         onDone()
@@ -243,13 +249,22 @@ private fun SessionForm(
                     SessionType.TERMINAL -> "terminal"
                     SessionType.MOUSEPAD -> "mouse pad"
                     SessionType.SFTP -> "sftp"
+                    SessionType.DESKTOP -> "escritorio"
                 }
             })
+            if (type == SessionType.DESKTOP) {
+                Spacer(Modifier.height(TitanDimens.SpaceXs))
+                Caption(
+                    "Ves la pantalla del destino y la controlas con el ratón y el teclado, o en el móvil " +
+                        "con los gestos del mouse pad. Va por la conexión SSH y el agente, sin abrir puertos; " +
+                        "por ahora, en destinos Linux con X11 con la sesión iniciada.",
+                )
+            }
             if (type == SessionType.MOUSEPAD) {
                 Spacer(Modifier.height(TitanDimens.SpaceXs))
                 Caption(
                     "El móvil hace de touchpad y teclado del escritorio del destino. Usa el agente, " +
-                        "que se instala solo; por ahora, solo en destinos Windows con la sesión iniciada.",
+                        "que se instala solo; por ahora, en destinos Windows y Linux con X11 con la sesión iniciada.",
                 )
             }
             if (type == SessionType.SFTP) {
@@ -275,7 +290,8 @@ private fun SessionForm(
                 Box(Modifier.weight(1f)) { TitanTextField("Puerto (override)", portOverride, { onPortOverride(it.filter(Char::isDigit)) }, placeholder = "hereda") }
             }
             Gap()
-            if (type == SessionType.MOUSEPAD) {
+            if (type == SessionType.MOUSEPAD || type == SessionType.DESKTOP) {
+                if (type == SessionType.DESKTOP) DesktopFields(desktop, onDesktop)
                 MousepadFields(mousepad, onMousepad)
                 SectionHeader("Organización")
                 GroupPicker(controller, GroupScope.SESSIONS, config.sessionGroups, groupId, onGroupId)
@@ -441,6 +457,33 @@ private fun MousepadFields(settings: MousepadSettings, onChange: (MousepadSettin
     TitanCheck("Scroll natural: el contenido sigue a los dedos", settings.naturalScroll) {
         onChange(settings.copy(naturalScroll = it))
     }
+}
+
+/** A remote desktop session's own settings: the image quality (ADR-0029). */
+@Composable
+private fun DesktopFields(settings: DesktopSettings, onChange: (DesktopSettings) -> Unit) {
+    SectionHeader("Escritorio remoto")
+    TitanSegmented(
+        "Calidad de imagen",
+        DesktopQuality.entries,
+        settings.quality,
+        { onChange(settings.copy(quality = it)) },
+        optionLabel = {
+            when (it) {
+                DesktopQuality.AUTO -> "automática"
+                DesktopQuality.HIGH -> "sin pérdida"
+                DesktopQuality.LOW -> "baja"
+            }
+        },
+    )
+    Spacer(Modifier.height(TitanDimens.SpaceXs))
+    Caption(
+        when (settings.quality) {
+            DesktopQuality.AUTO -> "El texto llega exacto; fotos y vídeo se comprimen según lo rápida que sea la conexión."
+            DesktopQuality.HIGH -> "Todo exacto. Gasta más datos con fotos y vídeo."
+            DesktopQuality.LOW -> "Más comprimido, para conexiones lentas. El texto sigue exacto."
+        },
+    )
 }
 
 private fun <T> List<T>.swap(a: Int, b: Int): List<T> =
