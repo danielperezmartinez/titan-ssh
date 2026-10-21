@@ -1,6 +1,9 @@
 package screen
 
-import "errors"
+import (
+	"errors"
+	"image"
+)
 
 // Part is one source of a Composite: a monitor, placed at X, Y of the whole
 // desktop (in captured pixels; they may be negative, as monitors left of or
@@ -93,6 +96,27 @@ func (c *Composite) Cursor() (Cursor, error) {
 		return Cursor{}, first
 	}
 	return Cursor{Serial: uint32(c.last & 0xf)}, nil
+}
+
+// Damage joins the parts' damage, each moved to its place. It knows nothing
+// (ok false) when any part is not a Damager or does not know this time.
+func (c *Composite) Damage() ([]image.Rectangle, bool) {
+	var out []image.Rectangle
+	for _, p := range c.Parts {
+		d, ok := p.Capturer.(Damager)
+		if !ok {
+			return nil, false
+		}
+		rects, ok := d.Damage()
+		if !ok {
+			return nil, false
+		}
+		off := image.Pt(p.X-c.minX, p.Y-c.minY)
+		for _, r := range rects {
+			out = append(out, r.Add(off))
+		}
+	}
+	return out, true
 }
 
 // Blocked is true while any part is blocked.

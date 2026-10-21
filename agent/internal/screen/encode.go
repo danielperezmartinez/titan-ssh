@@ -41,6 +41,8 @@ type Encoder struct {
 	zw     *zlib.Writer
 	rgb    []byte
 	img    *image.RGBA
+	// hint, when set, marks the tiles the next Encode may find changed.
+	hint []bool
 }
 
 // NewEncoder returns an encoder for a w×h screen.
@@ -74,6 +76,9 @@ func (e *Encoder) Encode(cur []uint32, full bool, quality int, emit func(protoco
 	for ty := 0; ty < e.th; ty++ {
 		for tx := 0; tx < e.tw; tx++ {
 			x, y, w, h := e.rect(tx, ty)
+			if !full && e.hint != nil && !e.hint[ty*e.tw+tx] {
+				continue
+			}
 			if !full && !e.differs(cur, x, y, w, h) {
 				continue
 			}
@@ -85,7 +90,31 @@ func (e *Encoder) Encode(cur []uint32, full bool, quality int, emit func(protoco
 		return changed, err
 	}
 	e.sent = true
+	e.hint = nil
 	return changed, nil
+}
+
+// Hint says that, in the next Encode, only the tiles touching rects (from a
+// Damager) may have changed: the others are not compared. A full frame
+// ignores it, and it only lasts for one Encode.
+func (e *Encoder) Hint(rects []image.Rectangle) {
+	if e.hint == nil {
+		e.hint = make([]bool, e.tw*e.th)
+	} else {
+		clear(e.hint)
+	}
+	bounds := image.Rect(0, 0, e.w, e.h)
+	for _, r := range rects {
+		r = r.Intersect(bounds)
+		if r.Empty() {
+			continue
+		}
+		for ty := r.Min.Y / TileSize; ty <= (r.Max.Y-1)/TileSize; ty++ {
+			for tx := r.Min.X / TileSize; tx <= (r.Max.X-1)/TileSize; tx++ {
+				e.hint[ty*e.tw+tx] = true
+			}
+		}
+	}
 }
 
 // Refine sends again, lossless, the tiles last sent as JPEG, so a screen that

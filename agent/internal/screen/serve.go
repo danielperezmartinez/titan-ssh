@@ -6,6 +6,7 @@ import (
 	"compress/zlib"
 	"encoding/binary"
 	"errors"
+	"image"
 	"io"
 	"sync"
 	"time"
@@ -35,6 +36,15 @@ type Cursor struct {
 	Width, Height int
 	HotX, HotY    int
 	Pixels        []uint32
+}
+
+// Damager is a Capturer that knows what changed: after each Capture, Damage
+// gives the rectangles (in the captured image) that may differ from the
+// previous Capture, so Serve compares only the tiles under them. ok false
+// means it does not know this time (compare everything); a full frame
+// compares everything anyway.
+type Damager interface {
+	Damage() (rects []image.Rectangle, ok bool)
 }
 
 // Blocker is a Capturer that can lose the screen for a while: Windows while
@@ -153,6 +163,7 @@ func Serve(conn io.ReadWriter, cap Capturer, input InputHandler, opt Options) er
 		blocked    bool
 	)
 	blocker, _ := cap.(Blocker)
+	damager, _ := cap.(Damager)
 	for {
 		select {
 		case <-s.done:
@@ -225,6 +236,12 @@ func Serve(conn io.ReadWriter, cap Capturer, input InputHandler, opt Options) er
 			}
 			if err := cap.Capture(pixels, sw, sh); err != nil {
 				return err
+			}
+			if damager != nil {
+				// Read it every time, so it starts over from this capture.
+				if rects, ok := damager.Damage(); ok && !full {
+					enc.Hint(rects)
+				}
 			}
 			n, err := enc.Encode(pixels, full, quality, emit)
 			if err != nil {
