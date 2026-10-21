@@ -28,6 +28,7 @@ import io.github.danielperezmartinez.titanssh.config.ResilienceLevel
 import io.github.danielperezmartinez.titanssh.config.Session
 import io.github.danielperezmartinez.titanssh.config.SessionScript
 import io.github.danielperezmartinez.titanssh.config.SessionType
+import io.github.danielperezmartinez.titanssh.config.offered
 import io.github.danielperezmartinez.titanssh.terminal.MousepadMotion
 import io.github.danielperezmartinez.titanssh.config.TerminalAppearance
 import io.github.danielperezmartinez.titanssh.config.Tunnel
@@ -244,7 +245,7 @@ private fun SessionForm(
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bodyPadding())) {
             TitanTextField("Nombre", name, onName, placeholder = "deploy en prod")
             Gap()
-            TitanSegmented("Tipo", SessionType.entries, type, onType, optionLabel = {
+            TitanSegmented("Tipo", SessionType.entries.filter { it.offered || it == type }, type, onType, optionLabel = {
                 when (it) {
                     SessionType.TERMINAL -> "terminal"
                     SessionType.MOUSEPAD -> "mouse pad"

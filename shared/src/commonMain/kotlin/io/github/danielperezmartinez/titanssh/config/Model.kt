@@ -1,5 +1,6 @@
 package io.github.danielperezmartinez.titanssh.config
 
+import io.github.danielperezmartinez.titanssh.AppChannel
 import io.github.danielperezmartinez.titanssh.secret.SshKeyType
 import kotlinx.serialization.Serializable
 
@@ -284,9 +285,19 @@ data class Host(
     val colorHex: String? = null,
 )
 
-/** What a session opens (ADR-0016). */
+/**
+ * Whether this app offers the type: an [SessionType.experimental] one only in
+ * the canary (ADR-0027). The stable app can still hold a session of such a type
+ * (a configuration imported from the canary): it lists it, but does not open it.
+ */
+val SessionType.offered: Boolean get() = !experimental || AppChannel.isCanary
+
+/**
+ * What a session opens (ADR-0016). An [experimental] type is still being
+ * compared on real devices: only the canary offers it ([offered]).
+ */
 @Serializable
-enum class SessionType {
+enum class SessionType(val experimental: Boolean = false) {
     /** A terminal on the destination's shell. */
     TERMINAL,
 

@@ -7,6 +7,7 @@ import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
 import io.github.danielperezmartinez.titanssh.config.SessionScript
 import io.github.danielperezmartinez.titanssh.config.DesktopQuality
 import io.github.danielperezmartinez.titanssh.config.SessionType
+import io.github.danielperezmartinez.titanssh.config.offered
 import io.github.danielperezmartinez.titanssh.config.jumpEndpoint
 import io.github.danielperezmartinez.titanssh.sftp.DownloadStore
 import io.github.danielperezmartinez.titanssh.sftp.SftpBrowser
@@ -530,6 +531,10 @@ class SessionTab(
     /** Starts the connection. Idempotent: a second call is a no-op. */
     fun start() {
         if (connectJob != null) return
+        if (!resolved.session.type.offered) {
+            _status.value = TabStatus(TabPhase.FAILED, CANARY_ONLY_DETAIL)
+            return
+        }
         connectJob = scope.launch { runSession() }
     }
 
@@ -1362,6 +1367,7 @@ class SessionTab(
 
 /** Status detail of a tab [SessionTab.pause]d in the background. */
 private const val PAUSED_DETAIL = "En pausa en segundo plano: vuelve a conectar al abrir la app"
+private const val CANARY_ONLY_DETAIL = "Este tipo de sesión todavía es experimental: solo se abre en titan-ssh canary"
 
 /** Status detail while the platform blocks the app's network. */
 private const val NETWORK_BLOCKED_DETAIL = "El sistema no deja usar la red a la app: espera a que se desbloquee"
