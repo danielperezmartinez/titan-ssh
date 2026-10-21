@@ -53,8 +53,15 @@ tarea.
   (x86_64) contra xrdp por `10.0.2.2:2231`: editor, confianza en la clave de
   host y en el certificado antes de mandar credenciales, escritorio pintado,
   teclado del sistema y touchpad.
-- Pendiente: la prueba manual en la app de escritorio, el job de Windows en CI
-  (solo se puede comprobar en un run de la canary) y el rebase sobre `main`.
+- 2026-10-21: también probado en el emulador el modo NLA (servidor shadow en
+  el 3390) y la reconexión: al cortar las conexiones SSH en el destino, las dos
+  pestañas vuelven solas y el escritorio responde.
+- 2026-10-21: rebasada sobre `main` con la opción D ya integrada. El editor de
+  la canary ofrece «escritorio» (D) y «rdp» (C); pasan los tests de las dos
+  (`:shared:desktopTest`, RDP y X11 de integración, agente con y sin
+  `-tags canary`, motor Rust).
+- Pendiente: la prueba manual en la app de escritorio y el job de Windows en CI
+  (solo se puede comprobar en un run de la canary).
 
 ## Verificación
 
