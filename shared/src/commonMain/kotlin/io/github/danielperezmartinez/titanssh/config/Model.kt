@@ -328,8 +328,10 @@ enum class SessionType(val experimental: Boolean = false) {
      * The desktop of an RDP server the destination reaches, through a
      * `direct-tcpip` channel of the SSH connection (ADR-0028). Only the host
      * and [Session.rdp] apply; the terminal fields are kept, as with [MOUSEPAD].
+     * Experimental: only the canary offers it while it is compared with the
+     * agent's own remote desktop.
      */
-    RDP,
+    RDP(experimental = true),
 }
 
 /** How sharp a remote desktop's image is against the bandwidth it takes (ADR-0029). */
