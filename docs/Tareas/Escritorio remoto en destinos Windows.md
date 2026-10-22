@@ -6,7 +6,7 @@ Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño en [[A
 Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-21T10:50:00+02:00
-Última modificación: 2026-10-22T10:00:00+02:00
+Última modificación: 2026-10-22T16:00:00+02:00
 ---
 
 # Escritorio remoto en destinos Windows
@@ -103,8 +103,24 @@ agente canary y un cliente de prueba del protocolo de pantalla por SSH
 - Sesión desconectada (`tsdiscon`): una sesión abierta pasa a `blocked` y
   vuelve al reconectar; una nueva da `E_DESKTOP_INACTIVE`.
 
-Pendiente: la app de escritorio y Android contra la máquina virtual, y la
-confirmación del usuario en su PC Windows con la canary.
+- App de escritorio canary contra la máquina virtual (2026-10-22, probado por
+  el usuario): se ven los dos monitores y funcionan ratón, teclado, clics y
+  scroll; con Win+L, UAC y Ctrl+Alt+Supr la imagen se atenúa con el aviso de
+  bloqueo y vuelve al terminar.
+- Android en el emulador (2026-10-22): conecta, se ven los dos monitores y se
+  actualizan, y la sesión sigue tras bloqueo, UAC y Ctrl+Alt+Supr.
+
+Pendiente:
+
+- Una vez, en la primera conexión desde Android, el monitor izquierdo salió
+  negro y no se actualizaba (el derecho sí). El ayudante llevaba un rato en
+  marcha y ya había servido una sesión de la app de escritorio cerrada a la
+  fuerza. Al reconectar se vio bien y no se ha podido reproducir (sesiones
+  nuevas, tras bloqueo, UAC, Ctrl+Alt+Supr y con los monitores apagados).
+  Se mira si vuelve a aparecer.
+- El texto de ayuda del tipo «escritorio» en la app sigue diciendo que solo
+  funciona en Linux con X11.
+- La confirmación del usuario en su PC Windows con la canary.
 
 ## Resultado
 
