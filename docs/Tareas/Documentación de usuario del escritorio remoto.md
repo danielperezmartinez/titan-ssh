@@ -5,7 +5,6 @@ Resumen: 'Última fase del escritorio remoto: documentación para usuarios de en
 Decisiones: 'Pedida por el usuario el 2026-10-21 al planificar [[ADR-0031 Escritorio remoto en Wayland, Windows y casos de borde]]. Relacionada con [[Página de producto en GitHub Pages]]. El 2026-10-22 el usuario elige: página nueva en site/ (no una sección de la portada ni un sitio aparte), en inglés y español como la portada, con la estructura aviso de experimental, qué es, tabla de sistemas, requisitos, límites y errores. Los dos idiomas van en la misma página (data-l) y un docs.js pequeño elige el idioma con la misma clave que la portada; app.js no cambia salvo el texto del enlace.'
 Bloqueada:
   - "[[Escritorio remoto en destinos Linux Wayland]]"
-  - "[[Escritorio remoto en destinos Windows]]"
 Versión: ''
 Fecha de creación: 2026-10-21T18:55:00+02:00
 Última modificación: 2026-10-22T19:40:00+02:00
