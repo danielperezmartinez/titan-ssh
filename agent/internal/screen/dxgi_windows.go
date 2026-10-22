@@ -105,6 +105,25 @@ func (d *Duplication) Capture(dst []uint32, w, h int) error {
 			d.damage = append(d.damage, r.Add(image.Pt(o.x, o.y)))
 		}
 	}
+	// A duplication only delivers a frame when its monitor changes: one that
+	// has not yet starts from a GDI capture of its part of the desktop.
+	seeded := false
+	for _, o := range d.outs {
+		if o.fresh {
+			continue
+		}
+		if !seeded {
+			if err := d.gdi.Capture(dst, w, h); err != nil {
+				return err
+			}
+			seeded, all = true, false
+		}
+		for y := 0; y < o.h && o.y+y < h; y++ {
+			n := min(o.w, w-o.x)
+			copy(o.img[y*o.w:y*o.w+n], dst[(o.y+y)*w+o.x:(o.y+y)*w+o.x+n])
+		}
+		o.fresh = true
+	}
 	clear(dst[:w*h])
 	for _, o := range d.outs {
 		for y := 0; y < o.h && o.y+y < h; y++ {
