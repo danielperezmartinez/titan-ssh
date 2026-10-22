@@ -271,15 +271,17 @@ private fun SessionForm(
                 Spacer(Modifier.height(TitanDimens.SpaceXs))
                 Caption(
                     "Ves la pantalla del destino y la controlas con el ratón y el teclado, o en el móvil " +
-                        "con los gestos del mouse pad. Va por la conexión SSH y el agente, sin abrir puertos; " +
-                        "por ahora, en destinos Linux con X11 con la sesión iniciada.",
+                        "con los gestos del mouse pad. Va por la conexión SSH y el agente, sin abrir puertos. " +
+                        "Funciona con destinos Windows y Linux (X11, y Wayland en KDE, GNOME, sway, Hyprland y " +
+                        "otros wlroots) con la sesión iniciada en el escritorio.",
                 )
             }
             if (type == SessionType.MOUSEPAD) {
                 Spacer(Modifier.height(TitanDimens.SpaceXs))
                 Caption(
                     "El móvil hace de touchpad y teclado del escritorio del destino. Usa el agente, " +
-                        "que se instala solo; por ahora, en destinos Windows y Linux con X11 con la sesión iniciada.",
+                        "que se instala solo; en destinos Windows y Linux con X11 con la sesión iniciada (con " +
+                        "Wayland, por ahora solo en titan-ssh canary).",
                 )
             }
             if (type == SessionType.RDP) {

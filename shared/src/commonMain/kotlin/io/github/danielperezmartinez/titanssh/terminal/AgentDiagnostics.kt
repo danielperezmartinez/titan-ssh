@@ -294,11 +294,11 @@ object AgentDiagnostics {
                     "Comprueba que la shell de tu usuario en el destino arranca."
             E_INPUT_UNSUPPORTED ->
                 "el destino todavía no admite el mouse pad" to
-                    "Por ahora funciona con destinos Windows y Linux con X11 (no con Wayland)."
+                    "Funciona con destinos Windows y Linux con X11; con Wayland, por ahora solo en titan-ssh canary."
             E_SCREEN_UNSUPPORTED ->
                 "el escritorio del destino todavía no admite el escritorio remoto" to
-                    "Por ahora funciona con destinos Linux con X11 y con Wayland en KDE, GNOME, sway, Hyprland y otros " +
-                    "escritorios wlroots; el detalle dice qué escritorio tiene el destino."
+                    "Funciona con destinos Windows y Linux con X11, o con Wayland en KDE, GNOME, sway, Hyprland " +
+                    "y otros escritorios wlroots; el detalle dice qué escritorio tiene el destino."
             E_PROTOCOL ->
                 "el agente envió una imagen que esta versión de la app no entiende" to
                     "Actualiza la app; si ya está al día, revisa el detalle."
