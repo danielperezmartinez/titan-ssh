@@ -1,12 +1,11 @@
 ---
 Nombre: 'Mouse pad en destinos Linux Wayland'
-Estado: 'Planificando'
+Estado: 'En curso'
 Resumen: 'Subtarea 3 del mouse pad: controlar ratón y teclado de un escritorio Linux con Wayland, que bloquea a propósito la inyección genérica. Vía principal propuesta: el portal RemoteDesktop de xdg-desktop-portal (GNOME y KDE) por el D-Bus de la sesión del usuario; no necesita root, pide consentimiento en la pantalla del PC la primera vez y puede recordarlo. Respaldo para escritorios sin portal (sway, Hyprland…): un dispositivo virtual uinput, que funciona en cualquier entorno pero exige una preparación única con root, una excepción a la regla de solo espacio de usuario de ADR-0008. Se aborda después de Windows y solo si el usuario lo pide.'
-Decisiones: 'Parte de [[Sesión mouse pad para controlar el escritorio del destino]]. Reutiliza la base común de [[Mouse pad en destinos Windows]]. La preparación con root de uinput necesita la aprobación del usuario y una ADR, porque se aparta de [[ADR-0008 Diseño del agente de resiliencia nivel 3]].'
-Bloqueada:
-  - "[[Mouse pad en destinos Windows]]"
+Decisiones: 'Parte de [[Sesión mouse pad para controlar el escritorio del destino]]. Reutiliza la base común de [[Mouse pad en destinos Windows]]. La preparación con root de uinput necesita la aprobación del usuario y una ADR, porque se aparta de [[ADR-0008 Diseño del agente de resiliencia nivel 3]]. El 2026-10-21 el usuario decide hacer la vía del portal dentro de [[Escritorio remoto en destinos Linux Wayland]] (ADR-0031), que comparte su cliente D-Bus y el portal; los compositores wlroots la tienen por [[Escritorio remoto en destinos Linux wlroots]].'
+Bloqueada: []
 Fecha de creación: 2026-10-01T18:25:00+02:00
-Última modificación: 2026-10-01T18:25:00+02:00
+Última modificación: 2026-10-22T08:30:00+02:00
 ---
 
 # Mouse pad en destinos Linux Wayland
@@ -61,6 +60,22 @@ pasar por el portal del escritorio o por el núcleo (uinput).
   claro que explica qué falta.
 - Probado en el emulador y confirmado por el usuario en un escritorio Wayland
   real.
+
+## Avance
+
+2026-10-22 (rama `worktree-desktop-wayland`, solo en la canary): `--input` en
+Wayland prueba el portal RemoteDesktop (sesión solo de puntero y teclado, con
+su propio token) y, en GNOME con el acceso desatendido, la API de Mutter; los
+wlroots van por su propia vía. Probado en el Plasma real (puntero relativo) y
+en el GNOME de `tools/test-gnome` (texto con ñ). Sin «Permitir interacción
+remota» en el diálogo de GNOME, `E_SCREEN_CONSENT`.
+
+Limitación: el portal y Mutter solo teclean los caracteres que están en los
+niveles normal y de mayúsculas de la distribución de teclado del destino; las
+letras con tecla muerta (á, é) y las de AltGr (€) no llegan. Queda por decidir
+si se buscan otras vías (pegar por el portapapeles del portal).
+
+Pendiente: decidir con el usuario si el respaldo con uinput se descarta.
 
 ## Verificación
 
