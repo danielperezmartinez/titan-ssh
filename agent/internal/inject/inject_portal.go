@@ -150,14 +150,18 @@ func (p *Portal) Blocked() bool { return false }
 
 // WarmUp readies a remote desktop session's keyboard: the compositor drops
 // the events of a new virtual device for a moment after the session starts,
-// and the first key after it (seen with Mutter 48, where the seat switches
-// keymaps). It waits until settle has passed since started, then taps Shift.
+// and the first key and pointer event after it (seen with Mutter 48, where
+// the seat switches keymaps). It waits until settle has passed since started,
+// then taps Shift and nudges the pointer there and back.
 func WarmUp(dev PortalDevice, started time.Time) {
 	if d := settle - time.Since(started); d > 0 {
 		time.Sleep(d)
 	}
 	_ = dev.KeyboardKeysym(keysymShiftL, true)
 	_ = dev.KeyboardKeysym(keysymShiftL, false)
+	// The pointer's first event goes the same way: a nudge there and back.
+	_ = dev.PointerMotion(1, 0)
+	_ = dev.PointerMotion(-1, 0)
 	time.Sleep(settle / 4)
 }
 

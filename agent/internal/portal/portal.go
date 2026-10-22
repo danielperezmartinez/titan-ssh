@@ -180,8 +180,9 @@ func Open(ctx context.Context, conn *dbus.Conn, opt Options) (*Session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("portal: Start: %w", err)
 	}
+	devicesKnown := false
 	if v, ok := res["devices"].(dbus.Variant); ok {
-		s.Devices, _ = v.Value.(uint32)
+		s.Devices, devicesKnown = v.Value.(uint32)
 	}
 	if v, ok := res["restore_token"].(dbus.Variant); ok {
 		s.RestoreToken, _ = v.Value.(string)
@@ -192,8 +193,11 @@ func Open(ctx context.Context, conn *dbus.Conn, opt Options) (*Session, error) {
 	if len(s.Streams) == 0 && !opt.InputOnly {
 		return nil, errors.New("portal: the session has no screen")
 	}
-	if s.Devices != 0 && s.Devices&DevicePointer == 0 {
-		return nil, errors.New("portal: the desktop granted no pointer")
+	// GNOME's dialog shares the screen alone unless its user turns "allow
+	// remote interaction" on: a remote desktop then only shows, and a mouse
+	// pad has nothing to do.
+	if opt.InputOnly && devicesKnown && s.Devices&DevicePointer == 0 {
+		return nil, fmt.Errorf("%w: the remote interaction was not allowed", ErrRefused)
 	}
 	ok = true
 	return s, nil

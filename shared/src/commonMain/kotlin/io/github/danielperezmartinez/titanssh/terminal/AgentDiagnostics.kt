@@ -297,7 +297,7 @@ object AgentDiagnostics {
                     "Por ahora funciona con destinos Windows y Linux con X11 (no con Wayland)."
             E_SCREEN_UNSUPPORTED ->
                 "el escritorio del destino todavía no admite el escritorio remoto" to
-                    "Por ahora funciona con destinos Linux con X11 y con Wayland en KDE, sway, Hyprland y otros " +
+                    "Por ahora funciona con destinos Linux con X11 y con Wayland en KDE, GNOME, sway, Hyprland y otros " +
                     "escritorios wlroots; el detalle dice qué escritorio tiene el destino."
             E_PROTOCOL ->
                 "el agente envió una imagen que esta versión de la app no entiende" to
@@ -312,7 +312,7 @@ object AgentDiagnostics {
                     "cerrado sin cerrar sesión). Vuelve a tu sesión en ese PC y reconecta."
             E_SCREEN_CONSENT ->
                 "no se aceptó en el destino el permiso para compartir la pantalla" to
-                    "La primera vez alguien tiene que aceptar el aviso en la pantalla del destino; en KDE, " +
+                    "La primera vez alguien tiene que aceptar el aviso en la pantalla del destino; en KDE y GNOME, " +
                     "«Permitir sin nadie delante» en la sesión o en el panel del agente evita el aviso."
             E_SCREEN_CAPTURE ->
                 "el destino no pudo capturar la pantalla" to UNKNOWN_TODO

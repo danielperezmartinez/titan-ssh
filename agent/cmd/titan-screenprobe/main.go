@@ -30,7 +30,7 @@ import (
 func main() {
 	out := flag.String("out", "screen.png", "where to save the last image")
 	dur := flag.Duration("for", 5*time.Second, "how long to watch")
-	click := flag.String("click", "", "x,y to move to and click after the first frame")
+	click := flag.String("click", "", "x,y to move to and click after the first frame; several separated by ;")
 	move := flag.String("move", "", "x,y to move the pointer to after the first frame")
 	text := flag.String("type", "", "text to type after the first frame (and the click)")
 	keys := flag.String("keys", "", "keys to press after the rest, comma separated: esc, tab, enter, space, left, right, up, down (shift+tab and the like too)")
@@ -170,10 +170,15 @@ func sendInput(send func(protocol.Frame), move, click, text string, scroll int) 
 	if x, y, ok := xy(move); ok {
 		send(protocol.Frame{Type: protocol.TypePointerTo, X: x, Y: y})
 	}
-	if x, y, ok := xy(click); ok {
-		send(protocol.Frame{Type: protocol.TypePointerTo, X: x, Y: y})
-		send(protocol.Frame{Type: protocol.TypePointerButton, Button: protocol.ButtonLeft, Pressed: true})
-		send(protocol.Frame{Type: protocol.TypePointerButton, Button: protocol.ButtonLeft, Pressed: false})
+	for _, c := range strings.Split(click, ";") {
+		if x, y, ok := xy(c); ok {
+			send(protocol.Frame{Type: protocol.TypePointerTo, X: x, Y: y})
+			time.Sleep(300 * time.Millisecond)
+			send(protocol.Frame{Type: protocol.TypePointerButton, Button: protocol.ButtonLeft, Pressed: true})
+			time.Sleep(80 * time.Millisecond)
+			send(protocol.Frame{Type: protocol.TypePointerButton, Button: protocol.ButtonLeft, Pressed: false})
+			time.Sleep(400 * time.Millisecond)
+		}
 	}
 	if text != "" {
 		send(protocol.Frame{Type: protocol.TypeText, Bytes: []byte(text)})

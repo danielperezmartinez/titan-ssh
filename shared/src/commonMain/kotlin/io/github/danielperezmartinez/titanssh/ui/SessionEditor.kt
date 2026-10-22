@@ -522,8 +522,8 @@ private fun DesktopFields(settings: DesktopSettings, onChange: (DesktopSettings)
         onChange(settings.copy(unattended = it))
     }
     Caption(
-        "En KDE con Wayland, el destino no pregunta antes de compartir la pantalla: el agente " +
-            "se autoriza al conectar. Se ve y se quita en el panel del agente. En los demás " +
+        "En KDE y GNOME con Wayland, el destino no pregunta antes de compartir la pantalla: el " +
+            "agente se autoriza al conectar. Se ve y se quita en el panel del agente. En los demás " +
             "escritorios no cambia nada.",
     )
 }
