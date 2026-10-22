@@ -6,7 +6,7 @@ Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño genera
 Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-21T10:50:00+02:00
-Última modificación: 2026-10-22T08:00:00+02:00
+Última modificación: 2026-10-22T08:40:00+02:00
 ---
 
 # Escritorio remoto en destinos Linux Wayland
@@ -73,6 +73,24 @@ los fotogramas llegan por PipeWire, que no tiene cliente en Go puro.
   `tools/test-kde/README.md`. GNOME, en `tools/test-gnome`.
 - PipeWire 1.4 se cae si un `client-node` manda un cambio de propiedades sin
   propiedades: el cliente no lo hace.
+- GNOME (Mutter 48, `tools/test-gnome`): el portal funciona (diálogo con
+  «Allow Remote Interaction» apagado de serie; después, sin diálogo con el
+  token) y la API propia de Mutter la puede usar cualquier cliente del bus de
+  sesión, sin diálogo: es la vía del acceso desatendido en GNOME (una marca en
+  el directorio de estado). En GNOME el cursor va incrustado: como metadato,
+  Mutter 48 graba un fotograma de solo cursor en cada repintado y descarta el
+  real («too early»). Los dos monitores se componen (2560×800).
+- Los compositores pierden los eventos de un teclado y un puntero virtuales
+  recién creados durante un momento, y el primero después: el agente espera
+  700 ms desde el inicio y manda un toque de Mayúsculas y un empujón del
+  puntero antes de atender la entrada.
+- Teclado: solo llegan los caracteres de los niveles normal y de mayúsculas
+  de la distribución del destino; con tecla muerta (á) o AltGr (€) no.
+- App: compila (`:shared` desktop y Android) y pasan los 530 tests de
+  escritorio. En el emulador, la canary de debug se conecta al GNOME de
+  pruebas sin diálogo con la casilla de la sesión, y el panel del agente
+  enseña el escritorio remoto, quita y vuelve a poner el desatendido (con
+  confirmación). Capturas fuera del repositorio.
 
 ## Verificación
 
