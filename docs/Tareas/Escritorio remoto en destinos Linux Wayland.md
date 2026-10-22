@@ -1,12 +1,12 @@
 ---
 Nombre: 'Escritorio remoto en destinos Linux Wayland'
-Estado: 'Pendiente'
+Estado: 'En curso'
 Resumen: 'Subtarea del escritorio remoto: ver y controlar un escritorio Linux con Wayland en KDE, GNOME y otros con portal de escritorio remoto. Vía decidida en ADR-0031: una sola sesión de los portales RemoteDesktop y ScreenCast por un cliente D-Bus propio, con el agente registrado con su app-id; los fotogramas por un cliente PipeWire propio en Go puro (sin cgo, búferes memfd/SHM); todos los monitores compuestos; entrada con las llamadas Notify del portal. Consentimiento con el diálogo del portal recordado con su token, y acceso desatendido solo con un ajuste explícito (en KDE, permiso kde-authorized). Los compositores wlroots van en su propia tarea.'
-Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño general en [[ADR-0029 Escritorio remoto propio a través del agente]] y, para Wayland, en [[ADR-0031 Escritorio remoto en Wayland, Windows y casos de borde]]. El usuario elige el 2026-10-21 el cliente PipeWire en Go puro (el ayudante con cgo queda de plan B) y el acceso desatendido solo con un ajuste explícito. Los compositores wlroots pasan a [[Escritorio remoto en destinos Linux wlroots]]. Comparte el portal RemoteDesktop y el cliente D-Bus con [[Mouse pad en destinos Linux Wayland]].'
+Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño general en [[ADR-0029 Escritorio remoto propio a través del agente]] y, para Wayland, en [[ADR-0031 Escritorio remoto en Wayland, Windows y casos de borde]]. El usuario elige el 2026-10-21 el cliente PipeWire en Go puro (el ayudante con cgo queda de plan B) y el acceso desatendido solo con un ajuste explícito. Los compositores wlroots pasan a [[Escritorio remoto en destinos Linux wlroots]]. Comparte el portal RemoteDesktop y el cliente D-Bus con [[Mouse pad en destinos Linux Wayland]]. El 2026-10-21 el usuario decide: el agente crea un .desktop oculto con su app-id para que el Registry del portal lo acepte; el acceso desatendido va a la vez en la sesión «escritorio» (casilla) y en el panel del agente (estado, activar con confirmación, quitar y olvidar el permiso); el mouse pad por el portal entra en esta tarea; se prueba en su Plasma real del PC de desarrollo.'
 Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-21T10:50:00+02:00
-Última modificación: 2026-10-21T19:00:00+02:00
+Última modificación: 2026-10-22T08:00:00+02:00
 ---
 
 # Escritorio remoto en destinos Linux Wayland
@@ -52,6 +52,27 @@ los fotogramas llegan por PipeWire, que no tiene cliente en Go puro.
 - Contra GNOME y KDE en Wayland: imagen, cursor y entrada como en X11, con un
   solo consentimiento recordado.
 - Confirmado por el usuario en un escritorio Wayland real.
+
+## Avance
+
+2026-10-21/22 (rama `worktree-desktop-wayland`):
+
+- Cliente D-Bus propio (`agent/internal/dbus`), sesión del portal
+  (`agent/internal/portal`), cliente PipeWire propio en Go puro
+  (`agent/internal/pipewire`: protocolo nativo, `client-node` consumidor,
+  búferes memfd, activación de PipeWire 0.3 y 1.x, io asíncrona, cursor, recorte
+  y daño), vía `screen_portal.go`, inyector del portal y mouse pad por el portal.
+- `--remote-desktop unattended-on|unattended-off|forget`, `--screen
+  --unattended` y el estado en `--status --json`; casilla en la sesión y fila
+  en el panel del agente.
+- En el Plasma 6.8 real: diálogo la primera vez, después sin diálogo con el
+  token; imagen, cursor y puntero bien; el desatendido entra sin token ni
+  diálogo; «olvidar» no deja rastro del agente en el PermissionStore; sin
+  respuesta al diálogo, `E_SCREEN_CONSENT` a los 90 s.
+- KDE no se puede probar en contenedor en el PC de desarrollo (NVIDIA): ver
+  `tools/test-kde/README.md`. GNOME, en `tools/test-gnome`.
+- PipeWire 1.4 se cae si un `client-node` manda un cambio de propiedades sin
+  propiedades: el cliente no lo hace.
 
 ## Verificación
 

@@ -33,7 +33,9 @@ func main() {
 	click := flag.String("click", "", "x,y to move to and click after the first frame")
 	move := flag.String("move", "", "x,y to move the pointer to after the first frame")
 	text := flag.String("type", "", "text to type after the first frame (and the click)")
+	rel := flag.String("rel", "", "with -input: dx,dy to move the pointer by")
 	scroll := flag.Int("scroll", 0, "notches to scroll after the first frame (> 0 up)")
+	inputOnly := flag.Bool("input", false, "speak to `titan-agent --input` (a mouse pad): no screen, the input after INPUT_READY")
 	flag.Parse()
 	if flag.NArg() == 0 {
 		log.Fatal("usage: titan-screenprobe [flags] -- command...")
@@ -51,7 +53,9 @@ func main() {
 			log.Fatal("send: ", err)
 		}
 	}
-	send(protocol.Frame{Type: protocol.TypeScreenHello, Version: protocol.ScreenVersion, Quality: 0})
+	if !*inputOnly {
+		send(protocol.Frame{Type: protocol.TypeScreenHello, Version: protocol.ScreenVersion, Quality: 0})
+	}
 
 	frames := make(chan protocol.Frame, 256)
 	go func() {
@@ -115,6 +119,15 @@ loop:
 				log.Printf("CURSOR_POS %d,%d visible=%v", f.X, f.Y, f.Visible)
 			case protocol.TypeInputReady:
 				log.Printf("INPUT_READY blocked=%v", f.Blocked)
+				if *inputOnly && !inputDone {
+					inputDone = true
+					sendInput(send, *move, *click, *text, *scroll)
+					if *rel != "" {
+						if x, y, ok := xy(*rel); ok {
+							send(protocol.Frame{Type: protocol.TypePointerMove, DX: int16(x), DY: int16(y)})
+						}
+					}
+				}
 			case protocol.TypeBye:
 				log.Printf("BYE %q", f.Reason)
 			}
@@ -123,6 +136,9 @@ loop:
 		}
 	}
 	log.Printf("%d frames, %d tiles; first frame after %v", nFrames, nTiles, first)
+	if *inputOnly {
+		return
+	}
 	if img == nil {
 		log.Fatal("no image")
 	}
