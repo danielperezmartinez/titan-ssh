@@ -78,7 +78,7 @@ func queryRemoteDesktop(stateDir string) *remoteDesktopReport {
 	}
 	r.Consent = consentDialog
 	_, r.Entry = ownDesktopEntry()
-	r.Remembered = readTokenFile(stateDir) != ""
+	r.Remembered = readTokenFile(stateDir, portalTokenFile) != "" || readTokenFile(stateDir, portalInputTokenFile) != ""
 	r.UnattendedAvailable = s.Family() == graphical.FamilyKDE
 	if r.UnattendedAvailable {
 		if bus, err := dbus.Dial(sessionBus(s)); err == nil {
@@ -123,9 +123,11 @@ func runRemoteDesktop(stateDir, action string) error {
 		if s.Family() == graphical.FamilyKDE {
 			errs = append(errs, clearUnattended(ctx, bus, s))
 		}
-		if tok := readTokenFile(stateDir); tok != "" {
-			errs = append(errs, forgetPortalSession(ctx, bus, tok))
-			errs = append(errs, ignoreMissing(os.Remove(filepath.Join(stateDir, portalTokenFile))))
+		for _, name := range []string{portalTokenFile, portalInputTokenFile} {
+			if tok := readTokenFile(stateDir, name); tok != "" {
+				errs = append(errs, forgetPortalSession(ctx, bus, tok))
+				errs = append(errs, ignoreMissing(os.Remove(filepath.Join(stateDir, name))))
+			}
 		}
 		errs = append(errs, ignoreMissing(removeDesktopEntry()))
 		if err := errors.Join(errs...); err != nil {
@@ -235,9 +237,9 @@ func forgetPortalSession(ctx context.Context, bus *dbus.Conn, tok string) error 
 	return err
 }
 
-// readTokenFile is the restore token saved in dir, "" if none.
-func readTokenFile(dir string) string {
-	data, err := os.ReadFile(filepath.Join(dir, portalTokenFile))
+// readTokenFile is the restore token saved as name in dir, "" if none.
+func readTokenFile(dir, name string) string {
+	data, err := os.ReadFile(filepath.Join(dir, name))
 	if err != nil {
 		return ""
 	}

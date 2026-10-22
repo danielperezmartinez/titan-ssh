@@ -74,6 +74,9 @@ type Options struct {
 	RestoreToken string
 	// ConsentTimeout bounds how long the dialog may wait for an answer.
 	ConsentTimeout time.Duration
+	// InputOnly asks for pointer and keyboard without the screen (a mouse
+	// pad): no ScreenCast, so only relative pointer motion.
+	InputOnly bool
 }
 
 // Session is an open remote desktop session.
@@ -113,15 +116,17 @@ func Open(ctx context.Context, conn *dbus.Conn, opt Options) (*Session, error) {
 		opt.ConsentTimeout = 2 * time.Minute
 	}
 
-	modes, err := propertyU32(ctx, conn, ifaceCast, "AvailableCursorModes")
-	if err != nil {
-		return nil, unavailable(err)
-	}
-	s.CursorMode = CursorEmbedded
-	if modes&CursorMetadata != 0 {
-		s.CursorMode = CursorMetadata
-	} else if modes&CursorEmbedded == 0 {
-		s.CursorMode = CursorHidden
+	if !opt.InputOnly {
+		modes, err := propertyU32(ctx, conn, ifaceCast, "AvailableCursorModes")
+		if err != nil {
+			return nil, unavailable(err)
+		}
+		s.CursorMode = CursorEmbedded
+		if modes&CursorMetadata != 0 {
+			s.CursorMode = CursorMetadata
+		} else if modes&CursorEmbedded == 0 {
+			s.CursorMode = CursorHidden
+		}
 	}
 
 	res, err := s.request(ctx, opt.ConsentTimeout, ifaceRemote, "CreateSession", "a{sv}", map[string]dbus.Variant{
@@ -159,12 +164,14 @@ func Open(ctx context.Context, conn *dbus.Conn, opt Options) (*Session, error) {
 	if _, err := s.request(ctx, opt.ConsentTimeout, ifaceRemote, "SelectDevices", "oa{sv}", s.handle, devOpts); err != nil {
 		return nil, fmt.Errorf("portal: SelectDevices: %w", err)
 	}
-	if _, err := s.request(ctx, opt.ConsentTimeout, ifaceCast, "SelectSources", "oa{sv}", s.handle, map[string]dbus.Variant{
-		"types":       dbus.MakeVariant(uint32(1)), // monitors
-		"multiple":    dbus.MakeVariant(true),
-		"cursor_mode": dbus.MakeVariant(s.CursorMode),
-	}); err != nil {
-		return nil, fmt.Errorf("portal: SelectSources: %w", err)
+	if !opt.InputOnly {
+		if _, err := s.request(ctx, opt.ConsentTimeout, ifaceCast, "SelectSources", "oa{sv}", s.handle, map[string]dbus.Variant{
+			"types":       dbus.MakeVariant(uint32(1)), // monitors
+			"multiple":    dbus.MakeVariant(true),
+			"cursor_mode": dbus.MakeVariant(s.CursorMode),
+		}); err != nil {
+			return nil, fmt.Errorf("portal: SelectSources: %w", err)
+		}
 	}
 	res, err = s.request(ctx, opt.ConsentTimeout, ifaceRemote, "Start", "osa{sv}", s.handle, "", map[string]dbus.Variant{})
 	if err != nil {
@@ -179,8 +186,11 @@ func Open(ctx context.Context, conn *dbus.Conn, opt Options) (*Session, error) {
 	if v, ok := res["streams"].(dbus.Variant); ok {
 		s.Streams = parseStreams(v.Value)
 	}
-	if len(s.Streams) == 0 {
+	if len(s.Streams) == 0 && !opt.InputOnly {
 		return nil, errors.New("portal: the session has no screen")
+	}
+	if s.Devices != 0 && s.Devices&DevicePointer == 0 {
+		return nil, errors.New("portal: the desktop granted no pointer")
 	}
 	ok = true
 	return s, nil

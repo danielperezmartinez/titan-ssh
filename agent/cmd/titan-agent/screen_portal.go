@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"image"
 	"math"
-	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -215,24 +214,12 @@ func readPortalToken() string {
 	if screenStateDir == "" {
 		return ""
 	}
-	return readTokenFile(screenStateDir)
+	return readTokenFile(screenStateDir, portalTokenFile)
 }
 
-// writePortalToken saves the token the portal returned (tokens are
-// single-use: each session gives the next one). A failure only means the
-// desktop asks again next time.
+// writePortalToken saves the token the portal returned.
 func writePortalToken(tok string) {
-	if screenStateDir == "" {
-		return
+	if screenStateDir != "" {
+		writeTokenFile(screenStateDir, portalTokenFile, tok)
 	}
-	tmp, err := createPrivateTemp(screenStateDir, ".portal-*")
-	if err != nil {
-		return
-	}
-	defer os.Remove(tmp.Name())
-	_, err = tmp.WriteString(tok + "\n")
-	if cerr := tmp.Close(); err != nil || cerr != nil {
-		return
-	}
-	_ = renameRetrying(tmp.Name(), filepath.Join(screenStateDir, portalTokenFile))
 }
