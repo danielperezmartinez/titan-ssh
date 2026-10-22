@@ -65,7 +65,11 @@ La página dice qué está solo en la canary. Hay que tocarla cuando cambie:
 headless): capturas a 1280 px y 390 px, en español y en inglés, fuera del
 repositorio. Sin desbordamiento horizontal de la página; en el móvil la tabla
 de sistemas se desplaza dentro de su caja. La portada enseña el enlace nuevo.
-Pendiente: la revisión del usuario y la publicación en `main`.
+Revisada y aprobada por el usuario el 2026-10-22 («Está perfecto»), con la
+tabla desplazable en el móvil, el aviso de seguridad del acceso desatendido y
+sin hablar del aviso en pantalla del destino. Pendiente: la integración en
+`main` y comprobar la página publicada en GitHub Pages; entonces pasa a
+`Hecha`.
 
 ## Resultado
 
