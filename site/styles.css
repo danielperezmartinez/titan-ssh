@@ -172,6 +172,53 @@ h4 { font-size: 15px; }
 .after { margin-top: 24px; display: flex; flex-wrap: wrap; gap: 8px 24px; }
 .after + .after { margin-top: 12px; }
 
+/* Documentation pages: both languages are in the page and the one not
+   chosen is hidden (docs.js sets data-lang). */
+html[data-lang="en"] [data-l="es"], html[data-lang="es"] [data-l="en"] { display: none; }
+.nav a[aria-current="page"] { color: var(--ink); }
+
+.doc-hero { padding: 56px 0 48px; border-bottom: 1px solid var(--hairline); }
+.eyebrow { font-size: 13px; color: var(--mute); margin-bottom: 12px; }
+.doc-hero h1 { max-width: 22ch; }
+.doc-hero .lede { max-width: 64ch; }
+.callout { margin-top: 32px; max-width: 80ch; border: 1px solid var(--hairline-strong); background: var(--surface); padding: 18px 20px; font-size: 14px; }
+.callout p + p { margin-top: 10px; }
+.callout strong { color: var(--ink); font-weight: 500; }
+
+.doc-grid { display: grid; grid-template-columns: 13rem minmax(0, 1fr); gap: 48px; padding-top: 48px; padding-bottom: var(--section); }
+.toc { position: sticky; top: 80px; align-self: start; font-size: 14px; }
+.toc-title { color: var(--mute); font-size: 13px; margin-bottom: 10px; }
+.toc ol { list-style: none; margin: 0; padding: 0; border-left: 1px solid var(--hairline-strong); }
+.toc li a { display: block; padding: 4px 0 4px 14px; color: var(--body); }
+.toc li a:hover { color: var(--ink); }
+
+.doc { min-width: 0; max-width: 80ch; }
+.doc section { scroll-margin-top: 72px; padding-bottom: 56px; margin-bottom: 56px; border-bottom: 1px solid var(--hairline); }
+.doc section:last-child { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
+.doc h3 { margin-top: 36px; scroll-margin-top: 72px; }
+.doc h2 + p, .doc h3 + p, .doc h3 + ul, .doc h3 + ol { margin-top: 12px; }
+.doc p + p, .doc ul + p, .doc p + ul { margin-top: 12px; }
+.doc ul, .doc ol { margin-bottom: 0; padding-left: 1.4em; }
+.doc li + li { margin-top: 8px; }
+.doc strong { color: var(--ink); font-weight: 500; }
+.doc em { font-style: normal; color: var(--ink); }
+.doc code { font: inherit; font-size: 13px; color: var(--ink); background: var(--terminal-bg); padding: 1px 5px; border-radius: var(--radius); }
+.doc .spec { margin-top: 24px; }
+.doc .spec > div { grid-template-columns: 13rem minmax(0, 1fr); }
+.doc .spec dd p + p { margin-top: 8px; }
+.note-lang { font-size: 13px; color: var(--mute); margin-bottom: 32px; }
+.steps li::marker { color: var(--mute); }
+.notes { margin-top: 20px; font-size: 14px; }
+.errors dt code { background: none; padding: 0; font-size: 14px; }
+.errors .msg { color: var(--ink); }
+
+.table-scroll { margin-top: 24px; overflow-x: auto; border-top: 1px solid var(--hairline); }
+.doc-table { width: 100%; min-width: 640px; border-collapse: collapse; font-size: 14px; }
+.doc-table th, .doc-table td { text-align: left; vertical-align: top; padding: 14px 16px 14px 0; border-bottom: 1px solid var(--hairline); }
+.doc-table thead th { color: var(--mute); font-weight: 500; font-size: 13px; }
+.doc-table tbody th { color: var(--ink); font-weight: 500; width: 24%; }
+.doc-table tr.no th, .doc-table tr.no td { color: var(--mute); }
+
 /* Footer */
 .foot { padding: 40px 0 56px; font-size: 13px; color: var(--mute); }
 .foot-row { display: flex; flex-wrap: wrap; gap: 12px 32px; justify-content: space-between; }
@@ -185,7 +232,10 @@ h4 { font-size: 15px; }
   .pair { grid-template-columns: minmax(0, 1fr); }
   .layers { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   .platforms { grid-template-columns: minmax(0, 1fr); }
-  .spec > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .spec > div, .doc .spec > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .doc-grid { grid-template-columns: minmax(0, 1fr); gap: 32px; padding-top: 32px; }
+  .toc { position: static; }
+  .doc-hero { padding-top: 40px; }
 }
 @media (max-width: 600px) {
   .nav { display: none; }

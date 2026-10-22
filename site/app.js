@@ -9,7 +9,7 @@
   var STRINGS = {
     en: {
       "skip": "Skip to content",
-      "nav.why": "Why", "nav.features": "Features", "nav.download": "Download",
+      "nav.why": "Why", "nav.features": "Features", "nav.download": "Download", "nav.docs": "Docs",
       "hero.title": "SSH sessions that survive the network.",
       "hero.lede": "A free, open-source SSH client for Linux, Windows and Android. When the Wi-Fi drops or you change networks, your session comes back where it was, with your programs still running.",
       "hero.cta": "Download titan-ssh",
@@ -64,7 +64,7 @@
     },
     es: {
       "skip": "Ir al contenido",
-      "nav.why": "Por qué", "nav.features": "Funciones", "nav.download": "Descargar",
+      "nav.why": "Por qué", "nav.features": "Funciones", "nav.download": "Descargar", "nav.docs": "Documentación",
       "hero.title": "Sesiones SSH que sobreviven a la red.",
       "hero.lede": "Un cliente SSH libre y gratuito para Linux, Windows y Android. Si se cae la Wi-Fi o cambias de red, la sesión vuelve donde estaba, con tus programas todavía en marcha.",
       "hero.cta": "Descargar titan-ssh",

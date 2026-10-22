@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en" data-lang="en" data-title-en="Remote desktop and mouse pad · titan-ssh" data-title-es="Escritorio remoto y mouse pad · titan-ssh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Remote desktop and mouse pad · titan-ssh</title>
+<meta name="description" content="How titan-ssh shows and controls the desktop of a Windows or Linux computer over SSH: supported systems, requirements, limits and errors.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#201d1d">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preload" href="fonts/jetbrainsmono_regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#main"><span data-l="en">Skip to content</span><span data-l="es">Ir al contenido</span></a>
+
+<header class="top">
+  <div class="wrap top-row">
+    <a class="brand" href="index.html" aria-label="titan-ssh">
+      <svg class="logo" viewBox="0 0 512 512" aria-hidden="true">
+        <rect x="4" y="4" width="504" height="504" rx="96" fill="#201d1d" stroke="#3a3636" stroke-width="8"/>
+        <rect x="120" y="116" width="272" height="56" fill="#fdfcfc"/>
+        <rect x="228" y="172" width="56" height="124" fill="#fdfcfc"/>
+        <rect x="228" y="328" width="56" height="68" fill="#0a84ff"/>
+      </svg>
+      <span>titan-ssh</span>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="index.html#why"><span data-l="en">Why</span><span data-l="es">Por qué</span></a>
+      <a href="index.html#features"><span data-l="en">Features</span><span data-l="es">Funciones</span></a>
+      <a href="index.html#download"><span data-l="en">Download</span><span data-l="es">Descargar</span></a>
+      <a href="remote-desktop.html" aria-current="page"><span data-l="en">Docs</span><span data-l="es">Documentación</span></a>
+      <a href="https://github.com/danielperezmartinez/titan-ssh">GitHub</a>
+    </nav>
+    <div class="lang" role="group" aria-label="Language">
+      <button type="button" data-set-lang="en" aria-pressed="true">en</button>
+      <button type="button" data-set-lang="es" aria-pressed="false">es</button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+<!-- ===================================================== Español -->
+<div data-l="es" lang="es">
+  <section class="doc-hero">
+    <div class="wrap">
+      <p class="eyebrow">Documentación</p>
+      <h1>Escritorio remoto y mouse pad</h1>
+      <p class="lede">Ver y controlar la pantalla de un PC Windows o Linux desde titan-ssh, por la misma conexión SSH, sin abrir puertos ni instalar un servidor VNC o RDP.</p>
+      <div class="callout">
+        <p><span class="mark wait">[!]</span> <strong>Experimental.</strong> El escritorio remoto solo está en <strong>titan-ssh canary</strong>, la versión de pruebas que se instala junto a la estable, con sus propios ajustes y su propio agente. El mouse pad con destinos Windows ya está en la estable; con destinos Linux, por ahora solo en la canary. Lo que cuenta esta página puede cambiar antes de llegar a la estable.</p>
+        <p><a href="https://github.com/danielperezmartinez/titan-ssh/releases/tag/canary">Descargar titan-ssh canary</a></p>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap doc-grid">
+    <nav class="toc" aria-label="En esta página">
+      <p class="toc-title">En esta página</p>
+      <ol>
+        <li><a href="#es-que-es">Qué es</a></li>
+        <li><a href="#es-sistemas">Sistemas</a></li>
+        <li><a href="#es-requisitos">Requisitos</a></li>
+        <li><a href="#es-limites">Límites</a></li>
+        <li><a href="#es-errores">Errores</a></li>
+      </ol>
+    </nav>
+
+    <article class="doc">
+      <section id="es-que-es" aria-labelledby="es-que-es-t">
+        <h2 id="es-que-es-t">Qué es</h2>
+        <dl class="spec">
+          <div><dt>Escritorio remoto</dt><dd>Tipo de sesión «escritorio». Ves la pantalla del destino y la controlas. En la app de escritorio, o con un ratón conectado al móvil, apuntas directamente sobre la imagen. Con el dedo usas los gestos del mouse pad, con el cursor del destino dibujado sobre la imagen y un zoom de 1x a 3x que lo sigue.</dd></div>
+          <div><dt>Mouse pad</dt><dd>Tipo de sesión «mouse pad». El móvil hace de touchpad y de teclado del destino mientras miras su pantalla.</dd></div>
+          <div><dt>Gestos</dt><dd>Un dedo mueve el cursor y tocar hace clic. Dos dedos hacen scroll y tocar con dos es clic derecho. Mantener pulsado arrastra.</dd></div>
+        </dl>
+
+        <h3>Cómo funciona</h3>
+        <p>Los dos usan <strong>titan-agent</strong>, el agente que la app instala sola en tu cuenta de usuario del destino, sin permisos de administrador ni root. Todo va dentro de la conexión SSH. La pantalla viaja en trozos, y solo se envían los que cambian: el texto y las ventanas llegan exactos y lo fotográfico se comprime.</p>
+
+        <h3>Para empezar</h3>
+        <ol class="steps">
+          <li>Crea una sesión, elige el host y, en <em>Tipo</em>, marca «escritorio» o «mouse pad».</li>
+          <li>Conéctate con el mismo usuario que tiene la sesión iniciada en el escritorio del destino.</li>
+          <li>Mira en <a href="#es-requisitos">Requisitos</a> si tu sistema necesita algo más: en Windows, el ayudante de escritorio; en KDE y GNOME, aceptar el permiso la primera vez.</li>
+        </ol>
+
+        <h3>Calidad de imagen</h3>
+        <p>Es un ajuste de la sesión de escritorio. <strong>Automática</strong> (la de serie): el texto llega exacto y las fotos y el vídeo se comprimen según lo rápida que sea la conexión. <strong>Sin pérdida</strong>: todo exacto, gasta más datos con fotos y vídeo. <strong>Baja</strong>: más comprimido, para conexiones lentas, y el texto sigue exacto.</p>
+
+        <h3>Si se corta la red</h3>
+        <p>La pestaña se queda con la última imagen, atenuada, y reconecta sola. Al volver llega la pantalla entera. Mientras tanto no se envía ni ratón ni teclado, y el agente suelta los botones y las teclas que estuvieran pulsados. El escritorio del destino no se entera del corte.</p>
+      </section>
+
+      <section id="es-sistemas" aria-labelledby="es-sistemas-t">
+        <h2 id="es-sistemas-t">Sistemas</h2>
+        <div class="table-scroll">
+          <table class="doc-table">
+            <thead>
+              <tr><th scope="col">Destino</th><th scope="col">Cómo lo hace</th><th scope="col">Probado con</th><th scope="col">¿Pregunta en el destino?</th></tr>
+            </thead>
+            <tbody>
+              <tr><th scope="row">Windows 10 (1809 o posterior) y 11, 64 bits</th><td>El ayudante de escritorio, una copia del agente que corre en tu sesión de Windows</td><td>Windows 11</td><td>No</td></tr>
+              <tr><th scope="row">Linux con X11, cualquier escritorio</th><td>El agente habla directamente con el servidor X de tu sesión</td><td>Xvfb</td><td>No</td></tr>
+              <tr><th scope="row">KDE Plasma con Wayland</th><td>Los portales RemoteDesktop y ScreenCast del escritorio; la imagen llega por PipeWire</td><td>Plasma 6.8</td><td>La primera vez, salvo con «Permitir sin nadie delante»</td></tr>
+              <tr><th scope="row">GNOME con Wayland</th><td>Igual que KDE. Con «Permitir sin nadie delante», la interfaz propia de GNOME (Mutter)</td><td>GNOME 48</td><td>La primera vez, salvo con «Permitir sin nadie delante»</td></tr>
+              <tr><th scope="row">sway, Hyprland y otros compositores wlroots</th><td>Protocolos Wayland de captura de pantalla y de puntero y teclado virtuales</td><td>sway 1.10 y 1.12. Hyprland, sin probar</td><td>No</td></tr>
+              <tr class="no"><th scope="row">macOS, FreeBSD y otros escritorios Wayland</th><td colspan="3">No disponible: la app responde <code>E_SCREEN_UNSUPPORTED</code>.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <ul class="notes">
+          <li>El <strong>mouse pad</strong> funciona en los mismos sistemas. Con Windows está en la estable; con Linux, por ahora, solo en la canary.</li>
+          <li><strong>Versiones.</strong> Windows 10 1809 es el mínimo del agente. En Linux no hay un mínimo fijado: la tabla dice con qué versiones se ha probado.</li>
+          <li><strong>Wayland en KDE y GNOME</strong> necesita PipeWire y xdg-desktop-portal con el backend del escritorio, que vienen con los dos.</li>
+          <li><strong>Otros compositores wlroots</strong> (labwc, river…) funcionan si ofrecen <code>ext-image-copy-capture-v1</code> o <code>wlr-screencopy</code>. Para controlar la pantalla, además, <code>wlr-virtual-pointer</code> y <code>virtual-keyboard</code>; sin ellos solo se ve.</li>
+          <li>En Linux, una sesión con X11 y otra con Wayland del mismo escritorio se tratan por separado. Si tu escritorio Wayland no está en la tabla, entrar con su sesión X11 es una salida.</li>
+        </ul>
+      </section>
+
+      <section id="es-requisitos" aria-labelledby="es-requisitos-t">
+        <h2 id="es-requisitos-t">Requisitos</h2>
+
+        <h3>En todos los sistemas</h3>
+        <ul>
+          <li><strong>Una sesión iniciada en el escritorio del destino</strong>, con el mismo usuario que la conexión SSH. Vale una sesión local o una de escritorio remoto (RDP en Windows, xrdp en Linux); si hay de las dos, se usa la que está en la pantalla del PC. La pantalla de inicio de sesión no cuenta.</li>
+          <li><strong>Tu sesión tiene que estar en pantalla.</strong> Si otro usuario tiene el escritorio (cambio rápido de usuario), o en Windows tu escritorio remoto se cerró sin cerrar la sesión, no hay imagen.</li>
+          <li><strong>El agente.</strong> La primera vez, la app lo descarga del GitHub Release de su versión y lo copia al destino, así que el dispositivo necesita Internet. La canary usa su propio agente, aparte del de la estable.</li>
+        </ul>
+
+        <h3>Windows: el ayudante de escritorio</h3>
+        <p>El servidor SSH de Windows arranca los programas fuera de tu escritorio, desde donde no se ve ni se controla tu pantalla. Para llegar a él, el agente registra una <strong>tarea programada de tu usuario</strong>, que solo se ejecuta mientras tienes la sesión iniciada, y la lanza. Esa tarea arranca el <strong>ayudante de escritorio</strong>, una copia del agente dentro de tu sesión.</p>
+        <ul>
+          <li>No necesita permisos de administrador. Vale cualquier edición, también Home.</li>
+          <li>La primera conexión tarda unos segundos, mientras arranca el ayudante.</li>
+          <li>Cerrar la pestaña no lo para: sigue hasta que cierras la sesión de Windows o lo quitas.</li>
+          <li>Lo ves en el Programador de tareas y en el panel del agente (<em>Ver el agente del destino</em>), en la fila «Ayudante de escritorio». Con «Quitar» se borran el ayudante y su tarea, y el siguiente uso los vuelve a instalar.</li>
+        </ul>
+
+        <h3 id="es-portal">KDE y GNOME con Wayland: el permiso del escritorio</h3>
+        <p>En Wayland ningún programa puede ver la pantalla sin permiso. La primera vez que te conectas, el escritorio del destino enseña un diálogo para compartir la pantalla, y <strong>alguien delante del PC tiene que aceptarlo</strong>. El escritorio recuerda la respuesta y las siguientes conexiones ya no preguntan.</p>
+        <ul>
+          <li>Si nadie responde en unos 90 segundos, o se rechaza, la app da <code>E_SCREEN_CONSENT</code>.</li>
+          <li>En GNOME, activa en el diálogo «Permitir interacción remota», que viene apagada. Sin ella el escritorio remoto solo se ve, sin ratón ni teclado, y el mouse pad no arranca.</li>
+          <li>El panel del agente enseña el permiso en la fila «Escritorio remoto»: «preguntará en la pantalla del destino» o «permiso recordado». Con «Olvidar el permiso» se cierran los escritorios remotos abiertos en ese destino y el siguiente vuelve a preguntar.</li>
+        </ul>
+
+        <h3 id="es-desatendido">Sin nadie delante</h3>
+        <p>Para conectarte a un PC con KDE o GNOME en Wayland cuando no hay nadie delante, autoriza antes al agente. Hay dos formas:</p>
+        <ul>
+          <li>Marca <strong>«Permitir sin nadie delante»</strong> en la sesión de escritorio. El agente se autoriza al conectar.</li>
+          <li>O, en el panel del agente, despliega la fila «Escritorio remoto» y pulsa «Permitir sin nadie delante». Pide confirmación.</li>
+        </ul>
+        <p>En KDE, el agente se apunta en los permisos de escritorio remoto del propio KDE. En GNOME usa la interfaz propia del escritorio, que no pregunta. En los demás sistemas el ajuste no cambia nada.</p>
+        <p>Nunca se activa solo, y se quita en el panel con «Volver a preguntar» o «Olvidar el permiso». <strong>Mientras esté activado, quien entre por SSH con tu usuario puede ver y controlar la pantalla sin que nadie lo acepte delante del PC.</strong> Actívalo solo en equipos tuyos.</p>
+
+        <h3>X11 y wlroots</h3>
+        <p>No hay nada que preparar ni ningún diálogo. El agente usa tu propia sesión: en X11, tu cookie de <code>XAUTHORITY</code> o de <code>~/.Xauthority</code>; en wlroots, los protocolos del compositor.</p>
+      </section>
+
+      <section id="es-limites" aria-labelledby="es-limites-t">
+        <h2 id="es-limites-t">Límites</h2>
+        <dl class="spec">
+          <div><dt>Windows bloqueado y UAC</dt><dd>La pantalla de bloqueo, la petición de contraseña, los avisos del UAC y Ctrl+Alt+Supr van en un escritorio seguro que ningún programa de tu sesión puede ver ni controlar. Mientras están en pantalla, la pestaña dice «Escritorio bloqueado», atenúa la última imagen y sigue sola cuando desaparecen. Para desbloquear el PC o aceptar un UAC hay que estar delante.</dd></div>
+          <div><dt>Bloqueo en Linux</dt><dd>En X11 y Wayland la pantalla de bloqueo se ve y se controla como cualquier otra, si el compositor lo permite.</dd></div>
+          <div><dt>Varios monitores</dt><dd>Se ve el escritorio entero, con los monitores colocados como en el destino. Todavía no se puede elegir uno solo; en el móvil, el zoom ayuda.</dd></div>
+          <div><dt>HiDPI y escalas</dt><dd>La imagen llega con los píxeles reales de cada monitor, también si tienen escalas distintas, y el puntero cae donde apuntas.</dd></div>
+          <div><dt>Cambios de pantalla</dt><dd>Cambiar la resolución o la escala, o conectar o quitar un monitor, se refleja solo en la pestaña.</dd></div>
+          <div><dt>Acentos en KDE y GNOME con Wayland</dt><dd>Ahí solo se pueden teclear los caracteres que la distribución de teclado del destino tiene sin tecla muerta ni AltGr. Con la distribución española llega la ñ, pero no á, é, ü ni €. En Windows, X11 y wlroots llega todo. Se está trabajando en ello.</dd></div>
+          <div><dt>Hyprland</dt><dd>Debería funcionar por la vía wlroots, pero no se ha probado: necesita una GPU que el entorno de pruebas no tiene.</dd></div>
+          <div><dt>Vídeo y juegos</dt><dd>Se ven, pero gastan más datos que el uso normal y, con una conexión lenta, van a saltos: llegan menos fotogramas, pero siempre recientes. Está pensado para trabajar con ventanas y texto.</dd></div>
+          <div><dt>Sonido y portapapeles</dt><dd>No se transmiten.</dd></div>
+          <div><dt>App estable</dt><dd>La estable no ofrece el tipo «escritorio». Si importas en ella una configuración de la canary con sesiones de escritorio, las enseña pero no las abre.</dd></div>
+        </dl>
+      </section>
+
+      <section id="es-errores" aria-labelledby="es-errores-t">
+        <h2 id="es-errores-t">Errores</h2>
+        <p>Cuando no se puede abrir, la pestaña dice «El escritorio remoto no está disponible:» (o «El mouse pad no está disponible:»), el motivo, qué hacer y, al final, entre paréntesis, un código. A veces añade un <em>Detalle</em> que nombra el escritorio o el fallo concreto.</p>
+        <dl class="spec errors">
+          <div><dt><code>E_NO_DESKTOP</code></dt><dd>
+            <p class="msg">«no hay nadie con la sesión iniciada en el escritorio del destino»</p>
+            <p><strong>Por qué:</strong> nadie ha iniciado sesión en ese PC con tu usuario, o solo está la pantalla de inicio de sesión.</p>
+            <p><strong>Qué hacer:</strong> inicia sesión en el escritorio del PC, también vale por escritorio remoto, con el mismo usuario de la conexión SSH, y reconecta.</p>
+          </dd></div>
+          <div><dt><code>E_DESKTOP_INACTIVE</code></dt><dd>
+            <p class="msg">«tu sesión en el destino no está en la pantalla»</p>
+            <p><strong>Por qué:</strong> otro usuario tiene el escritorio (cambio rápido de usuario) o, en Windows, tu sesión está desconectada: un escritorio remoto cerrado sin cerrar la sesión.</p>
+            <p><strong>Qué hacer:</strong> vuelve a tu sesión en ese PC y reconecta.</p>
+          </dd></div>
+          <div><dt><code>E_SCREEN_UNSUPPORTED</code></dt><dd>
+            <p class="msg">«el escritorio del destino todavía no admite el escritorio remoto»</p>
+            <p><strong>Por qué:</strong> el sistema no tiene ninguna vía: macOS, FreeBSD, o un Wayland sin portal de escritorio remoto ni protocolos wlroots. El detalle dice qué escritorio encontró el agente.</p>
+            <p><strong>Qué hacer:</strong> mira la <a href="#es-sistemas">tabla de sistemas</a>. Si tu escritorio tiene también una sesión X11, entra con ella.</p>
+          </dd></div>
+          <div><dt><code>E_INPUT_UNSUPPORTED</code></dt><dd>
+            <p class="msg">«el destino todavía no admite el mouse pad»</p>
+            <p><strong>Por qué:</strong> lo mismo para el mouse pad, o un destino Linux con la app estable.</p>
+            <p><strong>Qué hacer:</strong> con Linux, usa la canary; en los demás casos, mira la <a href="#es-sistemas">tabla de sistemas</a>.</p>
+          </dd></div>
+          <div><dt><code>E_SCREEN_CONSENT</code></dt><dd>
+            <p class="msg">«no se aceptó en el destino el permiso para compartir la pantalla»</p>
+            <p><strong>Por qué:</strong> en KDE o GNOME, el diálogo del escritorio se rechazó o nadie lo aceptó en unos 90 segundos. En GNOME, también un mouse pad sin «Permitir interacción remota».</p>
+            <p><strong>Qué hacer:</strong> que alguien delante del PC lo acepte (en GNOME, con la interacción remota activada) o, si es tu equipo, activa <a href="#es-desatendido">«Permitir sin nadie delante»</a>.</p>
+          </dd></div>
+          <div><dt><code>E_SCREEN_CAPTURE</code></dt><dd>
+            <p class="msg">«el destino no pudo capturar la pantalla»</p>
+            <p><strong>Por qué:</strong> la vía existe, pero falló: PipeWire, el portal o la captura de Windows. El detalle dice qué pasó.</p>
+            <p><strong>Qué hacer:</strong> reconecta. Si se repite, <a href="https://github.com/danielperezmartinez/titan-ssh/issues">abre una incidencia en GitHub</a> con el detalle, el sistema y el escritorio del destino.</p>
+          </dd></div>
+          <div><dt><code>E_DESKTOP_TASK</code></dt><dd>
+            <p class="msg">«no se pudo preparar la tarea programada que lanza el ayudante de escritorio»</p>
+            <p><strong>Por qué:</strong> solo en Windows. Windows no dejó registrar o lanzar la tarea del <a href="#es-requisitos">ayudante de escritorio</a>; el detalle dice por qué.</p>
+            <p><strong>Qué hacer:</strong> revisa el detalle. La tarea se puede quitar desde el panel del agente y el siguiente uso la vuelve a crear.</p>
+          </dd></div>
+          <div><dt><code>E_PROTOCOL</code></dt><dd>
+            <p class="msg">«el agente envió una imagen que esta versión de la app no entiende»</p>
+            <p><strong>Por qué:</strong> la app y el agente del destino no se entienden, normalmente porque la app está desactualizada.</p>
+            <p><strong>Qué hacer:</strong> actualiza la app; si ya está al día, revisa el detalle.</p>
+          </dd></div>
+          <div><dt>«Escritorio bloqueado»</dt><dd>
+            <p>No es un error. En Windows, el PC está bloqueado o enseña un aviso del UAC. La pestaña sigue sola al desbloquearlo; mira <a href="#es-limites">Límites</a>.</p>
+          </dd></div>
+          <div><dt>Otros códigos</dt><dd>
+            <p>Los fallos al instalar o arrancar el agente (<code>E_NO_BINARY</code>, <code>E_UPLOAD</code>, <code>E_NOEXEC</code>…) son los mismos que en el terminal, y su mensaje dice qué hacer.</p>
+          </dd></div>
+        </dl>
+      </section>
+    </article>
+  </div>
+</div>
+
+<!-- ===================================================== English -->
+<div data-l="en" lang="en">
+  <section class="doc-hero">
+    <div class="wrap">
+      <p class="eyebrow">Documentation</p>
+      <h1>Remote desktop and mouse pad</h1>
+      <p class="lede">See and control the screen of a Windows or Linux computer from titan-ssh, over the same SSH connection, without opening ports or installing a VNC or RDP server.</p>
+      <div class="callout">
+        <p><span class="mark wait">[!]</span> <strong>Experimental.</strong> The remote desktop is only in <strong>titan-ssh canary</strong>, the testing build that installs next to the stable app, with its own settings and its own agent. The mouse pad with Windows destinations is already in the stable app; with Linux destinations, only in the canary for now. What this page describes may change before it reaches the stable app.</p>
+        <p><a href="https://github.com/danielperezmartinez/titan-ssh/releases/tag/canary">Download titan-ssh canary</a></p>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap doc-grid">
+    <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ol>
+        <li><a href="#en-what">What it is</a></li>
+        <li><a href="#en-systems">Systems</a></li>
+        <li><a href="#en-requirements">Requirements</a></li>
+        <li><a href="#en-limits">Limits</a></li>
+        <li><a href="#en-errors">Errors</a></li>
+      </ol>
+    </nav>
+
+    <article class="doc">
+      <p class="note-lang">The app is in Spanish, so the labels and messages it shows are quoted here in Spanish, with their meaning.</p>
+
+      <section id="en-what" aria-labelledby="en-what-t">
+        <h2 id="en-what-t">What it is</h2>
+        <dl class="spec">
+          <div><dt>Remote desktop</dt><dd>Session type «escritorio». You see the destination's screen and control it. In the desktop app, or with a mouse plugged into the phone, you point straight at the image. With a finger you use the mouse pad gestures, with the destination's cursor drawn over the image and a 1x to 3x zoom that follows it.</dd></div>
+          <div><dt>Mouse pad</dt><dd>Session type «mouse pad». The phone works as the destination's touchpad and keyboard while you look at its screen.</dd></div>
+          <div><dt>Gestures</dt><dd>One finger moves the cursor and a tap clicks. Two fingers scroll and a two-finger tap is a right click. Press and hold to drag.</dd></div>
+        </dl>
+
+        <h3>How it works</h3>
+        <p>Both use <strong>titan-agent</strong>, the agent the app installs by itself in your user account on the destination, without administrator or root rights. Everything travels inside the SSH connection. The screen is sent in tiles, and only the ones that change: text and windows arrive exact and photographic areas are compressed.</p>
+
+        <h3>Getting started</h3>
+        <ol class="steps">
+          <li>Create a session, pick the host and set <em>Tipo</em> (type) to «escritorio» or «mouse pad».</li>
+          <li>Connect with the same user that is signed in to the destination's desktop.</li>
+          <li>Check <a href="#en-requirements">Requirements</a> in case your system needs something else: on Windows, the desktop helper; on KDE and GNOME, accepting the permission the first time.</li>
+        </ol>
+
+        <h3>Image quality</h3>
+        <p>A setting of the remote desktop session. <strong>«automática»</strong> (automatic, the default): text arrives exact, and photos and video are compressed according to how fast the connection is. <strong>«sin pérdida»</strong> (lossless): everything exact, uses more data with photos and video. <strong>«baja»</strong> (low): more compressed, for slow connections; text stays exact.</p>
+
+        <h3>If the network drops</h3>
+        <p>The tab keeps the last image, dimmed, and reconnects by itself. When it is back, the whole screen arrives again. Meanwhile no mouse or keyboard input is sent, and the agent releases any buttons and keys that were held down. The destination's desktop never notices the drop.</p>
+      </section>
+
+      <section id="en-systems" aria-labelledby="en-systems-t">
+        <h2 id="en-systems-t">Systems</h2>
+        <div class="table-scroll">
+          <table class="doc-table">
+            <thead>
+              <tr><th scope="col">Destination</th><th scope="col">How</th><th scope="col">Tested with</th><th scope="col">Asks on the destination?</th></tr>
+            </thead>
+            <tbody>
+              <tr><th scope="row">Windows 10 (1809 or later) and 11, 64-bit</th><td>The desktop helper, a copy of the agent that runs in your Windows session</td><td>Windows 11</td><td>No</td></tr>
+              <tr><th scope="row">Linux with X11, any desktop</th><td>The agent talks directly to your session's X server</td><td>Xvfb</td><td>No</td></tr>
+              <tr><th scope="row">KDE Plasma on Wayland</th><td>The desktop's RemoteDesktop and ScreenCast portals; the image comes through PipeWire</td><td>Plasma 6.8</td><td>The first time, unless «Permitir sin nadie delante» is on</td></tr>
+              <tr><th scope="row">GNOME on Wayland</th><td>Same as KDE. With «Permitir sin nadie delante», GNOME's own interface (Mutter)</td><td>GNOME 48</td><td>The first time, unless «Permitir sin nadie delante» is on</td></tr>
+              <tr><th scope="row">sway, Hyprland and other wlroots compositors</th><td>Wayland protocols for screen capture and for a virtual pointer and keyboard</td><td>sway 1.10 and 1.12. Hyprland not tested</td><td>No</td></tr>
+              <tr class="no"><th scope="row">macOS, FreeBSD and other Wayland desktops</th><td colspan="3">Not available: the app answers <code>E_SCREEN_UNSUPPORTED</code>.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <ul class="notes">
+          <li>The <strong>mouse pad</strong> works on the same systems. With Windows it is in the stable app; with Linux, only in the canary for now.</li>
+          <li><strong>Versions.</strong> Windows 10 1809 is the agent's minimum. On Linux there is no fixed minimum: the table says which versions it was tested with.</li>
+          <li><strong>Wayland on KDE and GNOME</strong> needs PipeWire and xdg-desktop-portal with the desktop's backend, which both ship.</li>
+          <li><strong>Other wlroots compositors</strong> (labwc, river…) work if they offer <code>ext-image-copy-capture-v1</code> or <code>wlr-screencopy</code>. To control the screen they also need <code>wlr-virtual-pointer</code> and <code>virtual-keyboard</code>; without them you can only watch.</li>
+          <li>On Linux, an X11 session and a Wayland session of the same desktop are handled separately. If your Wayland desktop is not in the table, signing in to its X11 session is a way out.</li>
+        </ul>
+      </section>
+
+      <section id="en-requirements" aria-labelledby="en-requirements-t">
+        <h2 id="en-requirements-t">Requirements</h2>
+
+        <h3>On every system</h3>
+        <ul>
+          <li><strong>A session signed in to the destination's desktop</strong>, with the same user as the SSH connection. A local session or a remote desktop one (RDP on Windows, xrdp on Linux) both work; if there are both, the one on the computer's screen is used. The login screen doesn't count.</li>
+          <li><strong>Your session has to be on screen.</strong> If another user has the desktop (fast user switching), or on Windows your remote desktop was closed without signing out, there is no image.</li>
+          <li><strong>The agent.</strong> The first time, the app downloads it from the GitHub Release of its version and copies it to the destination, so the device needs Internet access. The canary uses its own agent, separate from the stable one.</li>
+        </ul>
+
+        <h3>Windows: the desktop helper</h3>
+        <p>The Windows SSH server starts programs outside your desktop, where your screen can't be seen or controlled. To reach it, the agent registers a <strong>scheduled task of your user</strong> that only runs while you are signed in, and starts it. The task starts the <strong>desktop helper</strong>, a copy of the agent inside your session.</p>
+        <ul>
+          <li>No administrator rights needed. Any edition works, Home included.</li>
+          <li>The first connection takes a few seconds while the helper starts.</li>
+          <li>Closing the tab doesn't stop it: it keeps running until you sign out of Windows or remove it.</li>
+          <li>You can see it in Task Scheduler and in the agent panel (<em>Ver el agente del destino</em>), in the «Ayudante de escritorio» row. «Quitar» (remove) deletes the helper and its task, and the next use installs them again.</li>
+        </ul>
+
+        <h3 id="en-portal">KDE and GNOME on Wayland: the desktop's permission</h3>
+        <p>On Wayland no program can see the screen without permission. The first time you connect, the destination's desktop shows a dialog to share the screen, and <strong>someone at the computer has to accept it</strong>. The desktop remembers the answer and later connections don't ask again.</p>
+        <ul>
+          <li>If nobody answers within about 90 seconds, or it is refused, the app reports <code>E_SCREEN_CONSENT</code>.</li>
+          <li>On GNOME, turn on «Allow Remote Interaction» in the dialog; it is off by default. Without it the remote desktop can only be watched, with no mouse or keyboard, and the mouse pad doesn't start.</li>
+          <li>The agent panel shows the permission in the «Escritorio remoto» row: «preguntará en la pantalla del destino» (will ask on the destination's screen) or «permiso recordado» (permission remembered). «Olvidar el permiso» (forget the permission) closes the remote desktops open on that destination, and the next one asks again.</li>
+        </ul>
+
+        <h3 id="en-unattended">Nobody at the computer</h3>
+        <p>To connect to a KDE or GNOME computer on Wayland with nobody in front of it, authorise the agent beforehand, in one of two ways:</p>
+        <ul>
+          <li>Tick <strong>«Permitir sin nadie delante»</strong> (allow with nobody present) in the remote desktop session. The agent authorises itself when it connects.</li>
+          <li>Or, in the agent panel, unfold the «Escritorio remoto» row and press «Permitir sin nadie delante». It asks for confirmation.</li>
+        </ul>
+        <p>On KDE, the agent adds itself to KDE's own remote desktop permissions. On GNOME it uses the desktop's own interface, which doesn't ask. On other systems the setting changes nothing.</p>
+        <p>It never turns on by itself, and you turn it off in the panel with «Volver a preguntar» (ask again) or «Olvidar el permiso». <strong>While it is on, anyone who signs in over SSH as your user can see and control the screen without anyone at the computer accepting it.</strong> Only turn it on for your own machines.</p>
+
+        <h3>X11 and wlroots</h3>
+        <p>There is nothing to prepare and no dialog. The agent uses your own session: on X11, your cookie from <code>XAUTHORITY</code> or <code>~/.Xauthority</code>; on wlroots, the compositor's protocols.</p>
+      </section>
+
+      <section id="en-limits" aria-labelledby="en-limits-t">
+        <h2 id="en-limits-t">Limits</h2>
+        <dl class="spec">
+          <div><dt>Windows locked and UAC</dt><dd>The lock screen, the password prompt, UAC prompts and Ctrl+Alt+Del live on a secure desktop that no program in your session can see or control. While they are on screen, the tab says «Escritorio bloqueado» (desktop locked), dims the last image and carries on by itself when they go away. To unlock the computer or accept a UAC prompt you have to be in front of it.</dd></div>
+          <div><dt>Locking on Linux</dt><dd>On X11 and Wayland the lock screen can be seen and controlled like any other screen, if the compositor allows it.</dd></div>
+          <div><dt>Several monitors</dt><dd>You see the whole desktop, with the monitors placed as on the destination. Choosing a single one isn't possible yet; on a phone, the zoom helps.</dd></div>
+          <div><dt>HiDPI and scaling</dt><dd>The image arrives with each monitor's real pixels, even with different scales, and the pointer lands where you point.</dd></div>
+          <div><dt>Screen changes</dt><dd>Changing the resolution or the scale, or plugging or removing a monitor, shows up in the tab by itself.</dd></div>
+          <div><dt>Accents on KDE and GNOME on Wayland</dt><dd>There you can only type the characters that the destination's keyboard layout has without a dead key or AltGr. With the Spanish layout ñ arrives, but á, é, ü and € don't. On Windows, X11 and wlroots everything arrives. Work in progress.</dd></div>
+          <div><dt>Hyprland</dt><dd>It should work through the wlroots path, but it hasn't been tested: it needs a GPU that the test environment doesn't have.</dd></div>
+          <div><dt>Video and games</dt><dd>They show, but use more data than normal use and, on a slow connection, they stutter: fewer frames arrive, but always recent ones. It is meant for working with windows and text.</dd></div>
+          <div><dt>Sound and clipboard</dt><dd>Not transferred.</dd></div>
+          <div><dt>Stable app</dt><dd>The stable app doesn't offer the «escritorio» type. If you import a canary configuration with remote desktop sessions into it, it lists them but doesn't open them.</dd></div>
+        </dl>
+      </section>
+
+      <section id="en-errors" aria-labelledby="en-errors-t">
+        <h2 id="en-errors-t">Errors</h2>
+        <p>When it can't open, the tab says «El escritorio remoto no está disponible:» (or «El mouse pad no está disponible:»), the reason, what to do and, at the end in brackets, a code. Sometimes it adds a <em>Detalle</em> (detail) that names the desktop or the exact failure.</p>
+        <dl class="spec errors">
+          <div><dt><code>E_NO_DESKTOP</code></dt><dd>
+            <p class="msg">«no hay nadie con la sesión iniciada en el escritorio del destino» — nobody is signed in to the destination's desktop.</p>
+            <p><strong>Why:</strong> nobody has signed in to that computer as your user, or only the login screen is there.</p>
+            <p><strong>What to do:</strong> sign in to the computer's desktop (a remote desktop session works too) with the same user as the SSH connection, and reconnect.</p>
+          </dd></div>
+          <div><dt><code>E_DESKTOP_INACTIVE</code></dt><dd>
+            <p class="msg">«tu sesión en el destino no está en la pantalla» — your session isn't on the destination's screen.</p>
+            <p><strong>Why:</strong> another user has the desktop (fast user switching) or, on Windows, your session is disconnected: a remote desktop closed without signing out.</p>
+            <p><strong>What to do:</strong> go back to your session on that computer and reconnect.</p>
+          </dd></div>
+          <div><dt><code>E_SCREEN_UNSUPPORTED</code></dt><dd>
+            <p class="msg">«el escritorio del destino todavía no admite el escritorio remoto» — the destination's desktop doesn't support the remote desktop yet.</p>
+            <p><strong>Why:</strong> the system has no way to do it: macOS, FreeBSD, or a Wayland desktop with neither a remote desktop portal nor the wlroots protocols. The detail names the desktop the agent found.</p>
+            <p><strong>What to do:</strong> check the <a href="#en-systems">systems table</a>. If your desktop also has an X11 session, sign in to that one.</p>
+          </dd></div>
+          <div><dt><code>E_INPUT_UNSUPPORTED</code></dt><dd>
+            <p class="msg">«el destino todavía no admite el mouse pad» — the destination doesn't support the mouse pad yet.</p>
+            <p><strong>Why:</strong> the same for the mouse pad, or a Linux destination with the stable app.</p>
+            <p><strong>What to do:</strong> with Linux, use the canary; otherwise check the <a href="#en-systems">systems table</a>.</p>
+          </dd></div>
+          <div><dt><code>E_SCREEN_CONSENT</code></dt><dd>
+            <p class="msg">«no se aceptó en el destino el permiso para compartir la pantalla» — the permission to share the screen wasn't accepted on the destination.</p>
+            <p><strong>Why:</strong> on KDE or GNOME, the desktop's dialog was refused or nobody accepted it within about 90 seconds. On GNOME, also a mouse pad without «Allow Remote Interaction».</p>
+            <p><strong>What to do:</strong> have someone at the computer accept it (on GNOME, with remote interaction on) or, if it is your machine, turn on <a href="#en-unattended">«Permitir sin nadie delante»</a>.</p>
+          </dd></div>
+          <div><dt><code>E_SCREEN_CAPTURE</code></dt><dd>
+            <p class="msg">«el destino no pudo capturar la pantalla» — the destination couldn't capture the screen.</p>
+            <p><strong>Why:</strong> there is a way, but it failed: PipeWire, the portal or the Windows capture. The detail says what happened.</p>
+            <p><strong>What to do:</strong> reconnect. If it happens again, <a href="https://github.com/danielperezmartinez/titan-ssh/issues">open an issue on GitHub</a> with the detail and the destination's system and desktop.</p>
+          </dd></div>
+          <div><dt><code>E_DESKTOP_TASK</code></dt><dd>
+            <p class="msg">«no se pudo preparar la tarea programada que lanza el ayudante de escritorio» — the scheduled task that starts the desktop helper couldn't be set up.</p>
+            <p><strong>Why:</strong> Windows only. Windows didn't let the agent register or start the <a href="#en-requirements">desktop helper</a>'s task; the detail says why.</p>
+            <p><strong>What to do:</strong> check the detail. The task can be removed from the agent panel, and the next use creates it again.</p>
+          </dd></div>
+          <div><dt><code>E_PROTOCOL</code></dt><dd>
+            <p class="msg">«el agente envió una imagen que esta versión de la app no entiende» — the agent sent an image this version of the app doesn't understand.</p>
+            <p><strong>Why:</strong> the app and the destination's agent don't match, usually because the app is out of date.</p>
+            <p><strong>What to do:</strong> update the app; if it is up to date, check the detail.</p>
+          </dd></div>
+          <div><dt>«Escritorio bloqueado»</dt><dd>
+            <p>Not an error. On Windows, the computer is locked or shows a UAC prompt. The tab carries on by itself once it is unlocked; see <a href="#en-limits">Limits</a>.</p>
+          </dd></div>
+          <div><dt>Other codes</dt><dd>
+            <p>Failures installing or starting the agent (<code>E_NO_BINARY</code>, <code>E_UPLOAD</code>, <code>E_NOEXEC</code>…) are the same as in the terminal, and their message says what to do.</p>
+          </dd></div>
+        </dl>
+      </section>
+    </article>
+  </div>
+</div>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-row">
+    <p><span data-l="en">titan-ssh is free software under the GNU GPL, version 3 or later.</span><span data-l="es">titan-ssh es software libre bajo la GNU GPL, versión 3 o posterior.</span></p>
+    <p class="foot-links">
+      <a href="https://github.com/danielperezmartinez/titan-ssh"><span data-l="en">Source code</span><span data-l="es">Código fuente</span></a>
+      <a href="https://github.com/danielperezmartinez/titan-ssh/blob/main/SECURITY.md"><span data-l="en">Report a vulnerability</span><span data-l="es">Avisar de una vulnerabilidad</span></a>
+      <a href="https://github.com/danielperezmartinez/titan-ssh/blob/main/THIRD_PARTY_NOTICES.md"><span data-l="en">Third-party notices</span><span data-l="es">Avisos de terceros</span></a>
+    </p>
+  </div>
+</footer>
+
+<script src="docs.js"></script>
+</body>
+</html>
