@@ -36,6 +36,20 @@ func portalInputWay(stateDir string) func(graphical.Session) error {
 		}
 		defer bus.Close()
 		ctx, cancel := context.WithTimeout(context.Background(), portalConsentTimeout+time.Minute)
+		screenStateDir = stateDir
+		started := time.Now()
+		if s.Family() == graphical.FamilyGNOME && gnomeUnattended() {
+			// GNOME with the unattended access: Mutter's own API, no dialog.
+			m, err := portal.OpenMutter(ctx, bus, true)
+			cancel()
+			if err != nil {
+				return withCode(codeInputUnsupported, err)
+			}
+			defer m.Close()
+			inject.WarmUp(m, started)
+			var mu sync.Mutex
+			return inject.Serve(stdio(), inject.NewPortal(m, noScreen, 1), &mu)
+		}
 		ensureDesktopEntry()
 		sess, err := portal.Open(ctx, bus, portal.Options{
 			AppID:          portalAppID(),
@@ -56,13 +70,15 @@ func portalInputWay(stateDir string) func(graphical.Session) error {
 		if sess.RestoreToken != "" {
 			writeTokenFile(stateDir, portalInputTokenFile, sess.RestoreToken)
 		}
-		// Absolute moves need a screen stream: the mouse pad only sends
-		// relative ones.
-		noScreen := func(int, int) (uint32, float64, float64, bool) { return 0, 0, 0, false }
+		inject.WarmUp(sess, started)
 		var mu sync.Mutex
 		return inject.Serve(stdio(), inject.NewPortal(sess, noScreen, 1), &mu)
 	}
 }
+
+// noScreen is the locator of a session without screen: absolute moves need a
+// screen stream, and the mouse pad only sends relative ones.
+func noScreen(int, int) (uint32, float64, float64, bool) { return 0, 0, 0, false }
 
 // writeTokenFile saves a restore token as name in dir (tokens are
 // single-use: each session gives the next one). A failure only means the

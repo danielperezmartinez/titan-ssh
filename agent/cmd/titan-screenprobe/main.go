@@ -33,6 +33,7 @@ func main() {
 	click := flag.String("click", "", "x,y to move to and click after the first frame")
 	move := flag.String("move", "", "x,y to move the pointer to after the first frame")
 	text := flag.String("type", "", "text to type after the first frame (and the click)")
+	keys := flag.String("keys", "", "keys to press after the rest, comma separated: esc, tab, enter, space, left, right, up, down (shift+tab and the like too)")
 	rel := flag.String("rel", "", "with -input: dx,dy to move the pointer by")
 	scroll := flag.Int("scroll", 0, "notches to scroll after the first frame (> 0 up)")
 	inputOnly := flag.Bool("input", false, "speak to `titan-agent --input` (a mouse pad): no screen, the input after INPUT_READY")
@@ -112,6 +113,7 @@ loop:
 				if !inputDone {
 					inputDone = true
 					sendInput(send, *move, *click, *text, *scroll)
+					sendKeys(send, *keys)
 				}
 			case protocol.TypeCursorShape:
 				log.Printf("CURSOR_SHAPE %dx%d hot %d,%d", f.Width, f.Height, f.X, f.Y)
@@ -122,6 +124,7 @@ loop:
 				if *inputOnly && !inputDone {
 					inputDone = true
 					sendInput(send, *move, *click, *text, *scroll)
+					sendKeys(send, *keys)
 					if *rel != "" {
 						if x, y, ok := xy(*rel); ok {
 							send(protocol.Frame{Type: protocol.TypePointerMove, DX: int16(x), DY: int16(y)})
@@ -216,5 +219,28 @@ func drawTile(img *image.RGBA, f protocol.Frame) {
 				img.SetRGBA(f.X+x, f.Y+y, color.RGBA{uint8(r >> 8), uint8(g >> 8), uint8(b >> 8), 255})
 			}
 		}
+	}
+}
+
+func sendKeys(send func(protocol.Frame), list string) {
+	names := map[string]uint16{
+		"esc": protocol.KeyEscape, "tab": protocol.KeyTab, "enter": protocol.KeyEnter, "space": protocol.KeySpace,
+		"left": protocol.KeyArrowLeft, "right": protocol.KeyArrowRight, "up": protocol.KeyArrowUp, "down": protocol.KeyArrowDown,
+	}
+	for _, k := range strings.Split(list, ",") {
+		if k == "" {
+			continue
+		}
+		var mods uint8
+		if rest, ok := strings.CutPrefix(k, "shift+"); ok {
+			mods, k = protocol.ModShift, rest
+		}
+		code, ok := names[k]
+		if !ok {
+			log.Printf("unknown key %q", k)
+			continue
+		}
+		send(protocol.Frame{Type: protocol.TypeKey, Key: code, Mods: mods, Action: protocol.ActionPress})
+		time.Sleep(150 * time.Millisecond)
 	}
 }

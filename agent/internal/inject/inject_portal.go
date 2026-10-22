@@ -4,6 +4,7 @@ package inject
 
 import (
 	"errors"
+	"time"
 
 	"github.com/danielperezmartinez/titan-ssh/agent/internal/protocol"
 )
@@ -146,3 +147,19 @@ func (p *Portal) Key(key uint16, mods uint8, action uint8) error {
 // Blocked is always false: a locked Wayland session still gets the portal's
 // input (the lock screen takes it), as on X11.
 func (p *Portal) Blocked() bool { return false }
+
+// WarmUp readies a remote desktop session's keyboard: the compositor drops
+// the events of a new virtual device for a moment after the session starts,
+// and the first key after it (seen with Mutter 48, where the seat switches
+// keymaps). It waits until settle has passed since started, then taps Shift.
+func WarmUp(dev PortalDevice, started time.Time) {
+	if d := settle - time.Since(started); d > 0 {
+		time.Sleep(d)
+	}
+	_ = dev.KeyboardKeysym(keysymShiftL, true)
+	_ = dev.KeyboardKeysym(keysymShiftL, false)
+	time.Sleep(settle / 4)
+}
+
+// settle is how long a new session's input takes to be delivered.
+const settle = 700 * time.Millisecond

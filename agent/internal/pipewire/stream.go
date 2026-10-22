@@ -136,6 +136,7 @@ type Stream struct {
 	format     Format
 	formatSet  bool
 	rtStarted  bool
+	cycles     uint64
 
 	frameMu sync.Mutex
 	frame   []byte // the last frame, rows of width*4 bytes
@@ -364,7 +365,18 @@ func (s *Stream) event(m *message) {
 	}
 }
 
+// Debugf, when set, logs the client-node's events and cycles (the agent
+// sets it from TITAN_AGENT_DEBUG).
+var Debugf func(format string, args ...any)
+
+func debugf(format string, args ...any) {
+	if Debugf != nil {
+		Debugf(format, args...)
+	}
+}
+
 func (s *Stream) handle(m *message) error {
+	debugf("pipewire: node %d event %d (%d bytes, %d fds)", s.id, m.opcode, len(m.body), len(m.fds))
 	switch m.opcode {
 	case evNodeTransport:
 		f, err := structArgs(m.body, 5)
@@ -445,6 +457,13 @@ func (s *Stream) handle(m *message) error {
 		format, err := parseFormat(f[4])
 		if err != nil {
 			return err
+		}
+		if Debugf != nil {
+			if o, err := f[4].object(); err == nil {
+				for k, v := range o.props {
+					debugf("pipewire: format prop %#x type %d body %x", k, v.typ, v.body)
+				}
+			}
 		}
 		s.rtMu.Lock()
 		s.format, s.formatSet = format, true
@@ -677,6 +696,9 @@ func (s *Stream) useBuffers(m *message) error {
 	s.rtMu.Lock()
 	s.mixFor(mixID).buffers = bufs
 	s.rtMu.Unlock()
+	if len(bufs) > 0 {
+		debugf("pipewire: mix %d: %d buffers, data type %d, %d bytes, %d metas", mixID, len(bufs), bufs[0].datas[0].typ, len(bufs[0].datas[0].data), len(bufs[0].metas))
+	}
 	return nil
 }
 
@@ -730,8 +752,12 @@ func i32at(b []byte, off int) *int32  { return (*int32)(unsafe.Pointer(&b[off]))
 func (s *Stream) cycle() {
 	a := s.activation
 	if a == nil || !atomic.CompareAndSwapUint32(u32at(a, actStatus), actTriggered, actAwake) {
+		if s.cycles < 5 && a != nil {
+			debugf("pipewire: woken with status %d", atomic.LoadUint32(u32at(a, actStatus)))
+		}
 		return
 	}
+	s.cycles++
 	var cycle uint32
 	if len(s.position) >= positionCycle+4 {
 		cycle = atomic.LoadUint32(u32at(s.position, positionCycle))
@@ -746,6 +772,9 @@ func (s *Stream) cycle() {
 		}
 		status := atomic.LoadInt32(i32at(io, 0))
 		id := atomic.LoadUint32(u32at(io, 4))
+		if s.cycles < 5 || s.cycles%300 == 0 {
+			debugf("pipewire: cycle %d (graph %d): io status %d buffer %d of %d, async %v", s.cycles, cycle, status, id, len(mx.buffers), mx.async)
+		}
 		if status == statusHaveData && id < uint32(len(mx.buffers)) {
 			s.consume(mx.buffers[id])
 		}
@@ -793,6 +822,9 @@ func (s *Stream) consume(b *buffer) {
 		switch m.typ {
 		case metaHeader:
 			if len(m.data) >= 4 && le.Uint32(m.data)&headerCorrupted != 0 {
+				if s.cycles < 5 {
+					debugf("pipewire: frame dropped: header flags %#x", le.Uint32(m.data))
+				}
 				return
 			}
 		case metaCursor:
@@ -813,6 +845,9 @@ func (s *Stream) consume(b *buffer) {
 	stride := int(int32(le.Uint32(d.chunk[8:])))
 	cflags := le.Uint32(d.chunk[12:])
 	if cflags&chunkCorrupted != 0 || csize == 0 {
+		if s.cycles < 5 {
+			debugf("pipewire: frame dropped: chunk offset %d size %d stride %d flags %#x", coff, csize, stride, cflags)
+		}
 		return // a cursor-only update, or a frame to drop
 	}
 	f := s.format

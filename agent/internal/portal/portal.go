@@ -74,6 +74,9 @@ type Options struct {
 	RestoreToken string
 	// ConsentTimeout bounds how long the dialog may wait for an answer.
 	ConsentTimeout time.Duration
+	// EmbeddedCursor asks for the cursor drawn into the frames even where the
+	// backend offers it as metadata (GNOME: see mutterCursorEmbedded).
+	EmbeddedCursor bool
 	// InputOnly asks for pointer and keyboard without the screen (a mouse
 	// pad): no ScreenCast, so only relative pointer motion.
 	InputOnly bool
@@ -122,7 +125,7 @@ func Open(ctx context.Context, conn *dbus.Conn, opt Options) (*Session, error) {
 			return nil, unavailable(err)
 		}
 		s.CursorMode = CursorEmbedded
-		if modes&CursorMetadata != 0 {
+		if modes&CursorMetadata != 0 && !(opt.EmbeddedCursor && modes&CursorEmbedded != 0) {
 			s.CursorMode = CursorMetadata
 		} else if modes&CursorEmbedded == 0 {
 			s.CursorMode = CursorHidden

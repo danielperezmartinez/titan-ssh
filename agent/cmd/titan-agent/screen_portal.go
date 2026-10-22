@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"image"
 	"math"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -83,32 +84,55 @@ func openPortalScreen(s graphical.Session) (*screenSource, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), portalConsentTimeout+time.Minute)
 	defer cancel()
-	ensureDesktopEntry()
-	if screenUnattended && s.Family() == graphical.FamilyKDE {
+	if screenUnattended {
 		// Best effort: without it the dialog shows, as by default.
 		_ = setUnattended(ctx, bus, s)
 	}
-	sess, err := portal.Open(ctx, bus, portal.Options{
-		AppID:          portalAppID(),
-		RestoreToken:   readPortalToken(),
-		ConsentTimeout: portalConsentTimeout,
-	})
-	switch {
-	case errors.Is(err, portal.ErrUnavailable):
-		return nil, errNoWay
-	case errors.Is(err, portal.ErrRefused):
-		return nil, withCode(codeScreenConsent, err)
-	case err != nil:
-		return nil, withCode(codeScreenCapture, err)
+	started := time.Now()
+	var (
+		streams  []portal.Stream
+		dev      inject.PortalDevice
+		embedded bool
+		fd       int
+	)
+	if s.Family() == graphical.FamilyGNOME && gnomeUnattended() {
+		// GNOME with the unattended access: Mutter's own API, no dialog.
+		m, err := portal.OpenMutter(ctx, bus, false)
+		if err != nil {
+			return nil, withCode(codeScreenCapture, err)
+		}
+		closers = append(closers, m.Close)
+		streams, dev, embedded = m.Streams, m, true
+		if fd, err = dialUserPipeWire(s); err != nil {
+			return nil, withCode(codeScreenCapture, err)
+		}
+	} else {
+		ensureDesktopEntry()
+		sess, err := portal.Open(ctx, bus, portal.Options{
+			AppID:          portalAppID(),
+			RestoreToken:   readPortalToken(),
+			ConsentTimeout: portalConsentTimeout,
+			EmbeddedCursor: s.Family() == graphical.FamilyGNOME,
+		})
+		switch {
+		case errors.Is(err, portal.ErrUnavailable):
+			return nil, errNoWay
+		case errors.Is(err, portal.ErrRefused):
+			return nil, withCode(codeScreenConsent, err)
+		case err != nil:
+			return nil, withCode(codeScreenCapture, err)
+		}
+		closers = append(closers, sess.Close)
+		if sess.RestoreToken != "" {
+			writePortalToken(sess.RestoreToken)
+		}
+		streams, dev, embedded = sess.Streams, sess, sess.CursorMode != portal.CursorMetadata
+		if fd, err = sess.OpenPipeWireRemote(ctx); err != nil {
+			return nil, withCode(codeScreenCapture, err)
+		}
 	}
-	closers = append(closers, sess.Close)
-	if sess.RestoreToken != "" {
-		writePortalToken(sess.RestoreToken)
-	}
-
-	fd, err := sess.OpenPipeWireRemote(ctx)
-	if err != nil {
-		return nil, withCode(codeScreenCapture, err)
+	if os.Getenv("TITAN_AGENT_DEBUG") != "" {
+		pipewire.Debugf = func(format string, args ...any) { fmt.Fprintf(os.Stderr, format+"\n", args...) }
 	}
 	pw, err := pipewire.NewConn(ctx, fd, appName())
 	if err != nil {
@@ -118,7 +142,7 @@ func openPortalScreen(s graphical.Session) (*screenSource, error) {
 
 	comp := &screen.Composite{}
 	var parts []*portalPart
-	for i, st := range sess.Streams {
+	for i, st := range streams {
 		stream, err := pw.Consume(ctx, st.Node, fmt.Sprintf("%s-screen-%d", appName(), i))
 		if err != nil {
 			return nil, withCode(codeScreenCapture, err)
@@ -127,7 +151,7 @@ func openPortalScreen(s graphical.Session) (*screenSource, error) {
 		if err := stream.WaitFrame(portalFrameTimeout); err != nil {
 			return nil, withCode(codeScreenCapture, err)
 		}
-		p := &portalPart{stream: stream, node: st.Node, embedded: sess.CursorMode != portal.CursorMetadata}
+		p := &portalPart{stream: stream, node: st.Node, embedded: embedded}
 		w, _ := stream.Size()
 		p.scale = 1
 		if st.Width > 0 && w > 0 {
@@ -148,8 +172,9 @@ func openPortalScreen(s graphical.Session) (*screenSource, error) {
 		p := parts[i]
 		return p.node, float64(px) / p.scale, float64(py) / p.scale, true
 	}
+	inject.WarmUp(dev, started)
 	var mu sync.Mutex
-	inj := inject.NewPortal(sess, locate, parts[0].scale)
+	inj := inject.NewPortal(dev, locate, parts[0].scale)
 	ok = true
 	return &screenSource{
 		capturer: comp,

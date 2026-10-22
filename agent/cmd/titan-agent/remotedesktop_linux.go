@@ -13,6 +13,8 @@ import (
 
 	"github.com/danielperezmartinez/titan-ssh/agent/internal/dbus"
 	"github.com/danielperezmartinez/titan-ssh/agent/internal/graphical"
+	"github.com/danielperezmartinez/titan-ssh/agent/internal/portal"
+	"golang.org/x/sys/unix"
 )
 
 // The remote desktop's consent on the destination (ADR-0031 §3), as the agent
@@ -79,13 +81,17 @@ func queryRemoteDesktop(stateDir string) *remoteDesktopReport {
 	r.Consent = consentDialog
 	_, r.Entry = ownDesktopEntry()
 	r.Remembered = readTokenFile(stateDir, portalTokenFile) != "" || readTokenFile(stateDir, portalInputTokenFile) != ""
-	r.UnattendedAvailable = s.Family() == graphical.FamilyKDE
-	if r.UnattendedAvailable {
-		if bus, err := dbus.Dial(sessionBus(s)); err == nil {
-			defer bus.Close()
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			defer cancel()
+	if bus, err := dbus.Dial(sessionBus(s)); err == nil {
+		defer bus.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		switch s.Family() {
+		case graphical.FamilyKDE:
+			r.UnattendedAvailable = true
 			r.Unattended, _ = kdeAuthorized(ctx, bus)
+		case graphical.FamilyGNOME:
+			r.UnattendedAvailable = portal.MutterAvailable(ctx, bus)
+			r.Unattended = unattendedMarked(stateDir)
 		}
 	}
 	return r
@@ -95,6 +101,9 @@ func queryRemoteDesktop(stateDir string) *remoteDesktopReport {
 func runRemoteDesktop(stateDir, action string) error {
 	if !screenServed {
 		return withCode(codeScreenUnsupported, errors.New("this agent does not serve the remote desktop: it is only in titan-ssh canary"))
+	}
+	if err := ensureStateDir(stateDir); err != nil {
+		return withCode(codeStateDir, err)
 	}
 	s, err := findDesktop()
 	if err != nil {
@@ -113,6 +122,7 @@ func runRemoteDesktop(stateDir, action string) error {
 	defer bus.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	screenStateDir = stateDir
 	switch action {
 	case rdUnattendedOn:
 		return setUnattended(ctx, bus, s)
@@ -120,9 +130,7 @@ func runRemoteDesktop(stateDir, action string) error {
 		return clearUnattended(ctx, bus, s)
 	case rdForget:
 		var errs []error
-		if s.Family() == graphical.FamilyKDE {
-			errs = append(errs, clearUnattended(ctx, bus, s))
-		}
+		errs = append(errs, clearUnattended(ctx, bus, s))
 		for _, name := range []string{portalTokenFile, portalInputTokenFile} {
 			if tok := readTokenFile(stateDir, name); tok != "" {
 				errs = append(errs, forgetPortalSession(ctx, bus, tok))
@@ -145,8 +153,37 @@ func ignoreMissing(err error) error {
 	return err
 }
 
-// setUnattended pre-authorizes the agent's app id. Only KDE has a way.
+// unattendedMarkFile marks the unattended access on GNOME, where it is the
+// agent's own choice to take Mutter's API instead of the portal.
+const unattendedMarkFile = "unattended"
+
+func unattendedMarked(stateDir string) bool {
+	_, err := os.Stat(filepath.Join(stateDir, unattendedMarkFile))
+	return err == nil
+}
+
+// gnomeUnattended tells whether the running --screen or --input should take
+// Mutter's API.
+func gnomeUnattended() bool { return screenStateDir != "" && unattendedMarked(screenStateDir) }
+
+// setUnattended pre-authorizes the agent: on KDE, its app id in the
+// permission store; on GNOME, the mark that makes it use Mutter's own API.
+// Other desktops have no way.
 func setUnattended(ctx context.Context, bus *dbus.Conn, s graphical.Session) error {
+	if s.Family() == graphical.FamilyGNOME {
+		if !portal.MutterAvailable(ctx, bus) {
+			return withCode(codeScreenUnsupported, fmt.Errorf("%s does not offer Mutter's remote desktop API", s.Describe()))
+		}
+		if screenStateDir == "" {
+			return errors.New("no state dir")
+		}
+		f, err := createPrivateTemp(screenStateDir, ".unattended-*")
+		if err != nil {
+			return withCode(codeStateDir, err)
+		}
+		f.Close()
+		return renameRetrying(f.Name(), filepath.Join(screenStateDir, unattendedMarkFile))
+	}
 	if s.Family() != graphical.FamilyKDE {
 		return withCode(codeScreenUnsupported, fmt.Errorf("%s has no unattended access: its dialog asks each new device", s.Describe()))
 	}
@@ -163,6 +200,9 @@ func setUnattended(ctx context.Context, bus *dbus.Conn, s graphical.Session) err
 // clearUnattended takes the agent's pre-authorization away (only its own
 // app id: other programs keep theirs).
 func clearUnattended(ctx context.Context, bus *dbus.Conn, s graphical.Session) error {
+	if s.Family() == graphical.FamilyGNOME && screenStateDir != "" {
+		return ignoreMissing(os.Remove(filepath.Join(screenStateDir, unattendedMarkFile)))
+	}
 	if s.Family() != graphical.FamilyKDE {
 		return nil
 	}
@@ -244,4 +284,25 @@ func readTokenFile(dir, name string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(data))
+}
+
+// dialUserPipeWire connects to the user's own PipeWire (Mutter's streams
+// are there, not behind a portal) and returns the socket.
+func dialUserPipeWire(s graphical.Session) (int, error) {
+	name := os.Getenv("PIPEWIRE_REMOTE")
+	if name == "" || !filepath.IsAbs(name) {
+		name = filepath.Join(s.RuntimeDir, "pipewire-0")
+	}
+	if s.RuntimeDir == "" && !filepath.IsAbs(name) {
+		return -1, errors.New("no runtime dir for PipeWire's socket")
+	}
+	fd, err := unix.Socket(unix.AF_UNIX, unix.SOCK_STREAM|unix.SOCK_CLOEXEC, 0)
+	if err != nil {
+		return -1, err
+	}
+	if err := unix.Connect(fd, &unix.SockaddrUnix{Name: name}); err != nil {
+		unix.Close(fd)
+		return -1, fmt.Errorf("PipeWire at %s: %w", name, err)
+	}
+	return fd, nil
 }

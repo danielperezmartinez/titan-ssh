@@ -1,6 +1,6 @@
 #!/bin/sh
 # The user's GNOME Wayland session: a session bus, PipeWire and WirePlumber,
-# then GNOME Shell headless with two 1280x800 monitors and a terminal. The
+# then GNOME Shell headless with two 1280x800 monitors and a clock. The
 # portals start on demand through the bus. Runs as demo, so its processes
 # carry WAYLAND_DISPLAY, XDG_CURRENT_DESKTOP and DBUS_SESSION_BUS_ADDRESS in
 # their environment, as a real desktop session does.
@@ -34,5 +34,6 @@ while [ ! -S "$XDG_RUNTIME_DIR/wayland-0" ] && [ $i -lt 200 ]; do
   sleep 0.1
   i=$((i + 1))
 done
-foot -e bash -l &
+# A clock that changes every second, so there is always something to send.
+setsid foot -e sh -c 'while :; do date; sleep 1; done' &
 wait
