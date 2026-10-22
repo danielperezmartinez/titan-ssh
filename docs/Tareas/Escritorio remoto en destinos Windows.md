@@ -6,7 +6,7 @@ Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño en [[A
 Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-21T10:50:00+02:00
-Última modificación: 2026-10-22T09:00:00+02:00
+Última modificación: 2026-10-22T10:00:00+02:00
 ---
 
 # Escritorio remoto en destinos Windows
@@ -48,18 +48,26 @@ destino Windows.
   byte a byte y empalma el canal. Así un fallo del ayudante
   (`E_DESKTOP_INACTIVE`, `E_SCREEN_CAPTURE`) llega a la app como error del
   agente. Un ayudante de otra versión se sustituye como con `--input`.
-- **GDI** (hecho, sin probar en Windows): `BitBlt` del escritorio virtual en
+- **Bloqueo**: en Windows 11 la pantalla de bloqueo (la cortina con la hora)
+  está en el escritorio del usuario, así que `OpenInputDesktop` no la ve. La
+  sesión cuenta como bloqueada mientras `LogonUI.exe` corre en ella
+  (`WTSEnumerateProcesses`, porque LogonUI es de SYSTEM y no se puede abrir);
+  la marca de bloqueo de `WTSSessionInfoEx` dice «bloqueada» siempre en
+  Windows 11 y no sirve.
+- **GDI** (hecho): `BitBlt` del escritorio virtual en
   píxeles físicos; cursor con `GetCursorInfo` + `GetIconInfo` (color con alfa,
   color con máscara y monocromo; los píxeles invertidos, como el cursor de
   texto, van en negro con borde blanco). `Blocked` = no se puede abrir el
   escritorio de entrada o la sesión está desconectada.
-- **Desktop Duplication** (hecho, sin probar en Windows): COM desde Go con
+- **Desktop Duplication** (hecho): COM desde Go con
   `syscall.SyscallN`, una duplicación por salida, textura de staging o
   `MapDesktopSurface` si la imagen está en memoria del sistema; rectángulos
   sucios y movidos por `screen.Damager`. Vuelve a GDI si no hay duplicación
   (monitor girado, adaptador sin soporte, demasiadas duplicaciones) y lo
   reintenta a los 5 s; `ACCESS_LOST` se reintenta en la captura siguiente.
   El cursor y el bloqueo salen siempre de GDI, que ve todos los monitores.
+  Como una duplicación solo entrega fotograma cuando su monitor cambia, uno
+  que aún no lo ha hecho empieza con una captura GDI de su parte.
 - **Entrada**: `POINTER_TO` pasa a coordenadas del escritorio virtual entero
   (antes, del monitor principal).
 - **Destino de pruebas**: una máquina virtual Windows 11 Enterprise de
@@ -76,7 +84,27 @@ destino Windows.
 
 ## Verificación
 
-<Se rellena al completar.>
+En la máquina virtual Windows 11 (dos monitores QXL de 1024×768), con el
+agente canary y un cliente de prueba del protocolo de pantalla por SSH
+(2026-10-22):
+
+- Captura GDI y Desktop Duplication del escritorio virtual entero (los dos
+  monitores), con el cursor y su forma; tests en vivo
+  (`TITAN_SCREEN_LIVE=1`, `TITAN_INJECT_LIVE=1`) en el escritorio del usuario.
+- `--screen` por SSH: el front lanza el ayudante (unos 2,7 s), llegan
+  `SCREEN_SIZE`, baldosas y cursor; `POINTER_TO` deja el cursor en el píxel
+  pedido, también en el segundo monitor.
+- `blocked` con Win+L, la petición de contraseña, UAC y Ctrl+Alt+Supr, y la
+  imagen vuelve después de cada uno.
+- Cambio de resolución con la sesión abierta: llega el `SCREEN_SIZE` nuevo y
+  siguen los fotogramas (la duplicación se rehace).
+- Escala al 150 %: la imagen sigue en píxeles físicos, el cursor llega a su
+  tamaño (48×48) y `POINTER_TO` es exacto.
+- Sesión desconectada (`tsdiscon`): una sesión abierta pasa a `blocked` y
+  vuelve al reconectar; una nueva da `E_DESKTOP_INACTIVE`.
+
+Pendiente: la app de escritorio y Android contra la máquina virtual, y la
+confirmación del usuario en su PC Windows con la canary.
 
 ## Resultado
 
