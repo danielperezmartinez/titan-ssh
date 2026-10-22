@@ -85,7 +85,8 @@ los fotogramas llegan por PipeWire, que no tiene cliente en Go puro.
   700 ms desde el inicio y manda un toque de Mayúsculas y un empujón del
   puntero antes de atender la entrada.
 - Teclado: solo llegan los caracteres de los niveles normal y de mayúsculas
-  de la distribución del destino; con tecla muerta (á) o AltGr (€) no.
+  de la distribución del destino; con tecla muerta (á) o AltGr (€) no. Sigue
+  en [[Teclear acentos y AltGr en destinos Wayland con portal]].
 - App: compila (`:shared` desktop y Android) y pasan los 530 tests de
   escritorio. En el emulador, la canary de debug se conecta al GNOME de
   pruebas sin diálogo con la casilla de la sesión, y el panel del agente

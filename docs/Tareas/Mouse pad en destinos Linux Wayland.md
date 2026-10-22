@@ -72,10 +72,11 @@ remota» en el diálogo de GNOME, `E_SCREEN_CONSENT`.
 
 Limitación: el portal y Mutter solo teclean los caracteres que están en los
 niveles normal y de mayúsculas de la distribución de teclado del destino; las
-letras con tecla muerta (á, é) y las de AltGr (€) no llegan. Queda por decidir
-si se buscan otras vías (pegar por el portapapeles del portal).
+letras con tecla muerta (á, é) y las de AltGr (€) no llegan. Sigue en
+[[Teclear acentos y AltGr en destinos Wayland con portal]].
 
-Pendiente: decidir con el usuario si el respaldo con uinput se descarta.
+El 2026-10-22 el usuario descarta el respaldo con uinput: el portal (KDE,
+GNOME) y los protocolos wlroots cubren los escritorios Wayland habituales.
 
 ## Verificación
 
