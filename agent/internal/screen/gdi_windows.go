@@ -3,6 +3,8 @@ package screen
 import (
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -22,6 +24,9 @@ type GDI struct {
 	bits   unsafe.Pointer
 	w, h   int
 	cursor cursorCache
+	// The last lock lookup.
+	locked bool
+	lockAt time.Time
 }
 
 var (
@@ -47,6 +52,7 @@ var (
 	procGetObjectW                = gdi32.NewProc("GetObjectW")
 	procWTSQuerySessionInfoW      = wtsapi32.NewProc("WTSQuerySessionInformationW")
 	procWTSFreeMemory             = wtsapi32.NewProc("WTSFreeMemory")
+	procWTSEnumerateProcessesW    = wtsapi32.NewProc("WTSEnumerateProcessesW")
 )
 
 const (
@@ -181,11 +187,53 @@ func (c *GDI) ensureDIB(w, h int) error {
 	return nil
 }
 
-// Blocked reports whether the desktop is out of reach: the input desktop is
-// Winlogon's (locked, UAC or Ctrl+Alt+Del in front), which a user process
-// cannot open, or the session is disconnected.
+// Blocked reports whether the desktop is out of reach: the session is locked
+// or disconnected, or the input desktop is Winlogon's (the sign-in prompt,
+// UAC or Ctrl+Alt+Del in front), which a user process cannot open. The lock
+// screen itself is on the user's own desktop on Windows 11 and could be
+// captured, but nothing past it can be reached from here (ADR-0031 §4).
+// Serve asks on every round, so the lock is looked up at most every
+// lockPoll.
 func (c *GDI) Blocked() bool {
-	return InputDesktopBlocked() || SessionDisconnected()
+	if InputDesktopBlocked() || SessionDisconnected() {
+		return true
+	}
+	if time.Since(c.lockAt) >= lockPoll {
+		c.locked, c.lockAt = SessionLocked(), time.Now()
+	}
+	return c.locked
+}
+
+const lockPoll = 500 * time.Millisecond
+
+// SessionLocked reports whether this process's Windows session is locked:
+// LogonUI runs in it while it is. The session's own lock flag
+// (WTSSessionInfoEx) reads 0, locked, either way on Windows 11. The process
+// list comes from WTSEnumerateProcesses, which gives each one's session
+// without opening it: LogonUI runs as SYSTEM.
+func SessionLocked() bool {
+	var self uint32
+	if windows.ProcessIdToSessionId(windows.GetCurrentProcessId(), &self) != nil {
+		return false
+	}
+	// WTS_PROCESS_INFOW
+	type processInfo struct {
+		session, pid uint32
+		name         *uint16
+		sid          uintptr
+	}
+	var list *processInfo
+	var n uint32
+	if r, _, _ := procWTSEnumerateProcessesW.Call(0, 0, 1, uintptr(unsafe.Pointer(&list)), uintptr(unsafe.Pointer(&n))); r == 0 || list == nil {
+		return false
+	}
+	defer procWTSFreeMemory.Call(uintptr(unsafe.Pointer(list)))
+	for _, p := range unsafe.Slice(list, n) {
+		if p.session == self && strings.EqualFold(windows.UTF16PtrToString(p.name), "LogonUI.exe") {
+			return true
+		}
+	}
+	return false
 }
 
 // InputDesktopBlocked reports whether this process cannot open the input

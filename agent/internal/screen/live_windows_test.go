@@ -111,3 +111,12 @@ func TestLiveDuplication(t *testing.T) {
 		savePNG(t, path+".dxgi.png", px, w, h, false)
 	}
 }
+
+// TestLiveSessionState logs what the session reports, on request like
+// TestLiveGDI.
+func TestLiveSessionState(t *testing.T) {
+	if os.Getenv("TITAN_SCREEN_LIVE") != "1" {
+		t.Skip("reads the real session; set TITAN_SCREEN_LIVE=1 to run")
+	}
+	t.Logf("locked=%v disconnected=%v inputBlocked=%v", SessionLocked(), SessionDisconnected(), InputDesktopBlocked())
+}
