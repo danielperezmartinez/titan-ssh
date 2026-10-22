@@ -6,7 +6,7 @@ Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño en [[A
 Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-21T10:50:00+02:00
-Última modificación: 2026-10-21T20:05:00+02:00
+Última modificación: 2026-10-22T09:00:00+02:00
 ---
 
 # Escritorio remoto en destinos Windows
@@ -39,6 +39,33 @@ destino Windows.
    coordenadas físicas con el proceso consciente del DPI por monitor.
 7. **Sesión desconectada** (escritorio remoto cerrado sin cerrar sesión,
    cambio rápido de usuario): `E_DESKTOP_INACTIVE`.
+
+## Avance
+
+- **Encuentro** (hecho): marca `TTNADSC2` del apretón de manos del ayudante.
+  Tras el apretón, el ayudante contesta una línea JSON (vacía, o el error con
+  su código del contrato) antes del protocolo de pantalla; el front la lee
+  byte a byte y empalma el canal. Así un fallo del ayudante
+  (`E_DESKTOP_INACTIVE`, `E_SCREEN_CAPTURE`) llega a la app como error del
+  agente. Un ayudante de otra versión se sustituye como con `--input`.
+- **GDI** (hecho, sin probar en Windows): `BitBlt` del escritorio virtual en
+  píxeles físicos; cursor con `GetCursorInfo` + `GetIconInfo` (color con alfa,
+  color con máscara y monocromo; los píxeles invertidos, como el cursor de
+  texto, van en negro con borde blanco). `Blocked` = no se puede abrir el
+  escritorio de entrada o la sesión está desconectada.
+- **Desktop Duplication** (hecho, sin probar en Windows): COM desde Go con
+  `syscall.SyscallN`, una duplicación por salida, textura de staging o
+  `MapDesktopSurface` si la imagen está en memoria del sistema; rectángulos
+  sucios y movidos por `screen.Damager`. Vuelve a GDI si no hay duplicación
+  (monitor girado, adaptador sin soporte, demasiadas duplicaciones) y lo
+  reintenta a los 5 s; `ACCESS_LOST` se reintenta en la captura siguiente.
+  El cursor y el bloqueo salen siempre de GDI, que ve todos los monitores.
+- **Entrada**: `POINTER_TO` pasa a coordenadas del escritorio virtual entero
+  (antes, del monitor principal).
+- **Destino de pruebas**: una máquina virtual Windows 11 Enterprise de
+  evaluación en el PC de desarrollo (libvirt, instalación desatendida, dos
+  monitores QXL), porque el PC Windows del trabajo no es alcanzable por SSH.
+  Sus datos viven fuera del repositorio.
 
 ## Criterios de finalización
 
