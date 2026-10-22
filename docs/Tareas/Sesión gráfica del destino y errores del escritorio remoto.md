@@ -6,7 +6,7 @@ Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño en [[A
 Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-21T18:55:00+02:00
-Última modificación: 2026-10-21T21:00:00+02:00
+Última modificación: 2026-10-22T20:30:00+02:00
 ---
 
 # Sesión gráfica del destino y errores del escritorio remoto
@@ -41,7 +41,7 @@ paralelo sin pisarse, y que cada caso no cubierto dé ya un error concreto.
 - Tests de la búsqueda de sesión con ficheros de logind y entornos de
   ejemplo: X11 local, Wayland KDE, GNOME y sway, xrdp, pantalla de inicio,
   otro usuario en el asiento y sin systemd.
-- En el PC de desarrollo (KDE Wayland), una build canary de desarrollo
+- En un escritorio KDE Wayland, una build canary de desarrollo
   responde `E_SCREEN_UNSUPPORTED` con «KDE (Wayland)» en el detalle
   mientras no exista la vía del portal; X11 sigue igual contra `tools/test-x11`.
 - Tests de Go y de Kotlin de los códigos nuevos y del estado `blocked`.
@@ -67,7 +67,7 @@ paralelo sin pisarse, y que cada caso no cubierto dé ya un error concreto.
 - **X11**: `ScreenTransportIntegrationTest` por SSH contra `tools/test-x11` con
   un agente canary de esta rama (sin logind dentro del contenedor: la búsqueda
   por `/proc`).
-- **KDE Plasma en Wayland real** (PC de desarrollo, agente de desarrollo con
+- **KDE Plasma en Wayland, sesión de escritorio** (agente de desarrollo con
   su propio directorio de estado): `--screen` responde `E_SCREEN_UNSUPPORTED
   KDE (Wayland) is not supported yet` y `--input`, `E_INPUT_UNSUPPORTED the
   mouse pad does not support KDE (Wayland) yet`.

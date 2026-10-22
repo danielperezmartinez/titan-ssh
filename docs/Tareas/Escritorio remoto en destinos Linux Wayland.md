@@ -6,7 +6,7 @@ Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño genera
 Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-21T10:50:00+02:00
-Última modificación: 2026-10-22T08:40:00+02:00
+Última modificación: 2026-10-22T20:30:00+02:00
 ---
 
 # Escritorio remoto en destinos Linux Wayland
@@ -65,11 +65,11 @@ los fotogramas llegan por PipeWire, que no tiene cliente en Go puro.
 - `--remote-desktop unattended-on|unattended-off|forget`, `--screen
   --unattended` y el estado en `--status --json`; casilla en la sesión y fila
   en el panel del agente.
-- En el Plasma 6.8 real: diálogo la primera vez, después sin diálogo con el
+- En un Plasma 6.8 con Wayland (sesión de escritorio, no contenedor): diálogo la primera vez, después sin diálogo con el
   token; imagen, cursor y puntero bien; el desatendido entra sin token ni
   diálogo; «olvidar» no deja rastro del agente en el PermissionStore; sin
   respuesta al diálogo, `E_SCREEN_CONSENT` a los 90 s.
-- KDE no se puede probar en contenedor en el PC de desarrollo (NVIDIA): ver
+- KDE no se pudo probar en contenedor en el equipo de pruebas: ver
   `tools/test-kde/README.md`. GNOME, en `tools/test-gnome`.
 - PipeWire 1.4 se cae si un `client-node` manda un cambio de propiedades sin
   propiedades: el cliente no lo hace.

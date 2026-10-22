@@ -2,11 +2,11 @@
 Nombre: 'Escritorio remoto en destinos Windows'
 Estado: 'Hecha'
 Resumen: 'Subtarea del escritorio remoto: capturar la pantalla de un destino Windows desde el ayudante de escritorio de ADR-0016, que ya corre en la sesión interactiva del usuario. El front --screen llega a él por loopback con una marca nueva del apretón de manos de ADR-0018; el ayudante captura primero con GDI (escritorio virtual entero, funciona en todo) y después con DXGI Desktop Duplication por COM desde Go sin cgo, con GDI de respaldo, y reutiliza SendInput añadiendo la posición absoluta. Bloqueo y UAC dan el estado blocked; una sesión desconectada, E_DESKTOP_INACTIVE. Necesita un destino Windows real para probarse.'
-Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño en [[ADR-0029 Escritorio remoto propio a través del agente]], concretado en [[ADR-0031 Escritorio remoto en Wayland, Windows y casos de borde]] (2026-10-21): GDI primero, escritorio virtual entero con todos los monitores. El 2026-10-22 el usuario da por buena la prueba en la máquina virtual Windows 11: no habrá prueba en otro PC Windows. Hecha el 2026-10-22, en main (fd0c0ff) y en la canary.'
+Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño en [[ADR-0029 Escritorio remoto propio a través del agente]], concretado en [[ADR-0031 Escritorio remoto en Wayland, Windows y casos de borde]] (2026-10-21): GDI primero, escritorio virtual entero con todos los monitores. El 2026-10-22 el usuario da por buena la prueba en la máquina virtual Windows 11: no habrá prueba en otro Windows. Hecha el 2026-10-22, en main (fd0c0ff) y en la canary.'
 Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-21T10:50:00+02:00
-Última modificación: 2026-10-22T19:30:00+02:00
+Última modificación: 2026-10-22T20:30:00+02:00
 ---
 
 # Escritorio remoto en destinos Windows
@@ -71,16 +71,15 @@ destino Windows.
 - **Entrada**: `POINTER_TO` pasa a coordenadas del escritorio virtual entero
   (antes, del monitor principal).
 - **Destino de pruebas**: una máquina virtual Windows 11 Enterprise de
-  evaluación en el PC de desarrollo (libvirt, instalación desatendida, dos
-  monitores QXL), porque el PC Windows del trabajo no es alcanzable por SSH.
-  Sus datos viven fuera del repositorio.
+  evaluación (libvirt, instalación desatendida, dos monitores QXL). Sus datos
+  viven fuera del repositorio.
 
 ## Criterios de finalización
 
 - Contra Windows 10 y 11 (también por escritorio remoto): se ve la pantalla,
   se actualiza, el cursor se ve, y la entrada funciona como en X11.
 - Bloquear el PC o abrir un UAC lo enseña la app, y al volver sigue la imagen.
-- Probado en el emulador y confirmado por el usuario en su PC Windows.
+- Probado en el emulador y por el usuario en la app de escritorio.
 
 ## Verificación
 
@@ -124,8 +123,8 @@ Resuelto al cerrar (2026-10-22):
 
 - El texto de ayuda del tipo «escritorio» ya nombra Windows y todos los Linux
   (commit fd0c0ff).
-- El usuario da por buena la prueba en la máquina virtual en lugar de otra en
-  un PC Windows propio.
+- El usuario da por buena la prueba en la máquina virtual: no habrá otra en
+  otro Windows.
 
 ## Resultado
 
