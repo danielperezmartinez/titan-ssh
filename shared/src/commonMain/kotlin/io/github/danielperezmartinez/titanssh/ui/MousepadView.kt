@@ -108,7 +108,7 @@ import io.github.danielperezmartinez.titanssh.theme.TitanDimens
  * Below it, buttons to hold as a mouse's, the user's key bar ([KeyBarRow], the
  * same [keyBar] as the terminal's: sticky Ctrl/Alt/Shift/Win and the keys a
  * phone keyboard lacks; its `[*]` calls [onConfigureKeyBar]), and the system
- * keyboard. Events go out through [SessionTab.sendInput]; the strip on top says
+ * keyboard, as [softKeyboard] says. Events go out through [SessionTab.sendInput]; the strip on top says
  * whether they reach the desktop.
  */
 @Composable
@@ -117,6 +117,7 @@ fun MousepadView(
     modifier: Modifier = Modifier,
     keyBar: List<KeyBarKey> = emptyList(),
     onConfigureKeyBar: () -> Unit = {},
+    softKeyboard: SoftKeyboardSettings = SoftKeyboardSettings(),
 ) {
     val status by tab.status.collectAsState()
     val pad by tab.mousepad.collectAsState()
@@ -342,10 +343,13 @@ fun MousepadView(
                         keyboardController?.show()
                     }
                 }) else null,
+                suggestions = softKeyboard.suggestions,
+                onToggleSuggestions = softKeyboard.onToggle.takeIf { isAndroidRuntime() && softKeyboard.showToggle },
             )
             if (isAndroidRuntime()) {
                 SoftKeyboardCapture(
                     focusRequester = keyboardFocus,
+                    suggestions = softKeyboard.suggestions,
                     onText = { sendText(it) },
                     onEnter = { sendKey(InputKeys.ENTER) },
                     onBackspace = { sendKey(InputKeys.BACKSPACE) },

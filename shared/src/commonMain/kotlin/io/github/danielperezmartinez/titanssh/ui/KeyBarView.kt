@@ -56,9 +56,10 @@ import kotlin.math.roundToInt
 
 /**
  * The bar above the keyboard, shared by the terminal and the mouse pad: the
- * user's [keys] scroll sideways, and `[*]` (opens [KeyBarEditor]) and `[kbd]`
- * (raises or hides the system keyboard, when [onToggleKeyboard] is given) stay
- * pinned on the right. A modifier lights up while it is in [sticky]; in the
+ * user's [keys] scroll sideways, and `[*]` (opens [KeyBarEditor]), `[abc]`
+ * (flips the keyboard's [suggestions], when [onToggleSuggestions] is given) and
+ * `[kbd]` (raises or hides the system keyboard, when [onToggleKeyboard] is
+ * given) stay pinned on the right. A modifier lights up while it is in [sticky]; in the
  * terminal ([inTerminal]) the keys only a remote desktop has are dimmed and
  * inert. What a key does is the caller's: [onKey].
  */
@@ -71,6 +72,8 @@ internal fun KeyBarRow(
     onConfigure: () -> Unit,
     keyboardVisible: Boolean,
     onToggleKeyboard: (() -> Unit)?,
+    suggestions: Boolean = false,
+    onToggleSuggestions: (() -> Unit)? = null,
 ) {
     Row(
         Modifier
@@ -96,6 +99,10 @@ internal fun KeyBarRow(
         }
         Spacer(Modifier.width(TitanDimens.SpaceXs))
         AccessoryButton("[*]", active = false, onClick = onConfigure)
+        if (onToggleSuggestions != null) {
+            Spacer(Modifier.width(TitanDimens.SpaceXs))
+            AccessoryButton("[abc]", active = suggestions, onClick = onToggleSuggestions)
+        }
         if (onToggleKeyboard != null) {
             Spacer(Modifier.width(TitanDimens.SpaceXs))
             AccessoryButton("[kbd]", active = keyboardVisible, onClick = onToggleKeyboard)

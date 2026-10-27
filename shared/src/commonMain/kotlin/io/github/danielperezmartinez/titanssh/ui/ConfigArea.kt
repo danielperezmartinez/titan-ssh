@@ -48,6 +48,7 @@ import io.github.danielperezmartinez.titanssh.isScreenCaptureControlSupported
 import io.github.danielperezmartinez.titanssh.keyinstall.KeyInstaller
 import io.github.danielperezmartinez.titanssh.secret.SecretProvisioner
 import io.github.danielperezmartinez.titanssh.terminal.AgentHost
+import io.github.danielperezmartinez.titanssh.terminal.isAndroidRuntime
 import io.github.danielperezmartinez.titanssh.theme.TitanColors
 import io.github.danielperezmartinez.titanssh.theme.TitanDimens
 import io.github.danielperezmartinez.titanssh.update.AppUpdates
@@ -596,7 +597,7 @@ private fun StableCopyResult.describe(): String = when (this) {
 
 private fun count(n: Int, one: String, many: String): String = "$n ${if (n == 1) one else many}"
 
-/** App-wide options: updates everywhere, screen capture where the platform controls it. */
+/** App-wide options: updates everywhere, the phone keyboard on Android, screen capture where the platform controls it. */
 @Composable
 private fun SettingsList(controller: ConfigController, config: TitanConfig, openTabs: () -> Int) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bodyPadding())) {
@@ -625,6 +626,27 @@ private fun SettingsList(controller: ConfigController, config: TitanConfig, open
         UpdateStatus(updater, config.settings.updates, openTabs)
 
         StableCopySection(controller)
+
+        if (isAndroidRuntime()) {
+            SectionHeader("Teclado del móvil")
+            TitanCheck(
+                label = "Sugerencias del teclado",
+                checked = config.settings.keyboardSuggestions,
+            ) { controller.setKeyboardSuggestions(it) }
+            Caption(
+                "En el terminal y en el mouse pad, el teclado propone palabras y puede corregirlas " +
+                    "al pulsar espacio. Nunca aprende lo que se escribe en ellos.",
+            )
+            Spacer(Modifier.height(TitanDimens.SpaceSm))
+            TitanCheck(
+                label = "Botón [abc] en la barra de teclas",
+                checked = config.settings.keyboardSuggestionsButton,
+            ) { controller.setKeyboardSuggestionsButton(it) }
+            Caption(
+                "Pone [abc] junto a [kbd] para encender o apagar las sugerencias al momento, por " +
+                    "ejemplo antes de escribir una contraseña.",
+            )
+        }
 
         if (isScreenCaptureControlSupported()) {
             SectionHeader("Privacidad")

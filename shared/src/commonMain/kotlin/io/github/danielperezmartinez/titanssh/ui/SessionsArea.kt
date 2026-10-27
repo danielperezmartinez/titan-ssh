@@ -93,6 +93,11 @@ fun SessionsArea(
 ) {
     val config by controller.state.collectAsState()
     val keyBar = remember(config.settings.keyBar) { KeyBar.resolve(config.settings.keyBar) }
+    val softKeyboard = SoftKeyboardSettings(
+        suggestions = config.settings.keyboardSuggestions,
+        showToggle = config.settings.keyboardSuggestionsButton,
+        onToggle = { controller.setKeyboardSuggestions(!controller.state.value.settings.keyboardSuggestions) },
+    )
     val tabs by manager.tabs.collectAsState()
     val activeId by manager.activeId.collectAsState()
     val openInstances by manager.openInstances.collectAsState()
@@ -150,7 +155,7 @@ fun SessionsArea(
             return
         }
         Box(Modifier.fillMaxSize()) {
-            TabContent(active, Modifier.fillMaxSize(), scripts = config.menuScripts(active), keyBar, onConfigureKeyBar)
+            TabContent(active, Modifier.fillMaxSize(), scripts = config.menuScripts(active), keyBar, onConfigureKeyBar, softKeyboard)
             GlyphButton(
                 "[v]",
                 onClick = { fullscreen = false },
@@ -262,12 +267,12 @@ fun SessionsArea(
         val secondary = if (splitEnabled && !isAndroidRuntime()) secondaryTab(tabs, active) else null
         if (secondary != null) {
             Row(Modifier.fillMaxSize()) {
-                TabContent(active, Modifier.weight(1f).fillMaxHeight(), scripts = config.menuScripts(active), keyBar, onConfigureKeyBar)
+                TabContent(active, Modifier.weight(1f).fillMaxHeight(), scripts = config.menuScripts(active), keyBar, onConfigureKeyBar, softKeyboard)
                 Box(Modifier.width(TitanDimens.Hairline).fillMaxHeight().background(TitanColors.HairlineStrong))
-                TabContent(secondary, Modifier.weight(1f).fillMaxHeight(), scripts = config.menuScripts(secondary), keyBar, onConfigureKeyBar)
+                TabContent(secondary, Modifier.weight(1f).fillMaxHeight(), scripts = config.menuScripts(secondary), keyBar, onConfigureKeyBar, softKeyboard)
             }
         } else {
-            TabContent(active, Modifier.fillMaxSize(), scripts = config.menuScripts(active), keyBar, onConfigureKeyBar)
+            TabContent(active, Modifier.fillMaxSize(), scripts = config.menuScripts(active), keyBar, onConfigureKeyBar, softKeyboard)
         }
     }
 }
@@ -291,14 +296,18 @@ private fun TabContent(
     scripts: List<SessionScript>,
     keyBar: List<KeyBarKey>,
     onConfigureKeyBar: () -> Unit,
+    softKeyboard: SoftKeyboardSettings,
 ) {
     val sftp = tab.sftp
     if (tab.isMousepad || tab.isDesktop) {
-        MousepadView(tab, modifier, keyBar = keyBar, onConfigureKeyBar = onConfigureKeyBar)
+        MousepadView(tab, modifier, keyBar = keyBar, onConfigureKeyBar = onConfigureKeyBar, softKeyboard = softKeyboard)
     } else if (sftp != null) {
         SftpView(tab, sftp, modifier)
     } else {
-        TerminalView(tab, modifier, scripts = scripts, keyBar = keyBar, onConfigureKeyBar = onConfigureKeyBar)
+        TerminalView(
+            tab, modifier, scripts = scripts, keyBar = keyBar, onConfigureKeyBar = onConfigureKeyBar,
+            softKeyboard = softKeyboard,
+        )
     }
 }
 
