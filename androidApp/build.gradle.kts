@@ -1,8 +1,3 @@
-import org.gradle.api.file.ConfigurableFileCollection
-import org.gradle.api.file.DirectoryProperty
-import org.gradle.api.provider.ListProperty
-import org.gradle.api.provider.Property
-
 plugins {
     // AGP 9 ships built-in Kotlin for Android modules, so 'org.jetbrains.kotlin.android'
     // is not applied here (applying it fails since AGP 9.0).
@@ -10,9 +5,6 @@ plugins {
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
 }
-
-// The NDK that cross-compiles the embedded RDP client (ADR-0028 §4); see buildRdpAndroid.
-val RDP_NDK_VERSION = "29.0.14206865"
 
 // Release signing key (ADR-0011 §5). Never in the repository: CI passes it through
 // environment variables from GitHub Secrets, and a local build can use either
@@ -43,8 +35,6 @@ val STABLE_APP_ID = "io.github.danielperezmartinez.titanssh"
 android {
     namespace = "io.github.danielperezmartinez.titanssh.android"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
-    // The NDK that cross-compiles the embedded RDP client (ADR-0028 §4).
-    ndkVersion = RDP_NDK_VERSION
 
     defaultConfig {
         applicationId = STABLE_APP_ID + if (isCanary) ".canary" else ""
@@ -125,122 +115,4 @@ dependencies {
     implementation(compose.ui)
     implementation(compose.foundation)
     implementation(compose.material3)
-}
-
-// --- Embedded RDP client (ADR-0028) -------------------------------------------
-//
-// Cross-compiles the Rust crate in `rdp/` (IronRDP behind JNI) for each ABI
-// with the NDK's clang, and hands the libraries to AGP as generated jniLibs.
-// Like the agent: in development a missing Rust toolchain or NDK only warns
-// (RDP tabs then say this build has no RDP client); a release build fails.
-// RDP is still being compared in the canary, so only the canary carries it: a
-// stable build leaves the libraries out.
-// -PtitanRdpAbis=x86_64 builds fewer ABIs, e.g. for the emulator only.
-
-abstract class CargoAndroidBuild : DefaultTask() {
-    @get:InputFiles
-    @get:PathSensitive(PathSensitivity.RELATIVE)
-    abstract val sources: ConfigurableFileCollection
-
-    @get:Input
-    abstract val abis: ListProperty<String>
-
-    @get:Input
-    abstract val minSdk: Property<Int>
-
-    @get:Input
-    abstract val bundled: Property<Boolean>
-
-    @get:Input
-    abstract val required: Property<Boolean>
-
-    @get:Internal
-    abstract val crateDir: DirectoryProperty
-
-    @get:Internal
-    abstract val ndkDir: DirectoryProperty
-
-    @get:OutputDirectory
-    abstract val outputDir: DirectoryProperty
-
-    private fun problem(message: String) {
-        if (required.get()) throw GradleException("$message (a release build must include the RDP client)")
-        logger.warn(message)
-    }
-
-    @TaskAction
-    fun build() {
-        val out = outputDir.get().asFile
-        out.deleteRecursively()
-        out.mkdirs()
-        if (!bundled.get()) return
-        val cargo = resolveCargo() ?: return problem("titan-rdp: Rust (cargo) not found; the RDP client is NOT bundled.")
-        val ndk = runCatching { ndkDir.get().asFile }.getOrNull()?.takeIf { it.isDirectory }
-            ?: return problem("titan-rdp: Android NDK not found; the RDP client is NOT bundled.")
-        val windows = System.getProperty("os.name").startsWith("Windows")
-        val host = when {
-            windows -> "windows-x86_64"
-            System.getProperty("os.name").startsWith("Mac") -> "darwin-x86_64"
-            else -> "linux-x86_64"
-        }
-        val bin = File(ndk, "toolchains/llvm/prebuilt/$host/bin")
-        for (abi in abis.get()) {
-            val (triple, clangPrefix) = when (abi) {
-                "arm64-v8a" -> "aarch64-linux-android" to "aarch64-linux-android"
-                "x86_64" -> "x86_64-linux-android" to "x86_64-linux-android"
-                "armeabi-v7a" -> "armv7-linux-androideabi" to "armv7a-linux-androideabi"
-                "x86" -> "i686-linux-android" to "i686-linux-android"
-                else -> throw GradleException("titan-rdp: unknown ABI $abi")
-            }
-            val clang = File(bin, "$clangPrefix${minSdk.get()}-clang" + if (windows) ".cmd" else "")
-            val envTriple = triple.replace('-', '_')
-            val pb = ProcessBuilder(cargo, "build", "--release", "--locked", "--lib", "--target", triple)
-                .directory(crateDir.get().asFile)
-                .redirectErrorStream(true)
-            pb.environment()["CARGO_TARGET_${envTriple.uppercase()}_LINKER"] = clang.absolutePath
-            pb.environment()["CC_$envTriple"] = clang.absolutePath
-            pb.environment()["AR_$envTriple"] = File(bin, "llvm-ar" + if (windows) ".exe" else "").absolutePath
-            val process = try {
-                pb.start()
-            } catch (e: Exception) {
-                return problem("titan-rdp: could not run cargo for $abi: ${e.message}")
-            }
-            val log = process.inputStream.bufferedReader().readText()
-            if (process.waitFor() != 0) return problem("titan-rdp: cargo failed for $abi: ${log.takeLast(2000)}")
-            val lib = crateDir.get().file("target/$triple/release/libtitan_rdp.so").asFile
-            lib.copyTo(File(out, "$abi/libtitan_rdp.so"), overwrite = true)
-        }
-    }
-
-    private fun resolveCargo(): String? {
-        val home = System.getProperty("user.home")
-        val candidates = listOfNotNull(System.getenv("CARGO"), "cargo", "$home/.cargo/bin/cargo", "$home/.cargo/bin/cargo.exe")
-        return candidates.firstOrNull { c ->
-            runCatching {
-                ProcessBuilder(c, "--version").directory(crateDir.get().asFile).redirectErrorStream(true).start().run {
-                    inputStream.readBytes()
-                    waitFor() == 0
-                }
-            }.getOrDefault(false)
-        }
-    }
-}
-
-val rdpCrate = rootProject.layout.projectDirectory.dir("rdp")
-val buildRdpAndroid = tasks.register<CargoAndroidBuild>("buildRdpAndroid") {
-    description = "Cross-compiles the embedded RDP client (rdp/) for the Android ABIs."
-    sources.from(rdpCrate.dir("src"), rdpCrate.file("Cargo.toml"), rdpCrate.file("Cargo.lock"), rdpCrate.file("rust-toolchain.toml"))
-    abis.set(((findProperty("titanRdpAbis") as String?) ?: "arm64-v8a,x86_64").split(',').map { it.trim() }.filter { it.isNotEmpty() })
-    minSdk.set(libs.versions.android.minSdk.get().toInt())
-    bundled.set(isCanary)
-    required.set(isCanary && rootProject.extra["titanIsRelease"] as Boolean)
-    crateDir.set(rdpCrate)
-    ndkDir.set(androidComponents.sdkComponents.ndkDirectory)
-    outputDir.set(layout.buildDirectory.dir("generated/rdpJniLibs"))
-}
-
-androidComponents {
-    onVariants { variant ->
-        variant.sources.jniLibs?.addGeneratedSourceDirectory(buildRdpAndroid, CargoAndroidBuild::outputDir)
-    }
 }

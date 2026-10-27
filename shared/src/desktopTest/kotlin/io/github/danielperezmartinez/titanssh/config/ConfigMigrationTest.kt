@@ -99,6 +99,22 @@ class ConfigMigrationTest {
     }
 
     @Test
+    fun the_canary_rdp_sessions_are_dropped() {
+        val document = json.parseToJsonElement(
+            """
+            { "version": 3, "sessions": [
+              { "id": "r", "name": "pc", "hostId": "h", "type": "RDP", "rdp": { "targetPort": 3390 } },
+              { "id": "t", "name": "shell", "hostId": "h", "type": "TERMINAL", "rdp": { "targetPort": 3389 } }
+            ] }
+            """.trimIndent(),
+        ).jsonObject
+
+        val cfg = json.decodeFromJsonElement(TitanConfig.serializer(), ConfigMigration.migrate(document))
+
+        assertEquals(listOf("t"), cfg.sessions.map { it.id })
+    }
+
+    @Test
     fun the_store_migrates_on_load_and_keeps_a_backup_of_the_old_file() = runBlocking {
         val dir = File(System.getProperty("java.io.tmpdir"), "titan-migration-test-${System.nanoTime()}").apply { mkdirs() }
         try {

@@ -378,13 +378,6 @@ tasks.withType<Test>().configureEach {
         // "1" once tools/test-sshd/key-install-scenarios.sh is up, for
         // KeyInstallIntegrationTest (installing the key on the host, ADR-0030).
         "titanKeyInstallTest" to "TITAN_KEY_INSTALL_TEST",
-        // The embedded RDP client end to end (RdpIntegrationTest, ADR-0028):
-        // the built library and the desktop account of tools/test-rdp.
-        "titanRdpTestLibrary" to "TITAN_RDP_TEST_LIBRARY",
-        "titanRdpTestUser" to "TITAN_RDP_TEST_USER",
-        "titanRdpTestPassword" to "TITAN_RDP_TEST_PASSWORD",
-        "titanRdpTestPort" to "TITAN_RDP_TEST_PORT",
-        "titanRdpTestTlsPort" to "TITAN_RDP_TEST_TLS_PORT",
     ).forEach { (prop, env) ->
         (project.findProperty(prop) as String?)?.let { environment(env, it) }
     }

@@ -23,7 +23,6 @@ import io.github.danielperezmartinez.titanssh.config.Ids
 import io.github.danielperezmartinez.titanssh.config.DesktopQuality
 import io.github.danielperezmartinez.titanssh.config.DesktopSettings
 import io.github.danielperezmartinez.titanssh.config.MousepadSettings
-import io.github.danielperezmartinez.titanssh.config.RdpSettings
 import io.github.danielperezmartinez.titanssh.config.ReopenMode
 import io.github.danielperezmartinez.titanssh.config.ResilienceLevel
 import io.github.danielperezmartinez.titanssh.config.Session
@@ -34,10 +33,6 @@ import io.github.danielperezmartinez.titanssh.terminal.MousepadMotion
 import io.github.danielperezmartinez.titanssh.config.TerminalAppearance
 import io.github.danielperezmartinez.titanssh.config.Tunnel
 import io.github.danielperezmartinez.titanssh.config.TunnelType
-import io.github.danielperezmartinez.titanssh.secret.SecretProvisioner
-import io.github.danielperezmartinez.titanssh.secret.SecretRef
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
 import io.github.danielperezmartinez.titanssh.theme.TitanColors
 import io.github.danielperezmartinez.titanssh.theme.TitanDimens
 
@@ -67,8 +62,6 @@ private sealed interface SubEditor {
 fun SessionEditor(
     controller: ConfigController,
     sessionId: String?,
-    /** Saves an RDP session's password in the SecretStore; null hides that action. */
-    provisioner: SecretProvisioner? = null,
     onDone: () -> Unit,
     /** Deletes the session; the app also terminates it on its destination (level 3). */
     deleteSession: (Session) -> Unit = { controller.deleteSession(it.id) },
@@ -95,7 +88,6 @@ fun SessionEditor(
     var type by remember { mutableStateOf(existing?.type ?: SessionType.TERMINAL) }
     var mousepad by remember { mutableStateOf(existing?.mousepad ?: MousepadSettings()) }
     var desktop by remember { mutableStateOf(existing?.desktop ?: DesktopSettings()) }
-    var rdp by remember { mutableStateOf(existing?.rdp ?: RdpSettings()) }
     var scripts by remember { mutableStateOf(existing?.scripts ?: emptyList()) }
     var tunnels by remember { mutableStateOf(existing?.tunnels ?: emptyList()) }
     var subEditor by remember { mutableStateOf<SubEditor?>(null) }
@@ -160,8 +152,6 @@ fun SessionEditor(
             type = type, onType = { type = it },
             mousepad = mousepad, onMousepad = { mousepad = it },
             desktop = desktop, onDesktop = { desktop = it },
-            rdp = rdp, onRdp = { rdp = it },
-            provisioner = provisioner,
             hostId = hostId, onHostId = { hostId = it },
             usernameOverride = usernameOverride, onUsernameOverride = { usernameOverride = it },
             portOverride = portOverride, onPortOverride = { portOverride = it },
@@ -191,8 +181,6 @@ private fun SessionForm(
     type: SessionType, onType: (SessionType) -> Unit,
     mousepad: MousepadSettings, onMousepad: (MousepadSettings) -> Unit,
     desktop: DesktopSettings, onDesktop: (DesktopSettings) -> Unit,
-    rdp: RdpSettings, onRdp: (RdpSettings) -> Unit,
-    provisioner: SecretProvisioner?,
     hostId: String?, onHostId: (String) -> Unit,
     usernameOverride: String, onUsernameOverride: (String) -> Unit,
     portOverride: String, onPortOverride: (String) -> Unit,
@@ -236,7 +224,6 @@ private fun SessionForm(
                 type = type,
                 mousepad = mousepad,
                 desktop = desktop,
-                rdp = rdp,
             ),
         )
         onDone()
@@ -264,7 +251,6 @@ private fun SessionForm(
                     SessionType.MOUSEPAD -> "mouse pad"
                     SessionType.SFTP -> "sftp"
                     SessionType.DESKTOP -> "escritorio"
-                    SessionType.RDP -> "rdp"
                 }
             })
             if (type == SessionType.DESKTOP) {
@@ -282,13 +268,6 @@ private fun SessionForm(
                     "El móvil hace de touchpad y teclado del escritorio del destino. Usa el agente, " +
                         "que se instala solo; en destinos Windows y Linux con X11 con la sesión iniciada (con " +
                         "Wayland, por ahora solo en titan-ssh canary).",
-                )
-            }
-            if (type == SessionType.RDP) {
-                Spacer(Modifier.height(TitanDimens.SpaceXs))
-                Caption(
-                    "El escritorio de un servidor RDP (Windows, xrdp) que el destino alcanza, por la conexión SSH: " +
-                        "no se abre ningún puerto en este dispositivo ni hace falta exponer RDP a la red.",
                 )
             }
             if (type == SessionType.SFTP) {
@@ -317,17 +296,6 @@ private fun SessionForm(
             if (type == SessionType.MOUSEPAD || type == SessionType.DESKTOP) {
                 if (type == SessionType.DESKTOP) DesktopFields(desktop, onDesktop)
                 MousepadFields(mousepad, onMousepad)
-                SectionHeader("Organización")
-                GroupPicker(controller, GroupScope.SESSIONS, config.sessionGroups, groupId, onGroupId)
-                Gap()
-                TitanTextField("Etiquetas (separadas por coma)", tags, onTags, placeholder = "casa, oficina")
-                Gap()
-                TitanTextField("Marcador ASCII", marker, onMarker, placeholder = "[+]")
-                Spacer(Modifier.height(TitanDimens.SpaceSection))
-                return@Column
-            }
-            if (type == SessionType.RDP) {
-                RdpFields(rdp, onRdp, provisioner, suggestedRef = name.trim().ifBlank { "rdp" } + ".rdp.password")
                 SectionHeader("Organización")
                 GroupPicker(controller, GroupScope.SESSIONS, config.sessionGroups, groupId, onGroupId)
                 Gap()
@@ -527,92 +495,6 @@ private fun DesktopFields(settings: DesktopSettings, onChange: (DesktopSettings)
         "En KDE y GNOME con Wayland, el destino no pregunta antes de compartir la pantalla: el " +
             "agente se autoriza al conectar. Se ve y se quita en el panel del agente. En los demás " +
             "escritorios no cambia nada.",
-    )
-}
-
-/**
- * An RDP session's own settings (ADR-0028): the server as the destination sees
- * it, who signs in, and the password, which goes to the SecretStore under a
- * reference and never into the configuration.
- */
-@Composable
-private fun RdpFields(
-    settings: RdpSettings,
-    onChange: (RdpSettings) -> Unit,
-    provisioner: SecretProvisioner?,
-    suggestedRef: String,
-) {
-    val scope = rememberCoroutineScope()
-    var password by remember { mutableStateOf("") }
-    var saved by remember { mutableStateOf<String?>(null) }
-    var savedOk by remember { mutableStateOf(false) }
-    var port by remember { mutableStateOf(settings.targetPort.toString()) }
-    SectionHeader("Escritorio remoto (RDP)")
-    Row(horizontalArrangement = Arrangement.spacedBy(TitanDimens.SpaceSm)) {
-        Box(Modifier.weight(2f)) {
-            TitanTextField("Servidor visto desde el destino", settings.targetHost, { onChange(settings.copy(targetHost = it.trim())) }, placeholder = "localhost")
-        }
-        Box(Modifier.weight(1f)) {
-            TitanTextField("Puerto", port, {
-                port = it.filter(Char::isDigit).take(5)
-                port.toIntOrNull()?.takeIf { p -> p in 1..65535 }?.let { p -> onChange(settings.copy(targetPort = p)) }
-            }, placeholder = "3389")
-        }
-    }
-    Spacer(Modifier.height(TitanDimens.SpaceXs))
-    Caption("localhost es el propio destino; otro nombre o IP es un equipo de su red.")
-    Gap()
-    Row(horizontalArrangement = Arrangement.spacedBy(TitanDimens.SpaceSm)) {
-        Box(Modifier.weight(1f)) {
-            TitanTextField("Usuario del escritorio", settings.username.orEmpty(), { onChange(settings.copy(username = it.ifBlank { null })) }, placeholder = "el del host")
-        }
-        Box(Modifier.weight(1f)) {
-            TitanTextField("Dominio", settings.domain.orEmpty(), { onChange(settings.copy(domain = it.ifBlank { null })) }, placeholder = "ninguno")
-        }
-    }
-    Gap()
-    TitanTextField(
-        "Referencia de la contraseña (SecretStore)",
-        settings.passwordRef.orEmpty(),
-        { onChange(settings.copy(passwordRef = it.trim().ifBlank { null })) },
-        placeholder = suggestedRef,
-    )
-    if (provisioner != null) {
-        Gap()
-        TitanTextField("Contraseña (se guarda en el almacén, no en la config)", password, { password = it }, password = true)
-        Gap()
-        TitanButton(
-            "[ok] Guardar contraseña en el almacén",
-            onClick = {
-                val ref = settings.passwordRef ?: suggestedRef.also { onChange(settings.copy(passwordRef = it)) }
-                scope.launch {
-                    try {
-                        provisioner.savePassword(SecretRef(ref), password.toCharArray())
-                        password = ""
-                        savedOk = true
-                        saved = "Contraseña guardada bajo '$ref'."
-                    } catch (e: Exception) {
-                        savedOk = false
-                        saved = e.message ?: "No se pudo guardar"
-                    }
-                }
-            },
-            kind = ButtonKind.PRIMARY,
-            enabled = password.isNotEmpty(),
-        )
-        saved?.let {
-            Spacer(Modifier.height(TitanDimens.SpaceSm))
-            Caption(it, color = if (savedOk) TitanColors.Success else TitanColors.Danger)
-        }
-    }
-    Gap()
-    TitanCheck("Permitir inicio de sesión TLS sin NLA (xrdp y servidores antiguos)", settings.allowTlsWithoutNla) {
-        onChange(settings.copy(allowTlsWithoutNla = it))
-    }
-    Spacer(Modifier.height(TitanDimens.SpaceXs))
-    Caption(
-        "Con NLA la contraseña solo se entrega al servidor cuyo certificado aceptaste. Sin NLA viaja " +
-            "dentro del TLS sin esa atadura: actívalo solo si el servidor no admite NLA.",
     )
 }
 

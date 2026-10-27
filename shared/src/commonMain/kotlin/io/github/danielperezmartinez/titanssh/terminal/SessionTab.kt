@@ -9,11 +9,6 @@ import io.github.danielperezmartinez.titanssh.config.DesktopQuality
 import io.github.danielperezmartinez.titanssh.config.SessionType
 import io.github.danielperezmartinez.titanssh.config.offered
 import io.github.danielperezmartinez.titanssh.config.jumpEndpoint
-import io.github.danielperezmartinez.titanssh.rdp.RdpAvailability
-import io.github.danielperezmartinez.titanssh.rdp.RdpConnectParams
-import io.github.danielperezmartinez.titanssh.rdp.RdpScreen
-import io.github.danielperezmartinez.titanssh.rdp.RdpSupport
-import io.github.danielperezmartinez.titanssh.rdp.certificateKey
 import io.github.danielperezmartinez.titanssh.sftp.DownloadStore
 import io.github.danielperezmartinez.titanssh.sftp.SftpBrowser
 import io.github.danielperezmartinez.titanssh.sftp.createDownloadStore
@@ -28,8 +23,6 @@ import io.github.danielperezmartinez.titanssh.ssh.SshAuthFailed
 import io.github.danielperezmartinez.titanssh.ssh.SshConnectFailed
 import io.github.danielperezmartinez.titanssh.ssh.SshConnectionState
 import io.github.danielperezmartinez.titanssh.ssh.SshConnector
-import io.github.danielperezmartinez.titanssh.ssh.SshDirectRefused
-import io.github.danielperezmartinez.titanssh.ssh.ForwardProblem
 import io.github.danielperezmartinez.titanssh.ssh.SshCredentials
 import io.github.danielperezmartinez.titanssh.ssh.SshException
 import io.github.danielperezmartinez.titanssh.ssh.SshHop
@@ -137,8 +130,7 @@ internal fun needsConnection(
 ): Boolean {
     if (phase != TabPhase.CONNECTED && phase != TabPhase.RECONNECTING) return false
     return when (type) {
-        // The RDP server keeps the user's desktop session while the client is away.
-        SessionType.MOUSEPAD, SessionType.DESKTOP, SessionType.RDP -> false
+        SessionType.MOUSEPAD, SessionType.DESKTOP -> false
         SessionType.SFTP -> downloading
         SessionType.TERMINAL -> hasTunnels || when (level) {
             EffectiveLevel.BASE -> true
@@ -250,12 +242,6 @@ data class ChangedHostKey(val presented: HostKeyInfo, val stored: List<KnownHost
  * connection drops: then the browser waits, its downloads pause, and the tab
  * reconnects as usual. Nothing runs on the destination.
  *
- * ## RDP (ADR-0028)
- * A [SessionType.RDP] session keeps the lifecycle too: on each connection it
- * opens a `direct-tcpip` channel to the RDP server the destination reaches and
- * runs the embedded client over it ([rdp]) until either side ends. A drop
- * reconnects as usual, and the server hands back the same desktop session.
- *
  * ## In the background (ADR-0023)
  * [keepAlive] says whether the tab would lose something without its
  * connection ([needsConnection]); the app keeps a foreground service while any
@@ -315,8 +301,6 @@ class SessionTab(
     sftpStartNote: String? = null,
     /** Whether the platform blocks the app's network now ([networkBlocked]). */
     private val networkBlocked: StateFlow<Boolean> = MutableStateFlow(false),
-    /** The embedded RDP client, for an RDP tab (ADR-0028); null where the app has none. */
-    private val rdpSupport: RdpSupport? = null,
 ) {
     private val _customName = MutableStateFlow<String?>(null)
 
@@ -355,13 +339,6 @@ class SessionTab(
         } else {
             null
         }
-
-    /** The remote desktop of an RDP tab (ADR-0028); null for the other types. */
-    val rdp: RdpScreen? = if (resolved.session.type == SessionType.RDP) RdpScreen() else null
-
-    /** The desktop size an RDP tab asks for; its view sets it before connecting. */
-    var rdpDesktopWidth: Int = 1280
-    var rdpDesktopHeight: Int = 800
 
     private val _mousepad = MutableStateFlow(MousepadStatus())
 
@@ -774,7 +751,6 @@ class SessionTab(
             if (isMousepad) return runMousepad(opened)
             remoteScreen?.let { return runDesktop(it, opened) }
             sftp?.let { return runSftp(it, opened) }
-            rdp?.let { return runRdp(it, opened) }
             // Tunnels ride the SSH connection itself, whatever carries the PTY.
             sessionTunnels.open(opened)
             tunnelRetryJob = scope.launch { sessionTunnels.retryFailed(opened) }
@@ -1068,82 +1044,6 @@ class SessionTab(
         _mousepad.value = MousepadStatus(issue = issue)
         _status.value = TabStatus(TabPhase.FAILED, AgentDiagnostics.describeDesktop(issue))
         return AttemptResult.FATAL
-    }
-
-    /**
-     * The remote desktop on [opened]: a `direct-tcpip` channel to the RDP server
-     * as the destination sees it, and the embedded client over it until either
-     * side ends (ADR-0028). What the user must fix (credentials, certificate,
-     * security mode, a server the destination cannot reach) fails the tab; a
-     * tunnel that drops reconnects.
-     */
-    private suspend fun runRdp(screen: RdpScreen, opened: SshSession): AttemptResult {
-        fun fail(detail: String, cause: String? = null): AttemptResult {
-            _status.value = TabStatus(TabPhase.FAILED, detail, cause)
-            return AttemptResult.FATAL
-        }
-        val support = rdpSupport ?: return fail("Esta versión de la app no trae el cliente RDP")
-        val engine = when (val availability = support.availability) {
-            is RdpAvailability.Available -> availability.engine
-            is RdpAvailability.Missing -> return fail("El cliente RDP no está disponible en este dispositivo", availability.detail)
-        }
-        val settings = resolved.session.rdp
-        val password = try {
-            settings.passwordRef?.takeIf { it.isNotBlank() }?.let { support.secret(it) }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            return fail("No se pudo leer la contraseña del escritorio", failureCause(e, includeSelf = true))
-        } ?: return fail("Falta la contraseña del escritorio: guárdala en la sesión")
-        val target = "${settings.targetHost}:${settings.targetPort}"
-        val channel = try {
-            opened.openDirect(settings.targetHost, settings.targetPort)
-        } catch (e: SshDirectRefused) {
-            password.fill(0)
-            return when (e.kind) {
-                ForwardProblem.Kind.PROHIBITED ->
-                    fail("El servidor SSH no permite túneles (AllowTcpForwarding no): el escritorio no es alcanzable", failureCause(e))
-                ForwardProblem.Kind.UNREACHABLE ->
-                    fail("Nada escucha en $target visto desde el destino: ¿está activo el escritorio remoto?", failureCause(e))
-                else -> fail("El destino no abrió el canal a $target", failureCause(e))
-            }
-        }
-        val params = RdpConnectParams(
-            username = settings.username?.takeIf { it.isNotBlank() } ?: resolved.endpoint.username,
-            password = password,
-            domain = settings.domain?.takeIf { it.isNotBlank() },
-            serverName = settings.targetHost.takeUnless { isLocalTarget(it) } ?: resolved.endpoint.host,
-            width = rdpDesktopWidth,
-            height = rdpDesktopHeight,
-            allowTlsWithoutNla = settings.allowTlsWithoutNla,
-            clientName = support.clientName,
-        )
-        val key = certificateKey(resolved.endpoint.host, resolved.endpoint.port, settings.targetHost, settings.targetPort)
-        val end = screen.run(engine, channel, params, support.certificates, key) {
-            if (_status.value.phase != TabPhase.CONNECTED) markConnected()
-        }
-        return when (end.kind) {
-            "closed" -> if (droppedWithin(opened)) AttemptResult.DROPPED else AttemptResult.CLEAN_EXIT
-            "server" -> {
-                lastFailure = "El servidor cerró el escritorio"
-                if (end.message.isNotBlank()) lastFailureCause = end.message
-                AttemptResult.CLEAN_EXIT
-            }
-            "auth" -> fail("El escritorio rechazó el usuario o la contraseña", end.message.ifBlank { null })
-            "certificate" -> fail("No se aceptó el certificado del escritorio")
-            "negotiation" -> fail(
-                if (settings.allowTlsWithoutNla) {
-                    "El escritorio no admite ninguna seguridad que ofrezca la app"
-                } else {
-                    "El escritorio no admite NLA: permite en la sesión el inicio de sesión TLS sin NLA si te fías de la red hasta él"
-                },
-                end.message.ifBlank { null },
-            )
-            else -> {
-                lastFailure = if (end.kind == "transport") "Se cortó el túnel al escritorio" else "Fallo del cliente RDP"
-                lastFailureCause = end.message.ifBlank { null }
-                if (everConnected) AttemptResult.DROPPED else AttemptResult.ESTABLISH_FAILED
-            }
-        }
     }
 
     private fun mousepadFailed(issue: AgentIssue): AttemptResult {
@@ -1467,12 +1367,6 @@ class SessionTab(
         shell = null
         session = null
     }
-}
-
-/** Whether an RDP target is the destination itself, which CredSSP then knows by the SSH host's name. */
-private fun isLocalTarget(host: String): Boolean {
-    val h = host.trim().lowercase()
-    return h == "localhost" || h == "127.0.0.1" || h == "::1" || h == "[::1]"
 }
 
 /** Status detail of a tab [SessionTab.pause]d in the background. */

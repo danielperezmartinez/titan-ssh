@@ -27,12 +27,8 @@ import io.github.danielperezmartinez.titanssh.ScreenCapturePolicy
 import io.github.danielperezmartinez.titanssh.config.ConfigController
 import io.github.danielperezmartinez.titanssh.config.createConfigStore
 import io.github.danielperezmartinez.titanssh.config.createStableCopier
-import io.github.danielperezmartinez.titanssh.rdp.RdpSupport
-import io.github.danielperezmartinez.titanssh.rdp.createRdpCertificateStore
-import io.github.danielperezmartinez.titanssh.rdp.loadRdpEngine
 import io.github.danielperezmartinez.titanssh.keyinstall.KeyInstaller
 import io.github.danielperezmartinez.titanssh.secret.SecretProvisioner
-import io.github.danielperezmartinez.titanssh.secret.SecretRef
 import io.github.danielperezmartinez.titanssh.secret.createSecretStore
 import io.github.danielperezmartinez.titanssh.ssh.createKnownHostsStore
 import io.github.danielperezmartinez.titanssh.ssh.createSshConnector
@@ -93,10 +89,6 @@ fun AppShell() {
         // What the app knows about each destination's agent, and the sessions
         // still to close there ([[Transparencia y control del agente en el destino]]).
         val agentWatch = remember { AgentWatch(scope, createAgentWatchStore()) }
-        // The embedded RDP client (ADR-0028); the native library loads with the first RDP tab.
-        val rdpSupport = remember {
-            RdpSupport(::loadRdpEngine, createRdpCertificateStore(), secret = { ref -> secretStore.get(SecretRef(ref)) })
-        }
         val sessionManager = remember {
             SessionManager(
                 scope = scope,
@@ -110,7 +102,6 @@ fun AppShell() {
                 agentObserver = agentWatch,
                 networkRestored = networkRestored(),
                 networkBlocked = networkBlocked(),
-                rdpSupport = rdpSupport,
             )
         }
         // ADR-0023: a foreground service while a tab would lose its connection,

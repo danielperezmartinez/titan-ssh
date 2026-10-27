@@ -3,7 +3,6 @@ package io.github.danielperezmartinez.titanssh.terminal
 import io.github.danielperezmartinez.titanssh.config.Ids
 import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
 import io.github.danielperezmartinez.titanssh.config.SessionType
-import io.github.danielperezmartinez.titanssh.rdp.RdpSupport
 import io.github.danielperezmartinez.titanssh.ssh.KnownHostsStore
 import io.github.danielperezmartinez.titanssh.ssh.SshConnector
 import kotlinx.coroutines.CoroutineScope
@@ -50,8 +49,6 @@ class SessionManager(
      * do not try to connect meanwhile (ADR-0023).
      */
     networkBlocked: Flow<Boolean> = emptyFlow(),
-    /** The embedded RDP client for RDP tabs (ADR-0028); null where the app has none. */
-    private val rdpSupport: RdpSupport? = null,
 ) {
     private val blocked = MutableStateFlow(false)
 
@@ -132,7 +129,6 @@ class SessionManager(
             explorerOf = explorerOf,
             sftpStartNote = sftpStartNote,
             networkBlocked = blocked,
-            rdpSupport = rdpSupport,
         )
         byId[tabId] = tab
         _list.value = _list.value.add(tabId)

@@ -207,35 +207,8 @@ interface SshSession {
     suspend fun openForward(forward: PortForward, onProblem: (ForwardProblem) -> Unit = {}): SshForward =
         throw NotImplementedError("port forwarding not supported by this session")
 
-    /**
-     * Opens a `direct-tcpip` channel to [host]:[port] as the server sees them
-     * (`localhost` is the server itself), without listening anywhere here: the
-     * embedded RDP client's transport (ADR-0028). Test fakes may leave the
-     * default, which throws.
-     *
-     * @throws SshDirectRefused if the server refuses the channel.
-     */
-    suspend fun openDirect(host: String, port: Int): SshDirectChannel =
-        throw NotImplementedError("direct channels not supported by this session")
-
     /** Closes the session and its transport. */
     suspend fun close()
-}
-
-/**
- * A `direct-tcpip` channel ([SshSession.openDirect]): a byte stream to a TCP
- * destination, through the server. Its calls block, so each direction runs on
- * a thread of its own.
- */
-interface SshDirectChannel {
-    /** Reads into [buffer]; how many bytes, or -1 once the destination closed. */
-    fun read(buffer: ByteArray): Int
-
-    /** Writes the first [length] bytes of [buffer] and flushes them. */
-    fun write(buffer: ByteArray, length: Int)
-
-    /** Closes the channel; a blocked [read] returns. */
-    fun close()
 }
 
 /**
@@ -399,10 +372,6 @@ class SshAuthFailed(
  * permission denied…): the connection is fine and trying again cannot help.
  */
 class SshSftpFailed(message: String, cause: Throwable? = null) :
-    SshException(message, cause)
-
-/** The server refused a [SshSession.openDirect] channel, for [kind]. */
-class SshDirectRefused(val kind: ForwardProblem.Kind, message: String, cause: Throwable? = null) :
     SshException(message, cause)
 
 /** A [PortForward] could not be opened, for [reason]. */

@@ -356,7 +356,7 @@ fun MousepadView(
 }
 
 /** How a touch started, decided before it reaches the touch slop or the hold timeout. */
-internal sealed interface Gesture {
+private sealed interface Gesture {
     /** Every finger lifted without moving: a click, with as many fingers as touched. */
     data class Tap(val fingers: Int) : Gesture
 
@@ -370,7 +370,7 @@ internal sealed interface Gesture {
     data object Done : Gesture
 }
 
-internal suspend fun AwaitPointerEventScope.decideGesture(slop: Float, holdMillis: Long): Gesture {
+private suspend fun AwaitPointerEventScope.decideGesture(slop: Float, holdMillis: Long): Gesture {
     var fingers = 1
     var travel = 0f
     val decided = withTimeoutOrNull(holdMillis) {
@@ -397,7 +397,7 @@ internal suspend fun AwaitPointerEventScope.decideGesture(slop: Float, holdMilli
  * or with one finger, scrolling with two or more. Once scrolling, it stays so,
  * so lifting the fingers one by one does not nudge the pointer.
  */
-internal suspend fun AwaitPointerEventScope.track(
+private suspend fun AwaitPointerEventScope.track(
     startMillis: Long,
     dragging: Boolean,
     scrolling: Boolean,
@@ -655,7 +655,7 @@ private fun MouseButton(label: String, onDown: () -> Unit, onUp: () -> Unit, mod
  * on the mouse pad: its keys, with the modifiers it holds. Null for events it
  * does not handle.
  */
-internal fun hardwareKeyFrames(event: KeyEvent): List<AgentFrame>? {
+private fun hardwareKeyFrames(event: KeyEvent): List<AgentFrame>? {
     if (event.type != KeyEventType.KeyDown) return null
     var mods = 0
     if (event.isCtrlPressed) mods = mods or InputKeys.MOD_CTRL

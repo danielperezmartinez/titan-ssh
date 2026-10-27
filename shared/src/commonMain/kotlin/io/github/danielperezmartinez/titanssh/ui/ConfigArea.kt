@@ -112,7 +112,6 @@ fun ConfigArea(
         is Editor.SessionEdit -> SessionEditor(
             controller,
             current.id,
-            provisioner = provisioner,
             onDone = closeEditor,
             deleteSession = onDeleteSession,
             isLiveOnDestination = isSessionLive,
@@ -424,7 +423,6 @@ private fun SessionList(
             SessionType.MOUSEPAD -> "$hostLabel  ·  mouse pad"
             SessionType.SFTP -> "$hostLabel  ·  sftp"
             SessionType.DESKTOP -> "$hostLabel  ·  escritorio remoto"
-            SessionType.RDP -> "$hostLabel  ·  escritorio ${session.rdp.targetHost}:${session.rdp.targetPort}"
         }
         // A mouse pad or an SFTP browser keeps nothing alive in the agent's daemon.
         val agent = runCatching { config.resolve(session) }.getOrNull()

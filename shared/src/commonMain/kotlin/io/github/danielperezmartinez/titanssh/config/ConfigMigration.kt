@@ -28,7 +28,20 @@ object ConfigMigration {
         var current = document
         if (versionOf(current) < 2) current = v1ToV2(current)
         if (versionOf(current) < 3) current = v2ToV3(current)
-        return current
+        return withoutRdpSessions(current)
+    }
+
+    /**
+     * The canary's RDP sessions (ADR-0028, rejected) go: their type no longer
+     * exists, so the document would not decode with them. Not a version step,
+     * as the canary wrote them within version 3; the `rdp` field the other
+     * sessions carry is an unknown key the decoder skips.
+     */
+    private fun withoutRdpSessions(document: JsonObject): JsonObject {
+        val sessions = document["sessions"]?.jsonArray ?: return document
+        val kept = sessions.filter { (it as? JsonObject)?.string("type") != "RDP" }
+        if (kept.size == sessions.size) return document
+        return JsonObject(document + ("sessions" to JsonArray(kept)))
     }
 
     /**

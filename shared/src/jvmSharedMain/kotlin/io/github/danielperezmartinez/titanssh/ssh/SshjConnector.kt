@@ -1,6 +1,5 @@
 package io.github.danielperezmartinez.titanssh.ssh
 
-import java.io.IOException
 import java.net.InetAddress
 import java.net.Socket
 import java.security.MessageDigest
@@ -26,8 +25,6 @@ import kotlinx.coroutines.withContext
 import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.common.Buffer
 import net.schmizz.sshj.common.KeyType
-import net.schmizz.sshj.connection.channel.OpenFailException
-import net.schmizz.sshj.connection.channel.direct.DirectConnection
 import net.schmizz.sshj.connection.channel.direct.Session
 import net.schmizz.sshj.sftp.FileAttributes
 import net.schmizz.sshj.sftp.FileMode
@@ -311,17 +308,6 @@ internal class SshjSession(
     override suspend fun openForward(forward: PortForward, onProblem: (ForwardProblem) -> Unit): SshForward =
         withContext(Dispatchers.IO) { openSshjForward(ssh, forward, onProblem) }
 
-    override suspend fun openDirect(host: String, port: Int): SshDirectChannel = withContext(Dispatchers.IO) {
-        val channel = try {
-            ssh.newDirectConnection(host, port)
-        } catch (e: OpenFailException) {
-            throw SshDirectRefused(e.reason.toProblemKind(), "$host:$port: ${e.message}", e)
-        } catch (e: IOException) {
-            throw SshConnectFailed("Could not open a channel to $host:$port: ${e.message}", e)
-        }
-        SshjDirectChannel(channel)
-    }
-
     override suspend fun close() = withContext(Dispatchers.IO) {
         _state.value = SshConnectionState.DISCONNECTED
         scope.cancel()
@@ -595,22 +581,5 @@ internal class SshjSftp(private val sftp: SFTPClient) : SshSftp {
             Response.StatusCode.FAILURE,
             Response.StatusCode.OP_UNSUPPORTED,
         )
-    }
-}
-
-/** A `direct-tcpip` channel over sshj, for [SshSession.openDirect]. */
-private class SshjDirectChannel(private val channel: DirectConnection) : SshDirectChannel {
-    private val input = channel.inputStream
-    private val output = channel.outputStream
-
-    override fun read(buffer: ByteArray): Int = input.read(buffer)
-
-    override fun write(buffer: ByteArray, length: Int) {
-        output.write(buffer, 0, length)
-        output.flush()
-    }
-
-    override fun close() {
-        runCatching { channel.close() }
     }
 }

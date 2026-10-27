@@ -1,17 +1,27 @@
 ---
 Nombre: 'Cliente RDP embebido con IronRDP por un túnel SSH'
 Número: 28
-Estado: 'Propuesta'
-Resumen: 'Nuevo tipo de sesión RDP: titan-ssh abre un canal direct-tcpip de la conexión SSH hacia el servidor RDP del destino (localhost:3389 por defecto) y pinta el escritorio con un cliente RDP embebido. El motor es IronRDP (Rust, MIT/Apache-2.0), en una biblioteca nativa propia (crate rdp/) con una superficie JNI mínima escrita con jni-rs, sin callbacks hacia la JVM ni puerto local. Se compila con cargo desde Gradle para Android (arm64-v8a y x86_64) y escritorio (Linux x64 y Windows x64 en CI), igual que el agente: opcional en desarrollo y obligatoria en una release. El certificado TLS del servidor se confirma por su huella SHA-256 antes de enviar ninguna credencial, como la clave de host de ADR-0005, y la contraseña vive en el SecretStore (ADR-0001). NLA es el modo por defecto; el inicio de sesión TLS sin NLA (xrdp) es opcional por sesión.'
+Estado: 'Rechazada'
+Resumen: 'Rechazada el 2026-10-27: tras compararlas en la canary, el usuario eligió el escritorio remoto propio (ADR-0029), que estaba terminado, y se retiró todo lo de esta opción. Proponía un nuevo tipo de sesión RDP: titan-ssh abre un canal direct-tcpip de la conexión SSH hacia el servidor RDP del destino (localhost:3389 por defecto) y pinta el escritorio con un cliente RDP embebido. El motor es IronRDP (Rust, MIT/Apache-2.0), en una biblioteca nativa propia (crate rdp/) con una superficie JNI mínima escrita con jni-rs, sin callbacks hacia la JVM ni puerto local. Se compila con cargo desde Gradle para Android (arm64-v8a y x86_64) y escritorio (Linux x64 y Windows x64 en CI), igual que el agente: opcional en desarrollo y obligatoria en una release. El certificado TLS del servidor se confirma por su huella SHA-256 antes de enviar ninguna credencial, como la clave de host de ADR-0005, y la contraseña vive en el SecretStore (ADR-0001). NLA es el modo por defecto; el inicio de sesión TLS sin NLA (xrdp) es opcional por sesión.'
 Decisión: 'Sesión SessionType.RDP con un cliente IronRDP embebido vía JNI (jni-rs), transportado por un canal direct-tcpip de la conexión SSH, con huella del certificado confirmada por el usuario y contraseña en el SecretStore.'
 Consecuencias: 'El proyecto pasa a tener código nativo: Rust y el NDK entran en la cadena de build local y de CI, y cada paquete de la canary lleva la biblioteca de su plataforma (unos 6-7 MB por ABI). Mientras se compara con la opción D solo la canary la lleva y ofrece el tipo; la estable no. No hay puerto local que otras apps puedan usar. El escritorio de Windows y xrdp funcionan sin instalar nada en el destino. Portapapeles, audio, unidades y multimonitor quedan fuera por ahora. Android de 32 bits no tiene RDP.'
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-10-21T11:00:00+02:00
-Última modificación: 2026-10-21T14:30:00+02:00
+Última modificación: 2026-10-27T10:00:00+01:00
 ---
 
 # ADR-0028 · Cliente RDP embebido con IronRDP por un túnel SSH
+
+> **Rechazada el 2026-10-27.** Las opciones C (esta) y D
+> ([[ADR-0029 Escritorio remoto propio a través del agente]]) se probaron a la
+> vez en la canary. El usuario se quedó con la D, que estaba terminada, y se
+> aplicó la retirada de §8: se borraron `rdp/`, `SessionType.RDP`,
+> `RdpSettings`, el código de `rdp/` en `shared`, `openDirect()` (solo lo usaba
+> este cliente), las tareas de Gradle, los pasos de Rust y NDK de CI,
+> `tools/test-rdp/`, la sección de IronRDP de `THIRD_PARTY_NOTICES.md` y su
+> entrada del catálogo técnico. `ConfigMigration` descarta las sesiones RDP que
+> guardó la canary. El resto de esta nota se conserva como registro.
 
 ## Contexto
 

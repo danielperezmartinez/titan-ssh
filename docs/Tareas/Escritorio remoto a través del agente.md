@@ -2,11 +2,11 @@
 Nombre: 'Escritorio remoto a través del agente'
 Estado: 'En curso'
 Resumen: 'Tarea paraguas de un tipo de sesión nuevo, escritorio remoto (opción D): ver y controlar la pantalla del destino desde titan-ssh sin RDP ni VNC de terceros, sobre la conexión SSH y titan-agent. Añade la mitad que le falta al mouse pad: captura en el destino, codificación por baldosas, transporte por el canal exec con control de flujo por acuses, decodificación y pintado en Compose. Se divide por sistema: Linux X11 primero (se puede probar entero aquí con Xvfb en Docker), después Windows y Linux Wayland.'
-Decisiones: 'Diseño en [[ADR-0029 Escritorio remoto propio a través del agente]] (Propuesta, 2026-10-21): baldosas FILL/ZLIB/JPEG con la biblioteca estándar, sin vídeo ni dependencias nuevas; un solo canal --screen para imagen y entrada; como mucho dos fotogramas sin acuse. Reutiliza [[ADR-0016 Sesión mouse pad y ayudante de escritorio en Windows]] y [[ADR-0018 Autenticación mutua en el punto de encuentro del agente]]. Para Windows y cualquier Linux, [[ADR-0031 Escritorio remoto en Wayland, Windows y casos de borde]] (2026-10-21): sesión gráfica por logind, portal + PipeWire propio en KDE/GNOME, protocolos wlroots, GDI y Desktop Duplication en Windows, todos los monitores y un catálogo de errores. Independiente del cliente RDP embebido (opción C) que lleva otra línea de trabajo. Las dos opciones van a la vez a la canary para compararlas: DESKTOP es un tipo experimental que solo ofrece la canary (mecanismo común SessionType.experimental/offered, acordado con la opción C el 2026-10-21); la estable llevará solo la elegida y la otra se retira entera.'
+Decisiones: 'Diseño en [[ADR-0029 Escritorio remoto propio a través del agente]] (Aceptada el 2026-10-27; propuesta el 2026-10-21): baldosas FILL/ZLIB/JPEG con la biblioteca estándar, sin vídeo ni dependencias nuevas; un solo canal --screen para imagen y entrada; como mucho dos fotogramas sin acuse. Reutiliza [[ADR-0016 Sesión mouse pad y ayudante de escritorio en Windows]] y [[ADR-0018 Autenticación mutua en el punto de encuentro del agente]]. Para Windows y cualquier Linux, [[ADR-0031 Escritorio remoto en Wayland, Windows y casos de borde]] (2026-10-21): sesión gráfica por logind, portal + PipeWire propio en KDE/GNOME, protocolos wlroots, GDI y Desktop Duplication en Windows, todos los monitores y un catálogo de errores. Se comparó en la canary con el cliente RDP embebido (opción C); el 2026-10-27 el usuario eligió esta opción y la C se retiró entera ([[ADR-0028 Cliente RDP embebido con IronRDP por un túnel SSH]], Rechazada). DESKTOP sigue siendo un tipo experimental que solo ofrece la canary (SessionType.experimental/offered) hasta que el usuario decida llevarlo a la estable: quedan cosas por pulir.'
 Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-21T10:50:00+02:00
-Última modificación: 2026-10-21T19:00:00+02:00
+Última modificación: 2026-10-27T10:00:00+01:00
 ---
 
 # Escritorio remoto a través del agente
@@ -43,7 +43,7 @@ paralelo una vez hecha la 2 ([[ADR-0031 Escritorio remoto en Wayland, Windows y 
 
 ## Criterios de finalización
 
-- ADR-0029 aceptada por el usuario (o sustituida por la que acuerde).
+- ~~ADR-0029 aceptada por el usuario~~ (2026-10-27: elegida frente a la opción C).
 - Las subtareas que el usuario decida abordar están en `Hecha`; las que no, en
   `Archivada` con el motivo.
 

@@ -282,8 +282,7 @@ private fun leftoverList(partials: List<String>): String {
 
 /**
  * A tab's pane: its terminal, its mouse pad (ADR-0016), its remote desktop
- * (the mouse pad with the screen, ADR-0029), its RDP desktop (ADR-0028) or
- * its file browser (ADR-0021).
+ * (the mouse pad with the screen, ADR-0029) or its file browser (ADR-0021).
  */
 @Composable
 private fun TabContent(
@@ -294,11 +293,8 @@ private fun TabContent(
     onConfigureKeyBar: () -> Unit,
 ) {
     val sftp = tab.sftp
-    val rdp = tab.rdp
     if (tab.isMousepad || tab.isDesktop) {
         MousepadView(tab, modifier, keyBar = keyBar, onConfigureKeyBar = onConfigureKeyBar)
-    } else if (rdp != null) {
-        RdpView(tab, rdp, modifier, keyBar = keyBar, onConfigureKeyBar = onConfigureKeyBar)
     } else if (sftp != null) {
         SftpView(tab, sftp, modifier)
     } else {

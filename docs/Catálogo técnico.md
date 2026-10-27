@@ -40,8 +40,9 @@ que ninguno de los valores existentes cubra.
   artefactos publicados) · `Mouse pad` (añadido con `InputTransport`: el móvil
   como touchpad y teclado del destino, ADR-0016) · `SFTP` (añadido con
   `SftpBrowser`: explorador de archivos del destino y descargas, ADR-0021) ·
-  `Escritorio remoto` (añadido con `RdpScreen`: el cliente RDP embebido,
-  ADR-0028).
+  `Escritorio remoto` (ver y controlar el escritorio del destino; se añadió
+  con el cliente RDP embebido de ADR-0028, ya retirado, y es la feature del
+  escritorio propio de ADR-0029).
 - **Ámbito**: `Aplicación` · `Feature` · `Shell`.
 
 <!-- Opcional: si el proyecto tiene una comprobación automatizada del catálogo

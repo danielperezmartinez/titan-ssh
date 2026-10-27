@@ -1,14 +1,14 @@
 ---
 Nombre: 'Escritorio remoto propio a través del agente'
 Número: 29
-Estado: 'Propuesta'
+Estado: 'Aceptada'
 Resumen: 'Nuevo tipo de sesión, escritorio remoto, que enseña la pantalla del destino y la controla sin RDP ni VNC de terceros, sobre la conexión SSH y el agente. La app hace exec de titan-agent --screen: el agente captura la pantalla, la parte en baldosas de 64×64, manda solo las que cambian (color liso, píxeles sin pérdida comprimidos con deflate, o JPEG para lo fotográfico) y recibe por el mismo canal las tramas de entrada del mouse pad, más una nueva de posición absoluta. El ritmo lo marca la app con acuses (como mucho dos fotogramas en vuelo), así que nunca se acumulan fotogramas viejos y un microcorte solo congela la imagen hasta que la reconexión trae un fotograma entero. Todo con la biblioteca estándar de Go y el JDK/Android, sin cgo ni dependencias nuevas. Captura por sistema: X11 con un cliente X11 propio mínimo (GetImage, XFIXES para el cursor, XTEST para la entrada), sin ayudante; Windows desde el ayudante de escritorio de ADR-0016 con Desktop Duplication y GDI de respaldo; Wayland con el portal ScreenCast + RemoteDesktop y PipeWire, en su propia tarea. Se descarta el vídeo (H.264, VP8/9, AV1) por cgo, tamaño del agente, decodificación en el escritorio JVM y patentes.'
 Decisión: 'Añadir el tipo de sesión DESKTOP y el modo titan-agent --screen, que manda baldosas cambiadas (FILL, ZLIB o JPEG) con control de flujo por acuses y recibe la entrada del mouse pad en el mismo canal; capturar con un cliente X11 propio en X11, con el ayudante de escritorio (Desktop Duplication, GDI de respaldo) en Windows y con el portal ScreenCast y PipeWire en Wayland, sin cgo ni dependencias nuevas.'
 Consecuencias: 'Ver y controlar el escritorio del destino desde Android y escritorio sin instalar ni abrir nada más en el destino, con los mismos límites de seguridad que una shell del usuario. Ancho de banda mayor que el de un códec de vídeo en contenido en movimiento (vídeos, juegos), a cambio de texto nítido, latencia baja y un agente portable. Más código propio que mantener: un cliente X11 mínimo, la captura de Windows por COM y, más adelante, un cliente PipeWire. El protocolo del agente crece con tramas de pantalla que AgentProtocol.kt y protocol.go deben mantener en sincronía.'
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-10-21T10:45:00+02:00
-Última modificación: 2026-10-21T14:30:00+02:00
+Última modificación: 2026-10-27T10:00:00+01:00
 ---
 
 # ADR-0029 · Escritorio remoto propio a través del agente
@@ -102,18 +102,19 @@ Lo que ya hay y se reutiliza:
   hacen scroll, mantener pulsado arrastra), con el cursor remoto dibujado
   sobre la imagen y un zoom de 1x a 3x que sigue al cursor. Teclado y barra de
   teclas, los del mouse pad.
-- **Solo en la canary mientras se compara** con el cliente RDP embebido
-  ([[ADR-0028 Cliente RDP embebido con IronRDP por un túnel SSH]]): `DESKTOP` es un tipo
-  `experimental` (`SessionType.experimental`, mecanismo común a las dos
-  opciones), y `SessionType.offered` solo lo ofrece si
+- **Solo en la canary hasta que esté pulido.** Se comparó en la canary con el
+  cliente RDP embebido
+  ([[ADR-0028 Cliente RDP embebido con IronRDP por un túnel SSH]]); el
+  2026-10-27 el usuario eligió esta opción y la C se retiró entera. `DESKTOP`
+  sigue siendo un tipo `experimental` (`SessionType.experimental`), y
+  `SessionType.offered` solo lo ofrece si
   `AppChannel.isCanary`. La app estable no lo lista en el editor y, si recibe
   una sesión de ese tipo (una configuración importada de la canary), la
   enseña pero no la abre. Nada de la prueba llega a la estable: el modo
   `--screen` solo se compila en el agente de la canary (etiqueta de Go
   `canary`, que Gradle pone cuando `titanChannel` es `canary`), y el agente
-  estable responde `E_SCREEN_UNSUPPORTED`. Cuando el usuario elija, la opción ganadora deja de
-  ser experimental y la otra se retira entera: tipo, código, agente, CI y
-  documentación, con su ADR en `Rechazada`.
+  estable responde `E_SCREEN_UNSUPPORTED`. Deja de ser experimental y llega
+  a la estable cuando el usuario lo decida.
 
 ### 2. Modo `--screen` y protocolo
 
@@ -232,7 +233,8 @@ que lo que se queda en pantalla se vea nítido.
 - **Un servidor VNC o RDP en el destino** (x11vnc, TigerVNC, el RDP de
   Windows) con un cliente embebido: obliga a instalar o activar algo en el
   destino y a abrir un puerto, y el RDP de Windows no está en las ediciones
-  Home. Es la línea de la opción C, independiente de esta.
+  Home. Era la línea de la opción C, que se probó en la canary y se rechazó
+  ([[ADR-0028 Cliente RDP embebido con IronRDP por un túnel SSH]]).
 - **Puerto loopback reenviado** en lugar de `exec`: un servidor más en el
   destino sin ganar nada.
 - **Sin control de flujo** (solo la ventana del canal SSH): los fotogramas se

@@ -80,7 +80,7 @@ internal fun bindFailure(message: String): ForwardFailure {
     }
 }
 
-internal fun OpenFailException.Reason.toProblemKind(): ForwardProblem.Kind = when (this) {
+private fun OpenFailException.Reason.toProblemKind(): ForwardProblem.Kind = when (this) {
     OpenFailException.Reason.ADMINISTRATIVELY_PROHIBITED -> ForwardProblem.Kind.PROHIBITED
     OpenFailException.Reason.CONNECT_FAILED -> ForwardProblem.Kind.UNREACHABLE
     else -> ForwardProblem.Kind.OTHER
