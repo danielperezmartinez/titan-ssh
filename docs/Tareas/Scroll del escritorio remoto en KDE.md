@@ -1,12 +1,12 @@
 ---
 Nombre: 'Scroll del escritorio remoto en KDE'
-Estado: 'En curso'
-Resumen: 'Desde el Pixel, el scroll con dos dedos en un escritorio KDE Wayland (remoto o mouse pad) apenas mueve nada: en Konsole hacen falta muchísimos gestos para avanzar un poco y en Obsidian va lento. Causa: el agente manda las muescas con NotifyPointerAxisDiscrete y el portal de KDE (xdg-desktop-portal-kde 6.8) pasa los steps tal cual como valor del eje de fake_input, donde una muesca real vale 15, así que cada muesca llega como 1/15. Arreglo: en KDE mandar scroll continuo (NotifyPointerAxis) a 10 unidades por muesca (los 120 de ángulo de una muesca en Qt), también las fracciones.'
+Estado: 'Hecha'
+Resumen: 'Desde el Pixel, el scroll con dos dedos en un escritorio KDE Wayland (remoto o mouse pad) apenas mueve nada: en Konsole hacen falta muchísimos gestos para avanzar un poco y en Obsidian va lento. Causa: el agente manda las muescas con NotifyPointerAxisDiscrete y el portal de KDE (xdg-desktop-portal-kde 6.8) pasa los steps tal cual como valor del eje de fake_input, donde una muesca real vale 15, así que cada muesca llega como 1/15. Arreglo: en KDE mandar scroll continuo (NotifyPointerAxis) a 10 unidades por muesca (los 120 de ángulo de una muesca en Qt), también las fracciones. Probado por el usuario en el Pixel con la canary del 2026-10-27: va muy bien.'
 Decisiones: 'En KDE el agente manda el scroll con NotifyPointerAxis tal cual llega, fracciones incluidas, a 10 unidades por muesca: Qt convierte cada unidad continua en 12 de ángulo, así que 10 dan los 120 de una muesca de rueda. GNOME (portal y API de Mutter) sigue con muescas discretas, que trata bien.'
 Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-27T21:00:00+01:00
-Última modificación: 2026-10-27T21:55:00+01:00
+Última modificación: 2026-10-27T22:15:00+01:00
 ---
 
 # Scroll del escritorio remoto en KDE
@@ -71,4 +71,12 @@ unidad continua.
   - Agente anterior: `angle 36, pixel 3` (un evento).
   - Con el arreglo: `angle 360, pixel 30` al subir y `-360, -30` al bajar,
     lo mismo en ángulo que 3 muescas de la rueda física.
-- Pendiente: prueba del usuario desde el Pixel (Konsole y Obsidian).
+- El usuario lo prueba desde el Pixel con la canary del 2026-10-27
+  (commit `b92a442`): va muy bien.
+
+## Resultado
+
+En KDE el agente manda el scroll del escritorio remoto y del mouse pad con
+`NotifyPointerAxis`, a 10 unidades por muesca y sin redondear a muescas
+enteras, así que una muesca de la app mueve lo mismo que una de la rueda
+física y el scroll sigue al dedo. Los demás destinos no cambian.
