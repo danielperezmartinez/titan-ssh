@@ -6,7 +6,7 @@ Decisiones: 'El cursor va en su propia goroutine de Serve (Capturer.Cursor debe 
 Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-27T16:00:00+01:00
-Última modificación: 2026-10-27T19:45:00+01:00
+Última modificación: 2026-10-27T19:50:00+01:00
 ---
 
 # Escritorio remoto fluido al mover el ratón
@@ -138,6 +138,8 @@ cursor y captura → `CURSOR_POS` y baldosas → `RemoteScreen` →
   **Verificación**): cursor de 9-22 a ~120 actualizaciones por segundo en
   Windows, de 14-17 a ~115 en X11 y de 21 a 45-59 en wlroots; en GNOME el
   cursor va en la imagen, de 24 a 29-37 fps.
-- Ideas que no se hicieron: MIT-SHM en X11 (quitaría las colas que deja el
-  servidor X atendiendo un `GetImage`) y la superficie por trozos en la
-  app de escritorio, que sigue copiando la pantalla entera por fotograma.
+- Queda para más adelante, en sus tareas:
+  [[Captura X11 por memoria compartida]] (quitaría las colas que deja el
+  servidor X atendiendo un `GetImage`) y
+  [[Superficie por trozos en la app de escritorio]], que sigue copiando la
+  pantalla entera por fotograma.
