@@ -51,6 +51,33 @@ func TestLiveDisplay(t *testing.T) {
 	if len(colors) < 2 {
 		t.Error("the screen has a single color")
 	}
+	// MIT-SHM must read the same screen (but for the clock, which may tick in
+	// between). TITAN_X11_SHM=1 requires it.
+	shm, err := x.NewShmImage(w * h * 4)
+	if err != nil {
+		if os.Getenv("TITAN_X11_SHM") == "1" {
+			t.Fatalf("no MIT-SHM: %v", err)
+		}
+		t.Logf("no MIT-SHM, captures use GetImage: %v", err)
+	} else {
+		sp := make([]uint32, w*h)
+		if err := shm.GetImage(0, 0, w, h, sp); err != nil {
+			t.Fatal(err)
+		}
+		diff := 0
+		for i := range sp {
+			if sp[i] != px[i] {
+				diff++
+			}
+		}
+		t.Logf("MIT-SHM: %d of %d pixels differ from GetImage", diff, len(sp))
+		if diff > len(sp)/100 {
+			t.Error("MIT-SHM reads another screen than GetImage")
+		}
+		if err := shm.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if err := x.XTestInit(); err != nil {
 		t.Fatal(err)
 	}

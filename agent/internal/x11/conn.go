@@ -89,6 +89,7 @@ type Conn struct {
 	pending error  // an error a reply-less request caused
 	broken  error
 	exts    map[string]Extension
+	lastID  uint32 // the last resource ID handed out, without the base
 }
 
 // Extension is a server extension as QueryExtension reports it.
@@ -326,6 +327,19 @@ func (x *Conn) Sync() error {
 	// GetInputFocus is the classic no-op round trip.
 	_, err := x.roundTrip(request(4, opGetInputFocus, 0))
 	return err
+}
+
+// newID returns an unused resource ID for a new server resource.
+func (x *Conn) newID() (uint32, error) {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	mask := x.Setup.ResourceIDMask
+	next := x.lastID + mask&-mask // the mask's lowest bit is one step
+	if mask == 0 || next&^mask != 0 || next == 0 {
+		return 0, errors.New("x11: out of resource IDs")
+	}
+	x.lastID = next
+	return x.Setup.ResourceIDBase | next, nil
 }
 
 // request returns a zeroed request of size bytes (a multiple of 4) with its

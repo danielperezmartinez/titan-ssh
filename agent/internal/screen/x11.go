@@ -9,6 +9,8 @@ type X11 struct {
 	x      *x11.Conn
 	ptr    *x11.Conn // where the cursor is read
 	cursor bool      // XFIXES is there
+	shm    *x11.ShmImage
+	noShm  bool // MIT-SHM failed once: GetImage from then on
 }
 
 // NewX11 returns a capturer that reads the screen on x and the cursor on ptr.
@@ -28,9 +30,51 @@ func (c *X11) Size() (int, int, error) {
 	return int(g.Width), int(g.Height), nil
 }
 
-// Capture reads the whole root window.
+// Capture reads the whole root window: through MIT-SHM when the server
+// shares memory with the agent, so the server does not stop serving the
+// pointer to copy the screen into the socket, and with GetImage when not.
 func (c *X11) Capture(dst []uint32, w, h int) error {
+	if s := c.shared(w * h * 4); s != nil {
+		return s.GetImage(0, 0, w, h, dst)
+	}
 	return c.x.GetImage(0, 0, w, h, dst)
+}
+
+// shared returns a MIT-SHM segment of at least size bytes, or nil if the
+// server cannot use one: no MIT-SHM, or a server in another IPC namespace
+// (another container).
+func (c *X11) shared(size int) *x11.ShmImage {
+	if c.noShm {
+		return nil
+	}
+	if c.shm != nil && c.shm.Size() >= size {
+		return c.shm
+	}
+	if c.shm != nil {
+		c.shm.Close()
+		c.shm = nil
+	}
+	s, err := c.x.NewShmImage(size)
+	if err != nil {
+		c.noShm = true
+		return nil
+	}
+	c.shm = s
+	return s
+}
+
+// Shared tells whether the captures go through MIT-SHM.
+func (c *X11) Shared() bool { return c.shm != nil }
+
+// Close frees the MIT-SHM segment, if there is one. The connections are the
+// caller's.
+func (c *X11) Close() error {
+	if c.shm == nil {
+		return nil
+	}
+	err := c.shm.Close()
+	c.shm = nil
+	return err
 }
 
 // Cursor reads the cursor through XFIXES (or just the pointer without it).
