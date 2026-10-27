@@ -6,6 +6,9 @@
 export DISPLAY=:1
 export XAUTHORITY=/home/demo/.Xauthority
 rm -f "$XAUTHORITY"
+# A `docker stop` leaves Xvfb's lock and socket behind, and a stale lock
+# keeps the next start's Xvfb from coming up.
+rm -f /tmp/.X1-lock /tmp/.X11-unix/X1
 xauth -q -f "$XAUTHORITY" add :1 MIT-MAGIC-COOKIE-1 "$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
 
 Xvfb :1 -screen 0 1280x800x24 -auth "$XAUTHORITY" -nolisten tcp &

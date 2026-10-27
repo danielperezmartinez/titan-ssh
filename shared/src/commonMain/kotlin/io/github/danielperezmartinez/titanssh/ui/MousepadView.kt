@@ -50,7 +50,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.utf16CodePoint
-import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.State
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -66,7 +66,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import io.github.danielperezmartinez.titanssh.terminal.ScreenView
 import io.github.danielperezmartinez.titanssh.terminal.ScreenViewport
-import io.github.danielperezmartinez.titanssh.terminal.imageBitmap
+import io.github.danielperezmartinez.titanssh.terminal.drawScreenSurface
 import kotlin.math.roundToInt
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
@@ -134,18 +134,13 @@ fun MousepadView(
     // Remote desktop only (ADR-0029): the screen, how it fits the surface and
     // whether a mouse hovers it (then its own pointer stands for the cursor).
     val remote = tab.remoteScreen
+    // The screen changes with every frame and cursor move: it is read where it
+    // is used (drawing, pointer mapping), so they do not recompose the view.
     val noScreen = remember { MutableStateFlow(ScreenView()) }
-    val screenView by (remote?.view ?: noScreen).collectAsState()
+    val screenView = (remote?.view ?: noScreen).collectAsState()
     var surfaceSize by remember { mutableStateOf(IntSize.Zero) }
     var zoom by remember(tab.id) { mutableIntStateOf(1) }
     var hovering by remember { mutableStateOf(false) }
-    val viewport = screenView.surface?.let { s ->
-        ScreenViewport(
-            surfaceSize.width.toFloat(), surfaceSize.height.toFloat(), s.width, s.height,
-            zoom = zoom.toFloat(), focusX = screenView.cursorX.toFloat(), focusY = screenView.cursorY.toFloat(),
-        )
-    }
-    val currentViewport by rememberUpdatedState(viewport)
 
     // Sticky modifiers (InputKeys.MOD_*) for the next key or character.
     var sticky by remember(tab.id) { mutableIntStateOf(0) }
@@ -240,7 +235,9 @@ fun MousepadView(
                     if (remote != null) {
                         Modifier.pointerInput(tab.id) {
                             mouseOnScreen(
-                                viewport = { currentViewport },
+                                viewport = {
+                                    screenViewport(screenView.value, surfaceSize.width.toFloat(), surfaceSize.height.toFloat(), zoom)
+                                },
                                 onHover = { hovering = it },
                                 onPress = { surfaceFocus.requestFocus() },
                                 send = ::send,
@@ -286,7 +283,7 @@ fun MousepadView(
             if (remote != null) {
                 RemoteScreenCanvas(
                     screenView,
-                    viewport,
+                    zoom,
                     dimmed = status.phase != TabPhase.CONNECTED || pad.blocked,
                     showCursor = !hovering,
                     cursorMinScale = density.density,
@@ -524,44 +521,50 @@ private fun SurfaceMessage(status: TabStatus, pad: MousepadStatus, remote: Boole
 /** The touch zoom steps of a remote desktop: 1x (whole screen) to this. */
 private const val MAX_ZOOM = 3
 
+/** How [view]'s screen fits a surface of [width]×[height] at [zoom], following the cursor. */
+private fun screenViewport(view: ScreenView, width: Float, height: Float, zoom: Int): ScreenViewport? =
+    view.surface?.let { s ->
+        ScreenViewport(
+            width, height, s.width, s.height,
+            zoom = zoom.toFloat(), focusX = view.cursorX.toFloat(), focusY = view.cursorY.toFloat(),
+        )
+    }
+
 /**
- * The remote screen (ADR-0029) fitted into the surface by [viewport], with the
+ * The remote screen (ADR-0029) fitted into the surface at [zoom], with the
  * remote cursor on top when [showCursor]. The cursor is drawn at least
  * [cursorMinScale] view pixels per screen pixel, so it stays visible on a
  * phone that shows a large screen small. [dimmed] while not connected: it is
- * the last image seen, not the live one.
+ * the last image seen, not the live one. [screen] is read while drawing, so a
+ * new frame or cursor position only redraws.
  */
 @Composable
 private fun RemoteScreenCanvas(
-    view: ScreenView,
-    viewport: ScreenViewport?,
+    screen: State<ScreenView>,
+    zoom: Int,
     dimmed: Boolean,
     showCursor: Boolean,
     cursorMinScale: Float,
 ) {
     Canvas(Modifier.fillMaxSize()) {
-        val image = view.surface?.imageBitmap() ?: return@Canvas
-        val vp = viewport ?: return@Canvas
+        val view = screen.value
+        val surface = view.surface ?: return@Canvas
+        val vp = screenViewport(view, size.width, size.height, zoom) ?: return@Canvas
         if (vp.scale <= 0f) return@Canvas
-        drawImage(
-            image,
-            dstOffset = IntOffset(vp.offsetX.roundToInt(), vp.offsetY.roundToInt()),
-            dstSize = IntSize((image.width * vp.scale).roundToInt(), (image.height * vp.scale).roundToInt()),
+        drawScreenSurface(
+            surface,
+            vp.offsetX,
+            vp.offsetY,
+            vp.scale,
             alpha = if (dimmed) 0.45f else 1f,
             filterQuality = if (vp.scale < 1f) FilterQuality.Medium else FilterQuality.Low,
         )
         val cursor = view.cursor
-        val cursorImage = cursor?.surface?.imageBitmap()
-        if (showCursor && view.cursorVisible && cursor != null && cursorImage != null) {
+        if (showCursor && view.cursorVisible && cursor != null) {
             val s = maxOf(vp.scale, cursorMinScale)
             val x = vp.offsetX + view.cursorX * vp.scale - cursor.hotX * s
             val y = vp.offsetY + view.cursorY * vp.scale - cursor.hotY * s
-            drawImage(
-                cursorImage,
-                dstOffset = IntOffset(x.roundToInt(), y.roundToInt()),
-                dstSize = IntSize((cursorImage.width * s).roundToInt(), (cursorImage.height * s).roundToInt()),
-                filterQuality = FilterQuality.Low,
-            )
+            drawScreenSurface(cursor.surface, x.roundToInt().toFloat(), y.roundToInt().toFloat(), s)
         }
     }
 }

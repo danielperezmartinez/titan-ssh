@@ -50,24 +50,33 @@ func openScreen() (*screenSource, error) {
 	return openX11Screen(s)
 }
 
-// openX11Screen captures the X11 session and injects into it, with one
-// connection to the X server (ADR-0029 §5).
+// openX11Screen captures the X11 session and injects into it (ADR-0029 §5),
+// with two connections to the X server: one for the captures, one for the
+// pointer (the input and the cursor), which then never waits behind a whole
+// screen's GetImage.
 func openX11Screen(s graphical.Session) (*screenSource, error) {
 	x, err := dialX11(s)
 	if err != nil {
 		return nil, err
 	}
-	inj, err := inject.NewX11(x)
+	ptr, err := dialX11(s)
 	if err != nil {
 		x.Close()
+		return nil, err
+	}
+	inj, err := inject.NewX11(ptr)
+	if err != nil {
+		x.Close()
+		ptr.Close()
 		return nil, withCode(codeNoDesktop, err)
 	}
 	var mu sync.Mutex
 	return &screenSource{
-		capturer: screen.NewX11(x),
+		capturer: screen.NewX11(x, ptr),
 		input:    inject.NewHandler(inj, &mu),
 		close: func() {
 			inj.Restore()
+			ptr.Close()
 			x.Close()
 		},
 	}, nil

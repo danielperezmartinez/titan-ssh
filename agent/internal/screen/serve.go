@@ -9,13 +9,15 @@ import (
 	"image"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/danielperezmartinez/titan-ssh/agent/internal/protocol"
 )
 
-// Capturer reads a screen. Implementations need not be safe for concurrent
-// use: Serve calls them from one goroutine.
+// Capturer reads a screen. Serve calls Size, Capture and the optional
+// interfaces from one goroutine, and Cursor from another: Cursor must be safe
+// to call while the others run.
 type Capturer interface {
 	// Size is the screen's current size.
 	Size() (w, h int, err error)
@@ -72,6 +74,19 @@ type Options struct {
 	RefineAfter time.Duration
 	// MaxInFlight is how many frames may wait for their acknowledgement.
 	MaxInFlight int
+	// CursorInterval is how often the cursor is read while the client is
+	// moving it: input wakes the loop at once, and the cursor is read again
+	// this often until ActiveFor after the last input, so it follows the
+	// pointer at the client's pace rather than the capture's.
+	CursorInterval time.Duration
+	// ActiveFor is how long after the client's last input the cursor is read
+	// every CursorInterval and the screen captured every ActiveInterval.
+	ActiveFor time.Duration
+	// ActiveInterval is the time between captures while the client is moving
+	// the pointer, for a Capturer that knows what changed (a Damager), whose
+	// captures cost little: where the cursor is drawn into the image (GNOME),
+	// it is what makes it follow the pointer. Others keep Interval.
+	ActiveInterval time.Duration
 	// HelloTimeout bounds the wait for SCREEN_HELLO.
 	HelloTimeout time.Duration
 }
@@ -88,6 +103,15 @@ func (o Options) withDefaults() Options {
 	}
 	if o.MaxInFlight <= 0 {
 		o.MaxInFlight = 2
+	}
+	if o.CursorInterval <= 0 {
+		o.CursorInterval = 8 * time.Millisecond
+	}
+	if o.ActiveFor <= 0 {
+		o.ActiveFor = 500 * time.Millisecond
+	}
+	if o.ActiveInterval <= 0 {
+		o.ActiveInterval = 16 * time.Millisecond
 	}
 	if o.HelloTimeout <= 0 {
 		o.HelloTimeout = 15 * time.Second
@@ -114,13 +138,18 @@ type session struct {
 	sentAt  map[uint32]time.Time
 	auto    int // the JPEG quality AUTO uses now
 	wake    chan struct{}
-	done    chan struct{}
-	readErr error
+	// The client sent input: one for the frames, one for the cursor.
+	input, inputCursor chan struct{}
+	inputAt            time.Time
+	done               chan struct{}
+	readErr            error
 }
 
-func (s *session) signal() {
+func (s *session) signal() { poke(s.wake) }
+
+func poke(c chan struct{}) {
 	select {
-	case s.wake <- struct{}{}:
+	case c <- struct{}{}:
 	default:
 	}
 }
@@ -130,9 +159,16 @@ func (s *session) signal() {
 // that change, never more than MaxInFlight frames ahead of the client's
 // acknowledgements, and the cursor whenever it moves or changes. Input frames
 // go to input (if not nil), which releases what was left pressed at the end.
+//
+// The cursor has a goroutine of its own, so it follows the pointer however
+// long a capture or its encoding takes: Cursor may be called while Capture
+// runs.
 func Serve(conn io.ReadWriter, cap Capturer, input InputHandler, opt Options) error {
 	opt = opt.withDefaults()
-	s := &session{sentAt: map[uint32]time.Time{}, auto: autoStart, wake: make(chan struct{}, 1), done: make(chan struct{})}
+	s := &session{
+		sentAt: map[uint32]time.Time{}, auto: autoStart, wake: make(chan struct{}, 1),
+		input: make(chan struct{}, 1), inputCursor: make(chan struct{}, 1), done: make(chan struct{}),
+	}
 	if input != nil {
 		defer input.Release()
 	}
@@ -146,69 +182,159 @@ func Serve(conn io.ReadWriter, cap Capturer, input InputHandler, opt Options) er
 		return ErrNoHello
 	}
 
-	w := bufio.NewWriterSize(conn, 64*1024)
-	emit := func(f protocol.Frame) error {
-		_, err := w.Write(protocol.Encode(f))
-		return err
+	out := &writer{w: bufio.NewWriterSize(conn, 64*1024)}
+	var blocked atomic.Bool
+	stop := make(chan struct{})
+	cursorDone := make(chan struct{})
+	var cursorErr error
+	go func() {
+		defer close(cursorDone)
+		cursorErr = s.serveCursor(cap, out, &blocked, opt, stop)
+	}()
+	defer func() {
+		close(stop)
+		<-cursorDone
+	}()
+
+	err := s.serveFrames(cap, out, &blocked, opt, cursorDone)
+	if errors.Is(err, errCursorEnded) {
+		return cursorErr
 	}
+	return err
+}
+
+// errCursorEnded ends serveFrames when the cursor's goroutine ended first.
+var errCursorEnded = errors.New("screen: the cursor ended")
+
+// writer is the connection's buffered writer, shared by the frames and the
+// cursor: each frame goes out whole.
+type writer struct {
+	mu sync.Mutex
+	w  *bufio.Writer
+}
+
+func (o *writer) emit(f protocol.Frame) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	_, err := o.w.Write(protocol.Encode(f))
+	return err
+}
+
+func (o *writer) flush() error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.w.Flush()
+}
+
+// serveCursor sends the cursor whenever it moves or changes, credit or not:
+// it is what makes the session feel live, and it is tiny. It reads it every
+// CursorInterval while the client is moving it (and at once on its input),
+// every Interval otherwise, and not while the screen is blocked.
+func (s *session) serveCursor(cap Capturer, out *writer, blocked *atomic.Bool, opt Options, stop <-chan struct{}) error {
+	var (
+		cursor Cursor
+		sent   bool
+	)
+	for {
+		if blocked.Load() {
+			// Sent again whole once the screen is back.
+			sent = false
+		} else if c, err := cap.Cursor(); err == nil {
+			if !sent || c.Serial != cursor.Serial {
+				if len(c.Pixels) > 0 {
+					if err := out.emit(cursorShape(c)); err != nil {
+						return err
+					}
+				}
+			}
+			if !sent || c.X != cursor.X || c.Y != cursor.Y || c.Visible != cursor.Visible || c.Serial != cursor.Serial {
+				if err := out.emit(protocol.Frame{Type: protocol.TypeCursorPos, X: c.X, Y: c.Y, Visible: c.Visible}); err != nil {
+					return err
+				}
+				if err := out.flush(); err != nil {
+					return err
+				}
+			}
+			cursor, sent = c, true
+		}
+
+		wait := opt.Interval
+		if s.active(opt) {
+			wait = opt.CursorInterval
+		}
+		timer := time.NewTimer(wait)
+		select {
+		case <-stop:
+			timer.Stop()
+			return nil
+		case <-s.done:
+			timer.Stop()
+			return nil
+		case <-s.inputCursor:
+			timer.Stop()
+		case <-timer.C:
+		}
+	}
+}
+
+// active reports whether the client sent input lately.
+func (s *session) active(opt Options) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return time.Since(s.inputAt) < opt.ActiveFor
+}
+
+// serveFrames captures and sends the frames as credit allows, until the
+// client goes away or the cursor's goroutine ends (cursorDone closes).
+func (s *session) serveFrames(cap Capturer, out *writer, blocked *atomic.Bool, opt Options, cursorDone <-chan struct{}) error {
 	var (
 		enc        *Encoder
 		pixels     []uint32
 		sw, sh     int
 		seq        uint32
-		cursor     Cursor
-		cursorSent bool
 		lastChange = time.Now()
 		interval   = opt.Interval
-		blocked    bool
+		// When the screen is captured next, and was last.
+		nextCapture, lastCapture time.Time
 	)
 	blocker, _ := cap.(Blocker)
 	damager, _ := cap.(Damager)
+	activeInterval := opt.Interval
+	if damager != nil {
+		activeInterval = min(opt.ActiveInterval, opt.Interval)
+	}
 	for {
 		select {
 		case <-s.done:
 			return nil
+		case <-cursorDone:
+			return errCursorEnded
 		default:
 		}
 
 		if blocker != nil {
-			if now := blocker.Blocked(); now != blocked {
-				blocked = now
-				if err := emit(protocol.Frame{Type: protocol.TypeInputReady, Blocked: now}); err != nil {
+			if now := blocker.Blocked(); now != blocked.Load() {
+				blocked.Store(now)
+				if err := out.emit(protocol.Frame{Type: protocol.TypeInputReady, Blocked: now}); err != nil {
 					return err
 				}
-				if err := w.Flush(); err != nil {
+				if err := out.flush(); err != nil {
 					return err
 				}
 			}
-			if blocked {
+			if blocked.Load() {
 				timer := time.NewTimer(opt.IdleInterval)
 				select {
 				case <-s.done:
 					timer.Stop()
 					return nil
+				case <-cursorDone:
+					timer.Stop()
+					return errCursorEnded
 				case <-timer.C:
 				}
 				continue
 			}
-		}
-
-		// The cursor goes out whenever it changes, credit or not: it is what
-		// makes the session feel live, and it is tiny.
-		if c, err := cap.Cursor(); err == nil {
-			if !cursorSent || c.Serial != cursor.Serial {
-				if len(c.Pixels) > 0 {
-					if err := emit(cursorShape(c)); err != nil {
-						return err
-					}
-				}
-			}
-			if !cursorSent || c.X != cursor.X || c.Y != cursor.Y || c.Visible != cursor.Visible || c.Serial != cursor.Serial {
-				if err := emit(protocol.Frame{Type: protocol.TypeCursorPos, X: c.X, Y: c.Y, Visible: c.Visible}); err != nil {
-					return err
-				}
-			}
-			cursor, cursorSent = c, true
 		}
 
 		s.mu.Lock()
@@ -217,9 +343,19 @@ func Serve(conn io.ReadWriter, cap Capturer, input InputHandler, opt Options) er
 		if quality == protocol.QualityAuto {
 			quality = s.auto
 		}
+		active := time.Since(s.inputAt) < opt.ActiveFor
 		s.mu.Unlock()
 
-		if credit {
+		if active && interval != activeInterval {
+			// Input tends to change the screen (hover, menus, the cursor
+			// itself where it is in the image): capture more often.
+			interval = activeInterval
+			if next := lastCapture.Add(interval); next.Before(nextCapture) {
+				nextCapture = next
+			}
+		}
+		if credit && !time.Now().Before(nextCapture) {
+			lastCapture = time.Now()
 			nw, nh, err := cap.Size()
 			if err != nil {
 				return err
@@ -230,7 +366,7 @@ func Serve(conn io.ReadWriter, cap Capturer, input InputHandler, opt Options) er
 				enc = NewEncoder(sw, sh)
 				pixels = make([]uint32, sw*sh)
 				full = true
-				if err := emit(protocol.Frame{Type: protocol.TypeScreenSize, Width: sw, Height: sh}); err != nil {
+				if err := out.emit(protocol.Frame{Type: protocol.TypeScreenSize, Width: sw, Height: sh}); err != nil {
 					return err
 				}
 			}
@@ -243,45 +379,59 @@ func Serve(conn io.ReadWriter, cap Capturer, input InputHandler, opt Options) er
 					enc.Hint(rects)
 				}
 			}
-			n, err := enc.Encode(pixels, full, quality, emit)
+			n, err := enc.Encode(pixels, full, quality, out.emit)
 			if err != nil {
 				return err
 			}
+			if active {
+				interval = activeInterval
+			} else if n > 0 || interval < opt.Interval {
+				interval = opt.Interval
+			}
 			if n > 0 {
 				lastChange = time.Now()
-				interval = opt.Interval
 			} else if time.Since(lastChange) >= opt.RefineAfter && enc.Lossy() {
-				if n, err = enc.Refine(emit); err != nil {
+				if n, err = enc.Refine(out.emit); err != nil {
 					return err
 				}
-			} else if time.Since(lastChange) >= opt.RefineAfter {
+			} else if time.Since(lastChange) >= opt.RefineAfter && !active {
 				interval = opt.IdleInterval
 			}
+			nextCapture = lastCapture.Add(interval)
 			if n > 0 {
 				seq++
 				s.mu.Lock()
 				s.sentAt[seq] = time.Now()
 				s.mu.Unlock()
-				if err := emit(protocol.Frame{Type: protocol.TypeScreenFrameEnd, Seq: seq}); err != nil {
+				if err := out.emit(protocol.Frame{Type: protocol.TypeScreenFrameEnd, Seq: seq}); err != nil {
 					return err
 				}
 			}
-		}
-		if err := w.Flush(); err != nil {
-			return err
+			if err := out.flush(); err != nil {
+				return err
+			}
 		}
 
-		// Without credit, an acknowledgement ends the wait early.
+		// Sleep until the next capture. Without credit, an acknowledgement
+		// ends the wait early; input always does, in case it ends idling.
 		var acks <-chan struct{}
-		if !credit {
+		wait := interval
+		if credit {
+			wait = time.Until(nextCapture)
+		} else {
 			acks = s.wake
 		}
-		timer := time.NewTimer(interval)
+		timer := time.NewTimer(max(wait, 0))
 		select {
 		case <-s.done:
 			timer.Stop()
 			return nil
+		case <-cursorDone:
+			timer.Stop()
+			return errCursorEnded
 		case <-acks:
+			timer.Stop()
+		case <-s.input:
 			timer.Stop()
 		case <-timer.C:
 		}
@@ -344,6 +494,11 @@ func (s *session) handle(f protocol.Frame, input InputHandler) {
 		if input != nil {
 			_ = input.Handle(f)
 		}
+		s.mu.Lock()
+		s.inputAt = time.Now()
+		s.mu.Unlock()
+		poke(s.input)
+		poke(s.inputCursor)
 	}
 }
 

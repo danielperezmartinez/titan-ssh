@@ -1,7 +1,12 @@
 package io.github.danielperezmartinez.titanssh.terminal
 
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.toComposeImageBitmap
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import kotlin.math.roundToInt
 import org.jetbrains.skia.ColorAlphaType
 import org.jetbrains.skia.ColorType
 import org.jetbrains.skia.Image
@@ -38,4 +43,20 @@ private class SkiaScreenSurface(override val width: Int, override val height: In
 
 actual fun createScreenSurface(width: Int, height: Int): ScreenSurface = SkiaScreenSurface(width, height)
 
-actual fun ScreenSurface.imageBitmap(): ImageBitmap? = (this as? SkiaScreenSurface)?.image
+actual fun DrawScope.drawScreenSurface(
+    surface: ScreenSurface,
+    left: Float,
+    top: Float,
+    scale: Float,
+    alpha: Float,
+    filterQuality: FilterQuality,
+) {
+    val image = (surface as? SkiaScreenSurface)?.image ?: return
+    drawImage(
+        image,
+        dstOffset = IntOffset(left.roundToInt(), top.roundToInt()),
+        dstSize = IntSize((image.width * scale).roundToInt(), (image.height * scale).roundToInt()),
+        alpha = alpha,
+        filterQuality = filterQuality,
+    )
+}

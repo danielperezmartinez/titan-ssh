@@ -7,12 +7,16 @@ import (
 // X11 captures the root window of an X server: every monitor, as one image.
 type X11 struct {
 	x      *x11.Conn
-	cursor bool // XFIXES is there
+	ptr    *x11.Conn // where the cursor is read
+	cursor bool      // XFIXES is there
 }
 
-// NewX11 returns a capturer on x. Without XFIXES the cursor is not sent.
-func NewX11(x *x11.Conn) *X11 {
-	return &X11{x: x, cursor: x.XFixesInit() == nil}
+// NewX11 returns a capturer that reads the screen on x and the cursor on ptr.
+// They should be two connections: a connection serves one request at a time,
+// and the cursor must not wait for a whole screen's GetImage. Without XFIXES
+// the cursor is not sent.
+func NewX11(x, ptr *x11.Conn) *X11 {
+	return &X11{x: x, ptr: ptr, cursor: ptr.XFixesInit() == nil}
 }
 
 // Size is the root window's current size, which follows RandR changes.
@@ -33,10 +37,10 @@ func (c *X11) Capture(dst []uint32, w, h int) error {
 // XFIXES gives premultiplied ARGB; the protocol wants straight alpha.
 func (c *X11) Cursor() (Cursor, error) {
 	if !c.cursor {
-		p, err := c.x.QueryPointer()
+		p, err := c.ptr.QueryPointer()
 		return Cursor{X: int(p.X), Y: int(p.Y), Visible: false}, err
 	}
-	ci, err := c.x.GetCursorImage()
+	ci, err := c.ptr.GetCursorImage()
 	if err != nil {
 		return Cursor{}, err
 	}

@@ -306,21 +306,25 @@ func TestServeFlowControlCursorAndInput(t *testing.T) {
 	}
 	send(protocol.Frame{Type: protocol.TypeScreenHello, Version: protocol.ScreenVersion, Quality: 0})
 
+	// The cursor goes on its own, so it may come before or among the tiles.
+	var size protocol.Frame
 	sawShape, sawPos := false, false
-	size, before := r.until(protocol.TypeScreenSize)
-	for _, f := range before {
-		sawShape = sawShape || f.Type == protocol.TypeCursorShape
-		sawPos = sawPos || (f.Type == protocol.TypeCursorPos && f.X == 5 && f.Y == 6)
+	c := &canvas{w: w, h: h, px: make([]uint32, w*h)}
+	end, first := r.until(protocol.TypeScreenFrameEnd)
+	for _, f := range first {
+		switch f.Type {
+		case protocol.TypeScreenSize:
+			size = f
+		case protocol.TypeScreenTile:
+			c.apply(t, f)
+		case protocol.TypeCursorShape:
+			sawShape = true
+		case protocol.TypeCursorPos:
+			sawPos = sawPos || (f.X == 5 && f.Y == 6)
+		}
 	}
 	if size.Width != w || size.Height != h || !sawShape || !sawPos {
 		t.Fatalf("size %+v, cursor shape %v pos %v", size, sawShape, sawPos)
-	}
-	c := &canvas{w: w, h: h, px: make([]uint32, w*h)}
-	end, tiles := r.until(protocol.TypeScreenFrameEnd)
-	for _, f := range tiles {
-		if f.Type == protocol.TypeScreenTile {
-			c.apply(t, f)
-		}
 	}
 	if end.Seq != 1 || c.px[w*h-1] != px[w*h-1] || c.px[20*w+20] != px[20*w+20] {
 		t.Fatalf("first frame seq %d incomplete", end.Seq)
