@@ -244,6 +244,14 @@ class ConfigController(
         cfg.copy(settings = cfg.settings.copy(allowScreenCapture = allowed))
     }
 
+    fun setKeyboardSuggestions(enabled: Boolean) = mutate { cfg ->
+        cfg.copy(settings = cfg.settings.copy(keyboardSuggestions = enabled))
+    }
+
+    fun setKeyboardSuggestionsButton(shown: Boolean) = mutate { cfg ->
+        cfg.copy(settings = cfg.settings.copy(keyboardSuggestionsButton = shown))
+    }
+
     fun setUpdatePolicy(policy: UpdatePolicy) = mutate { cfg ->
         cfg.copy(settings = cfg.settings.copy(updates = policy))
     }

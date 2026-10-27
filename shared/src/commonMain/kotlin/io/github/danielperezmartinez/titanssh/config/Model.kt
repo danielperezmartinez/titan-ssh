@@ -426,6 +426,14 @@ data class AppSettings(
     val keyBar: List<String>? = null,
     /** What the app does with a downloaded update (ADR-0025). */
     val updates: UpdatePolicy = UpdatePolicy.AUTO,
+    /**
+     * Lets the phone keyboard offer suggestions in the terminal and the mouse
+     * pad (Android). Off by default, like a terminal; it never learns what is
+     * typed either way.
+     */
+    val keyboardSuggestions: Boolean = false,
+    /** Shows `[abc]` on the key bar, to flip [keyboardSuggestions] on the spot. */
+    val keyboardSuggestionsButton: Boolean = false,
 )
 
 /** When a verified update is installed (ADR-0025). */

@@ -34,20 +34,26 @@ class SoftKeyboardEditsTest {
     fun deleting_the_anchor_is_one_backspace_and_resets_the_field() {
         val edits = SoftKeyboardEdits()
         val edit = edits.change("")
-        assertEquals(SoftKeyboardEdits.Edit(1, "", reset = true), edit)
+        assertEquals(SoftKeyboardEdits.Edit(1, "", reset = true, resetNow = true), edit)
         assertEquals("a", typed(edits, "${anchor}a"))
     }
 
     @Test
-    fun a_line_break_resets_the_field_and_a_key_built_on_the_old_text_is_not_repeated() {
+    fun a_line_break_leaves_a_reset_due_and_a_key_built_on_the_old_text_is_not_repeated() {
         val edits = SoftKeyboardEdits()
         assertEquals("ls", typed(edits, "${anchor}l", "${anchor}ls"))
         val enter = edits.change("${anchor}ls\n")
         assertEquals(SoftKeyboardEdits.Edit(0, "\n", reset = true), enter)
-        // A key event processed before the reset reached the field.
+        // Keys typed before the keyboard went quiet build on the kept text.
         assertEquals("x", typed(edits, "${anchor}ls\nx"))
+        edits.reset()
+        // A key event processed before the reset reached the field: the field
+        // takes its text again, and the next key builds on it.
+        assertEquals("z", typed(edits, "${anchor}ls\nxz"))
+        assertEquals("y", typed(edits, "${anchor}ls\nxzy"))
+        edits.reset()
         // And the next one, on the field as it should be again.
-        assertEquals("y", typed(edits, "${anchor}y"))
+        assertEquals("w", typed(edits, "${anchor}w"))
     }
 
     @Test
@@ -56,7 +62,9 @@ class SoftKeyboardEditsTest {
         val line = "a".repeat(70)
         val sent = typed(edits, *(1..line.length).map { anchor + line.take(it) }.toTypedArray())
         assertEquals(line, sent)
-        assertEquals("b", typed(edits, "${anchor}b"))
+        assertEquals(true, edits.change(anchor + line + "b").reset)
+        edits.reset()
+        assertEquals("c", typed(edits, "${anchor}c"))
     }
 
     @Test

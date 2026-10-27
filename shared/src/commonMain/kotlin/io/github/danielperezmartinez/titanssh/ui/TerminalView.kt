@@ -115,7 +115,7 @@ private const val RESIZE_SETTLE_MILLIS = 150L
  * keyboards and desktop); on Android the key bar ([KeyBarRow], the user's
  * [keyBar]) supplies the keys the soft keyboard lacks, its `[*]` calls
  * [onConfigureKeyBar], a hidden capture field brings up the soft keyboard for
- * text, and a long press selects text with the system's floating Copy/Paste
+ * text (as [softKeyboard] says), and a long press selects text with the system's floating Copy/Paste
  * toolbar.
  *
  * [scripts] are the ones the user can launch by hand (ADR-0013): the status
@@ -128,6 +128,7 @@ fun TerminalView(
     scripts: List<SessionScript> = emptyList(),
     keyBar: List<KeyBarKey> = emptyList(),
     onConfigureKeyBar: () -> Unit = {},
+    softKeyboard: SoftKeyboardSettings = SoftKeyboardSettings(),
 ) {
     val status by tab.status.collectAsState()
     val resilience by tab.resilience.collectAsState()
@@ -442,6 +443,7 @@ fun TerminalView(
                 sticky = sticky,
                 onKey = { key -> pressKey(key) },
                 onConfigure = onConfigureKeyBar,
+                softKeyboard = softKeyboard,
                 onText = { text -> sendTyped(text) },
                 onEnter = { send(TerminalKeys.special(TerminalKeys.SpecialKey.ENTER)) },
                 onBackspace = { send(TerminalKeys.special(TerminalKeys.SpecialKey.BACKSPACE)) },
@@ -796,6 +798,7 @@ private fun AndroidInputBar(
     sticky: Int,
     onKey: (KeyBarKey) -> Unit,
     onConfigure: () -> Unit,
+    softKeyboard: SoftKeyboardSettings,
     onText: (String) -> Unit,
     onEnter: () -> Unit,
     onBackspace: () -> Unit,
@@ -809,9 +812,12 @@ private fun AndroidInputBar(
             onConfigure = onConfigure,
             keyboardVisible = keyboardVisible,
             onToggleKeyboard = onToggleKeyboard,
+            suggestions = softKeyboard.suggestions,
+            onToggleSuggestions = softKeyboard.onToggle.takeIf { softKeyboard.showToggle },
         )
         SoftKeyboardCapture(
             focusRequester = keyboardFocus,
+            suggestions = softKeyboard.suggestions,
             onText = onText,
             onEnter = onEnter,
             onBackspace = onBackspace,
@@ -828,13 +834,20 @@ private fun AndroidInputBar(
  * The field is not reset on every key: key events that arrive before the next
  * recomposition each build on the text of the previous one, not on the reset
  * value, and diffing them against the reset value sent every earlier character
- * again (fast typing came out as "eececho"). It is reset to the anchor only now
- * and then (a line break, a long line, the anchor deleted); a change built on
- * the text from just before that reset is diffed against that text instead.
+ * again (fast typing came out as "eececho"). Nor is it reset while the user
+ * types: replacing the field's text restarts the keyboard's input connection,
+ * and a key already on its way to the old one is dropped (a fast line lost
+ * its 65th letter). After a line break or a long line it is reset once the
+ * keyboard goes [quiet][Edit.reset]; only a deleted anchor resets it at once
+ * ([Edit.resetNow]), or the next backspace would change nothing. A change
+ * built on the text from just before a reset is diffed against that text.
  */
 internal class SoftKeyboardEdits {
-    /** Backspaces to send, then the [added] text; [reset] puts the field back to [empty]. */
-    data class Edit(val backspaces: Int, val added: String, val reset: Boolean)
+    /**
+     * Backspaces to send, then the [added] text. [reset]: put the field back
+     * to [empty] once the keyboard is quiet; [resetNow]: right away.
+     */
+    data class Edit(val backspaces: Int, val added: String, val reset: Boolean, val resetNow: Boolean = false)
 
     /** Zero-width anchor, so a backspace on an "empty" field still changes it. */
     private val anchor = "​"
@@ -847,11 +860,18 @@ internal class SoftKeyboardEdits {
         val (backspaces, added) = listOfNotNull(shown, beforeReset)
             .map { base -> diff(base, text) }
             .minBy { (backspaces, added) -> backspaces + added.length }
-        val reset = !text.startsWith(anchor) || text.length > MAX_KEPT ||
-            text.any { it == '\n' || it == '\r' }
-        beforeReset = if (reset) text else null
-        shown = if (reset) anchor else text
-        return Edit(backspaces, added.replace(anchor, ""), reset)
+        val resetNow = !text.startsWith(anchor)
+        val reset = resetNow || text.length > MAX_KEPT || text.any { it == '\n' || it == '\r' }
+        beforeReset = null
+        shown = text
+        if (resetNow) reset()
+        return Edit(backspaces, added.replace(anchor, ""), reset, resetNow)
+    }
+
+    /** The field was put back to [empty]. */
+    fun reset() {
+        beforeReset = shown
+        shown = anchor
     }
 
     private fun diff(base: String, text: String): Pair<Int, String> {
@@ -865,58 +885,86 @@ internal class SoftKeyboardEdits {
 }
 
 /**
+ * How the system keyboard behaves over the terminal and the mouse pad
+ * (Ajustes → Teclado del móvil): whether it offers [suggestions], and whether
+ * the key bar shows `[abc]` ([showToggle]) to flip them with [onToggle].
+ */
+data class SoftKeyboardSettings(
+    val suggestions: Boolean = false,
+    val showToggle: Boolean = false,
+    val onToggle: () -> Unit = {},
+)
+
+/**
  * A near-invisible text field that raises the Android soft keyboard and forwards
- * typed characters (see [SoftKeyboardEdits]). IME prediction can interfere, so
- * this is best-effort and complements the accessory bar; it is only mounted on
- * Android.
+ * typed characters (see [SoftKeyboardEdits]). The keyboard offers [suggestions]
+ * or not, and never learns what is typed ([SoftKeyboardIme]). It complements
+ * the accessory bar and is only mounted on Android.
  */
 @Composable
 internal fun SoftKeyboardCapture(
     focusRequester: FocusRequester,
+    suggestions: Boolean,
     onText: (String) -> Unit,
     onEnter: () -> Unit,
     onBackspace: () -> Unit,
 ) {
     val edits = remember { SoftKeyboardEdits() }
     var value by remember { mutableStateOf(edits.empty) }
-    BasicTextField(
-        value = value,
-        onValueChange = { new ->
-            val edit = edits.change(new.text)
-            repeat(edit.backspaces) { onBackspace() }
-            // Multi-line field, so the IME shows a real return key (↵): a
-            // newline in the added text is an Enter, and the keyboard stays up.
-            // Text longer than a key press may come from the IME clipboard,
-            // so it is filtered like any other paste.
-            val buf = StringBuilder()
-            TerminalKeys.pastedText(edit.added).forEach { ch ->
-                if (ch == '\n' || ch == '\r') {
-                    if (buf.isNotEmpty()) {
-                        onText(buf.toString())
-                        buf.clear()
+    // Bumped by every change that leaves a reset due, so the reset waits until
+    // the keyboard has been quiet for a moment (see SoftKeyboardEdits).
+    var pendingReset by remember { mutableStateOf(0) }
+    LaunchedEffect(pendingReset) {
+        if (pendingReset == 0) return@LaunchedEffect
+        delay(SOFT_KEYBOARD_RESET_IDLE_MILLIS)
+        edits.reset()
+        value = edits.empty
+        pendingReset = 0
+    }
+    SoftKeyboardIme(suggestions) {
+        BasicTextField(
+            value = value,
+            onValueChange = { new ->
+                val edit = edits.change(new.text)
+                repeat(edit.backspaces) { onBackspace() }
+                // Multi-line field, so the IME shows a real return key (↵): a
+                // newline in the added text is an Enter, and the keyboard stays up.
+                // Text longer than a key press may come from the IME clipboard,
+                // so it is filtered like any other paste.
+                val buf = StringBuilder()
+                TerminalKeys.pastedText(edit.added).forEach { ch ->
+                    if (ch == '\n' || ch == '\r') {
+                        if (buf.isNotEmpty()) {
+                            onText(buf.toString())
+                            buf.clear()
+                        }
+                        onEnter()
+                    } else {
+                        buf.append(ch)
                     }
-                    onEnter()
-                } else {
-                    buf.append(ch)
                 }
-            }
-            if (buf.isNotEmpty()) onText(buf.toString())
-            value = if (edit.reset) edits.empty else new
-        },
-        singleLine = false,
-        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
-        cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.Transparent),
-        modifier = Modifier
-            .size(1.dp)
-            .focusRequester(focusRequester)
-            .onPreviewKeyEvent { event ->
-                // Enter arrives as a '\n' via onValueChange (kept multi-line);
-                // here we only need the hardware Backspace fallback.
-                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                when (event.key.keyCode) {
-                    androidx.compose.ui.input.key.Key.Backspace.keyCode -> { onBackspace(); true }
-                    else -> false
-                }
+                if (buf.isNotEmpty()) onText(buf.toString())
+                value = if (edit.resetNow) edits.empty else new
+                pendingReset = if (edit.reset && !edit.resetNow) pendingReset + 1 else 0
             },
-    )
+            singleLine = false,
+            keyboardOptions = KeyboardOptions(autoCorrectEnabled = suggestions),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.Transparent),
+            modifier = Modifier
+                .size(1.dp)
+                .focusRequester(focusRequester)
+                .onPreviewKeyEvent { event ->
+                    // Enter arrives as a '\n' via onValueChange (kept multi-line);
+                    // here we only need the hardware Backspace fallback.
+                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    when (event.key.keyCode) {
+                        androidx.compose.ui.input.key.Key.Backspace.keyCode -> { onBackspace(); true }
+                        else -> false
+                    }
+                },
+        )
+    }
 }
+
+/** How long the keyboard must be quiet before [SoftKeyboardCapture] empties its field. */
+private const val SOFT_KEYBOARD_RESET_IDLE_MILLIS = 800L
