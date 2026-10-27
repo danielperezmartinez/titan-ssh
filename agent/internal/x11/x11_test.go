@@ -60,16 +60,41 @@ func TestXauthorityPicksThisHostsCookie(t *testing.T) {
 // fakeServer answers the connection setup and then one GetImage of 2x1 pixels.
 func fakeServer(t *testing.T, srv net.Conn, wantCookie string) {
 	t.Helper()
+	if !fakeSetup(t, srv, wantCookie) {
+		return
+	}
+	req := make([]byte, 20)
+	if _, err := io.ReadFull(srv, req); err != nil || req[0] != opGetImage {
+		t.Errorf("expected GetImage, got %v %v", req, err)
+		return
+	}
+	// An unrelated event first, which the client must skip.
+	ev := make([]byte, 32)
+	ev[0] = 12
+	srv.Write(ev)
+	img := make([]byte, 32+8)
+	img[0], img[1] = 1, 24
+	le.PutUint16(img[2:], 1) // sequence
+	le.PutUint32(img[4:], 2) // 8 bytes of data
+	le.PutUint32(img[32:], 0xAA112233)
+	le.PutUint32(img[36:], 0x00445566)
+	srv.Write(img)
+}
+
+// fakeSetup answers the connection setup of a 2x1 screen, with resource IDs
+// from 0x400000 (mask 0x1fffff). It reports whether the cookie was right.
+func fakeSetup(t *testing.T, srv net.Conn, wantCookie string) bool {
+	t.Helper()
 	head := make([]byte, 12)
 	if _, err := io.ReadFull(srv, head); err != nil {
 		t.Error(err)
-		return
+		return false
 	}
 	n, d := int(le.Uint16(head[6:])), int(le.Uint16(head[8:]))
 	auth := make([]byte, n+pad4(n)+d+pad4(d))
 	if _, err := io.ReadFull(srv, auth); err != nil {
 		t.Error(err)
-		return
+		return false
 	}
 	if got := string(auth[n+pad4(n) : n+pad4(n)+d]); got != wantCookie {
 		reason := "bad cookie"
@@ -78,14 +103,16 @@ func fakeServer(t *testing.T, srv net.Conn, wantCookie string) {
 		le.PutUint16(reply[6:], 3)
 		copy(reply[8:], reason)
 		srv.Write(reply)
-		return
+		return false
 	}
 	// Setup body: fixed part, vendor "test", one format, one screen with one
 	// depth and one visual.
 	body := make([]byte, 32+4+8+40+8+24)
-	le.PutUint16(body[16:], 4)      // vendor length
-	le.PutUint16(body[18:], 0xffff) // max request length
-	body[20], body[21] = 1, 1       // screens, formats
+	le.PutUint32(body[4:], 0x400000) // resource ID base
+	le.PutUint32(body[8:], 0x1fffff) // resource ID mask
+	le.PutUint16(body[16:], 4)       // vendor length
+	le.PutUint16(body[18:], 0xffff)  // max request length
+	body[20], body[21] = 1, 1        // screens, formats
 	body[26], body[27] = 8, 255
 	copy(body[32:], "test")
 	f := 36
@@ -110,23 +137,7 @@ func fakeServer(t *testing.T, srv net.Conn, wantCookie string) {
 	le.PutUint16(reply[2:], 11)
 	le.PutUint16(reply[6:], uint16(len(body)/4))
 	srv.Write(append(reply, body...))
-
-	req := make([]byte, 20)
-	if _, err := io.ReadFull(srv, req); err != nil || req[0] != opGetImage {
-		t.Errorf("expected GetImage, got %v %v", req, err)
-		return
-	}
-	// An unrelated event first, which the client must skip.
-	ev := make([]byte, 32)
-	ev[0] = 12
-	srv.Write(ev)
-	img := make([]byte, 32+8)
-	img[0], img[1] = 1, 24
-	le.PutUint16(img[2:], 1) // sequence
-	le.PutUint32(img[4:], 2) // 8 bytes of data
-	le.PutUint32(img[32:], 0xAA112233)
-	le.PutUint32(img[36:], 0x00445566)
-	srv.Write(img)
+	return true
 }
 
 func TestConnSetupAndGetImage(t *testing.T) {

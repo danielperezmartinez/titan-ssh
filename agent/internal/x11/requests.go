@@ -149,19 +149,24 @@ func (x *Conn) GetImage(x0, y0, w, h int, dst []uint32) error {
 		if len(data) < w*bh*4 {
 			return errors.New("x11: short GetImage reply")
 		}
-		out := dst[y*w : (y+bh)*w]
-		if x.Setup.ImageByteOrder == 0 { // LSBFirst
-			for i := range out {
-				out[i] = le.Uint32(data[i*4:]) & 0xffffff
-			}
-		} else {
-			for i := range out {
-				p := data[i*4:]
-				out[i] = uint32(p[1])<<16 | uint32(p[2])<<8 | uint32(p[3])
-			}
-		}
+		x.toRGB(dst[y*w:(y+bh)*w], data)
 	}
 	return nil
+}
+
+// toRGB turns ZPixmap data of 32-bit pixels, in the server's image byte
+// order, into 0x00RRGGBB pixels (len(data) >= 4*len(out)).
+func (x *Conn) toRGB(out []uint32, data []byte) {
+	if x.Setup.ImageByteOrder == 0 { // LSBFirst
+		for i := range out {
+			out[i] = le.Uint32(data[i*4:]) & 0xffffff
+		}
+	} else {
+		for i := range out {
+			p := data[i*4:]
+			out[i] = uint32(p[1])<<16 | uint32(p[2])<<8 | uint32(p[3])
+		}
+	}
 }
 
 // KeyboardMapping is the server's keycode → keysyms table.

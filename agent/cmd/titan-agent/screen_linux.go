@@ -71,11 +71,13 @@ func openX11Screen(s graphical.Session) (*screenSource, error) {
 		return nil, withCode(codeNoDesktop, err)
 	}
 	var mu sync.Mutex
+	capturer := screen.NewX11(x, ptr)
 	return &screenSource{
-		capturer: screen.NewX11(x, ptr),
+		capturer: capturer,
 		input:    inject.NewHandler(inj, &mu),
 		close: func() {
 			inj.Restore()
+			capturer.Close()
 			ptr.Close()
 			x.Close()
 		},
