@@ -1,12 +1,12 @@
 ---
 Nombre: 'Colores en las sesiones del agente'
-Estado: En curso
+Estado: Hecha
 Resumen: 'En las sesiones que corren en el agente (nivel 3) la shell arrancaba sin `TERM`, así que Claude Code y otras apps que comprueban el terminal quitaban todo el color: el muñeco salía blanco y en `claude agents` no se veía la línea seleccionada. El agente pasa a dar a la shell de cada sesión `TERM=xterm-256color` y `COLORTERM=truecolor`.'
 Decisiones: 'El agente siempre fija `TERM`/`COLORTERM` para el emulador de la app, sin mirar lo que tenga su propio entorno (el demonio arranca por `exec` de SSH, sin PTY). Ajuste de [[Resiliencia nivel 3 agente propio en el destino]].'
 Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-27T20:32:08+01:00
-Última modificación: 2026-10-27T20:32:08+01:00
+Última modificación: 2026-10-27T20:57:21+01:00
 ---
 
 # Colores en las sesiones del agente
@@ -39,16 +39,17 @@ Diagnóstico:
 - La shell de cada sesión del agente en Unix recibe `TERM=xterm-256color` y
   `COLORTERM=truecolor`, sustituyendo los valores que tuviera el demonio.
 - Test del agente que lo comprueba.
-- Probado desde el emulador Android con una sesión de nivel 3: `echo $TERM`
-  da `xterm-256color` y Claude Code sale con colores.
+- Probado desde Android con una sesión de nivel 3 (el usuario, en la canary
+  del Pixel): Claude Code sale con colores.
 
 ## Verificación
 
 - `TestNewPtySetsTerminalEnv` (la shell de `NewPty` ve `TERM=xterm-256color`
   y `COLORTERM=truecolor` aunque el demonio tenga otro `TERM`): falla sin el
   arreglo y pasa con él. `go test ./...` del agente en verde.
-- Pendiente: el usuario lo prueba desde el Pixel con la canary (sesión de
-  nivel 3 nueva, tras actualizarse el agente canary).
+- El usuario lo confirmó desde el Pixel con la canary (sesión de nivel 3
+  nueva tras actualizarse el agente canary): Claude Code sale con colores y
+  en `claude agents` se ve resaltada la línea seleccionada.
 
 ## Resultado
 
