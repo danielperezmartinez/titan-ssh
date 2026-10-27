@@ -1,12 +1,12 @@
 ---
 Nombre: 'Sugerencias del teclado del móvil y letras perdidas'
-Estado: 'En curso'
+Estado: 'Hecha'
 Resumen: 'En Android el teclado del sistema no muestra sugerencias en el terminal ni en el mouse pad, y al escribir muy deprisa a veces se pierden letras. Se añaden en Ajustes dos interruptores (sugerencias del teclado, y un botón [abc] junto a [kbd] para encenderlas o apagarlas al momento), el teclado nunca aprende lo tecleado, y se busca y corrige la pérdida de letras.'
 Decisiones: 'Las sugerencias se activan en Ajustes → Teclado del móvil, un ajuste global solo de Android que vale para el terminal y el mouse pad. El botón [abc] no sale por defecto: lo muestra un segundo interruptor con su explicación. Con sugerencias o sin ellas, el campo pide IME_FLAG_NO_PERSONALIZED_LEARNING (cubre ese punto de [[Endurecer la entrada del mouse pad y del teclado del móvil]]).'
 Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-27T12:00:00+01:00
-Última modificación: 2026-10-27T13:10:00+01:00
+Última modificación: 2026-10-27T14:00:00+01:00
 ---
 
 # Sugerencias del teclado del móvil y letras perdidas
@@ -47,9 +47,8 @@ problemas que ha notado el usuario:
 Hecho el 2026-10-27 en el emulador (`Pixel_9_Pro_XL`, Gboard, build de
 debug del worktree) contra `titan-test-sshd` por `adb reverse` a
 `127.0.0.1:2222`, y con `:shared:desktopTest` (519 tests en verde, entre
-ellos `SoftKeyboardEditsTest`). Pendiente la confirmación del usuario en su
-móvil: allí no salían sugerencias nunca, mientras que en el emulador Gboard sí
-las daba con el campo de antes.
+ellos `SoftKeyboardEditsTest`). El mismo día el usuario lo probó en su móvil
+y dio el visto bueno.
 
 - **Lo que pide el campo** (`dumpsys input_method`): sin sugerencias,
   `inputType=0xa0091` (texto, contraseña visible, sin sugerencias,
