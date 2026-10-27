@@ -1,12 +1,12 @@
 ---
 Nombre: 'Revisar los avisos de CodeQL en titan-screenprobe'
-Estado: 'En curso'
+Estado: 'Hecha'
 Resumen: 'CodeQL tiene abiertos desde el 2026-10-22 dos avisos go/incorrect-integer-conversion (nº 1 y 2) en agent/cmd/titan-screenprobe/main.go, línea 130: un valor de strconv.Atoi se convierte a int16 sin comprobar el límite superior. titan-screenprobe es un cliente de desarrollo del protocolo del escritorio remoto (ADR-0029) que no se publica. Hay que revisarlos y corregirlos o descartarlos con motivo.'
 Decisiones: ''
 Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-27T09:38:34+01:00
-Última modificación: 2026-10-27T09:38:34+01:00
+Última modificación: 2026-10-27T09:42:02+01:00
 ---
 
 # Revisar los avisos de CodeQL en titan-screenprobe
@@ -44,8 +44,9 @@ Los avisos se consultan con
   en una conversión a un entero más estrecho. El `int16(x), int16(y)` de
   `internal/inject/inject_x11.go` (`MoveTo`) recibe coordenadas ya recortadas
   al tamaño de la pantalla, que en X11 cabe en `int16`.
-- Pendiente: que el análisis de CodeQL sobre `main` tras subir el arreglo cierre
-  los avisos nº 1 y 2.
+- El análisis de CodeQL sobre `main` en el commit del arreglo (run
+  `Push on main`, correcto) marcó los avisos nº 1 y 2 como `fixed`; quedan
+  0 avisos abiertos.
 
 ## Resultado
 
