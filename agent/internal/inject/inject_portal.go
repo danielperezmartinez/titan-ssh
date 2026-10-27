@@ -34,7 +34,16 @@ type Portal struct {
 	// logical pixels.
 	scale            float64
 	scrollX, scrollY int
+	// SmoothScroll, when set, takes the scroll as it comes, fractions of a
+	// notch included, in smoothUnitsPerNotch (dy > 0 up, dx > 0 right).
+	// KDE needs it: its portal hands discrete steps to KWin as an axis value
+	// of 1 each, a fifteenth of a real notch.
+	SmoothScroll func(dx, dy float64) error
 }
+
+// smoothUnitsPerNotch is one notch for SmoothScroll: Qt turns each unit of
+// a continuous axis into 12 of angle, so 10 make the 120 of a wheel notch.
+const smoothUnitsPerNotch = 10
 
 // NewPortal returns an injector on dev. scale is captured pixels per
 // logical pixel (2 on a 200% monitor).
@@ -72,6 +81,12 @@ func (p *Portal) Button(button uint8, down bool) error {
 // Scroll scrolls whole notches (dy > 0 up, dx > 0 right), keeping the
 // remainder for the next call.
 func (p *Portal) Scroll(dx, dy int) error {
+	if p.SmoothScroll != nil {
+		if dx == 0 && dy == 0 {
+			return nil
+		}
+		return p.SmoothScroll(float64(dx)*smoothUnitsPerNotch/120, float64(dy)*smoothUnitsPerNotch/120)
+	}
 	p.scrollY += dy
 	p.scrollX += dx
 	var err error

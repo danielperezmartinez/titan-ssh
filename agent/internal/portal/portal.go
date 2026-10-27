@@ -432,6 +432,12 @@ func (s *Session) PointerAxisDiscrete(axis uint32, steps int32) error {
 	return s.notify("NotifyPointerAxisDiscrete", "oa{sv}ui", axis, steps)
 }
 
+// PointerAxis scrolls continuously by dx, dy. KDE's portal hands them to
+// KWin as axis values (a wheel notch is 15) with dy > 0 up, dx > 0 right.
+func (s *Session) PointerAxis(dx, dy float64) error {
+	return s.notify("NotifyPointerAxis", "oa{sv}dd", dx, dy)
+}
+
 // KeyboardKeysym presses or releases a keysym.
 func (s *Session) KeyboardKeysym(sym int32, pressed bool) error {
 	return s.notify("NotifyKeyboardKeysym", "oa{sv}iu", sym, state(pressed))

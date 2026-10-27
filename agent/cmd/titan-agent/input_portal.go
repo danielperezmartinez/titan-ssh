@@ -71,8 +71,12 @@ func portalInputWay(stateDir string) func(graphical.Session) error {
 			writeTokenFile(stateDir, portalInputTokenFile, sess.RestoreToken)
 		}
 		inject.WarmUp(sess, started)
+		inj := inject.NewPortal(sess, noScreen, 1)
+		if s.Family() == graphical.FamilyKDE {
+			inj.SmoothScroll = sess.PointerAxis
+		}
 		var mu sync.Mutex
-		return inject.Serve(stdio(), inject.NewPortal(sess, noScreen, 1), &mu)
+		return inject.Serve(stdio(), inj, &mu)
 	}
 }
 

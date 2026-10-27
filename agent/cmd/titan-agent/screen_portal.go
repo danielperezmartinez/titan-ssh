@@ -94,6 +94,7 @@ func openPortalScreen(s graphical.Session) (*screenSource, error) {
 		dev      inject.PortalDevice
 		embedded bool
 		fd       int
+		smooth   func(dx, dy float64) error
 	)
 	if s.Family() == graphical.FamilyGNOME && gnomeUnattended() {
 		// GNOME with the unattended access: Mutter's own API, no dialog.
@@ -127,6 +128,9 @@ func openPortalScreen(s graphical.Session) (*screenSource, error) {
 			writePortalToken(sess.RestoreToken)
 		}
 		streams, dev, embedded = sess.Streams, sess, sess.CursorMode != portal.CursorMetadata
+		if s.Family() == graphical.FamilyKDE {
+			smooth = sess.PointerAxis
+		}
 		if fd, err = sess.OpenPipeWireRemote(ctx); err != nil {
 			return nil, withCode(codeScreenCapture, err)
 		}
@@ -175,6 +179,7 @@ func openPortalScreen(s graphical.Session) (*screenSource, error) {
 	inject.WarmUp(dev, started)
 	var mu sync.Mutex
 	inj := inject.NewPortal(dev, locate, parts[0].scale)
+	inj.SmoothScroll = smooth
 	ok = true
 	return &screenSource{
 		capturer: comp,

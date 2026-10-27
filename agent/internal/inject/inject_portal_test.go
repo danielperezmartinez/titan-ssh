@@ -64,3 +64,19 @@ func TestPortalInjector(t *testing.T) {
 		t.Fatalf("calls:\n%v\nwant:\n%v", dev.calls, want)
 	}
 }
+
+func TestPortalSmoothScroll(t *testing.T) {
+	dev := &fakePortal{}
+	p := NewPortal(dev, nil, 1)
+	p.SmoothScroll = func(dx, dy float64) error {
+		dev.calls = append(dev.calls, fmt.Sprintf("smooth %g,%g", dx, dy))
+		return nil
+	}
+	_ = p.Scroll(0, 60)   // half a notch up goes at once
+	_ = p.Scroll(0, 0)    // nothing
+	_ = p.Scroll(-240, 0) // two notches left
+	want := []string{"smooth 0,5", "smooth -20,0"}
+	if !reflect.DeepEqual(dev.calls, want) {
+		t.Fatalf("calls: %v, want %v", dev.calls, want)
+	}
+}
