@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 
 	"golang.org/x/sys/unix"
@@ -21,7 +22,23 @@ func NewPty(cols, rows uint16) (Pty, error) {
 		shell = "/bin/sh"
 	}
 	// A login, interactive shell so the user's rc files run (prompt, aliases…).
-	return startPty(exec.Command(shell, "-il"), cols, rows)
+	cmd := exec.Command(shell, "-il")
+	cmd.Env = terminalEnv(os.Environ())
+	return startPty(cmd, cols, rows)
+}
+
+// terminalEnv returns env with the terminal the app's emulator is: the daemon
+// is started by an SSH exec without a PTY, so it has no TERM of its own, and
+// without one programs that check it (Claude Code, anything on supports-color)
+// drop every colour. It matches the PTY the direct connection asks sshd for.
+func terminalEnv(env []string) []string {
+	out := make([]string, 0, len(env)+2)
+	for _, kv := range env {
+		if !strings.HasPrefix(kv, "TERM=") && !strings.HasPrefix(kv, "COLORTERM=") {
+			out = append(out, kv)
+		}
+	}
+	return append(out, "TERM=xterm-256color", "COLORTERM=truecolor")
 }
 
 // startPty runs cmd as the session leader of a new PTY. The master/slave pair

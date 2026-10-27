@@ -37,3 +37,19 @@ func assertShellGone(t *testing.T, p Pty) {
 		t.Fatal("shell was not reaped by Close")
 	}
 }
+
+// The daemon has no TERM (an SSH exec has no PTY); the session's shell must
+// still see the app's emulator, or programs drop every colour.
+func TestNewPtySetsTerminalEnv(t *testing.T) {
+	t.Setenv("SHELL", "/bin/sh")
+	t.Setenv("TERM", "dumb")
+	t.Setenv("COLORTERM", "")
+	p, err := NewPty(80, 24)
+	if err != nil {
+		t.Fatalf("NewPty: %v", err)
+	}
+	defer p.Close()
+	out := drain(p)
+	run(t, p, `echo "T=$TERM/$((1+1))/$COLORTERM"`)
+	out.waitFor(t, 0, "T=xterm-256color/2/truecolor")
+}
