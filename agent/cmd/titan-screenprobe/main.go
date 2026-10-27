@@ -126,8 +126,10 @@ loop:
 					sendInput(send, *move, *click, *text, *scroll)
 					sendKeys(send, *keys)
 					if *rel != "" {
-						if x, y, ok := xy(*rel); ok {
-							send(protocol.Frame{Type: protocol.TypePointerMove, DX: int16(x), DY: int16(y)})
+						if dx, dy, ok := delta(*rel); ok {
+							send(protocol.Frame{Type: protocol.TypePointerMove, DX: dx, DY: dy})
+						} else {
+							log.Printf("-rel %q: want dx,dy within int16", *rel)
 						}
 					}
 				}
@@ -164,6 +166,17 @@ func xy(s string) (int, int, bool) {
 	x, err1 := strconv.Atoi(a)
 	y, err2 := strconv.Atoi(b)
 	return x, y, err1 == nil && err2 == nil
+}
+
+// delta parses "dx,dy" for a relative move, whose frame fields are int16.
+func delta(s string) (int16, int16, bool) {
+	a, b, ok := strings.Cut(s, ",")
+	if !ok {
+		return 0, 0, false
+	}
+	dx, err1 := strconv.ParseInt(a, 10, 16)
+	dy, err2 := strconv.ParseInt(b, 10, 16)
+	return int16(dx), int16(dy), err1 == nil && err2 == nil
 }
 
 func sendInput(send func(protocol.Frame), move, click, text string, scroll int) {
