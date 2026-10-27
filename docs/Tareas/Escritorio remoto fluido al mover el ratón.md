@@ -1,12 +1,12 @@
 ---
 Nombre: 'Escritorio remoto fluido al mover el ratón'
-Estado: 'En curso'
-Resumen: 'El escritorio remoto va a trompicones, sobre todo al mover el ratón (cursor e imagen), visto desde el Pixel. Medir con una sonda que mueve el puntero a 120 Hz por el canal --screen, encontrar las causas y arreglarlas en el agente y en la app, comprobándolo en X11, Wayland, wlroots y Windows. Causas medidas: el agente solo leía el cursor al ritmo de captura (~15 Hz, huecos de hasta 140 ms); en X11 captura, cursor e inyección compartían una conexión; y Android subía a la GPU la pantalla entera en cada fotograma. Arreglado en el árbol (cursor en su goroutine, dos conexiones X11, superficie Android por trozos de 256 px): cursor a ~115/s en X11 y ~60/s en wlroots, UI de Android p99 11 → 4-6 ms en el emulador. GNOME medido (cursor dentro de la imagen, 24 → 29-37 fps, topado por los ~30 fps de Mutter en el contenedor). Windows medido (cursor 9-22/s → 119,8/s). KDE no se pudo medir (su portal falla en el contenedor también con el agente original). Falta la prueba del usuario en la canary.'
+Estado: 'Hecha'
+Resumen: 'El escritorio remoto va a trompicones, sobre todo al mover el ratón (cursor e imagen), visto desde el Pixel. Medir con una sonda que mueve el puntero a 120 Hz por el canal --screen, encontrar las causas y arreglarlas en el agente y en la app, comprobándolo en X11, Wayland, wlroots y Windows. Causas medidas: el agente solo leía el cursor al ritmo de captura (~15 Hz, huecos de hasta 140 ms); en X11 captura, cursor e inyección compartían una conexión; y Android subía a la GPU la pantalla entera en cada fotograma. Arreglado en el árbol (cursor en su goroutine, dos conexiones X11, superficie Android por trozos de 256 px): cursor a ~115/s en X11 y ~60/s en wlroots, UI de Android p99 11 → 4-6 ms en el emulador. GNOME medido (cursor dentro de la imagen, 24 → 29-37 fps, topado por los ~30 fps de Mutter en el contenedor). Windows medido (cursor 9-22/s → 119,8/s). KDE no se pudo medir (su portal falla en el contenedor también con el agente original). Probado por el usuario en el Pixel con la canary del 2026-10-27: va mucho más fluido.'
 Decisiones: 'El cursor va en su propia goroutine de Serve (Capturer.Cursor debe aguantar llamadas concurrentes con Capture) y se lee cada 8 ms durante 500 ms tras cada entrada del cliente, cada Interval si no; la entrada también saca la captura del ritmo de reposo y, con capturadores que saben qué cambió (Damager: wlroots, portal, DXGI), la acelera a 16 ms mientras dura; X11 se queda en 33 ms, porque cada captura lee la pantalla entera. X11 abre dos conexiones (captura; puntero = inyección y cursor). En Android la vista lee la pantalla en la fase de dibujo y la superficie va en bitmaps de 256×256 que se ponen al día en el hilo de UI.'
 Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-27T16:00:00+01:00
-Última modificación: 2026-10-27T19:40:00+01:00
+Última modificación: 2026-10-27T19:45:00+01:00
 ---
 
 # Escritorio remoto fluido al mover el ratón
@@ -113,8 +113,31 @@ cursor y captura → `CURSOR_POS` y baldosas → `RemoteScreen` →
   pocos datos: pasa igual con el agente original y la traza del ayudante
   muestra que cada sesión termina limpia, así que es del entorno, no una
   regresión.
-- Pendiente: la prueba del usuario en la canary.
+- **Canary** (2026-10-27, commit `52668c3`, integrado en `main` con
+  `1687500`): workflow `Release` en verde y Release `canary` actualizado.
+  El usuario lo prueba en el Pixel y confirma que va mucho más fluido.
 
 ## Resultado
 
-<Se rellena al completar.>
+- **Agente** (`screen.Serve`): el cursor va en su propia goroutine, que lo
+  lee cada 8 ms durante 500 ms tras cada entrada del cliente (y en el
+  acto al llegar la entrada) y cada `Interval` si no, sin esperar nunca a
+  una captura. La entrada saca la captura del ritmo de reposo y, con
+  capturadores que conocen el daño (wlroots, portal, DXGI), captura cada
+  16 ms mientras dura. `Capturer.Cursor` debe aguantar llamadas a la vez
+  que `Capture`.
+- **X11**: dos conexiones con el servidor X, una para capturar y otra para
+  el puntero (inyección y cursor).
+- **App**: `MousepadView` lee la pantalla y el cursor en la fase de
+  dibujo; `drawScreenSurface` sustituye a `imageBitmap`. En Android la
+  superficie va en bitmaps de 256×256 que se ponen al día en el hilo de
+  UI, así que cada fotograma solo sube a la GPU los trozos que cambian.
+- **`tools/test-x11`**: el escritorio vuelve a arrancar tras un
+  `docker stop` y `docker start`.
+- Medido con una sonda que mueve el puntero a 120 Hz (tablas en
+  **Verificación**): cursor de 9-22 a ~120 actualizaciones por segundo en
+  Windows, de 14-17 a ~115 en X11 y de 21 a 45-59 en wlroots; en GNOME el
+  cursor va en la imagen, de 24 a 29-37 fps.
+- Ideas que no se hicieron: MIT-SHM en X11 (quitaría las colas que deja el
+  servidor X atendiendo un `GetImage`) y la superficie por trozos en la
+  app de escritorio, que sigue copiando la pantalla entera por fotograma.
