@@ -17,7 +17,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import io.github.danielperezmartinez.titanssh.AppChannel
 import io.github.danielperezmartinez.titanssh.keyinstall.HostKeyQuestion
 import io.github.danielperezmartinez.titanssh.keyinstall.KeyInstallResult
 import io.github.danielperezmartinez.titanssh.keyinstall.KeyInstallStep
@@ -27,12 +26,6 @@ import io.github.danielperezmartinez.titanssh.theme.TitanDimens
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-
-/**
- * Whether the host editor offers installing the key on the host (ADR-0030):
- * only the canary until it has been tried on real hosts.
- */
-internal val keyInstallOffered: Boolean get() = AppChannel.isCanary
 
 /**
  * Everything installing the key will do, for the text under the checkbox

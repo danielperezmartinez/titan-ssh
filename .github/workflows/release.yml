@@ -197,7 +197,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
       - name: Agent tests
         working-directory: agent
-        # The canary agent is built with -tags canary (ADR-0029): vet that too.
+        # The canary agent is built with -tags canary (ADR-0027): vet that too.
         run: |
           go test -race -count=1 ./...
           go vet -tags canary ./...

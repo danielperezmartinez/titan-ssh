@@ -92,17 +92,14 @@ func directInput(stateDir string) (bool, error) {
 		return true, err
 	}
 	if s.Kind != graphical.X11 {
-		// The wlroots family through its virtual pointer and keyboard, only
-		// in the canary for now, like the remote desktop that brought it.
-		if screenServed {
-			ways := []func(graphical.Session) error{portalInputWay(stateDir), wlrootsInput}
-			if s.Family() == graphical.FamilyWlroots {
-				ways[0], ways[1] = ways[1], ways[0]
-			}
-			for _, way := range ways {
-				if err := way(s); !errors.Is(err, errNoWay) {
-					return true, err
-				}
+		// The desktop portal, or the wlroots virtual pointer and keyboard.
+		ways := []func(graphical.Session) error{portalInputWay(stateDir), wlrootsInput}
+		if s.Family() == graphical.FamilyWlroots {
+			ways[0], ways[1] = ways[1], ways[0]
+		}
+		for _, way := range ways {
+			if err := way(s); !errors.Is(err, errNoWay) {
+				return true, err
 			}
 		}
 		return true, withCode(codeInputUnsupported, errors.New("the mouse pad does not support "+s.Describe()+" yet"))

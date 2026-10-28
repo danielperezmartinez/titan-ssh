@@ -48,9 +48,6 @@
       <p class="eyebrow">Documentación</p>
       <h1>Escritorio remoto y mouse pad</h1>
       <p class="lede">Ver y controlar la pantalla de un PC Windows o Linux desde titan-ssh, por la misma conexión SSH, sin abrir puertos ni instalar un servidor VNC o RDP.</p>
-      <div class="callout">
-        <p><span class="mark wait">[!]</span> <strong>Experimental.</strong> El escritorio remoto solo está en <strong>titan-ssh canary</strong>, la versión de pruebas que se instala junto a la estable, con sus propios ajustes y su propio agente. El mouse pad con destinos Windows ya está en la estable; con destinos Linux, por ahora solo en la canary. Lo que cuenta esta página puede cambiar antes de llegar a la estable.</p>
-        <p><a href="https://github.com/danielperezmartinez/titan-ssh/releases/tag/canary">Descargar titan-ssh canary</a></p>
       </div>
     </div>
   </section>
@@ -115,7 +112,7 @@
           </table>
         </div>
         <ul class="notes">
-          <li>El <strong>mouse pad</strong> funciona en los mismos sistemas. Con Windows está en la estable; con Linux, por ahora, solo en la canary.</li>
+          <li>El <strong>mouse pad</strong> funciona en los mismos sistemas.</li>
           <li><strong>Versiones.</strong> Windows 10 1809 es el mínimo del agente. En Linux no hay un mínimo fijado: la tabla dice con qué versiones se ha probado.</li>
           <li><strong>Wayland en KDE y GNOME</strong> necesita PipeWire y xdg-desktop-portal con el backend del escritorio, que vienen con los dos.</li>
           <li><strong>Otros compositores wlroots</strong> (labwc, river…) funcionan si ofrecen <code>ext-image-copy-capture-v1</code> o <code>wlr-screencopy</code>. Para controlar la pantalla, además, <code>wlr-virtual-pointer</code> y <code>virtual-keyboard</code>; sin ellos solo se ve.</li>
@@ -175,7 +172,7 @@
           <div><dt>Hyprland</dt><dd>Debería funcionar por la vía wlroots, pero no se ha probado: necesita una GPU que el entorno de pruebas no tiene.</dd></div>
           <div><dt>Vídeo y juegos</dt><dd>Se ven, pero gastan más datos que el uso normal y, con una conexión lenta, van a saltos: llegan menos fotogramas, pero siempre recientes. Está pensado para trabajar con ventanas y texto.</dd></div>
           <div><dt>Sonido y portapapeles</dt><dd>No se transmiten.</dd></div>
-          <div><dt>App estable</dt><dd>La estable no ofrece el tipo «escritorio». Si importas en ella una configuración de la canary con sesiones de escritorio, las enseña pero no las abre.</dd></div>
+          <div><dt>App anterior a la 1.5.0</dt><dd>Las versiones estables anteriores a la 1.5.0 no ofrecen el tipo «escritorio»: enseñan esas sesiones pero no las abren. Actualiza la app.</dd></div>
         </dl>
       </section>
 
@@ -200,8 +197,8 @@
           </dd></div>
           <div><dt><code>E_INPUT_UNSUPPORTED</code></dt><dd>
             <p class="msg">«el destino todavía no admite el mouse pad»</p>
-            <p><strong>Por qué:</strong> lo mismo para el mouse pad, o un destino Linux con la app estable.</p>
-            <p><strong>Qué hacer:</strong> con Linux, usa la canary; en los demás casos, mira la <a href="#es-sistemas">tabla de sistemas</a>.</p>
+            <p><strong>Por qué:</strong> lo mismo para el mouse pad, o un destino Linux Wayland con una app anterior a la 1.5.0.</p>
+            <p><strong>Qué hacer:</strong> mira la <a href="#es-sistemas">tabla de sistemas</a> y, si tu app es anterior a la 1.5.0, actualízala.</p>
           </dd></div>
           <div><dt><code>E_SCREEN_CONSENT</code></dt><dd>
             <p class="msg">«no se aceptó en el destino el permiso para compartir la pantalla»</p>
@@ -242,9 +239,6 @@
       <p class="eyebrow">Documentation</p>
       <h1>Remote desktop and mouse pad</h1>
       <p class="lede">See and control the screen of a Windows or Linux computer from titan-ssh, over the same SSH connection, without opening ports or installing a VNC or RDP server.</p>
-      <div class="callout">
-        <p><span class="mark wait">[!]</span> <strong>Experimental.</strong> The remote desktop is only in <strong>titan-ssh canary</strong>, the testing build that installs next to the stable app, with its own settings and its own agent. The mouse pad with Windows destinations is already in the stable app; with Linux destinations, only in the canary for now. What this page describes may change before it reaches the stable app.</p>
-        <p><a href="https://github.com/danielperezmartinez/titan-ssh/releases/tag/canary">Download titan-ssh canary</a></p>
       </div>
     </div>
   </section>
@@ -311,7 +305,7 @@
           </table>
         </div>
         <ul class="notes">
-          <li>The <strong>mouse pad</strong> works on the same systems. With Windows it is in the stable app; with Linux, only in the canary for now.</li>
+          <li>The <strong>mouse pad</strong> works on the same systems.</li>
           <li><strong>Versions.</strong> Windows 10 1809 is the agent's minimum. On Linux there is no fixed minimum: the table says which versions it was tested with.</li>
           <li><strong>Wayland on KDE and GNOME</strong> needs PipeWire and xdg-desktop-portal with the desktop's backend, which both ship.</li>
           <li><strong>Other wlroots compositors</strong> (labwc, river…) work if they offer <code>ext-image-copy-capture-v1</code> or <code>wlr-screencopy</code>. To control the screen they also need <code>wlr-virtual-pointer</code> and <code>virtual-keyboard</code>; without them you can only watch.</li>
@@ -371,7 +365,7 @@
           <div><dt>Hyprland</dt><dd>It should work through the wlroots path, but it hasn't been tested: it needs a GPU that the test environment doesn't have.</dd></div>
           <div><dt>Video and games</dt><dd>They show, but use more data than normal use and, on a slow connection, they stutter: fewer frames arrive, but always recent ones. It is meant for working with windows and text.</dd></div>
           <div><dt>Sound and clipboard</dt><dd>Not transferred.</dd></div>
-          <div><dt>Stable app</dt><dd>The stable app doesn't offer the «escritorio» type. If you import a canary configuration with remote desktop sessions into it, it lists them but doesn't open them.</dd></div>
+          <div><dt>App older than 1.5.0</dt><dd>Stable versions before 1.5.0 don't offer the «escritorio» type: they list those sessions but don't open them. Update the app.</dd></div>
         </dl>
       </section>
 
@@ -396,8 +390,8 @@
           </dd></div>
           <div><dt><code>E_INPUT_UNSUPPORTED</code></dt><dd>
             <p class="msg">«el destino todavía no admite el mouse pad» — the destination doesn't support the mouse pad yet.</p>
-            <p><strong>Why:</strong> the same for the mouse pad, or a Linux destination with the stable app.</p>
-            <p><strong>What to do:</strong> with Linux, use the canary; otherwise check the <a href="#en-systems">systems table</a>.</p>
+            <p><strong>Why:</strong> the same for the mouse pad, or a Linux Wayland destination with an app older than 1.5.0.</p>
+            <p><strong>What to do:</strong> check the <a href="#en-systems">systems table</a> and, if your app is older than 1.5.0, update it.</p>
           </dd></div>
           <div><dt><code>E_SCREEN_CONSENT</code></dt><dd>
             <p class="msg">«no se aceptó en el destino el permiso para compartir la pantalla» — the permission to share the screen wasn't accepted on the destination.</p>

@@ -64,12 +64,9 @@ const (
 	portalTable = "remote-desktop"
 )
 
-// queryRemoteDesktop reports the remote desktop's consent; nil when this
-// agent does not serve it or the user has no graphical session.
+// queryRemoteDesktop reports the remote desktop's consent; nil when the
+// user has no graphical session.
 func queryRemoteDesktop(stateDir string) *remoteDesktopReport {
-	if !screenServed {
-		return nil
-	}
 	s, err := graphical.Find()
 	if err != nil {
 		return nil
@@ -99,9 +96,6 @@ func queryRemoteDesktop(stateDir string) *remoteDesktopReport {
 
 // runRemoteDesktop is --remote-desktop <action>.
 func runRemoteDesktop(stateDir, action string) error {
-	if !screenServed {
-		return withCode(codeScreenUnsupported, errors.New("this agent does not serve the remote desktop: it is only in titan-ssh canary"))
-	}
 	if err := ensureStateDir(stateDir); err != nil {
 		return withCode(codeStateDir, err)
 	}
