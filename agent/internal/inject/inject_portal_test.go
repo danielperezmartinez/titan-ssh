@@ -80,3 +80,30 @@ func TestPortalSmoothScroll(t *testing.T) {
 		t.Fatalf("calls: %v, want %v", dev.calls, want)
 	}
 }
+
+func TestPortalTextKeysyms(t *testing.T) {
+	taps := func(dev *fakePortal) []string {
+		var out []string
+		for _, c := range dev.calls {
+			if len(c) > 5 && c[len(c)-4:] == "true" {
+				out = append(out, c[4:len(c)-5])
+			}
+		}
+		return out
+	}
+	// KDE takes any keysym: the characters' own.
+	dev := &fakePortal{}
+	_ = NewPortal(dev, nil, 1).Text("ú€")
+	if got, want := taps(dev), []string{"0xfa", "0x10020ac"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("taps %v, want %v", got, want)
+	}
+	// With LayoutKeysyms (GNOME), an accented letter is its dead key and the
+	// letter, € its EuroSign keysym; ñ, a key of its own, stays whole.
+	dev = &fakePortal{}
+	p := NewPortal(dev, nil, 1)
+	p.LayoutKeysyms = true
+	_ = p.Text("úÜñ€")
+	if got, want := taps(dev), []string{"0xfe51", "0x75", "0xfe57", "0x55", "0xf1", "0x20ac"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("taps with dead keys %v, want %v", got, want)
+	}
+}

@@ -48,7 +48,9 @@ func portalInputWay(stateDir string) func(graphical.Session) error {
 			defer m.Close()
 			inject.WarmUp(m, started)
 			var mu sync.Mutex
-			return inject.Serve(stdio(), inject.NewPortal(m, noScreen, 1), &mu)
+			inj := inject.NewPortal(m, noScreen, 1)
+			inj.LayoutKeysyms = true
+			return inject.Serve(stdio(), inj, &mu)
 		}
 		ensureDesktopEntry()
 		sess, err := portal.Open(ctx, bus, portal.Options{
@@ -75,6 +77,7 @@ func portalInputWay(stateDir string) func(graphical.Session) error {
 		if s.Family() == graphical.FamilyKDE {
 			inj.SmoothScroll = sess.PointerAxis
 		}
+		inj.LayoutKeysyms = s.Family() == graphical.FamilyGNOME
 		var mu sync.Mutex
 		return inject.Serve(stdio(), inj, &mu)
 	}

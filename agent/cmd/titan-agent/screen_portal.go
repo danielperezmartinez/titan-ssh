@@ -180,6 +180,7 @@ func openPortalScreen(s graphical.Session) (*screenSource, error) {
 	var mu sync.Mutex
 	inj := inject.NewPortal(dev, locate, parts[0].scale)
 	inj.SmoothScroll = smooth
+	inj.LayoutKeysyms = s.Family() == graphical.FamilyGNOME
 	ok = true
 	return &screenSource{
 		capturer: comp,
