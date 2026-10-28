@@ -1,15 +1,15 @@
 ---
 Nombre: 'Escritorio remoto en destinos Linux X11'
-Estado: 'Por probar'
-Estado desde: 2026-10-21
+Estado: 'En curso'
+Estado desde: 2026-10-28
 Resumen: 'Subtarea 1 del escritorio remoto: ver y controlar un escritorio Linux con X11, y construir la base común (tipo de sesión DESKTOP, tramas de pantalla del protocolo, modo titan-agent --screen, decodificación y vista en la app de escritorio y en Android). El agente habla con el servidor X del usuario con un cliente X11 propio y mínimo (GetImage, XFIXES para el cursor, XTEST para la entrada), sin ayudante. Se prueba con un contenedor desechable con Xvfb y sshd.'
-Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño en [[ADR-0029 Escritorio remoto propio a través del agente]]. En Android la pestaña reutiliza la vista del mouse pad con la pantalla detrás: el dedo usa los gestos del touchpad (no toque directo) y un zoom 1x-3x sigue al cursor; con ratón, posición absoluta. Implementado y verificado el 2026-10-21 (agente, app de escritorio por render, emulador); falta la confirmación del usuario en un escritorio X11 real.'
+Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño en [[ADR-0029 Escritorio remoto propio a través del agente]]. En Android la pestaña reutiliza la vista del mouse pad con la pantalla detrás: el dedo usa los gestos del touchpad (no toque directo) y un zoom 1x-3x sigue al cursor; con ratón, posición absoluta. Implementado y verificado el 2026-10-21 (agente, app de escritorio por render, emulador). La prueba del usuario del 2026-10-28 falla en el scroll en kitty y al teclear ñ y vocales con tilde (ver Verificación); vuelve a En curso.'
 Bloqueada: []
-Prueba: 'Ver y controlar un escritorio Linux X11 real con una sesión «escritorio», desde el móvil y desde la app de escritorio.'
+Prueba: ''
 Esperando a: ''
 Versión: ''
 Fecha de creación: 2026-10-21T10:50:00+02:00
-Última modificación: 2026-10-28T12:00:00+01:00
+Última modificación: 2026-10-28T17:30:00+01:00
 ---
 
 # Escritorio remoto en destinos Linux X11
@@ -104,6 +104,23 @@ confirmación del usuario en un escritorio X11 real.
   `adb shell input text`, una línea de 80 caracteres con un borrado en medio y
   teclas pulsadas en Gboard llegan exactas al xterm remoto. El fallo venía del
   terminal y del mouse pad, así que el arreglo también les llega.
+- **Prueba del usuario** (2026-10-28, canary 1.3.1-canary.42, destino
+  `<destino-x11>`, desde el Pixel y desde la app de escritorio en Linux
+  Wayland). Bien: imagen fluida, puntero, clic y clic derecho con todos los
+  gestos, zoom, y la reconexión tras el modo avión. **Falla**:
+  - **Scroll con dos dedos en kitty**: no hace nada, desde el móvil y desde el
+    escritorio. En Firefox y en Alacritty sí funciona, así que es algo de cómo
+    recibe kitty la rueda (o de lo que usa por debajo). Hay que investigarlo.
+  - **Teclear `echo hola ñandú €`**: la `ñ` llega como `;` (la tecla que ocupa
+    su sitio en la distribución US) y la `ú` como `´u` (la tilde muerta y la
+    letra por separado). En un terminal sale `echo hola ;and´u €`. En Alacritty
+    es peor: `;and´u` seguido de cuadros sin glifo alrededor del `€`
+    (`□€□□`).
+  - **Barra de teclas en la app de escritorio**: una sesión «escritorio» en
+    la app de escritorio enseña la barra de teclas de Android (la de encima
+    del teclado del móvil). `MousepadView` pinta `KeyBarRow` en todas las
+    plataformas. El terminal solo la enseña en Android, y la misma vista ya
+    oculta los botones del ratón en escritorio cuando hay imagen remota.
 
 ## Cómo probarlo
 

@@ -6,7 +6,7 @@ Decisiones: 'Nace de [[Escritorio remoto en destinos Linux Wayland]] y [[Mouse p
 Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-22T08:45:00+02:00
-Última modificación: 2026-10-22T08:45:00+02:00
+Última modificación: 2026-10-28T17:30:00+01:00
 ---
 
 # Teclear acentos y AltGr en destinos Wayland con portal
@@ -22,8 +22,15 @@ que en la distribución del destino van con tecla muerta o con AltGr.
 Comprobado en GNOME Shell 48 (`tools/test-gnome`) con la distribución
 española: `NotifyKeyboardKeysym` teclea «ñÑ Az», pero no «áé» ni «€». En X11 el
 agente toma prestado un código de tecla libre, y en wlroots usa su propio mapa
-de teclado; con el portal y Mutter el mapa es el del escritorio. KDE no se ha
-comprobado todavía.
+de teclado; con el portal y Mutter el mapa es el del escritorio.
+
+En KDE Plasma con Wayland (prueba del usuario del 2026-10-28, canary
+1.3.1-canary.42) depende de desde dónde se escribe. Desde el teclado del
+Pixel, `echo ñandú €` llega exacto. Desde la app de escritorio (en un Linux
+X11), `ñandú` llega como `ñand´u`, con la tilde suelta antes de la letra. AltGr
+mete un salto de línea en Obsidian, aunque el `€` sale; en Konsole aparece un
+cuadro sin glifo antes del `€`. Así que en KDE falla sobre todo el camino de
+las teclas físicas de la app de escritorio.
 
 Vías posibles, por valorar:
 
