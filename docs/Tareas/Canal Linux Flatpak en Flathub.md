@@ -7,7 +7,7 @@ Bloqueada:
   - "[[Licencia GPL-3.0-or-later del proyecto]]"
   - "[[Pipeline de release en GitHub Actions]]"
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-09-25T17:50:00+02:00
+Última modificación: 2026-10-28T18:40:00+01:00
 ---
 
 # Canal Linux Flatpak en Flathub
@@ -46,6 +46,11 @@ tienda de apps), con actualizaciones automáticas.
   - `--share=network`, `--socket=x11`, `--device=dri` y `--share=ipc`
   - `--talk-name=org.freedesktop.secrets`
   - `--socket=ssh-auth` (agente SSH)
+  - acceso a `/dev/tpmrm0` para la clave en el TPM
+    ([[ADR-0033 Clave no exportable en el TPM del escritorio]]): Flatpak no
+    tiene un permiso solo para el TPM, así que hace falta `--device=all`;
+    justificarlo ante Flathub o documentar que sin él la clave hardware no está
+    disponible
   - `--filesystem=~/.ssh:ro` o el mínimo que requiera importar claves, dejando
     `known_hosts` y la configuración en los directorios de la app
   Probar que todo funciona dentro del sandbox: conexión, credenciales, nivel 3 y

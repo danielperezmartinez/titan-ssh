@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en" data-lang="en" data-title-en="Hardware keys · titan-ssh" data-title-es="Claves en hardware · titan-ssh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hardware keys · titan-ssh</title>
+<meta name="description" content="How titan-ssh keeps your SSH key in the device's hardware (Android Keystore, or the TPM 2.0 on Windows and Linux) so it never leaves it: requirements, limits and errors.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#201d1d">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preload" href="fonts/jetbrainsmono_regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#main"><span data-l="en">Skip to content</span><span data-l="es">Ir al contenido</span></a>
+
+<header class="top">
+  <div class="wrap top-row">
+    <a class="brand" href="index.html" aria-label="titan-ssh">
+      <svg class="logo" viewBox="0 0 512 512" aria-hidden="true">
+        <rect x="4" y="4" width="504" height="504" rx="96" fill="#201d1d" stroke="#3a3636" stroke-width="8"/>
+        <rect x="120" y="116" width="272" height="56" fill="#fdfcfc"/>
+        <rect x="228" y="172" width="56" height="124" fill="#fdfcfc"/>
+        <rect x="228" y="328" width="56" height="68" fill="#0a84ff"/>
+      </svg>
+      <span>titan-ssh</span>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="index.html#why"><span data-l="en">Why</span><span data-l="es">Por qué</span></a>
+      <a href="index.html#features"><span data-l="en">Features</span><span data-l="es">Funciones</span></a>
+      <a href="index.html#download"><span data-l="en">Download</span><span data-l="es">Descargar</span></a>
+      <a href="remote-desktop.html" aria-current="page"><span data-l="en">Docs</span><span data-l="es">Documentación</span></a>
+      <a href="https://github.com/danielperezmartinez/titan-ssh">GitHub</a>
+    </nav>
+    <div class="lang" role="group" aria-label="Language">
+      <button type="button" data-set-lang="en" aria-pressed="true">en</button>
+      <button type="button" data-set-lang="es" aria-pressed="false">es</button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+<!-- ===================================================== Español -->
+<div data-l="es" lang="es">
+  <section class="doc-hero">
+    <div class="wrap">
+      <p class="eyebrow">Documentación</p>
+      <h1>Claves en hardware</h1>
+      <p class="lede">Una clave SSH que se crea dentro del chip de seguridad del dispositivo y no sale nunca de él: ni la app ni nadie con acceso a tus ficheros puede copiarla. Solo firma, allí dentro, cada vez que te conectas.</p>
+      <div class="callout">
+        <p><span class="mark wait">[!]</span> <strong>En el escritorio, de momento solo en la canary.</strong> En Android está en la estable. En Windows y Linux (con el TPM del equipo) está solo en <strong>titan-ssh canary</strong>, la versión de pruebas que se instala junto a la estable, hasta la próxima versión.</p>
+        <p><a href="https://github.com/danielperezmartinez/titan-ssh/releases/tag/canary">Descargar titan-ssh canary</a></p>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap doc-grid">
+    <nav class="toc" aria-label="En esta página">
+      <p class="toc-title">En esta página</p>
+      <ol>
+        <li><a href="#es-que-es">Qué es</a></li>
+        <li><a href="#es-sistemas">Sistemas</a></li>
+        <li><a href="#es-requisitos">Requisitos</a></li>
+        <li><a href="#es-limites">Límites</a></li>
+        <li><a href="#es-errores">Errores</a></li>
+      </ol>
+      <p class="toc-title">Otras páginas</p>
+      <ol>
+        <li><a href="remote-desktop.html">Escritorio remoto y mouse pad</a></li>
+      </ol>
+    </nav>
+
+    <article class="doc">
+      <section id="es-que-es" aria-labelledby="es-que-es-t">
+        <h2 id="es-que-es-t">Qué es</h2>
+        <p>Con una clave normal, la clave privada es un fichero (o un secreto en el almacén del sistema) que la app lee para firmar. Con una <strong>clave en hardware</strong>, la privada la genera el chip de seguridad del dispositivo, se queda dentro y no se puede exportar: la app solo le pide que firme. El servidor solo ve su clave pública, como con cualquier otra clave.</p>
+
+        <h3>Para empezar</h3>
+        <ol class="steps">
+          <li>En el editor del host, en <em>Autenticación</em>, elige «Clave (hardware)».</li>
+          <li>Ponle un alias (un nombre para la clave, p. ej. <code>casa</code>). Varios hosts pueden usar el mismo alias, y entonces comparten la clave.</li>
+          <li>Marca «Instalar la clave en el host por mí» y escribe la contraseña del servidor una vez: la app genera la clave, copia su línea pública en <code>authorized_keys</code> y comprueba que entra. También puedes pulsar «Generar / mostrar clave» y copiar la línea tú.</li>
+        </ol>
+      </section>
+
+      <section id="es-sistemas" aria-labelledby="es-sistemas-t">
+        <h2 id="es-sistemas-t">Sistemas</h2>
+        <div class="table-scroll">
+          <table class="doc-table">
+            <thead>
+              <tr><th scope="col">Dispositivo</th><th scope="col">Dónde vive la clave</th><th scope="col">Tipo</th></tr>
+            </thead>
+            <tbody>
+              <tr><th scope="row">Android 8 o posterior</th><td>Android Keystore, en StrongBox si el móvil lo tiene</td><td><code>ecdsa-sha2-nistp256</code></td></tr>
+              <tr><th scope="row">Windows 10 y 11</th><td>El TPM 2.0 del equipo, a través del proveedor de claves de Windows (Microsoft Platform Crypto Provider)</td><td><code>ecdsa-sha2-nistp256</code></td></tr>
+              <tr><th scope="row">Linux</th><td>El TPM 2.0 del equipo, directamente por <code>/dev/tpmrm0</code>. No hace falta instalar nada</td><td><code>ecdsa-sha2-nistp256</code></td></tr>
+              <tr class="no"><th scope="row">Llaves de seguridad (YubiKey, FIDO2) y agente SSH del sistema</th><td colspan="2">Todavía no. Están previstas para más adelante.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <ul class="notes">
+          <li>Todos los equipos con Windows 11 tienen TPM 2.0. En Windows 10 y en Linux depende del equipo; casi todos los PC de los últimos años lo traen, a veces desactivado en la UEFI/BIOS.</li>
+          <li>El tipo es siempre ECDSA P-256 porque es el que admiten todos los TPM y todos los Android. Cualquier OpenSSH actual lo acepta.</li>
+        </ul>
+      </section>
+
+      <section id="es-requisitos" aria-labelledby="es-requisitos-t">
+        <h2 id="es-requisitos-t">Requisitos</h2>
+
+        <h3>Windows</h3>
+        <ul>
+          <li>Un TPM 2.0 activo. Para comprobarlo, abre <code>tpm.msc</code>: debe decir «El TPM está listo para usarse».</li>
+          <li>No hace falta ser administrador. Windows guarda la clave para tu usuario.</li>
+        </ul>
+
+        <h3>Linux: el grupo <code>tss</code></h3>
+        <p>El TPM aparece como <code>/dev/tpmrm0</code>. En casi todas las distribuciones ese fichero pertenece al grupo <code>tss</code>, así que tu usuario tiene que estar en ese grupo para que la app lo use. Si no lo está, el editor del host lo dice. Se hace una sola vez:</p>
+        <ol class="steps">
+          <li>Comprueba el TPM y su grupo: <code>ls -l /dev/tpmrm0</code> (debe salir algo como <code>crw-rw---- … root tss …</code>).</li>
+          <li>Añade tu usuario al grupo: <code>sudo usermod -aG tss $USER</code>.</li>
+          <li>Cierra la sesión y vuelve a entrar (o reinicia) para que el cambio de grupo se aplique. <code>id</code> debe mostrar <code>tss</code>.</li>
+        </ol>
+        <ul>
+          <li>Si <code>/dev/tpmrm0</code> no existe, el equipo no tiene TPM 2.0 o está desactivado en la UEFI/BIOS (a veces se llama «PTT» en Intel o «fTPM» en AMD).</li>
+          <li>Si en tu distribución el fichero tiene otro grupo, usa ese en lugar de <code>tss</code>.</li>
+          <li>Estar en el grupo <code>tss</code> deja usar el TPM a cualquier programa de tu usuario, pero tu clave no: el TPM solo la usa con el fichero cifrado que la app guarda en su carpeta de configuración, y esa carpeta solo la puede leer tu usuario.</li>
+        </ul>
+      </section>
+
+      <section id="es-limites" aria-labelledby="es-limites-t">
+        <h2 id="es-limites-t">Límites</h2>
+        <ul>
+          <li><strong>La clave es de ese dispositivo.</strong> No se puede copiar a otro equipo ni hacer copia de seguridad. Si borras el TPM (desde <code>tpm.msc</code> o la UEFI), reinstalas el sistema o cambias de equipo, la clave se pierde: crea otra con el mismo alias e instálala de nuevo en tus hosts. Conviene tener otra forma de entrar en cada servidor.</li>
+          <li><strong>La estable y la canary tienen claves distintas</strong>, aunque uses el mismo alias. Un host copiado a la canary necesita instalar también la clave de la canary.</li>
+          <li><strong>Sin PIN ni huella</strong> por ahora: la clave firma mientras tu sesión del sistema esté abierta.</li>
+          <li><strong>Linux en Flatpak:</strong> todavía no hay paquete Flatpak. Cuando lo haya, necesitará permiso para acceder a <code>/dev/tpmrm0</code>.</li>
+        </ul>
+      </section>
+
+      <section id="es-errores" aria-labelledby="es-errores-t">
+        <h2 id="es-errores-t">Errores</h2>
+        <dl class="spec">
+          <div><dt>Tu usuario no tiene acceso al TPM</dt><dd>Linux: tu usuario no está en el grupo <code>tss</code>, o todavía no has vuelto a iniciar sesión después de añadirlo. Mira <a href="#es-requisitos">Requisitos</a>.</dd></div>
+          <div><dt>Este equipo no tiene un TPM 2.0 activo</dt><dd>Linux: no existe <code>/dev/tpmrm0</code>. Activa el TPM en la UEFI/BIOS o usa una clave software.</dd></div>
+          <div><dt>Windows no encuentra un TPM 2.0 que pueda usar</dt><dd>Windows no puede abrir su proveedor de claves de TPM. Revisa <code>tpm.msc</code>; si el TPM está desactivado o no está listo, actívalo o prepáralo desde ahí o desde la UEFI.</dd></div>
+          <div><dt>Falla la conexión con «No hardware key for alias…»</dt><dd>En este dispositivo no hay ninguna clave con ese alias, por ejemplo en un host copiado de otro equipo o de la estable a la canary. Genera la clave aquí e instálala en el host.</dd></div>
+        </dl>
+      </section>
+    </article>
+  </div>
+</div>
+
+<!-- ===================================================== English -->
+<div data-l="en" lang="en">
+  <section class="doc-hero">
+    <div class="wrap">
+      <p class="eyebrow">Documentation</p>
+      <h1>Hardware keys</h1>
+      <p class="lede">An SSH key created inside the device's security chip that never leaves it: neither the app nor anyone with access to your files can copy it. It only signs, in there, each time you connect.</p>
+      <div class="callout">
+        <p><span class="mark wait">[!]</span> <strong>On the desktop, only in the canary for now.</strong> On Android it is in the stable app. On Windows and Linux (with the computer's TPM) it is only in <strong>titan-ssh canary</strong>, the testing build that installs next to the stable app, until the next release.</p>
+        <p><a href="https://github.com/danielperezmartinez/titan-ssh/releases/tag/canary">Download titan-ssh canary</a></p>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap doc-grid">
+    <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ol>
+        <li><a href="#en-what">What it is</a></li>
+        <li><a href="#en-systems">Systems</a></li>
+        <li><a href="#en-requirements">Requirements</a></li>
+        <li><a href="#en-limits">Limits</a></li>
+        <li><a href="#en-errors">Errors</a></li>
+      </ol>
+      <p class="toc-title">Other pages</p>
+      <ol>
+        <li><a href="remote-desktop.html">Remote desktop and mouse pad</a></li>
+      </ol>
+    </nav>
+
+    <article class="doc">
+      <section id="en-what" aria-labelledby="en-what-t">
+        <h2 id="en-what-t">What it is</h2>
+        <p>With a regular key, the private key is a file (or a secret in the system store) that the app reads to sign. With a <strong>hardware key</strong>, the device's security chip generates the private key, keeps it and won't export it: the app only asks it to sign. The server only sees its public key, as with any other key.</p>
+
+        <h3>Getting started</h3>
+        <ol class="steps">
+          <li>In the host editor, under <em>Autenticación</em> (authentication), choose "Clave (hardware)".</li>
+          <li>Give it an alias (a name for the key, e.g. <code>home</code>). Several hosts can use the same alias, and then they share the key.</li>
+          <li>Tick "Instalar la clave en el host por mí" (install the key on the host for me) and type the server's password once: the app generates the key, copies its public line into <code>authorized_keys</code> and checks it logs in. Or press "Generar / mostrar clave" (generate / show key) and copy the line yourself.</li>
+        </ol>
+      </section>
+
+      <section id="en-systems" aria-labelledby="en-systems-t">
+        <h2 id="en-systems-t">Systems</h2>
+        <div class="table-scroll">
+          <table class="doc-table">
+            <thead>
+              <tr><th scope="col">Device</th><th scope="col">Where the key lives</th><th scope="col">Type</th></tr>
+            </thead>
+            <tbody>
+              <tr><th scope="row">Android 8 or later</th><td>Android Keystore, in StrongBox when the phone has it</td><td><code>ecdsa-sha2-nistp256</code></td></tr>
+              <tr><th scope="row">Windows 10 and 11</th><td>The computer's TPM 2.0, through Windows' key provider (Microsoft Platform Crypto Provider)</td><td><code>ecdsa-sha2-nistp256</code></td></tr>
+              <tr><th scope="row">Linux</th><td>The computer's TPM 2.0, directly through <code>/dev/tpmrm0</code>. Nothing to install</td><td><code>ecdsa-sha2-nistp256</code></td></tr>
+              <tr class="no"><th scope="row">Security keys (YubiKey, FIDO2) and the system's SSH agent</th><td colspan="2">Not yet. Planned for later.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <ul class="notes">
+          <li>Every Windows 11 computer has a TPM 2.0. On Windows 10 and Linux it depends on the computer; almost every PC from recent years has one, sometimes turned off in the UEFI/BIOS.</li>
+          <li>The type is always ECDSA P-256 because every TPM and every Android supports it. Any current OpenSSH accepts it.</li>
+        </ul>
+      </section>
+
+      <section id="en-requirements" aria-labelledby="en-requirements-t">
+        <h2 id="en-requirements-t">Requirements</h2>
+
+        <h3>Windows</h3>
+        <ul>
+          <li>An active TPM 2.0. To check, open <code>tpm.msc</code>: it should say "The TPM is ready for use".</li>
+          <li>No administrator rights needed. Windows keeps the key for your user.</li>
+        </ul>
+
+        <h3>Linux: the <code>tss</code> group</h3>
+        <p>The TPM shows up as <code>/dev/tpmrm0</code>. On almost every distribution that file belongs to the <code>tss</code> group, so your user has to be in that group for the app to use it. If it isn't, the host editor says so. You do this once:</p>
+        <ol class="steps">
+          <li>Check the TPM and its group: <code>ls -l /dev/tpmrm0</code> (it should print something like <code>crw-rw---- … root tss …</code>).</li>
+          <li>Add your user to the group: <code>sudo usermod -aG tss $USER</code>.</li>
+          <li>Log out and back in (or reboot) so the new group applies. <code>id</code> should list <code>tss</code>.</li>
+        </ol>
+        <ul>
+          <li>If <code>/dev/tpmrm0</code> doesn't exist, the computer has no TPM 2.0 or it is turned off in the UEFI/BIOS (sometimes called "PTT" on Intel or "fTPM" on AMD).</li>
+          <li>If the file has a different group on your distribution, use that one instead of <code>tss</code>.</li>
+          <li>Being in the <code>tss</code> group lets any program of your user use the TPM, but not your key: the TPM only uses it with the encrypted file the app keeps in its config folder, which only your user can read.</li>
+        </ul>
+      </section>
+
+      <section id="en-limits" aria-labelledby="en-limits-t">
+        <h2 id="en-limits-t">Limits</h2>
+        <ul>
+          <li><strong>The key belongs to that device.</strong> It can't be copied to another computer or backed up. If you clear the TPM (from <code>tpm.msc</code> or the UEFI), reinstall the system or change computers, the key is lost: create another one with the same alias and install it on your hosts again. Keep another way into each server.</li>
+          <li><strong>The stable app and the canary have different keys</strong>, even with the same alias. A host copied to the canary needs the canary's key installed too.</li>
+          <li><strong>No PIN or fingerprint</strong> for now: the key signs while your system session is open.</li>
+          <li><strong>Linux Flatpak:</strong> there is no Flatpak package yet. When there is, it will need permission to reach <code>/dev/tpmrm0</code>.</li>
+        </ul>
+      </section>
+
+      <section id="en-errors" aria-labelledby="en-errors-t">
+        <h2 id="en-errors-t">Errors</h2>
+        <p>The app's messages are in Spanish; here they are with what they mean.</p>
+        <dl class="spec">
+          <div><dt>«Tu usuario no tiene acceso al TPM»</dt><dd>Your user can't reach the TPM. Linux: your user isn't in the <code>tss</code> group, or you haven't logged in again since adding it. See <a href="#en-requirements">Requirements</a>.</dd></div>
+          <div><dt>«Este equipo no tiene un TPM 2.0 activo»</dt><dd>This computer has no active TPM 2.0. Linux: <code>/dev/tpmrm0</code> doesn't exist. Turn the TPM on in the UEFI/BIOS or use a software key.</dd></div>
+          <div><dt>«Windows no encuentra un TPM 2.0 que pueda usar»</dt><dd>Windows can't open its TPM key provider. Check <code>tpm.msc</code>; if the TPM is off or not ready, turn it on or prepare it from there or from the UEFI.</dd></div>
+          <div><dt>Connecting fails with "No hardware key for alias…"</dt><dd>This device has no key with that alias, for example in a host copied from another computer or from the stable app to the canary. Generate the key here and install it on the host.</dd></div>
+        </dl>
+      </section>
+    </article>
+  </div>
+</div>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-row">
+    <p><span data-l="en">titan-ssh is free software under the GNU GPL, version 3 or later.</span><span data-l="es">titan-ssh es software libre bajo la GNU GPL, versión 3 o posterior.</span></p>
+    <p class="foot-links">
+      <a href="https://github.com/danielperezmartinez/titan-ssh"><span data-l="en">Source code</span><span data-l="es">Código fuente</span></a>
+      <a href="https://github.com/danielperezmartinez/titan-ssh/blob/main/SECURITY.md"><span data-l="en">Report a vulnerability</span><span data-l="es">Avisar de una vulnerabilidad</span></a>
+      <a href="https://github.com/danielperezmartinez/titan-ssh/blob/main/THIRD_PARTY_NOTICES.md"><span data-l="en">Third-party notices</span><span data-l="es">Avisos de terceros</span></a>
+    </p>
+  </div>
+</footer>
+
+<script src="docs.js"></script>
+</body>
+</html>

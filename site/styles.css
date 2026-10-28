@@ -188,6 +188,7 @@ html[data-lang="en"] [data-l="es"], html[data-lang="es"] [data-l="en"] { display
 .doc-grid { display: grid; grid-template-columns: 13rem minmax(0, 1fr); gap: 48px; padding-top: 48px; padding-bottom: var(--section); }
 .toc { position: sticky; top: 80px; align-self: start; font-size: 14px; }
 .toc-title { color: var(--mute); font-size: 13px; margin-bottom: 10px; }
+.toc ol + .toc-title { margin-top: 24px; }
 .toc ol { list-style: none; margin: 0; padding: 0; border-left: 1px solid var(--hairline-strong); }
 .toc li a { display: block; padding: 4px 0 4px 14px; color: var(--body); }
 .toc li a:hover { color: var(--ink); }
