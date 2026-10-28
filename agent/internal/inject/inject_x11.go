@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/danielperezmartinez/titan-ssh/agent/internal/graphical"
 	"github.com/danielperezmartinez/titan-ssh/agent/internal/protocol"
@@ -39,18 +40,26 @@ func New() (Injector, error) {
 }
 
 // X11 injects input into an X server through XTEST (ADR-0029). Characters the
-// keyboard layout lacks are typed by mapping them, for the moment, to a spare
+// active layout lacks are typed by mapping them, for the moment, to a spare
 // keycode, as xdotool does; Restore puts those keycodes back.
 type X11 struct {
 	x       *x11.Conn
 	mapping x11.KeyboardMapping
-	// codes finds a keysym's keycode and column (0 plain, 1 with Shift).
+	// xkb says whether the server has XKB, which tells the active group.
+	xkb bool
+	// codes finds a keysym's keycode and column (plain or with Shift) in the
+	// active group; refresh rebuilds it before each key.
 	codes map[uint32]keyPlace
 	// spare are keycodes with no keysym, borrowed in turn for unmapped
 	// characters; borrowed says what each one types now.
 	spare    []uint8
 	borrowed map[uint8]uint32
 	next     int
+	// wheel is the device whose scroll axes Scroll moves, or nil to click
+	// the wheel buttons; wheelRest keeps the fraction of a valuator unit
+	// not yet sent on each axis.
+	wheel     *wheelDevice
+	wheelRest [2]float64
 	// scrollX and scrollY keep the fraction of a notch not yet scrolled.
 	scrollX, scrollY int
 	mu               sync.Mutex
@@ -61,36 +70,143 @@ type keyPlace struct {
 	shift bool
 }
 
-// NewX11 prepares an injector on x: XTEST and the keyboard mapping.
+// wheelDevice is a pointer with smooth-scroll axes (a touchpad, a mouse with
+// a high-resolution wheel): its vertical and horizontal valuators, -1 if it
+// lacks one, with the valuator units of a notch.
+type wheelDevice struct {
+	id                   uint8
+	vertical, horizontal int
+	vInc, hInc           float64
+}
+
+// NewX11 prepares an injector on x: XTEST, the keyboard mapping and, when the
+// desktop has one, a device to scroll with.
 func NewX11(x *x11.Conn) (*X11, error) {
 	if err := x.XTestInit(); err != nil {
 		return nil, err
 	}
-	m, err := x.GetKeyboardMapping()
-	if err != nil {
+	inj := &X11{x: x, xkb: x.XkbInit() == nil, borrowed: map[uint8]uint32{}}
+	if err := inj.refresh(); err != nil {
 		return nil, err
 	}
-	inj := &X11{x: x, mapping: m, codes: map[uint32]keyPlace{}, borrowed: map[uint8]uint32{}}
-	for c := int(x.Setup.MinKeycode); c <= int(x.Setup.MaxKeycode); c++ {
-		syms := m.Keysyms(uint8(c))
+	inj.wheel = findWheel(x)
+	return inj, nil
+}
+
+// findWheel picks a pointer with smooth-scroll axes. Clients that scroll
+// smoothly (kitty) ignore the wheel buttons whenever the desktop has such a
+// device, and the XTEST pointer has none; scrolling through the device's own
+// axes reaches them, and the server still clicks the wheel buttons for the
+// rest.
+func findWheel(x *x11.Conn) *wheelDevice {
+	if x.XInputInit() != nil {
+		return nil
+	}
+	devices, err := x.InputDevices()
+	if err != nil {
+		return nil
+	}
+	for _, d := range devices {
+		if d.Use != x11.XISlavePointer || !d.Enabled || d.ID > 127 {
+			continue
+		}
+		w := &wheelDevice{id: uint8(d.ID), vertical: -1, horizontal: -1}
+		for _, a := range d.Scroll {
+			if a.Increment == 0 {
+				continue
+			}
+			switch a.Type {
+			case x11.XIScrollVertical:
+				w.vertical, w.vInc = a.Number, a.Increment
+			case x11.XIScrollHorizontal:
+				w.horizontal, w.hInc = a.Number, a.Increment
+			}
+		}
+		// A motion carries at most 6 valuators, from the first.
+		if w.vertical >= 0 && w.vertical < 6 && w.horizontal < 6 {
+			return w
+		}
+	}
+	return nil
+}
+
+// namedKeysym says whether s is a key rather than a character: the function
+// keys and modifiers (0xfd00-0xffff) and the vendor ones (XF86 media keys).
+func namedKeysym(s uint32) bool { return (s >= 0xfd00 && s <= 0xffff) || s >= 0x10000000 }
+
+// refresh rereads the keyboard before keys are typed: the user may have
+// switched layouts (an XKB group) or loaded another keymap since the last
+// ones. Only the active group's columns count: a key types its keysym in
+// that group, whatever the first group has there. Borrowed keycodes that a
+// new keymap overwrote are forgotten.
+func (k *X11) refresh() error {
+	group := 0
+	if k.xkb {
+		g, err := k.x.XkbGroup()
+		if err != nil {
+			return err
+		}
+		group = g
+	}
+	m, err := k.x.GetKeyboardMapping()
+	if err != nil {
+		return err
+	}
+	k.mapping = m
+	for code, sym := range k.borrowed {
+		if s := m.Keysyms(code); len(s) == 0 || s[0] != sym {
+			delete(k.borrowed, code)
+		}
+	}
+	k.codes = map[uint32]keyPlace{}
+	k.spare = k.spare[:0]
+	add := func(code uint8, col int, s uint32) {
+		if p, ok := k.codes[s]; !ok || (p.shift && col%2 == 0) {
+			k.codes[s] = keyPlace{code: code, shift: col%2 == 1}
+		}
+	}
+	for c := int(k.x.Setup.MinKeycode); c <= int(k.x.Setup.MaxKeycode); c++ {
+		code := uint8(c)
+		syms := m.Keysyms(code)
+		if _, ok := k.borrowed[code]; ok {
+			k.spare = append(k.spare, code)
+			continue
+		}
 		empty := true
 		for col, s := range syms {
 			if s == 0 {
 				continue
 			}
 			empty = false
-			if col > 1 {
-				continue
-			}
-			if p, ok := inj.codes[s]; !ok || (p.shift && col == 0) {
-				inj.codes[s] = keyPlace{code: uint8(c), shift: col == 1}
+			// The core mapping has the first group in columns 0-1 and the
+			// second in 2-3; groups 3 and 4 have no fixed columns, so
+			// their characters are borrowed.
+			if group < 2 && col/2 == group && col < 4 {
+				add(code, col, s)
 			}
 		}
 		if empty && len(syms) > 0 {
-			inj.spare = append(inj.spare, uint8(c))
+			k.spare = append(k.spare, code)
 		}
 	}
-	return inj, nil
+	// Keys outside the layout's characters (Return, the modifiers, F1) are
+	// in every group: take them from the first one when the active group
+	// does not list them.
+	for c := int(k.x.Setup.MinKeycode); c <= int(k.x.Setup.MaxKeycode); c++ {
+		code := uint8(c)
+		if _, ok := k.borrowed[code]; ok {
+			continue
+		}
+		for col, s := range m.Keysyms(code) {
+			if col > 1 || !namedKeysym(s) {
+				continue
+			}
+			if _, ok := k.codes[s]; !ok {
+				add(code, col, s)
+			}
+		}
+	}
+	return nil
 }
 
 // Conn is the X connection the injector uses.
@@ -142,9 +258,18 @@ func (k *X11) Button(button uint8, down bool) error {
 	return nil // a button from a newer client
 }
 
-// Scroll clicks the wheel buttons (4 up, 5 down, 6 left, 7 right) once per
-// whole notch, keeping the remainder for the next call.
+// Scroll scrolls through the wheel device's axes when there is one, and
+// otherwise clicks the wheel buttons (4 up, 5 down, 6 left, 7 right) once
+// per whole notch, keeping the remainder for the next call.
 func (k *X11) Scroll(dx, dy int) error {
+	if k.wheel != nil {
+		err := k.smoothScroll(dx, dy)
+		if err == nil {
+			return nil
+		}
+		// The device went away (unplugged, disabled): use the buttons.
+		k.wheel = nil
+	}
 	k.scrollY += dy
 	k.scrollX += dx
 	clicks := func(acc *int, pos, neg uint8) error {
@@ -169,6 +294,31 @@ func (k *X11) Scroll(dx, dy int) error {
 		return err
 	}
 	return clicks(&k.scrollX, 7, 6)
+}
+
+// smoothScroll moves the wheel device's scroll axes by (dx, dy) in 1/120 of
+// a notch. The valuators grow downwards and rightwards, the protocol's dy
+// upwards. The motion starts at valuator 0 (x and y, unmoved): the X server
+// reads an XTEST motion's values as if they started there, whatever its
+// first valuator says.
+func (k *X11) smoothScroll(dx, dy int) error {
+	w := k.wheel
+	deltas := make([]int32, max(w.vertical, w.horizontal)+1)
+	step := func(axis int, units float64, rest *float64) {
+		v := *rest + units
+		n := int32(v)
+		*rest = v - float64(n)
+		deltas[axis] = n
+	}
+	step(w.vertical, -float64(dy)*w.vInc/120, &k.wheelRest[0])
+	if w.horizontal >= 0 {
+		step(w.horizontal, float64(dx)*w.hInc/120, &k.wheelRest[1])
+	}
+	if err := k.x.FakeDeviceMotion(w.id, 0, deltas); err != nil {
+		return err
+	}
+	// The motion has no reply: wait for its error, if any, to fall back.
+	return k.x.Sync()
 }
 
 func (k *X11) keycode(kind uint8, code uint8) error { return k.x.FakeInput(kind, code, 0, 0) }
@@ -227,6 +377,9 @@ func (k *X11) tap(keysym uint32) error {
 // Text types s character by character, whatever the layout: line breaks and
 // tabs as the Return and Tab keys.
 func (k *X11) Text(s string) error {
+	if err := k.refresh(); err != nil {
+		return err
+	}
 	for _, r := range s {
 		var sym uint32
 		switch {
@@ -252,6 +405,9 @@ func (k *X11) Key(key uint16, mods uint8, action uint8) error {
 	sym, ok := keyKeysym(key)
 	if !ok {
 		return nil // a key from a newer client
+	}
+	if err := k.refresh(); err != nil {
+		return err
 	}
 	p, err := k.place(sym)
 	if err != nil {
@@ -291,14 +447,22 @@ func (k *X11) Key(key uint16, mods uint8, action uint8) error {
 // own window gets it).
 func (k *X11) Blocked() bool { return false }
 
-// Restore gives the borrowed keycodes back their empty mapping.
+// Restore gives the borrowed keycodes back their empty mapping, after a
+// moment: a client reads a key's keysym only when it handles the key, and
+// the last keys typed may still be waiting in its queue.
 func (k *X11) Restore() {
+	if len(k.borrowed) > 0 {
+		time.Sleep(restoreDelay)
+	}
 	for code := range k.borrowed {
 		_ = k.x.ChangeKeyboardMapping(code, k.mapping.PerCode, nil)
 	}
 	k.borrowed = map[uint8]uint32{}
 	_ = k.x.Sync()
 }
+
+// restoreDelay is how long Restore lets the clients read the last keys.
+const restoreDelay = 300 * time.Millisecond
 
 // Keysyms used by name.
 const (

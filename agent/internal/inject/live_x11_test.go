@@ -58,9 +58,44 @@ func TestLiveX11Typing(t *testing.T) {
 	if err := k.Text(want + "\n"); err != nil {
 		t.Fatal(err)
 	}
-	if err := k.Key(protocol.KeyA+3, protocol.ModCtrl, protocol.ActionPress); err != nil {
+	// Ctrl+D at the end ends the terminal's cat.
+	defer func() {
+		if err := k.Key(protocol.KeyA+3, protocol.ModCtrl, protocol.ActionPress); err != nil {
+			t.Error(err)
+		}
+	}()
+	if got := readTyped(t, file); got != want {
+		t.Errorf("typed %q, want %q", got, want)
+	}
+	if len(k.borrowed) == 0 {
+		t.Error("no spare keycode was borrowed for €/✓")
+	}
+
+	// With a second layout (setxkbmap -layout es,us), type again with it
+	// active: the keys must be the second group's, not the first's.
+	if !k.xkb || k.x.XkbLockGroup(1) != nil {
+		return
+	}
+	defer k.x.XkbLockGroup(0)
+	if g, err := k.x.XkbGroup(); err != nil || g != 1 {
+		t.Log("the keymap has one layout: second group not tested")
+		return
+	}
+	if err := os.Truncate(file, 0); err != nil {
 		t.Fatal(err)
 	}
+	want = "ñ; /:@ ú€"
+	if err := k.Text(want + "\n"); err != nil {
+		t.Fatal(err)
+	}
+	if got := readTyped(t, file); got != want {
+		t.Errorf("with the second layout typed %q, want %q", got, want)
+	}
+}
+
+// readTyped waits for a line in file and returns it.
+func readTyped(t *testing.T, file string) string {
+	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
 	var got []byte
 	for time.Now().Before(deadline) {
@@ -70,10 +105,6 @@ func TestLiveX11Typing(t *testing.T) {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	if strings.TrimRight(string(got), "\n") != want {
-		t.Errorf("typed %q, want %q", got, want)
-	}
-	if len(k.borrowed) == 0 {
-		t.Error("no spare keycode was borrowed for €/✓")
-	}
+	// A truncated file a terminal keeps writing to reads its hole as NULs.
+	return strings.TrimRight(strings.TrimLeft(string(got), "\x00"), "\n")
 }

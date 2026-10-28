@@ -59,6 +59,59 @@ type Cursor struct {
 	Pixels        []uint32
 }
 
+// xkbUseCoreKbd is the XKB device spec of the core keyboard.
+const xkbUseCoreKbd = 0x100
+
+// XkbInit announces XKB 1.0, which the server requires before any other XKB
+// request.
+func (x *Conn) XkbInit() error {
+	op, err := x.extension("XKEYBOARD")
+	if err != nil {
+		return err
+	}
+	req := request(8, op, 0) // UseExtension
+	le.PutUint16(req[4:], 1)
+	le.PutUint16(req[6:], 0)
+	reply, err := x.roundTrip(req)
+	if err != nil {
+		return err
+	}
+	if reply[1] == 0 {
+		return errors.New("x11: the server refused XKB 1.0")
+	}
+	return nil
+}
+
+// XkbGroup returns the core keyboard's effective group (0 to 3): the layout
+// the keys type in now. Call XkbInit first.
+func (x *Conn) XkbGroup() (int, error) {
+	op, err := x.extension("XKEYBOARD")
+	if err != nil {
+		return 0, err
+	}
+	req := request(8, op, 4) // GetState
+	le.PutUint16(req[4:], xkbUseCoreKbd)
+	reply, err := x.roundTrip(req)
+	if err != nil {
+		return 0, err
+	}
+	return int(reply[12] & 3), nil
+}
+
+// XkbLockGroup locks the core keyboard's group, as a layout switch does.
+// Call XkbInit first.
+func (x *Conn) XkbLockGroup(group int) error {
+	op, err := x.extension("XKEYBOARD")
+	if err != nil {
+		return err
+	}
+	req := request(16, op, 5) // LatchLockState
+	le.PutUint16(req[4:], xkbUseCoreKbd)
+	req[8] = 1 // lockGroup
+	req[9] = uint8(group)
+	return x.sendOnly(req)
+}
+
 // XFixesInit announces XFIXES 4.0, which the server requires before any
 // other XFIXES request.
 func (x *Conn) XFixesInit() error {
