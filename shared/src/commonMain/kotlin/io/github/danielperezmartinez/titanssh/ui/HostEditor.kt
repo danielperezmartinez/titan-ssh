@@ -43,7 +43,7 @@ import io.github.danielperezmartinez.titanssh.secret.SecretProvisioner
 import io.github.danielperezmartinez.titanssh.secret.SecretRef
 import io.github.danielperezmartinez.titanssh.secret.SshKeyType
 import io.github.danielperezmartinez.titanssh.ssh.ensureHardwareKey
-import io.github.danielperezmartinez.titanssh.ssh.isHardwareKeyProvisioningSupported
+import io.github.danielperezmartinez.titanssh.ssh.hardwareKeyUnavailableReason
 import io.github.danielperezmartinez.titanssh.theme.TitanColors
 import io.github.danielperezmartinez.titanssh.theme.TitanDimens
 import kotlinx.coroutines.launch
@@ -135,7 +135,8 @@ fun HostEditor(
     // Provisioning-only state (never persisted to the config document).
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
-    val hwSupported = remember { isHardwareKeyProvisioningSupported() }
+    val hwUnavailable = remember { hardwareKeyUnavailableReason() }
+    val hwSupported = hwUnavailable == null
     var busy by remember { mutableStateOf(false) }
     var statusMsg by remember { mutableStateOf<String?>(null) }
     var statusOk by remember { mutableStateOf(false) }
@@ -390,7 +391,7 @@ fun HostEditor(
                     if (!hwSupported) {
                         Gap()
                         Caption(
-                            "No disponible en escritorio: no hay clave hardware no exportable en v1. Usa una clave software.",
+                            "No disponible: $hwUnavailable Usa una clave software.",
                             color = TitanColors.Warning,
                         )
                     }

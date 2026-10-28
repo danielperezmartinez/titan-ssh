@@ -7,7 +7,7 @@ import kotlinx.coroutines.withContext
  * Android hardware-key provisioning: EC P-256 keys generated non-exportable in the
  * Android Keystore / StrongBox (ADR-0005), via [AndroidHardwareKeys].
  */
-actual fun isHardwareKeyProvisioningSupported(): Boolean = true
+actual fun hardwareKeyUnavailableReason(): String? = null
 
 /**
  * Generates or reuses the Keystore key under [alias] off the main thread and

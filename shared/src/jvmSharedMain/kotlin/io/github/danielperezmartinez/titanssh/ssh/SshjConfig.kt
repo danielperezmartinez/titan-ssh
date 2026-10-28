@@ -59,7 +59,8 @@ internal fun sshjConfig(keepAlive: Boolean): Config = DefaultConfig().apply {
     // Picked from sshj's own lists, which already leave out the ciphers this
     // JCE cannot initialise.
     keyExchangeFactories = keyExchangeFactories.only(SshAlgorithms.keyExchange)
-    keyAlgorithms = keyAlgorithms.only(SshAlgorithms.keys)
+    // Desktop TPM keys sign outside the JCE (ADR-0033).
+    keyAlgorithms = withPlatformSigning(keyAlgorithms.only(SshAlgorithms.keys))
     cipherFactories = cipherFactories.only(SshAlgorithms.ciphers)
     macFactories = macFactories.only(SshAlgorithms.macs)
     if (keepAlive) keepAliveProvider = KeepAliveProvider.KEEP_ALIVE

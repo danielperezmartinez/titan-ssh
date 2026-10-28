@@ -7,6 +7,7 @@ android-compileSdk = "37"
 android-minSdk = "26"
 android-targetSdk = "37"
 javaKeyring = "1.0.4"
+jna = "5.13.0"
 kotlinxCoroutines = "1.10.2"
 kotlinxSerialization = "1.8.1"
 sshj = "0.41.1"
@@ -22,6 +23,9 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 # Desktop SecretStore backend (ADR-0001): Windows Credential Store (DPAPI-backed)
 # and Linux Secret Service via a single maintained JNA wrapper.
 java-keyring = { module = "com.github.javakeyring:java-keyring", version.ref = "javaKeyring" }
+# Desktop TPM keys on Windows (ADR-0033): NCrypt through JNA, the same version
+# java-keyring already brings in.
+jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
 # SSH client (ADR-0004): pure-Java. Lives in the jvmShared source set. Since
 # 0.40 ed25519 (preferred key, ADR-0005) goes through the JCE, no extra library.
 sshj = { module = "com.hierynomus:sshj", version.ref = "sshj" }

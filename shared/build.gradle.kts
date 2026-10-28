@@ -230,6 +230,8 @@ kotlin {
             dependsOn(jvmSharedMain)
             dependencies {
                 implementation(libs.java.keyring)
+                // TPM keys on Windows through CNG (ADR-0033).
+                implementation(libs.jna)
             }
         }
 

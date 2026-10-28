@@ -40,6 +40,12 @@ internal object PrivateFiles {
         file.writeText(text, Charsets.UTF_8)
     }
 
+    /** Writes [bytes] to [file] the way [writeText] writes text. */
+    fun writeBytes(file: File, bytes: ByteArray) {
+        create(file)
+        file.writeBytes(bytes)
+    }
+
     /** Appends [text] to [file], creating it owner-only first if it is missing. */
     fun appendText(file: File, text: String) {
         if (!file.exists()) create(file)

@@ -8,6 +8,7 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import io.github.danielperezmartinez.titanssh.App
 import io.github.danielperezmartinez.titanssh.AppChannel
+import io.github.danielperezmartinez.titanssh.ssh.DesktopHardwareKeys
 import io.github.danielperezmartinez.titanssh.ui.LocalWindowMinimized
 import io.github.danielperezmartinez.titanssh.update.AppUpdates
 import javax.imageio.ImageIO
@@ -18,7 +19,13 @@ private val windowIcon = BitmapPainter(
     ImageIO.read(checkNotNull(object {}.javaClass.getResource("/${AppChannel.appName}.png"))).toComposeImageBitmap(),
 )
 
-fun main() = application {
+fun main() {
+    // Hosts that authenticate with a TPM key resolve it through this (ADR-0033).
+    DesktopHardwareKeys.install()
+    desktopApp()
+}
+
+private fun desktopApp() = application {
     // ADR-0025: installing an update from Acerca de exits the app, and closing
     // the window first hands a ready update to its installer.
     AppUpdates.exitApp = ::exitApplication
