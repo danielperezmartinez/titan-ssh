@@ -1,12 +1,15 @@
 ---
 Nombre: 'Escritorio remoto en destinos Linux X11'
-Estado: 'En curso'
+Estado: 'Por probar'
+Estado desde: 2026-10-21
 Resumen: 'Subtarea 1 del escritorio remoto: ver y controlar un escritorio Linux con X11, y construir la base común (tipo de sesión DESKTOP, tramas de pantalla del protocolo, modo titan-agent --screen, decodificación y vista en la app de escritorio y en Android). El agente habla con el servidor X del usuario con un cliente X11 propio y mínimo (GetImage, XFIXES para el cursor, XTEST para la entrada), sin ayudante. Se prueba con un contenedor desechable con Xvfb y sshd.'
 Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño en [[ADR-0029 Escritorio remoto propio a través del agente]]. En Android la pestaña reutiliza la vista del mouse pad con la pantalla detrás: el dedo usa los gestos del touchpad (no toque directo) y un zoom 1x-3x sigue al cursor; con ratón, posición absoluta. Implementado y verificado el 2026-10-21 (agente, app de escritorio por render, emulador); falta la confirmación del usuario en un escritorio X11 real.'
 Bloqueada: []
+Prueba: 'Ver y controlar un escritorio Linux X11 real con una sesión «escritorio», desde el móvil y desde la app de escritorio.'
+Esperando a: ''
 Versión: ''
 Fecha de creación: 2026-10-21T10:50:00+02:00
-Última modificación: 2026-10-21T14:10:00+02:00
+Última modificación: 2026-10-28T12:00:00+01:00
 ---
 
 # Escritorio remoto en destinos Linux X11
@@ -101,6 +104,34 @@ confirmación del usuario en un escritorio X11 real.
   `adb shell input text`, una línea de 80 caracteres con un borrado en medio y
   teclas pulsadas en Gboard llegan exactas al xterm remoto. El fallo venía del
   terminal y del mouse pad, así que el arreglo también les llega.
+
+## Cómo probarlo
+
+**Dónde**: la canary (el escritorio remoto todavía no está en ninguna versión
+estable), en el móvil y en el PC. Destino: un Linux con la sesión gráfica
+iniciada en X11 (`<destino-x11>`; en la pantalla de inicio de sesión, la
+variante «X11» o «Xorg»).
+
+**Preparación**: en la canary, una sesión de tipo «escritorio» para ese
+destino.
+
+**Pasos**:
+
+1. Abrir la sesión desde el móvil: se ve la pantalla del destino y su cursor.
+2. Mover el cursor con un dedo, tocar para hacer clic y hacer zoom (de 1x a
+   3x): el zoom sigue al cursor.
+3. Abrir un terminal en el destino y escribir con el teclado del móvil
+   `echo hola ñandú €` y Enter.
+4. Poner el móvil en modo avión unos segundos y quitarlo.
+5. Repetir 1 y 3 desde la app de escritorio, apuntando con el ratón sobre la
+   imagen.
+
+**Qué debe pasar**: imagen en vivo, cursor donde toca, el texto llega exacto
+(también `ñ` y `€`) y tras el corte reconecta sola en pocos segundos con la
+imagen al día.
+
+**Si falla**: qué paso, captura de la app, versión de la canary y el
+escritorio y la distribución del destino.
 
 ## Resultado
 

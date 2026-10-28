@@ -1,12 +1,15 @@
 ---
 Nombre: 'Escritorio remoto a través del agente'
-Estado: 'En curso'
+Estado: 'Por probar'
+Estado desde: 2026-10-28
 Resumen: 'Tarea paraguas de un tipo de sesión nuevo, escritorio remoto (opción D): ver y controlar la pantalla del destino desde titan-ssh sin RDP ni VNC de terceros, sobre la conexión SSH y titan-agent. Añade la mitad que le falta al mouse pad: captura en el destino, codificación por baldosas, transporte por el canal exec con control de flujo por acuses, decodificación y pintado en Compose. Se divide por sistema: Linux X11 primero (se puede probar entero aquí con Xvfb en Docker), después Windows y Linux Wayland.'
 Decisiones: 'Diseño en [[ADR-0029 Escritorio remoto propio a través del agente]] (Aceptada el 2026-10-27; propuesta el 2026-10-21): baldosas FILL/ZLIB/JPEG con la biblioteca estándar, sin vídeo ni dependencias nuevas; un solo canal --screen para imagen y entrada; como mucho dos fotogramas sin acuse. Reutiliza [[ADR-0016 Sesión mouse pad y ayudante de escritorio en Windows]] y [[ADR-0018 Autenticación mutua en el punto de encuentro del agente]]. Para Windows y cualquier Linux, [[ADR-0031 Escritorio remoto en Wayland, Windows y casos de borde]] (2026-10-21): sesión gráfica por logind, portal + PipeWire propio en KDE/GNOME, protocolos wlroots, GDI y Desktop Duplication en Windows, todos los monitores y un catálogo de errores. Se comparó en la canary con el cliente RDP embebido (opción C); el 2026-10-27 el usuario eligió esta opción y la C se retiró entera ([[ADR-0028 Cliente RDP embebido con IronRDP por un túnel SSH]], Rechazada). DESKTOP sigue siendo un tipo experimental que solo ofrece la canary (SessionType.experimental/offered) hasta que el usuario decida llevarlo a la estable: quedan cosas por pulir.'
 Bloqueada: []
+Prueba: 'Las pruebas de sus subtareas: escritorio remoto en Linux X11 y en Linux Wayland.'
+Esperando a: ''
 Versión: ''
 Fecha de creación: 2026-10-21T10:50:00+02:00
-Última modificación: 2026-10-27T10:00:00+01:00
+Última modificación: 2026-10-28T12:00:00+01:00
 ---
 
 # Escritorio remoto a través del agente
@@ -50,6 +53,13 @@ paralelo una vez hecha la 2 ([[ADR-0031 Escritorio remoto en Wayland, Windows y 
 ## Verificación
 
 <Se rellena al completar.>
+
+## Cómo probarlo
+
+Tarea paraguas: se prueba con las subtareas que quedan en `Por probar`,
+[[Escritorio remoto en destinos Linux X11]] y
+[[Escritorio remoto en destinos Linux Wayland]], cada una con su guion.
+Cuando las dos estén `Hecha`, esta también.
 
 ## Resultado
 

@@ -1,13 +1,15 @@
 ---
 Nombre: 'Documentación de usuario del escritorio remoto'
-Estado: 'En curso'
+Estado: 'Hecha'
+Estado desde: 2026-10-28
 Resumen: 'Última fase del escritorio remoto: documentación para usuarios de en qué sistemas funciona (Windows, X11, KDE, GNOME y wlroots en Wayland), qué requisitos tiene cada uno (sesión iniciada, diálogo del portal, acceso desatendido, versiones), qué no se puede (Windows bloqueado, UAC) y qué significa cada error. Va en una página nueva del sitio de GitHub Pages, site/remote-desktop.html, en inglés y español, enlazada como «Docs» desde el menú de la portada.'
 Decisiones: 'Pedida por el usuario el 2026-10-21 al planificar [[ADR-0031 Escritorio remoto en Wayland, Windows y casos de borde]]. Relacionada con [[Página de producto en GitHub Pages]]. El 2026-10-22 el usuario elige: página nueva en site/ (no una sección de la portada ni un sitio aparte), en inglés y español como la portada, con la estructura aviso de experimental, qué es, tabla de sistemas, requisitos, límites y errores. Los dos idiomas van en la misma página (data-l) y un docs.js pequeño elige el idioma con la misma clave que la portada; app.js no cambia salvo el texto del enlace.'
-Bloqueada:
-  - "[[Escritorio remoto en destinos Linux Wayland]]"
+Bloqueada: []
+Prueba: ''
+Esperando a: ''
 Versión: ''
 Fecha de creación: 2026-10-21T18:55:00+02:00
-Última modificación: 2026-10-22T19:40:00+02:00
+Última modificación: 2026-10-28T12:00:00+01:00
 ---
 
 # Documentación de usuario del escritorio remoto
@@ -70,6 +72,14 @@ sin hablar del aviso en pantalla del destino. Pendiente: la integración en
 `main` y comprobar la página publicada en GitHub Pages; entonces pasa a
 `Hecha`.
 
+2026-10-28: la página está en `main` y el workflow `Pages` acabó bien (run
+`39828455285`, 2026-10-22). La página publicada (`remote-desktop.html`)
+responde 200, es idéntica byte a byte a `site/remote-desktop.html` de `main`
+y la portada publicada la enlaza.
+
 ## Resultado
 
-<Se rellena al completar.>
+Página `site/remote-desktop.html` en el sitio de GitHub Pages, en inglés y
+español, enlazada como «Docs» desde el menú de la portada: sistemas en los que
+funciona el escritorio remoto y el mouse pad, requisitos de cada uno, límites
+y significado de cada error.

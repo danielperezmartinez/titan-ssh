@@ -19,6 +19,12 @@ properties:
     displayName: Bloqueada por
   Versión:
     displayName: Versión
+  Prueba:
+    displayName: Qué probar
+  Esperando a:
+    displayName: Esperando a
+  Estado desde:
+    displayName: Desde
   formula.created_display:
     displayName: Creada
   formula.updated_display:
@@ -81,6 +87,34 @@ views:
       - formula.updated_display
     columnSize:
       file.name: 498
+  - type: table
+    name: Por probar
+    filters:
+      and:
+        - Estado == "Por probar"
+    order:
+      - file.name
+      - Prueba
+      - Estado desde
+      - Resumen
+      - formula.updated_display
+    sort:
+      - property: Estado desde
+        direction: ASC
+  - type: table
+    name: Esperando
+    filters:
+      and:
+        - Estado == "Esperando"
+    order:
+      - file.name
+      - Esperando a
+      - Estado desde
+      - Resumen
+      - formula.updated_display
+    sort:
+      - property: Estado desde
+        direction: ASC
   - type: table
     name: Hecha
     filters:

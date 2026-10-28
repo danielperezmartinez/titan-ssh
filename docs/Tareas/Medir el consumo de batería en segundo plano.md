@@ -1,11 +1,14 @@
 ---
 Nombre: 'Medir el consumo de batería en segundo plano'
-Estado: 'En curso'
+Estado: 'Por probar'
+Estado desde: 2026-10-14
 Resumen: 'El usuario nota que el móvil gasta más batería con varias sesiones abiertas y la pantalla bloqueada en el bolsillo, y sospecha que la app reconecta sin parar en segundo plano. Se mide antes de cambiar nada: en el emulador (Doze forzado, cortes de red, conexiones vistas desde el servidor de pruebas) y en el Pixel con batterystats y los inicios de sesión del destino.'
 Decisiones: 'Primero medir y después decidir el arreglo (decisión del usuario del 2026-10-14). Se empieza por el emulador; el usuario hace la medición en el Pixel con su uso real. El emulador confirmó la causa y el arreglo se decidió en [[ADR-0023 Conexiones en segundo plano según lo que pueda perder cada pestaña]], con su implementación en [[Conexiones en segundo plano según lo que pueda perder cada pestaña]]; la medición del Pixel sirve de referencia para comparar.'
 Bloqueada: []
+Prueba: 'Medir en el Pixel el consumo de una noche con sesiones abiertas frente a una noche sin sesiones.'
+Esperando a: ''
 Fecha de creación: 2026-10-14T12:00:00+02:00
-Última modificación: 2026-10-14T20:00:00+02:00
+Última modificación: 2026-10-28T12:00:00+01:00
 ---
 
 # Medir el consumo de batería en segundo plano
@@ -41,6 +44,19 @@ congele el proceso, por cada pestaña abierta:
    1–2 h en el bolsillo, `batterystats --charged` del paquete y `bugreport`
    para Battery Historian; la misma prueba sin sesiones como referencia.
 3. En el destino real: contar los inicios de sesión SSH durante ese rato.
+
+## Cómo probarlo
+
+1. **Noche con sesiones**: la prueba de
+   [[Conexiones en segundo plano según lo que pueda perder cada pestaña]]
+   (sus pasos 1 a 4), con las pestañas que se usan normalmente.
+2. **Noche de referencia**: los mismos pasos sin ninguna pestaña abierta en
+   titan-ssh.
+3. Pasar al agente, de las dos noches, el porcentaje de batería gastado, el
+   uso por app y, si se pudo, `batterystats.txt`.
+
+Con esos datos el agente escribe la conclusión y, si hay ineficiencia, la
+tarea de arreglo.
 
 ## Resultados en el emulador (2026-10-14)
 

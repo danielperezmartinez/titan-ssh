@@ -1,11 +1,14 @@
 ---
 Nombre: 'Revisión diaria de winget y AUR'
-Estado: 'En curso'
+Estado: 'Esperando'
+Estado desde: 2026-09-30
 Resumen: 'Comprobación que se repite cada día hasta cerrar los dos canales del paso 7, que dependen de terceros: que Microsoft valide y fusione el primer PR de winget (microsoft/winget-pkgs#441824) y que AUR reabra el registro de cuentas. En cada sesión en la que el usuario la nombre, el agente comprueba los dos, le dice qué le toca hacer o, si nada ha cambiado, que se deja para mañana, y anota la revisión en el registro. Recoge los pasos que faltan hasta activar las variables WINGET_ENABLED y AUR_ENABLED y probar winget y yay; el detalle técnico vive en las tareas de cada canal.'
 Decisiones: 'Pedida por el usuario el 2026-09-26 para revisar el estado cada día. No sustituye a [[Canal Windows winget]] ni a [[Canal Arch Linux AUR]]: es la rutina de seguimiento de las dos. La página de registro de AUR tiene una protección contra bots (Anubis) que el agente no debe saltarse, así que el registro lo mira el usuario en su navegador y el agente solo lee las noticias de Arch.'
 Bloqueada: []
+Prueba: ''
+Esperando a: 'Terceros: la fusión del primer PR de winget y la reapertura del registro de cuentas de AUR.'
 Fecha de creación: 2026-09-26T20:30:00+02:00
-Última modificación: 2026-09-30T20:30:00+02:00
+Última modificación: 2026-10-28T12:00:00+01:00
 ---
 
 # Revisión diaria de winget y AUR

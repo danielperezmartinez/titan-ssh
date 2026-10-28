@@ -1,11 +1,14 @@
 ---
 Nombre: 'Conexiones en segundo plano según lo que pueda perder cada pestaña'
-Estado: 'En curso'
+Estado: 'Por probar'
+Estado desde: 2026-10-14
 Resumen: 'Implementar ADR-0023 en Android: servicio en primer plano mientras alguna pestaña pueda perder trabajo (nivel 1, conectando, túneles activos, descarga SFTP en curso), con todas las pestañas conectadas; si ninguna puede, pausar las conexiones tras 60 s en segundo plano y reconectar al volver; y no reintentar nunca con la red bloqueada por Android.'
 Decisiones: 'Sale de [[Medir el consumo de batería en segundo plano]]. Diseño en [[ADR-0023 Conexiones en segundo plano según lo que pueda perder cada pestaña]] (aceptada el 2026-10-14). Mejora posterior: [[Alinear los keepalives de las pestañas]]. En la implementación, "todavía conectando" de la ADR se concreta como conectada sin nivel conocido y sin esperar al agente: una pestaña que aún no ha conectado nunca no tiene nada que perder y no arranca el servicio (evita que la notificación aparezca y desaparezca al abrir una sesión de nivel 3).'
 Bloqueada: []
+Prueba: 'Una noche en el Pixel con una pestaña de nivel 1 abierta y la pantalla bloqueada: la sesión sigue viva por la mañana y el consumo de la app es razonable.'
+Esperando a: ''
 Fecha de creación: 2026-10-14T20:00:00+02:00
-Última modificación: 2026-10-14T23:30:00+02:00
+Última modificación: 2026-10-28T12:00:00+01:00
 ---
 
 # Conexiones en segundo plano según lo que pueda perder cada pestaña
@@ -93,6 +96,34 @@ activo despierta la app cada 30 s.
 **Pendiente**: la prueba en el Pixel (una noche con el servicio activo sin
 perder la sesión de nivel 1, si los keepalives salen a tiempo con la CPU
 dormida, y `batterystats` frente a la referencia).
+
+## Cómo probarlo
+
+**Dónde**: la versión estable actual en el Pixel (lleva el cambio desde la
+`0.1.0-beta.17`). Destino: cualquiera por SSH, sin agente (nivel 1).
+
+**Preparación**: el móvil cargado y desenchufado. Opcional, con el móvil
+conectado al PC: `adb shell dumpsys batterystats --reset`.
+
+**Pasos**:
+
+1. Abrir una pestaña de nivel 1 y dejar algo corriendo, p. ej.
+   `while true; do date; sleep 300; done`. La notificación dice «1 sesión
+   conectada».
+2. Bloquear el móvil y dejarlo toda la noche sin cargar.
+3. Por la mañana, abrir la app: la pestaña sigue en la misma shell (la hora
+   sigue saliendo y no hay reconexión).
+4. Ajustes → Batería → uso por app: anotar el porcentaje de titan-ssh.
+   Opcional, con el móvil conectado al PC:
+   `adb shell dumpsys batterystats io.github.danielperezmartinez.titanssh > batterystats.txt`.
+
+**Qué debe pasar**: la sesión de nivel 1 sobrevive a la noche y la app no
+aparece entre los consumos grandes.
+
+**Si falla**: a qué hora se cortó si se ve, el porcentaje de batería, una
+captura del uso por app y `batterystats.txt`.
+
+La misma noche sirve para [[Medir el consumo de batería en segundo plano]].
 
 ## Resultado
 

@@ -1,11 +1,14 @@
 ---
 Nombre: 'Abrir programas en el escritorio del usuario desde el destino'
-Estado: 'En curso'
+Estado: 'Por probar'
+Estado desde: 2026-10-07
 Resumen: 'En Windows, la shell de una sesión de titan-ssh corre en la sesión 0 y no puede abrir nada con ventana (emulador de Android, app de escritorio, navegador). Se añade titan-agent --desktop-run, que pide al ayudante de escritorio del mouse pad que lance el programa en la sesión interactiva del usuario, sin elevar, sin shell intermedia, solo con el apretón de manos con HMAC y con registro visible en el panel del agente. Diseño y análisis de seguridad en ADR-0019, aceptada el 2026-10-07.'
 Decisiones: 'El usuario elige el 2026-10-06 esta vía (ampliar el ayudante) frente a mover el daemon a su sesión o a un atajo con tareas programadas, con la condición de que no abra un agujero de seguridad, y acepta el 2026-10-07 el diseño y el análisis de [[ADR-0019 Abrir programas en el escritorio del usuario desde el destino]].'
 Bloqueada: []
+Prueba: 'En una sesión contra Windows, titan-agent --desktop-run abre el emulador de Android o la app de escritorio en el escritorio del usuario.'
+Esperando a: ''
 Fecha de creación: 2026-10-06T00:42:00+02:00
-Última modificación: 2026-10-07T11:16:21+02:00
+Última modificación: 2026-10-28T12:00:00+01:00
 ---
 
 # Abrir programas en el escritorio del usuario desde el destino
@@ -97,6 +100,31 @@ apretón de manos de
 ## Verificación
 
 <Se rellena al completar.>
+
+## Cómo probarlo
+
+**Dónde**: la versión estable actual (lleva el cambio desde la
+`0.1.0-beta.14`). Destino: un Windows con la sesión del usuario iniciada y el
+ayudante de escritorio del mouse pad instalado (`<destino-windows>`).
+Actualizar el agente del destino cierra sus sesiones.
+
+**Pasos**:
+
+1. En una pestaña contra el destino, abrir el Bloc de notas:
+   en cmd `"%TITAN_AGENT%" --desktop-run notepad.exe`, en PowerShell
+   `& $env:TITAN_AGENT --desktop-run notepad.exe`.
+2. Lo mismo con un programa real: el emulador de Android o la app de
+   escritorio (`--desktop-run [--cwd <carpeta>] <programa> [argumentos…]`).
+3. En la app, el panel del agente enseña «Ayudante de escritorio · … · N
+   programas abiertos» y, desplegado, cada programa con su PID.
+4. `--desktop-run regedit.exe` falla con un error claro y en el destino no
+   sale ningún aviso de UAC.
+
+**Qué debe pasar**: los programas aparecen en el escritorio del usuario (no
+en segundo plano), salen en el panel y lo que pide administrador se rechaza.
+
+**Si falla**: el error que imprime la orden y la salida de
+`titan-agent --status --json` en el destino.
 
 ## Resultado
 

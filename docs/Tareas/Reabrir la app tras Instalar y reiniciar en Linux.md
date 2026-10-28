@@ -1,12 +1,15 @@
 ---
 Nombre: 'Reabrir la app tras Instalar y reiniciar en Linux'
-Estado: 'En curso'
+Estado: 'Por probar'
+Estado desde: 2026-10-16
 Resumen: 'En Linux, «Instalar y reiniciar» instala la versión nueva pero no reabre la app. El instalador hereda de la JVM las variables que el lanzador de jpackage pone en su propio proceso (_JPACKAGE_LAUNCHER y LD_LIBRARY_PATH con lib/app). El lanzador relanzado las toma por un reinicio interno de la JVM, no lee su configuración y se cierra al instante. Visto al pasar un tar.gz de la beta.20 a la 1.0.0. Arreglo para 1.0.1: quitar esas variables del entorno del instalador y conservar sus registros.'
 Decisiones: 'El 2026-10-16 la sesión de control lo asigna a una 1.0.1. No hace falta cambiar ninguna ADR: el comportamiento es el de [[ADR-0025 Actualización automática de la app]] §2 («tras actualizar, la app se reabre»), que en Linux no se cumplía.'
 Bloqueada: []
+Prueba: 'En Linux, al actualizar con «Instalar y reiniciar» desde la 1.0.1 o posterior, la app se vuelve a abrir sola.'
+Esperando a: ''
 Versión: ''
 Fecha de creación: 2026-10-16T20:20:00+02:00
-Última modificación: 2026-10-16T20:20:00+02:00
+Última modificación: 2026-10-28T12:00:00+01:00
 ---
 
 # Reabrir la app tras Instalar y reiniciar en Linux
@@ -117,6 +120,25 @@ Hecho el 2026-10-16 en la rama `fix-linux-relaunch`:
   actualización siguiente a la 1.0.1. Para no esperar, se puede probar antes
   con dos builds locales y un origen de pruebas (`-PtitanUpdateApi`), como en
   [[Actualización automática de la app]].
+
+## Cómo probarlo
+
+**Dónde**: la app de escritorio estable en Linux instalada desde el `tar.gz`
+(la que usa el actualizador propio), en la **1.0.1 o posterior**: el
+instalador que corre es el de la versión que se está usando. Se comprueba en
+la próxima actualización que llegue.
+
+**Pasos**:
+
+1. Cuando la app avise de una versión nueva, pulsar «Instalar y reiniciar».
+2. Esperar unos segundos sin tocar nada.
+
+**Qué debe pasar**: la app se cierra y se vuelve a abrir sola con la versión
+nueva.
+
+**Si falla**: `update.log`, `helper.log` y `relaunch.log` de la carpeta de
+caché de la app (donde está `update.log`), y de qué versión a qué versión era
+la actualización.
 
 ## Resultado
 

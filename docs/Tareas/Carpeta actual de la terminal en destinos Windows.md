@@ -1,11 +1,14 @@
 ---
 Nombre: 'Carpeta actual de la terminal en destinos Windows'
-Estado: 'En curso'
+Estado: 'Por probar'
+Estado desde: 2026-10-15
 Resumen: 'Petición del usuario (2026-10-15) tras probar en el Pixel: al abrir el explorador SFTP desde una pestaña de nivel 3 contra Windows sale el aviso de carpeta desconocida, porque el agente solo sabe la carpeta del shell en Linux. Que el agente de Windows la sepa también: en cmd.exe leyéndola de la memoria del proceso, y en PowerShell envolviendo su prompt en memoria para que la anote.'
 Decisiones: 'Decidido con el usuario el 2026-10-15, después de explicarle qué supone tocar el prompt: ambas partes. En PowerShell no se toca el $PROFILE ni ningún fichero del usuario ni el aspecto del prompt; el agente arranca el shell de la sesión con el envoltorio ya puesto, solo en sesiones nuevas. Detalle técnico (decisión del agente): el envoltorio anota la carpeta en un fichero temporal del agente, no con una secuencia de escape, para no depender de lo que ConPTY deje pasar.'
 Bloqueada: []
+Prueba: 'Desde el móvil, en una pestaña de nivel 3 contra Windows, el explorador SFTP se abre en la carpeta actual de cmd y de PowerShell.'
+Esperando a: ''
 Fecha de creación: 2026-10-15T10:00:00+02:00
-Última modificación: 2026-10-15T12:22:00+02:00
+Última modificación: 2026-10-28T12:00:00+01:00
 ---
 
 # Carpeta actual de la terminal en destinos Windows
@@ -87,6 +90,29 @@ donde el directorio actual quedó solo para Linux.
   acabaron bien. Los 19 assets pasan `sha256sum -c SHA256SUMS` y la APK está
   firmada con el certificado cuya huella publica el `README.md`. Sigue
   pendiente la prueba del usuario contra Windows.
+
+## Cómo probarlo
+
+**Dónde**: la versión estable actual (lleva el cambio desde la
+`0.1.0-beta.19`) en el móvil. Destino: un Windows con el agente de esa
+versión (`<destino-windows>`, p. ej. la máquina virtual de pruebas).
+
+**Pasos**:
+
+1. Abrir una pestaña de nivel 3 con cmd y hacer `cd /d C:\Windows\System32`.
+2. Abrir el explorador SFTP desde la pestaña: se abre en esa carpeta, sin el
+   aviso de carpeta desconocida.
+3. En la misma pestaña, escribir `powershell` (shell anidada) y abrir el
+   explorador: ahora **sí** sale el aviso, porque con una shell anidada no se
+   sabe la carpeta. `exit` y vuelve a funcionar.
+4. Abrir una pestaña de nivel 3 cuyo shell sea PowerShell, hacer
+   `Set-Location C:\Users\Public` y abrir el explorador: se abre ahí. El
+   prompt (y oh-my-posh o starship, si se usan) sigue igual.
+
+**Qué debe pasar**: lo que dice cada paso.
+
+**Si falla**: qué paso, captura, la versión de PowerShell y la salida de
+`titan-agent --status` en el destino.
 
 ## Resultado
 

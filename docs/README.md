@@ -53,12 +53,40 @@ detenerse e informar al usuario.
 
 ### Tareas
 
-_Versión del sistema: 2._
+_Versión del sistema: 3._
 
 Gestión de trabajos como notas con estado en `Tareas/`, indexadas por
 `Tareas/Tareas.base`.
 
-- `Estado` ∈ `Planificando` · `Pendiente` · `En curso` · `Hecha` · `Archivada`.
+- `Estado` ∈ `Planificando` · `Pendiente` · `En curso` · `Por probar` ·
+  `Esperando` · `Hecha` · `Archivada`.
+  - `En curso`: alguien trabaja en ella ahora. No se deja en `En curso` una
+    tarea que solo espera algo.
+  - `Por probar`: el agente terminó y verificó todo lo que podía (tests,
+    emulador, contenedores) y el cambio está en `main` (y por tanto en la
+    canary); solo falta la prueba del usuario. Se rellenan `Prueba` y la
+    sección «Cómo probarlo» (ver abajo). Si la prueba sale bien → `Hecha`; si
+    falla → `En curso`, anotando en «Verificación» qué falló.
+  - `Esperando`: no avanza por algo ajeno al agente que no es una prueba: un
+    tercero (una revisión de winget, el registro de AUR) o una acción del
+    usuario (revocar un token, una medición con su uso real). Se rellena
+    `Esperando a` con qué o quién y qué hará que se reanude.
+  - Una tarea paraguas sigue a sus subtareas: está `Por probar` o `Esperando`
+    cuando todas las que le quedan lo están.
+- `Prueba` es una línea con lo que el usuario tiene que comprobar, legible
+  sin abrir la nota (p. ej. `'Mover el ratón y escribir en un escritorio X11
+  real desde Android'`); `Esperando a` es una línea con qué se espera. Las dos
+  se dejan vacías (`''`) fuera de su estado. `Estado desde` es la fecha
+  (`AAAA-MM-DD`) en que la tarea entró en su estado actual; se actualiza en
+  cada cambio de `Estado`, y con ella las vistas `Por probar` y `Esperando`
+  ponen arriba lo que lleva más tiempo esperando.
+- **Cómo probarlo.** Al pasar a `Por probar`, el cuerpo de la nota lleva una
+  sección `## Cómo probarlo` que el usuario pueda seguir semanas después sin
+  más contexto: **dónde** (canary desde el commit `abc1234`, versión estable
+  mínima, emulador, qué tipo de destino), **preparación** (contenedor, VPN,
+  sesión que abrir), **pasos** numerados, **qué debe pasar** y **qué enviar si
+  falla** (log, captura, versión). Sin datos del entorno personal (regla 5):
+  marcadores como `<destino-windows>`.
 - `Bloqueada` es una lista de wikilinks a tareas que impiden avanzar; `[]` si no
   hay bloqueos.
 - `Versión` es la versión publicada que lleva el resultado de la tarea a los
@@ -67,8 +95,9 @@ Gestión de trabajos como notas con estado en `Tareas/`, indexadas por
   cambios entran en ella. Las tareas que no llegan a ninguna versión (solo
   documentación, infraestructura o decisiones) la dejan vacía. Las tareas
   cerradas antes de la 1.0.0 no se rellenan hacia atrás.
-- Al empezar → `En curso`; al completar y **verificar** → `Hecha`; lo que ya no
-  deba aparecer en el trabajo habitual → `Archivada`.
+- Al empezar → `En curso`; cuando solo falte la prueba del usuario →
+  `Por probar`; al completar y **verificar** (incluida esa prueba) → `Hecha`;
+  lo que ya no deba aparecer en el trabajo habitual → `Archivada`.
 - Antes de crear una tarea, buscar en TODAS (incluidas `Hecha` y `Archivada`)
   para no duplicar.
 - Una tarea nueva es solo su nota en `Tareas/` (desde `Plantillas/Tarea.md`) y
