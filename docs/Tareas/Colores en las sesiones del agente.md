@@ -4,9 +4,9 @@ Estado: Hecha
 Resumen: 'En las sesiones que corren en el agente (nivel 3) la shell arrancaba sin `TERM`, así que Claude Code y otras apps que comprueban el terminal quitaban todo el color: el muñeco salía blanco y en `claude agents` no se veía la línea seleccionada. El agente pasa a dar a la shell de cada sesión `TERM=xterm-256color` y `COLORTERM=truecolor`.'
 Decisiones: 'El agente siempre fija `TERM`/`COLORTERM` para el emulador de la app, sin mirar lo que tenga su propio entorno (el demonio arranca por `exec` de SSH, sin PTY). Ajuste de [[Resiliencia nivel 3 agente propio en el destino]].'
 Bloqueada: []
-Versión: ''
+Versión: '1.4.0'
 Fecha de creación: 2026-10-27T20:32:08+01:00
-Última modificación: 2026-10-27T20:57:21+01:00
+Última modificación: 2026-10-28T16:30:00+01:00
 ---
 
 # Colores en las sesiones del agente
