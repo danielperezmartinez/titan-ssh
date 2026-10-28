@@ -4,9 +4,9 @@ Estado: 'Hecha'
 Resumen: 'En Android el teclado del sistema no muestra sugerencias en el terminal ni en el mouse pad, y al escribir muy deprisa a veces se pierden letras. Se añaden en Ajustes dos interruptores (sugerencias del teclado, y un botón [abc] junto a [kbd] para encenderlas o apagarlas al momento), el teclado nunca aprende lo tecleado, y se busca y corrige la pérdida de letras.'
 Decisiones: 'Las sugerencias se activan en Ajustes → Teclado del móvil, un ajuste global solo de Android que vale para el terminal y el mouse pad. El botón [abc] no sale por defecto: lo muestra un segundo interruptor con su explicación. Con sugerencias o sin ellas, el campo pide IME_FLAG_NO_PERSONALIZED_LEARNING (cubre ese punto de [[Endurecer la entrada del mouse pad y del teclado del móvil]]).'
 Bloqueada: []
-Versión: ''
+Versión: '1.4.0'
 Fecha de creación: 2026-10-27T12:00:00+01:00
-Última modificación: 2026-10-27T14:00:00+01:00
+Última modificación: 2026-10-28T16:30:00+01:00
 ---
 
 # Sugerencias del teclado del móvil y letras perdidas

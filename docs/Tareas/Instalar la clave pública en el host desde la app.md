@@ -4,9 +4,9 @@ Estado: 'Hecha'
 Resumen: 'Casilla en el editor de host que genera la clave, pide la contraseña una sola vez, copia la línea pública en authorized_keys del servidor (como ssh-copy-id, también en Windows con administrators_authorized_keys), comprueba que la clave entra y solo entonces cambia el host a autenticación por clave. Texto previo que explica cada paso y catálogo cerrado de errores. Incluye generar pares ed25519 por software (escritorio y Android) y keyboard-interactive en el motor. Primero solo en la canary.'
 Decisiones: 'Sigue [[ADR-0030 Instalación de la clave pública en el host con una contraseña de un solo uso]]. Acordado con el usuario el 2026-10-21: solo canary al principio; ed25519 por software en escritorio; la casilla va en el editor de host; si el host tenía contraseña guardada, el resumen ofrece borrarla (no se borra sola).'
 Bloqueada: []
-Versión: ''
+Versión: '1.4.0'
 Fecha de creación: 2026-10-21T18:00:00+02:00
-Última modificación: 2026-10-21T19:45:00+02:00
+Última modificación: 2026-10-28T16:30:00+01:00
 ---
 
 # Instalar la clave pública en el host desde la app
