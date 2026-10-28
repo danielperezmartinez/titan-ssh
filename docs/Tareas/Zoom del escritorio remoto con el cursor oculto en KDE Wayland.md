@@ -9,7 +9,7 @@ Prueba: 'Con zoom 2x desde el Pixel contra KDE Wayland, dejar el ratón quieto s
 Esperando a: ''
 Versión: ''
 Fecha de creación: 2026-10-28T21:00:00+01:00
-Última modificación: 2026-10-28T21:50:00+01:00
+Última modificación: 2026-10-28T23:25:00+01:00
 ---
 
 # Zoom del escritorio remoto con el cursor oculto en KDE Wayland
@@ -57,6 +57,24 @@ la esquina de arriba a la izquierda.
   verde.
 - La app no cambia (ya centraba el zoom en la última posición recibida), así
   que no hay prueba en el emulador.
+- **Rendimiento** (2026-10-28, el usuario notó la canary .46 más lenta en el
+  Pixel): comparada con `50825c9`, la de [[Captura X11 por memoria
+  compartida]], no hay regresión medible.
+  - Agente, con la sonda del cursor a 120 Hz de
+    [[Escritorio remoto fluido al mover el ratón]] (15 s por pasada, base y
+    nuevo alternados, dos pasadas). En `tools/test-x11` quieto, los dos dan
+    120/s, huecos p99 9,5-11 ms y eco p50 ~1 ms (~52 ms con RTT 50 ms). Con
+    un xterm haciendo scroll, 120/s, p99 15-16 ms y ~30 fps los dos. En el
+    KDE Plasma 6.8 Wayland real (1920×1080) los dos dan ~60/s, el tope de
+    KWin, con p99 30-40 ms, 15-23 fps y eco p50 9-13 ms (60-67 ms con RTT
+    50 ms).
+  - App Android en el emulador (`gfxinfo framestats`, 120 fotogramas,
+    deslizando por el touchpad con el xterm haciendo scroll, tres pasadas
+    por app a zoom 1x y otras tres a 2x): hilo de UI p50 1,2-2,5 ms y p99
+    8-20 ms en las dos, con el mismo ruido entre pasadas.
+  - La barra de calidad de conexión, nueva desde entonces, solo pregunta
+    tras 3 s sin datos entrantes, y con el escritorio remoto siempre llegan
+    datos. Lo notado en el Pixel apunta a la red.
 
 ## Cómo probarlo
 
