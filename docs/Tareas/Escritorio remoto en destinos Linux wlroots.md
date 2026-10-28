@@ -6,7 +6,7 @@ Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño en [[A
 Bloqueada: []
 Versión: ''
 Fecha de creación: 2026-10-21T18:55:00+02:00
-Última modificación: 2026-10-22T01:00:00+02:00
+Última modificación: 2026-10-28T19:30:00+01:00
 ---
 
 # Escritorio remoto en destinos Linux wlroots
@@ -106,6 +106,15 @@ de la familia wlroots.
   arregló en la base (recorte de la vista).
 - **App de escritorio** canary contra el contenedor: probada por el usuario,
   todo bien.
+- **Xwayland se caía con el teclado virtual** (2026-10-28, visto de paso
+  en la rama `canary-input-fixes`): con el mapa del teclado virtual del
+  agente activo, un cliente X que pedía los indicadores del mapa
+  (`xkbcomp`, kitty al arrancar) tiraba Xwayland (segfault), y con él
+  todos los programas X11 de la sesión. El mapa no declaraba indicadores;
+  ahora lleva Caps, Num y Scroll Lock, y `xkbcomp -xkb :0` en sway sin
+  pantalla con el teclado virtual ya no lo tira. Va en la canary; conviene
+  que el usuario lo vea en su próxima prueba en sway con algún programa
+  X11 abierto.
 
 ## Resultado
 
