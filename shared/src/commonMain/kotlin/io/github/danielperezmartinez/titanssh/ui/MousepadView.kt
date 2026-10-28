@@ -107,10 +107,10 @@ import io.github.danielperezmartinez.titanssh.theme.TitanDimens
  * - two fingers scroll, and a two-finger tap is a right click (three, middle);
  * - holding a finger still presses the left button, to drag until it lifts.
  *
- * Below it, buttons to hold as a mouse's, the user's key bar ([KeyBarRow], the
- * same [keyBar] as the terminal's: sticky Ctrl/Alt/Shift/Win and the keys a
- * phone keyboard lacks; its `[*]` calls [onConfigureKeyBar]), and the system
- * keyboard, as [softKeyboard] says. Events go out through [SessionTab.sendInput]; the strip on top says
+ * Below it, buttons to hold as a mouse's and, on Android, the user's key bar
+ * ([KeyBarRow], the same [keyBar] as the terminal's: sticky Ctrl/Alt/Shift/Win
+ * and the keys a phone keyboard lacks; its `[*]` calls [onConfigureKeyBar]) and
+ * the system keyboard, as [softKeyboard] says. Events go out through [SessionTab.sendInput]; the strip on top says
  * whether they reach the desktop.
  */
 @Composable
@@ -127,6 +127,7 @@ fun MousepadView(
     val changedHostKey by tab.changedHostKey.collectAsState()
     val scope = rememberCoroutineScope()
     val motion = remember(tab.id) { MousepadMotion(tab.resolved.session.mousepad) }
+    val hardwareTyping = remember(tab.id) { HardwareTyping() }
     val density = LocalDensity.current
     val haptics = LocalHapticFeedback.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -230,7 +231,7 @@ fun MousepadView(
                 .focusRequester(surfaceFocus)
                 .focusable()
                 .onPreviewKeyEvent { event ->
-                    val frames = hardwareKeyFrames(event) ?: return@onPreviewKeyEvent false
+                    val frames = hardwareTyping.frames(event) ?: return@onPreviewKeyEvent false
                     frames.forEach(::send)
                     true
                 }
@@ -325,28 +326,30 @@ fun MousepadView(
             Hairline()
         }
 
-        val ime = WindowInsets.ime
-        val keyboardVisible by remember(ime, density) { derivedStateOf { ime.getBottom(density) > 0 } }
-        Column(Modifier.fillMaxWidth().background(TitanColors.Canvas)) {
-            KeyBarRow(
-                keys = keyBar,
-                inTerminal = false,
-                sticky = sticky,
-                onKey = { key -> pressKey(key) },
-                onConfigure = onConfigureKeyBar,
-                keyboardVisible = keyboardVisible,
-                onToggleKeyboard = if (isAndroidRuntime()) ({
-                    if (keyboardVisible) {
-                        keyboardController?.hide()
-                    } else {
-                        keyboardFocus.requestFocus()
-                        keyboardController?.show()
-                    }
-                }) else null,
-                suggestions = softKeyboard.suggestions,
-                onToggleSuggestions = softKeyboard.onToggle.takeIf { isAndroidRuntime() && softKeyboard.showToggle },
-            )
-            if (isAndroidRuntime()) {
+        // The key bar and the system keyboard are the phone's: on the
+        // desktop, as in the terminal, the physical keyboard has every key.
+        if (isAndroidRuntime()) {
+            val ime = WindowInsets.ime
+            val keyboardVisible by remember(ime, density) { derivedStateOf { ime.getBottom(density) > 0 } }
+            Column(Modifier.fillMaxWidth().background(TitanColors.Canvas)) {
+                KeyBarRow(
+                    keys = keyBar,
+                    inTerminal = false,
+                    sticky = sticky,
+                    onKey = { key -> pressKey(key) },
+                    onConfigure = onConfigureKeyBar,
+                    keyboardVisible = keyboardVisible,
+                    onToggleKeyboard = {
+                        if (keyboardVisible) {
+                            keyboardController?.hide()
+                        } else {
+                            keyboardFocus.requestFocus()
+                            keyboardController?.show()
+                        }
+                    },
+                    suggestions = softKeyboard.suggestions,
+                    onToggleSuggestions = softKeyboard.onToggle.takeIf { softKeyboard.showToggle },
+                )
                 SoftKeyboardCapture(
                     focusRequester = keyboardFocus,
                     suggestions = softKeyboard.suggestions,
@@ -673,25 +676,128 @@ private fun MouseButton(label: String, onDown: () -> Unit, onUp: () -> Unit, mod
 
 /**
  * A physical keyboard (on the desktop app, or plugged into the phone) typing
- * on the mouse pad: its keys, with the modifiers it holds. Null for events it
- * does not handle.
+ * on the mouse pad: its keys, with the modifiers it holds.
+ *
+ * The keys without a character, and shortcuts (a letter or digit with Ctrl,
+ * Alt or Win), go out when pressed. Characters come, on the desktop, from the
+ * event that follows the press with what the keyboard typed ([typedEvents]):
+ * AltGr+E types €, and the press of AltGr itself nothing. Without an input
+ * method, AWT does not compose dead keys (´ then u types u), so they are
+ * composed here ([DeadKey]). Android composes the character into the press
+ * itself.
  */
-private fun hardwareKeyFrames(event: KeyEvent): List<AgentFrame>? {
-    if (event.type != KeyEventType.KeyDown) return null
-    var mods = 0
-    if (event.isCtrlPressed) mods = mods or InputKeys.MOD_CTRL
-    if (event.isAltPressed) mods = mods or InputKeys.MOD_ALT
-    if (event.isMetaPressed) mods = mods or InputKeys.MOD_META
-    HARDWARE_KEYS[event.key]?.let { key ->
-        if (event.isShiftPressed) mods = mods or InputKeys.MOD_SHIFT
-        return listOf(AgentFrame.Key(key, mods))
+internal class HardwareTyping(private val typedEvents: Boolean = !isAndroidRuntime()) {
+    // The press went out as a shortcut: the character typed after it is its own.
+    private var shortcut = false
+
+    // A dead key pressed and no character typed since: the accent of the next one.
+    private var dead: DeadKey? = null
+
+    /** The frames for [event], or null for events it does not handle. */
+    fun frames(event: KeyEvent): List<AgentFrame>? = when (event.type) {
+        KeyEventType.KeyDown -> pressed(event)
+        // A desktop key typed event (Compose has no type of its own for it).
+        KeyEventType.Unknown -> if (typedEvents) typed(event) else null
+        else -> null
     }
-    var codePoint = event.utf16CodePoint
-    // Some platforms report Ctrl+letter as its control character (Ctrl+C = 3).
-    if (event.isCtrlPressed && codePoint in 1..26) codePoint += 'a'.code - 1
-    if (codePoint == 0 || codePoint < 0x20) return null
-    val text = buildString { appendCodePointCompat(codePoint) }
-    return MousepadTyping.typed(text, mods)
+
+    private fun pressed(event: KeyEvent): List<AgentFrame>? {
+        shortcut = false
+        var mods = 0
+        if (event.isCtrlPressed) mods = mods or InputKeys.MOD_CTRL
+        if (event.isAltPressed) mods = mods or InputKeys.MOD_ALT
+        if (event.isMetaPressed) mods = mods or InputKeys.MOD_META
+        HARDWARE_KEYS[event.key]?.let { key ->
+            if (event.isShiftPressed) mods = mods or InputKeys.MOD_SHIFT
+            dead = null
+            return listOf(AgentFrame.Key(key, mods))
+        }
+        var codePoint = event.utf16CodePoint
+        // Some platforms report Ctrl+letter as its control character (Ctrl+C = 3).
+        if (event.isCtrlPressed && codePoint in 1..26) codePoint += 'a'.code - 1
+        if (!typedEvents) {
+            if (!isText(codePoint)) return null
+            return MousepadTyping.typed(text(codePoint), mods)
+        }
+        val char = codePoint.takeIf { it in 0x20..0x7e }?.toChar()
+        if (mods != 0 && char != null && InputKeys.forChar(char) != null) {
+            if (event.isShiftPressed) mods = mods or InputKeys.MOD_SHIFT
+            shortcut = true
+            dead = null
+            return MousepadTyping.typed(char.toString(), mods)
+        }
+        // Maybe a dead key: if a character follows the press, it was not.
+        val accent = DeadKey.of(codePoint) ?: return null
+        val pending = dead
+        // Pressed twice, a dead key types its accent alone, as layouts do.
+        dead = accent.takeIf { it != pending }
+        return pending?.let { MousepadTyping.typed(it.spacing.toString(), 0) } ?: emptyList()
+    }
+
+    private fun typed(event: KeyEvent): List<AgentFrame>? {
+        if (shortcut) {
+            shortcut = false
+            return emptyList()
+        }
+        val codePoint = event.utf16CodePoint
+        if (!isText(codePoint)) return null
+        val accent = dead ?: return MousepadTyping.typed(text(codePoint), 0)
+        dead = null
+        val out = when {
+            // The key types the accent itself (´ on a layout without dead keys).
+            DeadKey.of(codePoint) == accent -> text(codePoint)
+            // An input method composed it already.
+            DeadKey.isComposed(codePoint) -> text(codePoint)
+            codePoint == ' '.code -> accent.spacing.toString()
+            else -> accent.compose(codePoint)?.toString() ?: (accent.spacing + text(codePoint))
+        }
+        return MousepadTyping.typed(out, 0)
+    }
+
+    private fun text(codePoint: Int): String = buildString { appendCodePointCompat(codePoint) }
+
+    /**
+     * Whether [codePoint] is a character to type: not a control character,
+     * nor what a key without one reports (AWT's CHAR_UNDEFINED, 0xFFFF, on
+     * the press of Shift or AltGr).
+     */
+    private fun isText(codePoint: Int): Boolean =
+        codePoint >= 0x20 && codePoint != 0x7f && codePoint != 0xFFFF && codePoint !in 0xD800..0xDFFF
+}
+
+/**
+ * The dead keys a desktop keyboard may have: the characters their press
+ * reports (AWT on Linux gives the spacing modifier letter, ˊ for the acute;
+ * others the plain accent), the accent they type alone and the letters they
+ * compose, as pairs of letter and result.
+ */
+internal enum class DeadKey(val spacing: Char, reported: String, letters: String) {
+    ACUTE('´', "\u02CA\u00B4", "aáeéiíoóuúyýAÁEÉIÍOÓUÚYÝcćCĆnńNŃsśSŚzźZŹ"),
+    GRAVE('`', "\u02CB`", "aàeèiìoòuùAÀEÈIÌOÒUÙ"),
+    CIRCUMFLEX('^', "\u02C6^", "aâeêiîoôuûAÂEÊIÎOÔUÛ"),
+    DIAERESIS('¨', "\u00A8", "aäeëiïoöuüyÿAÄEËIÏOÖUÜ"),
+    TILDE('~', "\u02DC~", "aãoõnñAÃOÕNÑ"),
+    CEDILLA('¸', "\u00B8", "cçCÇ"),
+    RING('˚', "\u02DA", "aåAÅuůUŮ"),
+    CARON('ˇ', "\u02C7", "cčCČsšSŠzžZŽeěEĚrřRŘnňNŇ"),
+    ;
+
+    private val reportedAs = reported.toSet()
+    private val composed = letters.chunked(2).associate { it[0] to it[1] }
+
+    /** [codePoint] with this accent, or null when there is no such letter. */
+    fun compose(codePoint: Int): Char? = codePoint.takeIf { it <= 0xFFFF }?.let { composed[it.toChar()] }
+
+    companion object {
+        private val results = entries.flatMap { it.composed.values }.toSet()
+
+        /** The dead key whose press reports [codePoint], if any. */
+        fun of(codePoint: Int): DeadKey? =
+            codePoint.takeIf { it <= 0xFFFF }?.let { cp -> entries.firstOrNull { cp.toChar() in it.reportedAs } }
+
+        /** Whether [codePoint] is a letter a dead key composes. */
+        fun isComposed(codePoint: Int): Boolean = codePoint <= 0xFFFF && codePoint.toChar() in results
+    }
 }
 
 private fun StringBuilder.appendCodePointCompat(codePoint: Int) {

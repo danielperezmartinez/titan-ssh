@@ -1,15 +1,15 @@
 ---
 Nombre: 'Escritorio remoto en destinos Linux X11'
-Estado: 'En curso'
+Estado: 'Por probar'
 Estado desde: 2026-10-28
 Resumen: 'Subtarea 1 del escritorio remoto: ver y controlar un escritorio Linux con X11, y construir la base común (tipo de sesión DESKTOP, tramas de pantalla del protocolo, modo titan-agent --screen, decodificación y vista en la app de escritorio y en Android). El agente habla con el servidor X del usuario con un cliente X11 propio y mínimo (GetImage, XFIXES para el cursor, XTEST para la entrada), sin ayudante. Se prueba con un contenedor desechable con Xvfb y sshd.'
-Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño en [[ADR-0029 Escritorio remoto propio a través del agente]]. En Android la pestaña reutiliza la vista del mouse pad con la pantalla detrás: el dedo usa los gestos del touchpad (no toque directo) y un zoom 1x-3x sigue al cursor; con ratón, posición absoluta. Implementado y verificado el 2026-10-21 (agente, app de escritorio por render, emulador). La prueba del usuario del 2026-10-28 falla en el scroll en kitty y al teclear ñ y vocales con tilde (ver Verificación); vuelve a En curso.'
+Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño en [[ADR-0029 Escritorio remoto propio a través del agente]]. En Android la pestaña reutiliza la vista del mouse pad con la pantalla detrás: el dedo usa los gestos del touchpad (no toque directo) y un zoom 1x-3x sigue al cursor; con ratón, posición absoluta. Implementado y verificado el 2026-10-21 (agente, app de escritorio por render, emulador). La prueba del usuario del 2026-10-28 falla en el scroll en kitty y al teclear ñ y vocales con tilde (ver Verificación); vuelve a En curso. Arreglado el 2026-10-28: el agente relee el mapa de teclado y el grupo XKB activo antes de cada tecla, hace scroll con los ejes de scroll de un dispositivo XI2 del destino (kitty no atiende los botones de rueda cuando hay touchpad), la app de escritorio toma el texto del evento tecleado y compone las teclas muertas, y la barra de teclas solo sale en Android.'
 Bloqueada: []
-Prueba: ''
+Prueba: 'Escribir echo hola ñandú € en un terminal X11 y hacer scroll en kitty, desde el móvil y desde la app de escritorio'
 Esperando a: ''
 Versión: ''
 Fecha de creación: 2026-10-21T10:50:00+02:00
-Última modificación: 2026-10-28T17:30:00+01:00
+Última modificación: 2026-10-28T19:30:00+01:00
 ---
 
 # Escritorio remoto en destinos Linux X11
@@ -121,16 +121,55 @@ confirmación del usuario en un escritorio X11 real.
     del teclado del móvil). `MousepadView` pinta `KeyBarRow` en todas las
     plataformas. El terminal solo la enseña en Android, y la misma vista ya
     oculta los botones del ratón en escritorio cuando hay imagen remota.
+- **Arreglos tras la prueba del usuario** (2026-10-28, rama
+  `canary-input-fixes`):
+  - **ñ como `;`**: el agente elegía la tecla por las columnas del primer
+    grupo del mapa *core* y lo leía una vez por sesión. Con dos
+    distribuciones (`es,us`) y la segunda activa, o con un mapa cargado
+    después (`setxkbmap`), pulsaba la tecla equivocada: reproducido en un
+    Xvfb con `es,us` y el grupo 2 (`ñ` → `;`, `/` → `&`, `;` → `<`). Ahora
+    lee el grupo activo (XKB `GetState`) y el mapa antes de cada tecla y
+    solo usa las columnas de ese grupo. `TestLiveX11Typing` teclea además
+    en el segundo grupo; en verde con `us`, `es`, `es,us` y `us,es`.
+    `Restore` espera un momento antes de devolver las teclas prestadas: si
+    no, la última tecla prestada podía no llegar a su cliente.
+  - **Scroll en kitty**: kitty (glfw) ignora los botones 4-7 en cuanto el
+    escritorio tiene un dispositivo con ejes de scroll XI 2.1 (un
+    touchpad), y el puntero de XTEST no los tiene. Ahora el agente busca
+    ese dispositivo y hace scroll moviendo sus ejes con XTEST, como el
+    propio touchpad; el servidor sigue emulando los botones de rueda para
+    los demás programas. Sin dispositivo así, botones como antes. Probado
+    en Xwayland (sway sin pantalla), que tiene esos ejes: kitty no se movía
+    con botones (380 → 380) y sí con los ejes (380 → 355); `xinput
+    test-xi2` muestra el movimiento con el eje y los botones 4, 5 y 7
+    emulados. Ojo: el servidor X lee los valores de un movimiento de XTEST
+    como si empezaran en el valuador 0, así que se mandan desde ahí.
+  - **`´u` y cuadros desde la app de escritorio**: el mouse pad tomaba el
+    carácter de la pulsación. AWT da ahí una tecla muerta como su acento
+    suelto (ˊ, U+02CA) y la letra sin componer, y la pulsación de Shift o
+    AltGr como U+FFFF (los cuadros sin glifo). Ahora el texto sale del
+    evento tecleado que sigue a la pulsación, las teclas muertas se
+    componen en la app si no lo hizo un método de entrada, y las teclas sin
+    carácter no escriben nada (`HardwareTypingTest`). Comprobado con AWT
+    real en un Xvfb con distribución `es` y xdotool pulsando las teclas
+    físicas: llega `echo hola ñandú € áéíóú ü @`.
+  - **Barra de teclas en escritorio**: el mouse pad solo pinta la barra y
+    el campo del teclado del móvil en Android, como el terminal.
+  - Tests: `go test -race ./...`, `go vet` (Linux, macOS, FreeBSD; el
+    aviso de Windows es anterior), `:shared:desktopTest` (534 en verde).
+    Emulador: la build canary del worktree conecta a un destino X11 de
+    pruebas, enseña la barra de teclas y el teclado del móvil escribe en el
+    xterm remoto.
 
 ## Cómo probarlo
 
-**Dónde**: la canary (el escritorio remoto todavía no está en ninguna versión
-estable), en el móvil y en el PC. Destino: un Linux con la sesión gráfica
-iniciada en X11 (`<destino-x11>`; en la pantalla de inicio de sesión, la
-variante «X11» o «Xorg»).
+**Dónde**: la canary desde el commit `b977b65` (o posterior en `main`), en el
+móvil y en el PC. Destino: un Linux con la sesión gráfica iniciada en X11
+(`<destino-x11>`; en la pantalla de inicio de sesión, la variante «X11» o
+«Xorg»), con kitty instalado.
 
 **Preparación**: en la canary, una sesión de tipo «escritorio» para ese
-destino.
+destino. La canary actualiza sola el agente del destino al conectar.
 
 **Pasos**:
 
@@ -138,17 +177,22 @@ destino.
 2. Mover el cursor con un dedo, tocar para hacer clic y hacer zoom (de 1x a
    3x): el zoom sigue al cursor.
 3. Abrir un terminal en el destino y escribir con el teclado del móvil
-   `echo hola ñandú €` y Enter.
-4. Poner el móvil en modo avión unos segundos y quitarlo.
-5. Repetir 1 y 3 desde la app de escritorio, apuntando con el ratón sobre la
-   imagen.
+   `echo hola ñandú € /;:` y Enter. Repetirlo en Alacritty.
+4. Abrir kitty con texto de sobra (p. ej. `seq 1 500`) y hacer scroll con dos
+   dedos arriba y abajo; repetir en Firefox.
+5. Poner el móvil en modo avión unos segundos y quitarlo.
+6. Repetir 3 y 4 desde la app de escritorio, con el teclado físico (también
+   `áéíóú ü @` con las teclas muertas y AltGr) y la rueda o el touchpad. En
+   la app de escritorio la sesión no enseña la barra de teclas de Android.
 
 **Qué debe pasar**: imagen en vivo, cursor donde toca, el texto llega exacto
-(también `ñ` y `€`) y tras el corte reconecta sola en pocos segundos con la
-imagen al día.
+(sin `;` en lugar de `ñ`, sin `´` suelto ni cuadros), kitty hace scroll como
+Firefox, y tras el corte reconecta sola en pocos segundos con la imagen al
+día.
 
-**Si falla**: qué paso, captura de la app, versión de la canary y el
-escritorio y la distribución del destino.
+**Si falla**: qué paso, captura de la app, versión de la canary, el
+escritorio y la distribución del destino, y la salida de `setxkbmap -query`
+y de `xinput list` en el destino.
 
 ## Resultado
 

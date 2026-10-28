@@ -39,6 +39,12 @@ type Portal struct {
 	// KDE needs it: its portal hands discrete steps to KWin as an axis value
 	// of 1 each, a fifteenth of a real notch.
 	SmoothScroll func(dx, dy float64) error
+	// LayoutKeysyms types characters as keyboard layouts list them: an
+	// accented letter as its dead key and the letter, € by its EuroSign
+	// keysym. GNOME needs it: Mutter types only the keysyms of the layout's
+	// keys, and á is no key's on a Spanish layout, but ´ and a are. KDE
+	// types any keysym.
+	LayoutKeysyms bool
 }
 
 // smoothUnitsPerNotch is one notch for SmoothScroll: Qt turns each unit of
@@ -110,23 +116,63 @@ func (p *Portal) tap(sym uint32) error {
 // and Tab keys.
 func (p *Portal) Text(s string) error {
 	for _, r := range s {
-		var sym uint32
+		var syms []uint32
 		switch {
 		case r == '\r':
 			continue
 		case r == '\n':
-			sym = keysymReturn
+			syms = []uint32{keysymReturn}
 		case r == '\t':
-			sym = keysymTab
+			syms = []uint32{keysymTab}
 		default:
-			sym = runeKeysym(r)
+			if d, ok := deadKeyFor[r]; ok && p.LayoutKeysyms {
+				syms = []uint32{d.dead, runeKeysym(d.base)}
+			} else if sym, ok := legacyKeysyms[r]; ok && p.LayoutKeysyms {
+				syms = []uint32{sym}
+			} else {
+				syms = []uint32{runeKeysym(r)}
+			}
 		}
-		if err := p.tap(sym); err != nil {
-			return err
+		for _, sym := range syms {
+			if err := p.tap(sym); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
 }
+
+// legacyKeysyms are characters outside Latin-1 that keyboard layouts list
+// by an older keysym than their Unicode one (0x01000000 + code point).
+var legacyKeysyms = map[rune]uint32{'€': 0x20ac}
+
+// deadKey is an accented letter as a dead key's keysym and the bare letter.
+type deadKey struct {
+	dead uint32
+	base rune
+}
+
+// deadKeyFor decomposes the accented letters of Western European layouts
+// into the dead keys those layouts have.
+var deadKeyFor = func() map[rune]deadKey {
+	m := map[rune]deadKey{}
+	for _, d := range []struct {
+		dead    uint32
+		letters string // pairs of bare letter and accented letter
+	}{
+		{0xfe51, "aáeéiíoóuúyýAÁEÉIÍOÓUÚYÝ"}, // dead_acute
+		{0xfe50, "aàeèiìoòuùAÀEÈIÌOÒUÙ"},     // dead_grave
+		{0xfe52, "aâeêiîoôuûAÂEÊIÎOÔUÛ"},     // dead_circumflex
+		{0xfe57, "aäeëiïoöuüyÿAÄEËIÏOÖUÜ"},   // dead_diaeresis
+		{0xfe53, "aãoõAÃOÕ"},                 // dead_tilde
+	} {
+		rs := []rune(d.letters)
+		for i := 0; i+1 < len(rs); i += 2 {
+			m[rs[i+1]] = deadKey{dead: d.dead, base: rs[i]}
+		}
+	}
+	return m
+}()
 
 // Key presses or releases a protocol key; with ActionPress the modifiers in
 // mods are held around it.
