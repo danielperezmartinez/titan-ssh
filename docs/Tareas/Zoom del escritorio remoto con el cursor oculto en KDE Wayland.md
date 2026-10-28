@@ -1,15 +1,15 @@
 ---
 Nombre: 'Zoom del escritorio remoto con el cursor oculto en KDE Wayland'
-Estado: 'En curso'
+Estado: 'Por probar'
 Estado desde: 2026-10-28
 Resumen: 'Desde el Pixel, contra un KDE Plasma con Wayland y con zoom 2x, si el foco está en Konsole y el ratón se queda quieto, al rato la imagen salta a la esquina de arriba a la izquierda hasta que se vuelve a mover el ratón. No pasa contra X11 ni con el foco en otra aplicación. Sospecha: Konsole oculta el puntero en reposo y el portal (PipeWire, spa_meta_cursor) da entonces una posición (0,0) que el agente reenvía y la app usa como centro del zoom.'
 Decisiones: 'Aparece al cerrar [[Escritorio remoto a través del agente]] y [[Escritorio remoto en destinos Linux Wayland]] (2026-10-28, canary 1.4.1-canary.45). El usuario lo quiere arreglado y en una tanda de pruebas aparte.'
 Bloqueada: []
-Prueba: ''
+Prueba: 'Con zoom 2x desde el Pixel contra KDE Wayland, dejar el ratón quieto sobre Konsole: la imagen no salta a la esquina'
 Esperando a: ''
 Versión: ''
 Fecha de creación: 2026-10-28T21:00:00+01:00
-Última modificación: 2026-10-28T22:00:00+01:00
+Última modificación: 2026-10-28T21:50:00+01:00
 ---
 
 # Zoom del escritorio remoto con el cursor oculto en KDE Wayland
@@ -57,6 +57,27 @@ la esquina de arriba a la izquierda.
   verde.
 - La app no cambia (ya centraba el zoom en la última posición recibida), así
   que no hay prueba en el emulador.
+
+## Cómo probarlo
+
+- **Dónde:** titan-ssh canary desde el commit `d88da16` (la que publica CI
+  tras ese push), en el Pixel de pruebas, contra `<destino-kde-wayland>`
+  (KDE Plasma con Wayland). El arreglo está en el agente: la canary debe
+  dejar en el destino su agente de esa versión al conectar.
+- **Preparación:** en el destino, una ventana de Konsole abierta.
+1. Abrir el escritorio remoto del destino desde la canary y poner el zoom en
+   2x.
+2. Mover el ratón desde el Pixel hasta encima de Konsole y hacer clic para
+   darle el foco.
+3. Dejar el ratón quieto hasta que Konsole oculte el puntero (unos
+   segundos; teclear algo en Konsole lo acelera).
+4. Volver a mover el ratón.
+- **Qué debe pasar:** en el paso 3 la imagen con zoom se queda donde estaba
+  el cursor (el puntero deja de verse) y no salta a la esquina de arriba a la
+  izquierda. En el paso 4 vuelve a seguir al cursor como antes.
+- **Si falla:** el número de la canary (Ajustes → Acerca de), una captura y,
+  en el destino, la salida de `TITAN_AGENT_DEBUG=1` del agente si se puede
+  reproducir con `titan-screenprobe`.
 
 ## Resultado
 
