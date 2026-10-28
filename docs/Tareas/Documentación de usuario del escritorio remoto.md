@@ -7,9 +7,9 @@ Decisiones: 'Pedida por el usuario el 2026-10-21 al planificar [[ADR-0031 Escrit
 Bloqueada: []
 Prueba: ''
 Esperando a: ''
-Versión: ''
+Versión: '1.5.0'
 Fecha de creación: 2026-10-21T18:55:00+02:00
-Última modificación: 2026-10-28T12:00:00+01:00
+Última modificación: 2026-10-29T00:30:00+01:00
 ---
 
 # Documentación de usuario del escritorio remoto

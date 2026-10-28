@@ -4,9 +4,9 @@ Estado: 'Hecha'
 Resumen: 'En X11 el agente lee la pantalla con GetImage por el socket de X, y el servidor X, que atiende las peticiones de una en una, deja esperando al cursor y a la inyección mientras copia la imagen. Ahora captura con MIT-SHM (ShmGetImage en bandas de 512 KB) cuando el servidor comparte memoria con el agente, y con GetImage si no. Medido con la sonda del cursor a 120 Hz: el cursor queda a ~120/s con huecos p99 de 9-12 ms (antes 13-38 ms) a 1280×800 y 2560×1440, y la captura cuesta un tercio menos.'
 Decisiones: 'ShmGetImage en bandas de 512 KB: en una sola petición de toda la pantalla, el cursor esperaba más que con GetImage (p99 18-20 ms a 2560×1440), porque GetImage ya iba en bandas de 4 MB. Antes de usar el segmento se comprueba que el servidor escribe en él (una fila leída por los dos caminos sobre un segmento con su complemento): un id de segmento solo vale en un espacio IPC. Si MIT-SHM falla una vez, la sesión sigue con GetImage. El segmento se marca para borrar en cuanto el servidor lo adjunta, así que no queda huérfano aunque el agente muera.'
 Bloqueada: []
-Versión: ''
+Versión: '1.5.0'
 Fecha de creación: 2026-10-27T19:50:00+01:00
-Última modificación: 2026-10-27T21:45:00+01:00
+Última modificación: 2026-10-29T00:30:00+01:00
 ---
 
 # Captura X11 por memoria compartida

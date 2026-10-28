@@ -7,9 +7,9 @@ Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño en [[A
 Bloqueada: []
 Prueba: ''
 Esperando a: ''
-Versión: ''
+Versión: '1.5.0'
 Fecha de creación: 2026-10-21T10:50:00+02:00
-Última modificación: 2026-10-28T21:00:00+01:00
+Última modificación: 2026-10-29T00:30:00+01:00
 ---
 
 # Escritorio remoto en destinos Linux X11

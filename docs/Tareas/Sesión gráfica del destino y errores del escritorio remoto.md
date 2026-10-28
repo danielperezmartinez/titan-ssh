@@ -4,9 +4,9 @@ Estado: 'Hecha'
 Resumen: 'Base común para llevar el escritorio remoto a Windows y a cualquier Linux (ADR-0031): buscar la sesión gráfica del usuario en logind (/run/systemd/sessions) en lugar de solo en /proc, para distinguir X11, Wayland (KDE, GNOME, wlroots), pantalla de inicio, sesión remota e inactiva; el catálogo de errores nuevo (E_DESKTOP_INACTIVE, E_SCREEN_CONSENT, E_SCREEN_CAPTURE) en el agente y en la app; el estado blocked en el canal de pantalla; y el soporte en screen.Serve para varios monitores compuestos y para pasar POINTER_TO a coordenadas lógicas (HiDPI). Las tareas de Wayland, wlroots y Windows se apoyan en ella.'
 Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño en [[ADR-0031 Escritorio remoto en Wayland, Windows y casos de borde]] (2026-10-21). Hecha el 2026-10-21: paquete internal/graphical, reparto por vía en screen_wayland.go (screen_portal.go y screen_wlroots.go son de las tareas de Wayland y wlroots), estado blocked como INPUT_READY en el canal de pantalla y screen.Composite para varios monitores con Locate para POINTER_TO.'
 Bloqueada: []
-Versión: ''
+Versión: '1.5.0'
 Fecha de creación: 2026-10-21T18:55:00+02:00
-Última modificación: 2026-10-22T20:30:00+02:00
+Última modificación: 2026-10-29T00:30:00+01:00
 ---
 
 # Sesión gráfica del destino y errores del escritorio remoto

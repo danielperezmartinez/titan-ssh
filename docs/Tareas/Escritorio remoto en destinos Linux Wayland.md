@@ -7,9 +7,9 @@ Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño genera
 Bloqueada: []
 Prueba: ''
 Esperando a: ''
-Versión: ''
+Versión: '1.5.0'
 Fecha de creación: 2026-10-21T10:50:00+02:00
-Última modificación: 2026-10-28T17:30:00+01:00
+Última modificación: 2026-10-29T00:30:00+01:00
 ---
 
 # Escritorio remoto en destinos Linux Wayland
@@ -147,6 +147,6 @@ escritorio y versión (Plasma, GNOME) y versión de la canary.
 Escritorio remoto en KDE y GNOME con Wayland por los portales RemoteDesktop y
 ScreenCast, con un cliente PipeWire propio, permiso recordado, acceso
 desatendido explícito y «Olvidar el permiso» (ver **Avance**). El usuario lo
-confirma en la canary el 2026-10-28. Sigue solo en la canary hasta que el
-escritorio remoto pase a la estable (ADR-0029). Los acentos y AltGr siguen en
+confirma en la canary el 2026-10-28. Llega a la estable en la 1.5.0
+([[Pasar a la estable el escritorio remoto y la instalación de la clave]]). Los acentos y AltGr siguen en
 [[Teclear acentos y AltGr en destinos Wayland con portal]].

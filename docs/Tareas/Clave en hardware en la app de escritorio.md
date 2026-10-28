@@ -7,9 +7,9 @@ Decisiones: 'Sigue [[ADR-0005 Autenticación SSH y verificación de host]] y la 
 Bloqueada: []
 Prueba: ''
 Esperando a: ''
-Versión: ''
+Versión: '1.5.0'
 Fecha de creación: 2026-10-28T17:30:00+01:00
-Última modificación: 2026-10-28T21:00:00+01:00
+Última modificación: 2026-10-29T00:30:00+01:00
 ---
 
 # Clave en hardware en la app de escritorio

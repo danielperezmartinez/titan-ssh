@@ -7,9 +7,9 @@ Decisiones: 'Aparece al cerrar [[Escritorio remoto a través del agente]] y [[Es
 Bloqueada: []
 Prueba: ''
 Esperando a: ''
-Versión: ''
+Versión: '1.5.0'
 Fecha de creación: 2026-10-28T21:00:00+01:00
-Última modificación: 2026-10-28T23:40:00+01:00
+Última modificación: 2026-10-29T00:30:00+01:00
 ---
 
 # Zoom del escritorio remoto con el cursor oculto en KDE Wayland

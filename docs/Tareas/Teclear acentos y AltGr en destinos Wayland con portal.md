@@ -7,9 +7,9 @@ Decisiones: 'Nace de [[Escritorio remoto en destinos Linux Wayland]] y [[Mouse p
 Bloqueada: []
 Prueba: ''
 Esperando a: ''
-Versión: ''
+Versión: '1.5.0'
 Fecha de creación: 2026-10-22T08:45:00+02:00
-Última modificación: 2026-10-28T21:00:00+01:00
+Última modificación: 2026-10-29T00:30:00+01:00
 ---
 
 # Teclear acentos y AltGr en destinos Wayland con portal

@@ -7,9 +7,9 @@ Decisiones: 'Diseño en [[ADR-0029 Escritorio remoto propio a través del agente
 Bloqueada: []
 Prueba: ''
 Esperando a: ''
-Versión: ''
+Versión: '1.5.0'
 Fecha de creación: 2026-10-21T10:50:00+02:00
-Última modificación: 2026-10-28T21:00:00+01:00
+Última modificación: 2026-10-29T00:30:00+01:00
 ---
 
 # Escritorio remoto a través del agente
@@ -70,5 +70,5 @@ Cuando las dos estén `Hecha`, esta también.
 
 Tipo de sesión «escritorio» que ve y controla la pantalla del destino por SSH
 y titan-agent, sin RDP ni VNC de terceros, en Linux X11, KDE y GNOME con
-Wayland, wlroots y Windows (ver cada subtarea). Sigue solo en la canary hasta
-que el usuario decida pasarlo a la estable.
+Wayland, wlroots y Windows (ver cada subtarea). Llega a la estable en la
+1.5.0 ([[Pasar a la estable el escritorio remoto y la instalación de la clave]]).

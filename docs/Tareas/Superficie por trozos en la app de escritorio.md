@@ -4,9 +4,9 @@ Estado: 'Hecha'
 Resumen: 'La app de escritorio (Skia) pintaba el escritorio remoto convirtiendo y copiando la pantalla entera en cada fotograma, aunque solo cambiaran unas pocas baldosas. Ahora, como en Android, la superficie va en imágenes de 256×256 que solo se rehacen, y se suben a la GPU, si cambian. Medido en una ventana Compose real contra tools/test-x11 con scroll continuo (agente de main): CPU del proceso 38-60 % → 14-19 % de un núcleo, write por fotograma p50 12-18 ms → 0,5-0,7 ms, mismos fps (20-22, los que manda el agente).'
 Decisiones: 'Trozos como Image inmutables de Skia (no Bitmap ni ImageBitmap de Compose): un trozo que no cambia conserva su textura. El lector convierte a BGRA solo el rectángulo cambiado; el hilo de UI copia filas y rehace los trozos al dibujar. Se dibuja con el Paint sin antialias (con antialias se ven costuras entre trozos) y con el origen redondeado a píxel entero, como el drawImage de Compose, para que a escala 1 la imagen sea idéntica.'
 Bloqueada: []
-Versión: ''
+Versión: '1.5.0'
 Fecha de creación: 2026-10-27T19:50:00+01:00
-Última modificación: 2026-10-27T21:50:00+01:00
+Última modificación: 2026-10-29T00:30:00+01:00
 ---
 
 # Superficie por trozos en la app de escritorio

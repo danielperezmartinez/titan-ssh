@@ -4,9 +4,9 @@ Estado: 'Hecha'
 Resumen: 'El escritorio remoto va a trompicones, sobre todo al mover el ratón (cursor e imagen), visto desde el Pixel. Medir con una sonda que mueve el puntero a 120 Hz por el canal --screen, encontrar las causas y arreglarlas en el agente y en la app, comprobándolo en X11, Wayland, wlroots y Windows. Causas medidas: el agente solo leía el cursor al ritmo de captura (~15 Hz, huecos de hasta 140 ms); en X11 captura, cursor e inyección compartían una conexión; y Android subía a la GPU la pantalla entera en cada fotograma. Arreglado en el árbol (cursor en su goroutine, dos conexiones X11, superficie Android por trozos de 256 px): cursor a ~115/s en X11 y ~60/s en wlroots, UI de Android p99 11 → 4-6 ms en el emulador. GNOME medido (cursor dentro de la imagen, 24 → 29-37 fps, topado por los ~30 fps de Mutter en el contenedor). Windows medido (cursor 9-22/s → 119,8/s). KDE no se pudo medir (su portal falla en el contenedor también con el agente original). Probado por el usuario en el Pixel con la canary del 2026-10-27: va mucho más fluido.'
 Decisiones: 'El cursor va en su propia goroutine de Serve (Capturer.Cursor debe aguantar llamadas concurrentes con Capture) y se lee cada 8 ms durante 500 ms tras cada entrada del cliente, cada Interval si no; la entrada también saca la captura del ritmo de reposo y, con capturadores que saben qué cambió (Damager: wlroots, portal, DXGI), la acelera a 16 ms mientras dura; X11 se queda en 33 ms, porque cada captura lee la pantalla entera. X11 abre dos conexiones (captura; puntero = inyección y cursor). En Android la vista lee la pantalla en la fase de dibujo y la superficie va en bitmaps de 256×256 que se ponen al día en el hilo de UI.'
 Bloqueada: []
-Versión: ''
+Versión: '1.5.0'
 Fecha de creación: 2026-10-27T16:00:00+01:00
-Última modificación: 2026-10-27T19:50:00+01:00
+Última modificación: 2026-10-29T00:30:00+01:00
 ---
 
 # Escritorio remoto fluido al mover el ratón

@@ -7,8 +7,9 @@ Decisiones: 'Parte de [[Sesión mouse pad para controlar el escritorio del desti
 Bloqueada: []
 Prueba: ''
 Esperando a: ''
+Versión: '1.5.0'
 Fecha de creación: 2026-10-01T18:25:00+02:00
-Última modificación: 2026-10-28T21:00:00+01:00
+Última modificación: 2026-10-29T00:30:00+01:00
 ---
 
 # Mouse pad en destinos Linux Wayland
@@ -117,5 +118,5 @@ canary.
 
 El mouse pad controla KDE y GNOME con Wayland por el portal RemoteDesktop (y,
 en GNOME con acceso desatendido, por la API de Mutter), con el permiso
-recordado. Los wlroots van por sus propios protocolos. Sin uinput. Solo en la
-canary hasta que el escritorio remoto pase a la estable.
+recordado. Los wlroots van por sus propios protocolos. Sin uinput. Llega a la
+estable en la 1.5.0 ([[Pasar a la estable el escritorio remoto y la instalación de la clave]]).

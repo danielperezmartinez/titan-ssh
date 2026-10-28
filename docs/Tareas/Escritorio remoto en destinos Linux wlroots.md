@@ -4,9 +4,9 @@ Estado: 'Hecha'
 Resumen: 'Escritorio remoto en compositores Wayland basados en wlroots y afines (Sway, Hyprland, labwc, river), cuyo portal no tiene RemoteDesktop. Vía de ADR-0031: un cliente Wayland propio y mínimo en Go puro que captura con ext-image-copy-capture-v1 (o wlr-screencopy en los que aún no lo tienen) en búferes shm y mete la entrada con wlr-virtual-pointer y virtual-keyboard, sin diálogo, como X11. Se prueba con sway headless en un contenedor.'
 Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño en [[ADR-0031 Escritorio remoto en Wayland, Windows y casos de borde]] (2026-10-21). 2026-10-21: cliente en internal/wayland; monitores de escalas distintas uno al lado de otro con sus píxeles físicos; screen.Damager opcional para comparar solo lo dañado; el mouse pad en wlroots solo en la canary por ahora (decisión del usuario); Hyprland no se puede probar sin GPU. Hecha el 2026-10-22, probada por el usuario en la app de escritorio.'
 Bloqueada: []
-Versión: ''
+Versión: '1.5.0'
 Fecha de creación: 2026-10-21T18:55:00+02:00
-Última modificación: 2026-10-28T19:30:00+01:00
+Última modificación: 2026-10-29T00:30:00+01:00
 ---
 
 # Escritorio remoto en destinos Linux wlroots
