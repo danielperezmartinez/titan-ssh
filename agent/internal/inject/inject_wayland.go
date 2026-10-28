@@ -392,6 +392,9 @@ func (k *xkbKeymap) String() string {
 	for i := 0; i < n; i++ {
 		fmt.Fprintf(&b, " <K%d> = %d;\n", i+1, i+9)
 	}
+	// Xwayland crashes when an X client asks for the indicators of a
+	// keymap that has none (xkbcomp, kitty at start).
+	b.WriteString(" indicator 1 = \"Caps Lock\";\n indicator 2 = \"Num Lock\";\n indicator 3 = \"Scroll Lock\";\n")
 	b.WriteString("};\n")
 	b.WriteString(`xkb_types "titan" {
  virtual_modifiers NumLock;
@@ -405,6 +408,9 @@ xkb_compatibility "titan" {
  interpret Control_L { action = SetMods(modifiers=Control); };
  interpret Alt_L { action = SetMods(modifiers=Mod1); };
  interpret Super_L { action = SetMods(modifiers=Mod4); };
+ indicator "Caps Lock" { modifiers = Lock; };
+ indicator "Num Lock" { modifiers = NumLock; };
+ indicator "Scroll Lock" { modifiers = none; };
 };
 xkb_symbols "titan" {
 `)
