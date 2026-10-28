@@ -1,15 +1,15 @@
 ---
 Nombre: 'Zoom del escritorio remoto con el cursor oculto en KDE Wayland'
-Estado: 'Por probar'
+Estado: 'Hecha'
 Estado desde: 2026-10-28
 Resumen: 'Desde el Pixel, contra un KDE Plasma con Wayland y con zoom 2x, si el foco está en Konsole y el ratón se queda quieto, al rato la imagen salta a la esquina de arriba a la izquierda hasta que se vuelve a mover el ratón. No pasa contra X11 ni con el foco en otra aplicación. Sospecha: Konsole oculta el puntero en reposo y el portal (PipeWire, spa_meta_cursor) da entonces una posición (0,0) que el agente reenvía y la app usa como centro del zoom.'
 Decisiones: 'Aparece al cerrar [[Escritorio remoto a través del agente]] y [[Escritorio remoto en destinos Linux Wayland]] (2026-10-28, canary 1.4.1-canary.45). El usuario lo quiere arreglado y en una tanda de pruebas aparte.'
 Bloqueada: []
-Prueba: 'Con zoom 2x desde el Pixel contra KDE Wayland, dejar el ratón quieto sobre Konsole: la imagen no salta a la esquina'
+Prueba: ''
 Esperando a: ''
 Versión: ''
 Fecha de creación: 2026-10-28T21:00:00+01:00
-Última modificación: 2026-10-28T23:25:00+01:00
+Última modificación: 2026-10-28T23:40:00+01:00
 ---
 
 # Zoom del escritorio remoto con el cursor oculto en KDE Wayland
@@ -75,6 +75,9 @@ la esquina de arriba a la izquierda.
   - La barra de calidad de conexión, nueva desde entonces, solo pregunta
     tras 3 s sin datos entrantes, y con el escritorio remoto siempre llegan
     datos. Lo notado en el Pixel apunta a la red.
+- **Prueba del usuario** (2026-10-28, canary 1.4.1-canary.46, Pixel contra
+  `<destino-kde-wayland>`): con el cursor oculto el zoom ya no salta a la
+  esquina.
 
 ## Cómo probarlo
 
