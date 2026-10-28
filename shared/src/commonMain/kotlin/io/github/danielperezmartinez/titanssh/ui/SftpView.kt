@@ -43,6 +43,8 @@ import io.github.danielperezmartinez.titanssh.sftp.SftpTransfer
 import io.github.danielperezmartinez.titanssh.sftp.UploadConflict
 import io.github.danielperezmartinez.titanssh.sftp.rememberUploadPicker
 import io.github.danielperezmartinez.titanssh.ssh.SftpEntry
+import io.github.danielperezmartinez.titanssh.terminal.ConnectionQuality
+import io.github.danielperezmartinez.titanssh.terminal.QualityGrade
 import io.github.danielperezmartinez.titanssh.terminal.SessionTab
 import io.github.danielperezmartinez.titanssh.terminal.TabPhase
 import io.github.danielperezmartinez.titanssh.terminal.TabStatus
@@ -179,6 +181,7 @@ fun SftpView(
         val cause = status.cause
         SftpStatusStrip(
             status,
+            watchedQuality(tab),
             onReconnect = { tab.reconnectNow() },
             causeOpen = causeOpen && cause != null,
             onToggleCause = if (cause != null) ({ causeOpen = !causeOpen }) else null,
@@ -798,6 +801,7 @@ private fun leftoverWarning(t: SftpTransfer, gaveUp: Boolean): String {
 @Composable
 private fun SftpStatusStrip(
     status: TabStatus,
+    quality: ConnectionQuality,
     onReconnect: () -> Unit,
     causeOpen: Boolean,
     onToggleCause: (() -> Unit)?,
@@ -818,10 +822,19 @@ private fun SftpStatusStrip(
             .padding(horizontal = TitanDimens.SpaceMd, vertical = TitanDimens.SpaceXs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(marker, style = MaterialTheme.typography.labelSmall, color = color)
+        val connected = status.phase == TabPhase.CONNECTED
+        if (connected) {
+            ConnectionQualityBar(quality)
+        } else {
+            Text(marker, style = MaterialTheme.typography.labelSmall, color = color)
+        }
         Spacer(Modifier.width(TitanDimens.SpaceSm))
         Text(
-            if (status.phase == TabPhase.CONNECTED) label else status.detail ?: label,
+            when {
+                connected && quality.grade != QualityGrade.GOOD -> quality.label
+                connected -> label
+                else -> status.detail ?: label
+            },
             style = MaterialTheme.typography.labelSmall,
             color = if (causeOpen) TitanColors.Accent else TitanColors.Mute,
             maxLines = 1,

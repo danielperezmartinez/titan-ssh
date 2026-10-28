@@ -44,6 +44,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
@@ -417,6 +418,37 @@ class SessionTab(
 
     /** The tab's SSH connection while it has one; a file browser opened from it borrows it. */
     val liveSession: StateFlow<SshSession?> = _liveSession.asStateFlow()
+
+    /** The connection a file browser borrows from another tab, while it does. */
+    private val borrowedSession = MutableStateFlow<SshSession?>(null)
+
+    private val _quality = MutableStateFlow(ConnectionQuality.Good)
+
+    /**
+     * How the connection answers while [watchQuality] runs; good otherwise
+     * ([[Indicar cuando la conexión deja de responder]]).
+     */
+    val quality: StateFlow<ConnectionQuality> = _quality.asStateFlow()
+
+    /**
+     * Probes the connection, own or borrowed, while it is connected and until
+     * cancelled, updating [quality]. Call it only while the quality is on
+     * screen: it sends traffic, and never changes when the tab reconnects.
+     */
+    suspend fun watchQuality() {
+        try {
+            combine(_liveSession, borrowedSession, _status) { own, borrowed, status ->
+                (own ?: borrowed).takeIf { status.phase == TabPhase.CONNECTED }
+            }
+                .distinctUntilChanged()
+                .collectLatest { connection ->
+                    _quality.value = ConnectionQuality.Good
+                    if (connection != null) watchConnectionQuality(connection, { _quality.value = it })
+                }
+        } finally {
+            _quality.value = ConnectionQuality.Good
+        }
+    }
 
     private val _closedState = MutableStateFlow(false)
 
@@ -987,6 +1019,7 @@ class SessionTab(
             .first { (live, closed) -> live != null || closed }
             .first
             ?: return AttemptResult.SOURCE_CLOSED
+        borrowedSession.value = borrowed
         return try {
             runSftp(browser, borrowed)
         } catch (e: Exception) {
@@ -996,6 +1029,8 @@ class SessionTab(
             lastFailure = e.message ?: "No se pudo abrir el explorador"
             lastFailureCause = failureCause(e)
             AttemptResult.ESTABLISH_FAILED
+        } finally {
+            borrowedSession.value = null
         }
     }
 

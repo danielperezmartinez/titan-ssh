@@ -7,6 +7,9 @@ import java.security.PublicKey
 import java.util.Base64
 import java.util.EnumSet
 import javax.net.SocketFactory
+import kotlin.time.Duration
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -273,6 +276,12 @@ internal class SshjSession(
     private val _state = MutableStateFlow(SshConnectionState.CONNECTED)
     override val state = _state.asStateFlow()
 
+    @Volatile
+    private var lastReceived: TimeMark = TimeSource.Monotonic.markNow()
+    private val onReceived = { lastReceived = TimeSource.Monotonic.markNow() }
+
+    override val sinceLastReceived: Duration get() = lastReceived.elapsedNow()
+
     init {
         // Watch for the transport dropping (keepalive failure / peer close) so
         // resiliency level 1 can react. A jump host dropping takes it down too.
@@ -288,7 +297,7 @@ internal class SshjSession(
         val session = ssh.startSession()
         session.allocatePTY("xterm-256color", columns, rows, 0, 0, emptyMap())
         val shell = session.startShell()
-        SshjShell(session, shell, scope)
+        SshjShell(session, shell, scope, onReceived)
     }
 
     override suspend fun exec(command: String): SshExecChannel = withContext(Dispatchers.IO) {
@@ -296,7 +305,7 @@ internal class SshjSession(
         // over raw stdout/stdin; a PTY's line discipline would corrupt it.
         val session = ssh.startSession()
         val cmd = session.exec(command)
-        SshjExecChannel(session, cmd, scope)
+        SshjExecChannel(session, cmd, scope, onReceived)
     }
 
     override suspend fun openSftp(): SshSftp? = withContext(Dispatchers.IO) {
@@ -308,6 +317,15 @@ internal class SshjSession(
     override suspend fun openForward(forward: PortForward, onProblem: (ForwardProblem) -> Unit): SshForward =
         withContext(Dispatchers.IO) { openSshjForward(ssh, forward, onProblem) }
 
+    override suspend fun probe() = withContext(Dispatchers.IO) {
+        // The keepalive's own request: OpenSSH answers it with a failure, and any
+        // answer will do. Through jump hosts it crosses every hop.
+        val answer = ssh.connection.sendGlobalRequest(PROBE_REQUEST, true, ByteArray(0))
+        while (!answer.isDelivered && !answer.inError()) delay(PROBE_POLL_MILLIS)
+        // A dropped transport fails every pending request: that is no answer.
+        if (!ssh.isConnected) throw java.io.IOException("The connection closed before answering")
+    }
+
     override suspend fun close() = withContext(Dispatchers.IO) {
         _state.value = SshConnectionState.DISCONNECTED
         scope.cancel()
@@ -318,6 +336,8 @@ internal class SshjSession(
 
     private companion object {
         const val POLL_MILLIS = 1000L
+        const val PROBE_REQUEST = "keepalive@openssh.com"
+        const val PROBE_POLL_MILLIS = 20L
     }
 }
 
@@ -326,6 +346,7 @@ internal class SshjShell(
     private val session: Session,
     private val shell: Session.Shell,
     scope: CoroutineScope,
+    private val onReceived: () -> Unit = {},
 ) : SshShell {
 
     private val outChannel = Channel<ByteArray>(Channel.BUFFERED)
@@ -338,6 +359,7 @@ internal class SshjShell(
             while (isActive) {
                 val read = input.read(buffer)
                 if (read < 0) break
+                onReceived()
                 if (read > 0) outChannel.send(buffer.copyOf(read))
             }
         } catch (_: Throwable) {
@@ -379,6 +401,7 @@ internal class SshjExecChannel(
     private val session: Session,
     private val cmd: Session.Command,
     scope: CoroutineScope,
+    private val onReceived: () -> Unit = {},
 ) : SshExecChannel {
 
     private val outChannel = Channel<ByteArray>(Channel.BUFFERED)
@@ -396,6 +419,7 @@ internal class SshjExecChannel(
             while (currentCoroutineContext().isActive) {
                 val read = input.read(buffer)
                 if (read < 0) break
+                onReceived()
                 if (read > 0) out.send(buffer.copyOf(read))
             }
         } catch (_: Throwable) {

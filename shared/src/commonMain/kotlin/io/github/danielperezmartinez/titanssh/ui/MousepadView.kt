@@ -82,6 +82,8 @@ import io.github.danielperezmartinez.titanssh.terminal.KeyBarKey
 import io.github.danielperezmartinez.titanssh.terminal.MousepadMotion
 import io.github.danielperezmartinez.titanssh.terminal.MousepadStatus
 import io.github.danielperezmartinez.titanssh.terminal.MousepadTyping
+import io.github.danielperezmartinez.titanssh.terminal.ConnectionQuality
+import io.github.danielperezmartinez.titanssh.terminal.QualityGrade
 import io.github.danielperezmartinez.titanssh.terminal.SessionTab
 import io.github.danielperezmartinez.titanssh.terminal.TabPhase
 import io.github.danielperezmartinez.titanssh.terminal.TabStatus
@@ -204,6 +206,7 @@ fun MousepadView(
         val cause = status.cause
         MousepadStatusStrip(
             status,
+            watchedQuality(tab),
             pad,
             onReconnect = { tab.reconnectNow() },
             causeOpen = causeOpen && cause != null,
@@ -437,6 +440,7 @@ private fun averageChange(changes: List<PointerInputChange>): Offset {
 @Composable
 private fun MousepadStatusStrip(
     status: TabStatus,
+    quality: ConnectionQuality,
     pad: MousepadStatus,
     onReconnect: () -> Unit,
     causeOpen: Boolean,
@@ -460,10 +464,20 @@ private fun MousepadStatusStrip(
             .padding(horizontal = TitanDimens.SpaceMd, vertical = TitanDimens.SpaceXs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(marker, fontFamily = MaterialTheme.typography.bodyLarge.fontFamily, color = color, fontSize = 13.sp)
+        // A blocked desktop keeps its [!]: the bar is for a plain live connection.
+        val live = status.phase == TabPhase.CONNECTED && !pad.blocked
+        if (live) {
+            ConnectionQualityBar(quality)
+        } else {
+            Text(marker, fontFamily = MaterialTheme.typography.bodyLarge.fontFamily, color = color, fontSize = 13.sp)
+        }
         Spacer(Modifier.width(TitanDimens.SpaceSm))
         Text(
-            if (status.phase == TabPhase.CONNECTED) label else status.detail ?: label,
+            when {
+                live && quality.grade != QualityGrade.GOOD -> quality.label
+                status.phase == TabPhase.CONNECTED -> label
+                else -> status.detail ?: label
+            },
             style = MaterialTheme.typography.labelSmall,
             color = if (causeOpen) TitanColors.Accent else TitanColors.Mute,
             maxLines = 1,

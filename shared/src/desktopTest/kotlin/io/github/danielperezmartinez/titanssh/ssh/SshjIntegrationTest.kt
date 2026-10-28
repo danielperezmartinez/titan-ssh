@@ -4,11 +4,15 @@ import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.measureTime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 
 /**
  * End-to-end handshake against a real SSH host. Opt-in: skips unless the
@@ -116,6 +120,39 @@ class SshjIntegrationTest {
             println("[integration] exec output: ${out.toString().trim().take(200)} (status=$status)")
             assertTrue(out.contains("titan-exec-ok"), "exec should return the command's stdout")
             assertTrue(out.contains("not a tty"), "an exec channel must have no PTY")
+        }
+    }
+
+    @Test
+    fun the_server_answers_a_probe_and_channel_output_counts_as_received() {
+        val p = params() ?: return
+
+        runBlocking {
+            val session = createSshConnector().connect(
+                endpoint = SshEndpoint(p.host, p.port, p.user),
+                credentials = p.credentials(),
+                hostKeyVerifier = { true },
+                keepAliveSeconds = 0,
+            )
+
+            // OpenSSH answers keepalive@openssh.com with a failure; any answer counts.
+            val took = measureTime { withTimeout(5000) { session.probe() } }
+            println("[integration] probe answered in $took")
+            assertTrue(took < 2.seconds, "a local server should answer the probe at once")
+
+            delay(1500)
+            val idle = assertNotNull(session.sinceLastReceived)
+            assertTrue(idle >= 1.seconds, "nothing arrived on a channel yet, the probe's answer does not count")
+
+            val channel = session.exec("echo titan-probe-ok")
+            val reader = launch(Dispatchers.IO) { channel.output.collect {} }
+            delay(1000)
+            assertTrue(session.sinceLastReceived!! < idle, "the command's output counts as received")
+            channel.close()
+            reader.cancel()
+            session.close()
+
+            assertFailsWith<Exception>("a closed connection cannot answer") { session.probe() }
         }
     }
 

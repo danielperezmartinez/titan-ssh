@@ -1,5 +1,6 @@
 package io.github.danielperezmartinez.titanssh.ssh
 
+import kotlin.time.Duration
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -206,6 +207,22 @@ interface SshSession {
      */
     suspend fun openForward(forward: PortForward, onProblem: (ForwardProblem) -> Unit = {}): SshForward =
         throw NotImplementedError("port forwarding not supported by this session")
+
+    /**
+     * How long ago something last arrived on this session's shell and `exec`
+     * channels, or null when the session does not track it. Recent traffic
+     * already shows the server answers, so no [probe] is needed then.
+     */
+    val sinceLastReceived: Duration? get() = null
+
+    /**
+     * Sends the server a request it must answer and returns once the answer
+     * arrives, however long that takes ([[Indicar cuando la conexión deja de
+     * responder]]). Unlike the keepalive it never decides that the connection
+     * is down. Throws if the connection closes first; test fakes may leave the
+     * default, which throws [NotImplementedError].
+     */
+    suspend fun probe(): Unit = throw NotImplementedError("probing not supported by this session")
 
     /** Closes the session and its transport. */
     suspend fun close()

@@ -8,7 +8,7 @@ Consecuencias: La UI deja de pintar filas/CTAs con colores de estado; el verde/�
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-09-18T14:36:16+02:00
-Última modificación: 2026-10-14T13:00:00+02:00
+Última modificación: 2026-10-28T09:41:20+01:00
 ---
 
 # Vocabulario ASCII ampliado y disciplina de color semántico
@@ -50,6 +50,11 @@ Ampliación (todos ASCII, sin glifos Unicode como `✓`):
 - `[d]` — carpeta del destino (filas del explorador SFTP, en `accent`) y la
   acción "Abrir explorador de archivos" del menú de la pestaña (en `body`).
   Añadido el 2026-10-14; ver [[Menú de la pestaña con pulsación larga]].
+
+Excepción gráfica única: en las franjas de estado (terminal, SFTP y mouse
+pad), `[+]` de una
+conexión viva se dibuja como la barra de calidad de tres fragmentos. Añadida el
+2026-10-28; ver [[Barra de calidad de la conexión en la franja de estado]].
 
 Regla: los marcadores son **ASCII imprimible dentro de brackets**; si hace falta
 uno nuevo, se añade aquí antes de usarlo, no ad hoc.

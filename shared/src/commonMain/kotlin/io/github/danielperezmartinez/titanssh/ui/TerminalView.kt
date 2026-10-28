@@ -79,9 +79,11 @@ import io.github.danielperezmartinez.titanssh.config.SessionScript
 import io.github.danielperezmartinez.titanssh.config.listensOnNetwork
 import io.github.danielperezmartinez.titanssh.terminal.AgentDiagnostics
 import io.github.danielperezmartinez.titanssh.terminal.ChangedHostKey
+import io.github.danielperezmartinez.titanssh.terminal.ConnectionQuality
 import io.github.danielperezmartinez.titanssh.terminal.EffectiveLevel
 import io.github.danielperezmartinez.titanssh.terminal.KeyBarAction
 import io.github.danielperezmartinez.titanssh.terminal.KeyBarKey
+import io.github.danielperezmartinez.titanssh.terminal.QualityGrade
 import io.github.danielperezmartinez.titanssh.terminal.ResilienceStatus
 import io.github.danielperezmartinez.titanssh.terminal.SessionTab
 import io.github.danielperezmartinez.titanssh.terminal.TabPhase
@@ -341,6 +343,7 @@ fun TerminalView(
         val cause = status.cause
         StatusStrip(
             status,
+            watchedQuality(tab),
             resilience,
             onEnableLinger = { scope.launch { tab.enableLinger() } },
             onReconnect = { tab.reconnectNow() },
@@ -527,6 +530,7 @@ private fun codePointToString(codePoint: Int): String =
 @Composable
 private fun StatusStrip(
     status: io.github.danielperezmartinez.titanssh.terminal.TabStatus,
+    quality: ConnectionQuality,
     resilience: ResilienceStatus,
     onEnableLinger: () -> Unit,
     onReconnect: () -> Unit,
@@ -546,7 +550,8 @@ private fun StatusStrip(
         TabPhase.DISCONNECTED -> Triple("[x]", TitanColors.Danger, "Caída")
         TabPhase.FAILED -> Triple("[x]", TitanColors.Danger, "Fallo")
     }
-    val level = resilience.level?.takeIf { status.phase == TabPhase.CONNECTED }?.let { levelLabel(it, resilience) }
+    val connected = status.phase == TabPhase.CONNECTED
+    val level = resilience.level?.takeIf { connected }?.let { levelLabel(it, resilience) }
     Row(
         Modifier
             .fillMaxWidth()
@@ -554,10 +559,15 @@ private fun StatusStrip(
             .padding(horizontal = TitanDimens.SpaceMd, vertical = TitanDimens.SpaceXs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(marker, fontFamily = MaterialTheme.typography.bodyLarge.fontFamily, color = color, fontSize = 13.sp)
+        if (connected) {
+            ConnectionQualityBar(quality)
+        } else {
+            Text(marker, fontFamily = MaterialTheme.typography.bodyLarge.fontFamily, color = color, fontSize = 13.sp)
+        }
         Spacer(Modifier.width(TitanDimens.SpaceSm))
+        val stateText = if (connected && quality.grade != QualityGrade.GOOD) quality.label else status.detail ?: label
         Text(
-            (status.detail ?: label) + (level?.let { " · $it" } ?: ""),
+            stateText + (level?.let { " · $it" } ?: ""),
             style = MaterialTheme.typography.labelSmall,
             color = if (causeOpen) TitanColors.Accent else TitanColors.Mute,
             modifier = Modifier

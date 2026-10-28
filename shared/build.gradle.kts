@@ -378,6 +378,10 @@ tasks.withType<Test>().configureEach {
         // "1" once tools/test-sshd/key-install-scenarios.sh is up, for
         // KeyInstallIntegrationTest (installing the key on the host, ADR-0030).
         "titanKeyInstallTest" to "TITAN_KEY_INSTALL_TEST",
+        // Name of a throwaway sshd container with NET_ADMIN and tc that the test
+        // host points at, for SessionTabQualityIntegrationTest: it pauses the
+        // container and adds latency to it. Never a shared one.
+        "titanQualityContainer" to "TITAN_QUALITY_CONTAINER",
     ).forEach { (prop, env) ->
         (project.findProperty(prop) as String?)?.let { environment(env, it) }
     }

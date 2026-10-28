@@ -10,6 +10,7 @@ import android.os.Build
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
@@ -50,6 +51,13 @@ actual fun AppVisibilityEffect(onVisible: (Boolean) -> Unit) {
         owner.lifecycle.addObserver(observer)
         onDispose { owner.lifecycle.removeObserver(observer) }
     }
+}
+
+/** From `ON_START` to `ON_STOP`, like [AppVisibilityEffect]: locking the screen stops the activity. */
+@Composable
+actual fun appOnScreen(): Boolean {
+    val state by LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsState()
+    return state.isAtLeast(Lifecycle.State.STARTED)
 }
 
 /**

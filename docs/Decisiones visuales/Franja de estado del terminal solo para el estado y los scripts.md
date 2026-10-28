@@ -8,7 +8,7 @@ Consecuencias: 'Cualquier dato o acción nueva de una sesión se diseña en otra
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-09-30T21:15:00+02:00
-Última modificación: 2026-09-30T21:30:00+02:00
+Última modificación: 2026-10-28T09:41:20+01:00
 ---
 
 # Franja de estado del terminal solo para el estado y los scripts
@@ -51,6 +51,12 @@ Se queda como está hasta revisarlo con el usuario en
 - `[=] túneles activos/total` y su panel.
 - El aviso del nivel 3 debajo de la franja (motivo de la degradación o
   `activar linger`), que se cierra con `[x]`.
+
+Revisado el 2026-10-28: el usuario decide que los dos se quedan en la franja.
+La regla sigue valiendo para todo lo nuevo. Ese mismo día, el marcador `[+]`
+de una conexión viva pasa a dibujarse como la
+[[Barra de calidad de la conexión en la franja de estado]]; sigue siendo el
+estado de la conexión.
 
 ## Precisión del usuario (2026-09-30)
 
