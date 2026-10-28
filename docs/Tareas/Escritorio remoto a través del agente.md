@@ -1,6 +1,6 @@
 ---
 Nombre: 'Escritorio remoto a través del agente'
-Estado: 'En curso'
+Estado: 'Hecha'
 Estado desde: 2026-10-28
 Resumen: 'Tarea paraguas de un tipo de sesión nuevo, escritorio remoto (opción D): ver y controlar la pantalla del destino desde titan-ssh sin RDP ni VNC de terceros, sobre la conexión SSH y titan-agent. Añade la mitad que le falta al mouse pad: captura en el destino, codificación por baldosas, transporte por el canal exec con control de flujo por acuses, decodificación y pintado en Compose. Se divide por sistema: Linux X11 primero (se puede probar entero aquí con Xvfb en Docker), después Windows y Linux Wayland.'
 Decisiones: 'Diseño en [[ADR-0029 Escritorio remoto propio a través del agente]] (Aceptada el 2026-10-27; propuesta el 2026-10-21): baldosas FILL/ZLIB/JPEG con la biblioteca estándar, sin vídeo ni dependencias nuevas; un solo canal --screen para imagen y entrada; como mucho dos fotogramas sin acuse. Reutiliza [[ADR-0016 Sesión mouse pad y ayudante de escritorio en Windows]] y [[ADR-0018 Autenticación mutua en el punto de encuentro del agente]]. Para Windows y cualquier Linux, [[ADR-0031 Escritorio remoto en Wayland, Windows y casos de borde]] (2026-10-21): sesión gráfica por logind, portal + PipeWire propio en KDE/GNOME, protocolos wlroots, GDI y Desktop Duplication en Windows, todos los monitores y un catálogo de errores. Se comparó en la canary con el cliente RDP embebido (opción C); el 2026-10-27 el usuario eligió esta opción y la C se retiró entera ([[ADR-0028 Cliente RDP embebido con IronRDP por un túnel SSH]], Rechazada). DESKTOP sigue siendo un tipo experimental que solo ofrece la canary (SessionType.experimental/offered) hasta que el usuario decida llevarlo a la estable: quedan cosas por pulir.'
@@ -9,7 +9,7 @@ Prueba: ''
 Esperando a: ''
 Versión: ''
 Fecha de creación: 2026-10-21T10:50:00+02:00
-Última modificación: 2026-10-28T17:30:00+01:00
+Última modificación: 2026-10-28T21:00:00+01:00
 ---
 
 # Escritorio remoto a través del agente
@@ -52,7 +52,12 @@ paralelo una vez hecha la 2 ([[ADR-0031 Escritorio remoto en Wayland, Windows y 
 
 ## Verificación
 
-<Se rellena al completar.>
+- Las seis subtareas están `Hecha`. La última prueba del usuario fue el
+  2026-10-28 en la canary 1.4.1-canary.45 (X11 y Wayland, desde el móvil y
+  desde la app de escritorio).
+- Después de cerrar, el usuario vio que con zoom en KDE Wayland la imagen salta
+  arriba a la izquierda cuando el foco está en Konsole y el ratón quieto. Sigue
+  en [[Zoom del escritorio remoto con el cursor oculto en KDE Wayland]].
 
 ## Cómo probarlo
 
@@ -63,4 +68,7 @@ Cuando las dos estén `Hecha`, esta también.
 
 ## Resultado
 
-<Se rellena al completar.>
+Tipo de sesión «escritorio» que ve y controla la pantalla del destino por SSH
+y titan-agent, sin RDP ni VNC de terceros, en Linux X11, KDE y GNOME con
+Wayland, wlroots y Windows (ver cada subtarea). Sigue solo en la canary hasta
+que el usuario decida pasarlo a la estable.

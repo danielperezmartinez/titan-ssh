@@ -1,15 +1,15 @@
 ---
 Nombre: 'Clave en hardware en la app de escritorio'
-Estado: 'Por probar'
+Estado: 'Hecha'
 Estado desde: 2026-10-28
 Resumen: 'La app de escritorio puede autenticarse con una clave EC P-256 no exportable en el TPM 2.0 del equipo, como Android con el Keystore. En Windows va por CNG (Microsoft Platform Crypto Provider) y en Linux por un cliente TPM 2.0 propio sobre /dev/tpmrm0, para lo que el usuario tiene que estar en el grupo tss. El editor genera la clave, enseña su línea pública y la instala en el host; si no hay TPM usable, dice por qué. Verificado con swtpm en Linux y con el TPM de la VM de Windows contra un sshd real. Falta la prueba del usuario en un Windows y un Linux reales.'
 Decisiones: 'Sigue [[ADR-0005 Autenticación SSH y verificación de host]] y la completa [[ADR-0033 Clave no exportable en el TPM del escritorio]] (TPM en las dos plataformas, elegida por el usuario el 2026-10-28). Las llaves de seguridad y el agente SSH quedan en [[Llaves de seguridad y agente SSH en el escritorio]]. La firma delegada de Android está en [[Autenticación SSH signer en hardware y verificación de host]]. Documentación de usuario en la página «Claves en hardware» del sitio (site/hardware-keys.html).'
 Bloqueada: []
-Prueba: 'Generar una clave hardware en el editor de host de la canary, instalarla en un host y conectar, en un Windows y en un Linux reales (en Linux, tras entrar en el grupo tss)'
+Prueba: ''
 Esperando a: ''
 Versión: ''
 Fecha de creación: 2026-10-28T17:30:00+01:00
-Última modificación: 2026-10-28T19:40:00+01:00
+Última modificación: 2026-10-28T21:00:00+01:00
 ---
 
 # Clave en hardware en la app de escritorio
@@ -27,7 +27,7 @@ disponible» de antes (en escritorio, `HostEditor` no ofrecía la acción).
 - ✅ Generar la clave, enseñar su línea pública, instalarla en el host desde
   la app (como en [[Instalar la clave pública en el host desde la app]]) y
   conectar firmando en hardware.
-- ⏳ Probado por el usuario en un Windows y un Linux reales.
+- ✅ Probado por el usuario en un Windows y un Linux reales.
 
 ## Verificación
 
@@ -62,6 +62,8 @@ disponible» de antes (en escritorio, `HostEditor` no ofrecía la acción).
   `:desktopApp:compileKotlin` y `:androidApp:assembleDebug`.
 - Sin probar: un TPM físico (este PC no tiene). Lo cubre la prueba del
   usuario.
+
+- **Prueba del usuario** (2026-10-28, canary 1.4.1-canary.45): todo correcto, tal como dice «Cómo probarlo».
 
 ## Cómo probarlo
 

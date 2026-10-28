@@ -1,14 +1,14 @@
 ---
 Nombre: 'Mouse pad en destinos Linux Wayland'
-Estado: 'Por probar'
-Estado desde: 2026-10-22
+Estado: 'Hecha'
+Estado desde: 2026-10-28
 Resumen: 'Subtarea 3 del mouse pad: controlar ratón y teclado de un escritorio Linux con Wayland, que bloquea a propósito la inyección genérica. Vía principal propuesta: el portal RemoteDesktop de xdg-desktop-portal (GNOME y KDE) por el D-Bus de la sesión del usuario; no necesita root, pide consentimiento en la pantalla del PC la primera vez y puede recordarlo. Respaldo para escritorios sin portal (sway, Hyprland…): un dispositivo virtual uinput, que funciona en cualquier entorno pero exige una preparación única con root, una excepción a la regla de solo espacio de usuario de ADR-0008. Se aborda después de Windows y solo si el usuario lo pide.'
 Decisiones: 'Parte de [[Sesión mouse pad para controlar el escritorio del destino]]. Reutiliza la base común de [[Mouse pad en destinos Windows]]. La preparación con root de uinput necesita la aprobación del usuario y una ADR, porque se aparta de [[ADR-0008 Diseño del agente de resiliencia nivel 3]]. El 2026-10-21 el usuario decide hacer la vía del portal dentro de [[Escritorio remoto en destinos Linux Wayland]] (ADR-0031), que comparte su cliente D-Bus y el portal; los compositores wlroots la tienen por [[Escritorio remoto en destinos Linux wlroots]].'
 Bloqueada: []
-Prueba: 'Mouse pad contra un KDE o GNOME real en Wayland: puntero, clics, arrastre, scroll y teclado tras un solo permiso recordado.'
+Prueba: ''
 Esperando a: ''
 Fecha de creación: 2026-10-01T18:25:00+02:00
-Última modificación: 2026-10-28T12:00:00+01:00
+Última modificación: 2026-10-28T21:00:00+01:00
 ---
 
 # Mouse pad en destinos Linux Wayland
@@ -83,7 +83,9 @@ GNOME) y los protocolos wlroots cubren los escritorios Wayland habituales.
 
 ## Verificación
 
-<Se rellena al completar.>
+- **Prueba del usuario** (2026-10-28, canary 1.4.1-canary.45, KDE Plasma con
+  Wayland desde el Pixel): puntero, clics, arrastre, scroll, teclado (también
+  `áéíóú ü € @ ñ`) y un solo diálogo recordado, todo correcto.
 
 ## Cómo probarlo
 
@@ -113,4 +115,7 @@ canary.
 
 ## Resultado
 
-<Se rellena al completar.>
+El mouse pad controla KDE y GNOME con Wayland por el portal RemoteDesktop (y,
+en GNOME con acceso desatendido, por la API de Mutter), con el permiso
+recordado. Los wlroots van por sus propios protocolos. Sin uinput. Solo en la
+canary hasta que el escritorio remoto pase a la estable.

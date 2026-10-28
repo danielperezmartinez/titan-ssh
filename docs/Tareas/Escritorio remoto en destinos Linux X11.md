@@ -1,15 +1,15 @@
 ---
 Nombre: 'Escritorio remoto en destinos Linux X11'
-Estado: 'Por probar'
+Estado: 'Hecha'
 Estado desde: 2026-10-28
 Resumen: 'Subtarea 1 del escritorio remoto: ver y controlar un escritorio Linux con X11, y construir la base común (tipo de sesión DESKTOP, tramas de pantalla del protocolo, modo titan-agent --screen, decodificación y vista en la app de escritorio y en Android). El agente habla con el servidor X del usuario con un cliente X11 propio y mínimo (GetImage, XFIXES para el cursor, XTEST para la entrada), sin ayudante. Se prueba con un contenedor desechable con Xvfb y sshd.'
 Decisiones: 'Parte de [[Escritorio remoto a través del agente]]. Diseño en [[ADR-0029 Escritorio remoto propio a través del agente]]. En Android la pestaña reutiliza la vista del mouse pad con la pantalla detrás: el dedo usa los gestos del touchpad (no toque directo) y un zoom 1x-3x sigue al cursor; con ratón, posición absoluta. Implementado y verificado el 2026-10-21 (agente, app de escritorio por render, emulador). La prueba del usuario del 2026-10-28 falla en el scroll en kitty y al teclear ñ y vocales con tilde (ver Verificación); vuelve a En curso. Arreglado el 2026-10-28: el agente relee el mapa de teclado y el grupo XKB activo antes de cada tecla, hace scroll con los ejes de scroll de un dispositivo XI2 del destino (kitty no atiende los botones de rueda cuando hay touchpad), la app de escritorio toma el texto del evento tecleado y compone las teclas muertas, y la barra de teclas solo sale en Android.'
 Bloqueada: []
-Prueba: 'Escribir echo hola ñandú € en un terminal X11 y hacer scroll en kitty, desde el móvil y desde la app de escritorio'
+Prueba: ''
 Esperando a: ''
 Versión: ''
 Fecha de creación: 2026-10-21T10:50:00+02:00
-Última modificación: 2026-10-28T19:30:00+01:00
+Última modificación: 2026-10-28T21:00:00+01:00
 ---
 
 # Escritorio remoto en destinos Linux X11
@@ -161,6 +161,8 @@ confirmación del usuario en un escritorio X11 real.
     pruebas, enseña la barra de teclas y el teclado del móvil escribe en el
     xterm remoto.
 
+- **Prueba del usuario** (2026-10-28, canary 1.4.1-canary.45): todo correcto, tal como dice «Cómo probarlo».
+
 ## Cómo probarlo
 
 **Dónde**: la canary desde el commit `b977b65` (o posterior en `main`), en el
@@ -196,4 +198,8 @@ y de `xinput list` en el destino.
 
 ## Resultado
 
-<Se rellena al completar.>
+Escritorio remoto en X11 con un cliente X11 propio (GetImage, XFIXES y
+XTEST), con la base común del tipo de sesión «escritorio». Tras la prueba del
+2026-10-28 se arreglaron el grupo XKB de cada tecla (la ñ), el scroll de kitty
+con los ejes del touchpad XI2 y la barra de teclas en la app de escritorio. El
+usuario lo confirma en la canary 1.4.1-canary.45.

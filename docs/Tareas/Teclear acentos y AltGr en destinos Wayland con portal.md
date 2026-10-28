@@ -1,15 +1,15 @@
 ---
 Nombre: 'Teclear acentos y AltGr en destinos Wayland con portal'
-Estado: 'Por probar'
+Estado: 'Hecha'
 Estado desde: 2026-10-28
 Resumen: 'En KDE y GNOME con Wayland, el escritorio remoto y el mouse pad teclean por keysyms del portal RemoteDesktop o de la API de Mutter, y el compositor solo encuentra los que están en los niveles normal y de mayúsculas de la distribución de teclado del destino: la ñ llega con la distribución española, pero las letras con tecla muerta (á, é, ü) y las de AltGr (€, @ en algunas distribuciones) no. Buscar una vía para que lleguen.'
 Decisiones: 'Nace de [[Escritorio remoto en destinos Linux Wayland]] y [[Mouse pad en destinos Linux Wayland]] (ADR-0031). El usuario decide el 2026-10-22 tratarlo en esta tarea aparte en lugar de cerrar con la limitación. 2026-10-28: en GNOME el agente teclea las letras con acento como tecla muerta + letra y el € por su keysym EuroSign (solo en GNOME; KDE ya tecleaba cualquier keysym); en la app de escritorio el texto del teclado físico sale del evento tecleado y las teclas muertas se componen en la app (era lo que fallaba en KDE).'
 Bloqueada: []
-Prueba: 'Escribir áéíóú ü € @ ñ en KDE y GNOME con Wayland desde el móvil y desde la app de escritorio'
+Prueba: ''
 Esperando a: ''
 Versión: ''
 Fecha de creación: 2026-10-22T08:45:00+02:00
-Última modificación: 2026-10-28T19:30:00+01:00
+Última modificación: 2026-10-28T21:00:00+01:00
 ---
 
 # Teclear acentos y AltGr en destinos Wayland con portal
@@ -83,6 +83,8 @@ Vías posibles, por valorar:
   que KDE queda para la prueba del usuario.
 - Tests: `TestPortalTextKeysyms`, `go test -race ./...`, `:shared:desktopTest`.
 
+- **Prueba del usuario** (2026-10-28, canary 1.4.1-canary.45): todo correcto, tal como dice «Cómo probarlo».
+
 ## Cómo probarlo
 
 **Dónde**: la canary desde el commit `b977b65` (o posterior en `main`), en el
@@ -109,4 +111,7 @@ escritorio y versión del destino, y su distribución de teclado.
 
 ## Resultado
 
-<Se rellena al completar.>
+En GNOME, tecla muerta más letra y EuroSign. En la app de escritorio, el
+teclado físico manda el texto tecleado, compone las teclas muertas y no envía
+U+FFFF por Shift o AltGr. El usuario lo confirma en KDE en la canary
+1.4.1-canary.45, desde el móvil y desde la app de escritorio.
