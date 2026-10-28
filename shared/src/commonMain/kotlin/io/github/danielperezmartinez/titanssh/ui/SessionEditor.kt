@@ -266,8 +266,8 @@ private fun SessionForm(
                 Spacer(Modifier.height(TitanDimens.SpaceXs))
                 Caption(
                     "El móvil hace de touchpad y teclado del escritorio del destino. Usa el agente, " +
-                        "que se instala solo; en destinos Windows y Linux con X11 con la sesión iniciada (con " +
-                        "Wayland, por ahora solo en titan-ssh canary).",
+                        "que se instala solo; en destinos Windows y Linux (X11, y Wayland en KDE, GNOME, sway, " +
+                        "Hyprland y otros wlroots) con la sesión iniciada.",
                 )
             }
             if (type == SessionType.SFTP) {

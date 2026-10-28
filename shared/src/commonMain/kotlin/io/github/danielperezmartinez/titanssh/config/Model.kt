@@ -322,7 +322,7 @@ enum class SessionType(val experimental: Boolean = false) {
      * [Session.desktop] and the mouse pad's pointer settings apply; the
      * terminal fields are kept, as with [MOUSEPAD].
      */
-    DESKTOP(experimental = true),
+    DESKTOP,
 }
 
 /** How sharp a remote desktop's image is against the bandwidth it takes (ADR-0029). */

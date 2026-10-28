@@ -9,7 +9,7 @@ class SessionTypeOfferTest {
 
     @Test
     fun the_settled_types_are_never_experimental() {
-        listOf(SessionType.TERMINAL, SessionType.MOUSEPAD, SessionType.SFTP).forEach {
+        listOf(SessionType.TERMINAL, SessionType.MOUSEPAD, SessionType.SFTP, SessionType.DESKTOP).forEach {
             assertFalse(it.experimental, it.name)
         }
     }

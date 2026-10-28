@@ -285,8 +285,8 @@ val buildAgentBinaries by tasks.registering {
             }
             agentTargets.forEach { t ->
                 val failure = try {
-                    // The canary agent also serves what is on trial there (the
-                    // remote desktop, ADR-0029); the stable one leaves it out.
+                    // The canary agent is built with -tags canary, for what is on
+                    // trial only there (ADR-0027); nothing uses it right now.
                     val tags = if (titanChannel == "canary") listOf("-tags", "canary") else emptyList()
                     val pb = ProcessBuilder(
                         listOf(go, "build", "-trimpath") + tags + listOf(

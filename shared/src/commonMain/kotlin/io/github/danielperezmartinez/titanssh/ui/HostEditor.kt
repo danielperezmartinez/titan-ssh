@@ -67,7 +67,7 @@ private enum class AuthKind(val label: String) {
  *   `authorized_keys` line to enroll on the server. The key never leaves the
  *   hardware (ADR-0005); on desktop v1 the action is unavailable.
  *
- * With a [keyInstaller] (the canary, ADR-0030) both key methods can also put
+ * With a [keyInstaller] (ADR-0030) both key methods can also put
  * the key on the host themselves and switch the host to it once it logs in.
  */
 @Composable
@@ -145,7 +145,7 @@ fun HostEditor(
     var passphraseInput by remember { mutableStateOf("") }
     var hwLine by remember { mutableStateOf("") }
     var installKey by remember { mutableStateOf(false) }
-    val installer = keyInstaller?.takeIf { keyInstallOffered }
+    val installer = keyInstaller
     // A password the host held before, which the summary offers to delete once the key works.
     var storedPasswordRef by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(existing) {
