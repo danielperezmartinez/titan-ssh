@@ -67,6 +67,14 @@ concurrency:
 
 env:
   JAVA_VERSION: '21'
+  # The desktop packages bundle this JDK through jpackage. It is the Microsoft
+  # Build of OpenJDK, the first 21 build with the October 2026 CA blocklist,
+  # downloaded and checked here because setup-java's Microsoft manifest does
+  # not list it yet.
+  DESKTOP_JDK_VERSION: '21.0.13'
+  DESKTOP_JDK_URL: https://aka.ms/download-jdk/microsoft-jdk-21.0.13.0.2
+  DESKTOP_JDK_LINUX_SHA256: 5bf17d27de3fe9d102981236cdea68482e3b5ef68a44ad21c6439b45d7d34da2
+  DESKTOP_JDK_WINDOWS_SHA256: c5706a9cf482ef1a0622a86eea5b13d557b07f04554572af061e2d02b58c0f99
   # The agent's go.mod only states the minimum language version; the shipped
   # binaries are built with a current, supported toolchain.
   GO_VERSION: '1.27.x'
@@ -281,10 +289,15 @@ jobs:
       ORG_GRADLE_PROJECT_titanChannel: ${{ needs.version.outputs.channel }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Download the desktop JDK
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/jdk.tar.gz" "$DESKTOP_JDK_URL-linux-x64.tar.gz"
+          cd "$RUNNER_TEMP" && echo "$DESKTOP_JDK_LINUX_SHA256  jdk.tar.gz" | sha256sum -c -
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
-          distribution: temurin
-          java-version: ${{ env.JAVA_VERSION }}
+          distribution: jdkfile
+          jdk-file: ${{ runner.temp }}/jdk.tar.gz
+          java-version: ${{ env.DESKTOP_JDK_VERSION }}
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: agent
@@ -338,10 +351,15 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Download the desktop JDK
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/jdk.zip" "$DESKTOP_JDK_URL-windows-x64.zip"
+          cd "$RUNNER_TEMP" && echo "$DESKTOP_JDK_WINDOWS_SHA256  jdk.zip" | sha256sum -c -
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
-          distribution: temurin
-          java-version: ${{ env.JAVA_VERSION }}
+          distribution: jdkfile
+          jdk-file: ${{ runner.temp }}/jdk.zip
+          java-version: ${{ env.DESKTOP_JDK_VERSION }}
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: agent
