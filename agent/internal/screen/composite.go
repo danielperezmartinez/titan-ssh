@@ -24,8 +24,10 @@ type Composite struct {
 	minX, minY int
 	sizes      [][2]int
 	scratch    []uint32
-	// last is the part that showed the cursor last.
-	last int
+	// last is the part that showed the cursor last, and lastX, lastY where
+	// it was, in the whole desktop's coordinates.
+	last         int
+	lastX, lastY int
 }
 
 // Size is the bounding box of the parts.
@@ -90,12 +92,15 @@ func (c *Composite) Cursor() (Cursor, error) {
 		cur.Y += p.Y - c.minY
 		// A cursor moving to another monitor may need its image again.
 		cur.Serial = cur.Serial<<4 | uint32(i&0xf)
+		c.lastX, c.lastY = cur.X, cur.Y
 		return cur, nil
 	}
 	if first != nil {
 		return Cursor{}, first
 	}
-	return Cursor{Serial: uint32(c.last & 0xf)}, nil
+	// Hidden (KWin hides it while Konsole hides the pointer): keep where it
+	// was, as the client centres its zoom on it.
+	return Cursor{X: c.lastX, Y: c.lastY, Serial: uint32(c.last & 0xf)}, nil
 }
 
 // Damage joins the parts' damage, each moved to its place. It knows nothing

@@ -55,6 +55,13 @@ func TestCompositeLaysOutMonitors(t *testing.T) {
 	if moved.X != 2 || moved.Y != 1 || moved.Serial == cur.Serial {
 		t.Errorf("cursor on the right monitor %+v; want at 2,1 with another serial", moved)
 	}
+	// Hidden everywhere (KWin while Konsole hides the pointer): it stays
+	// where it was, not at the corner, as the client zooms around it.
+	right.cursor.Visible = false
+	hidden, err := c.Cursor()
+	if err != nil || hidden.Visible || hidden.X != 2 || hidden.Y != 1 {
+		t.Errorf("hidden cursor %+v, %v; want hidden at 2,1", hidden, err)
+	}
 
 	if i, px, py, ok := c.Locate(3, 2); !ok || i != 0 || px != 1 || py != 1 {
 		t.Errorf("Locate(3,2) = %d %d,%d %v; want part 0 at 1,1", i, px, py, ok)
