@@ -144,9 +144,10 @@ Ya hecho: plantilla, job, clave SSH y secreto `AUR_SSH_PRIVATE_KEY`.
   título y la descripción y se dejó un comentario explicándolo. Detalle en
   [[Canal Windows winget]]. **AUR**: no se revisó.
 - 2026-10-30 (tarde) — **winget**: la automatización del moderador volvió a
-  poner `Manifest-Version-Deprecated` y `Needs-Author-Feedback` a las 13:23,
+  poner `Manifest-Version-Deprecated` y `Needs-Author-Feedback` a las 14:23 (CET),
   aunque los manifiestos ya usan 1.28.0. Es un falso positivo de su
   automatización («build 1830»): ese día marcó igual muchas PR nuevas que ya
   usaban 1.28.0 (#442228, #441987, #446269, #439234, #441034). La validación
   sigue en verde. Con el permiso del usuario se dejó un comentario pidiendo
-  que lo revisen, sin cambiar los manifiestos. Lo dejamos para mañana.
+  que lo revisen (14:32 CET), sin cambiar los manifiestos. El bot quitó
+  `Needs-Author-Feedback` y puso `Needs-Attention`. Lo dejamos para mañana.
