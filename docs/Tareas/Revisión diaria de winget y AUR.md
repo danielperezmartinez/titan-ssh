@@ -8,7 +8,7 @@ Bloqueada: []
 Prueba: ''
 Esperando a: 'Terceros: la fusión del primer PR de winget y la reapertura del registro de cuentas de AUR.'
 Fecha de creación: 2026-09-26T20:30:00+02:00
-Última modificación: 2026-10-30T10:30:00+01:00
+Última modificación: 2026-10-30T15:00:00+01:00
 ---
 
 # Revisión diaria de winget y AUR
@@ -143,3 +143,10 @@ Ya hecho: plantilla, job, clave SSH y secreto `AUR_SSH_PRIVATE_KEY`.
   probados con `winget install --manifest` en la VM de Windows. Se cambiaron el
   título y la descripción y se dejó un comentario explicándolo. Detalle en
   [[Canal Windows winget]]. **AUR**: no se revisó.
+- 2026-10-30 (tarde) — **winget**: la automatización del moderador volvió a
+  poner `Manifest-Version-Deprecated` y `Needs-Author-Feedback` a las 13:23,
+  aunque los manifiestos ya usan 1.28.0. Es un falso positivo de su
+  automatización («build 1830»): ese día marcó igual muchas PR nuevas que ya
+  usaban 1.28.0 (#442228, #441987, #446269, #439234, #441034). La validación
+  sigue en verde. Con el permiso del usuario se dejó un comentario pidiendo
+  que lo revisen, sin cambiar los manifiestos. Lo dejamos para mañana.
