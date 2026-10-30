@@ -8,7 +8,7 @@ Bloqueada: []
 Prueba: ''
 Esperando a: 'Terceros: la fusión del primer PR de winget y la reapertura del registro de cuentas de AUR.'
 Fecha de creación: 2026-09-26T20:30:00+02:00
-Última modificación: 2026-10-28T12:00:00+01:00
+Última modificación: 2026-10-30T10:30:00+01:00
 ---
 
 # Revisión diaria de winget y AUR
@@ -60,19 +60,21 @@ Ya hecho: fork, primer PR
 ([#441824](https://github.com/microsoft/winget-pkgs/pull/441824)), CLA
 firmado y token en el secreto `WINGET_TOKEN`.
 
-1. [ ] Esperar a que Microsoft valide y fusione la PR. La validación pasó el 2026-09-26; falta la aprobación de un moderador. Hay que revisarla
-   cada día.
+1. [ ] Esperar a que Microsoft valide y fusione la PR. El 2026-10-30 se
+   reconvirtió en el primer envío de la estable `DanielPerezMartinez.TitanSSH`
+   `1.5.0` con esquema 1.28.0 (ver el **Registro**); falta que vuelva a pasar
+   la validación y que la apruebe un moderador. Hay que revisarla cada día.
 2. [ ] 👤 Con la PR fusionada, comprobar `winget search titan-ssh` (el índice
    tarda unas horas en actualizarse) y probar
-   `winget install DanielPerezMartinez.TitanSSH.Beta` en Windows.
+   `winget install DanielPerezMartinez.TitanSSH` en Windows.
 3. [ ] 👤 Crear la variable del repositorio `WINGET_ENABLED` = `true` en
    <https://github.com/danielperezmartinez/titan-ssh/settings/variables/actions/new>
    (pestaña *Variables*, no *Secrets*). **No antes de la fusión**, porque el
    job fallaría.
-4. [ ] Con la siguiente beta (solo cuando el usuario pida publicarla),
+4. [ ] Con la siguiente versión estable (solo cuando el usuario pida publicarla),
    comprobar que el job `winget` acaba bien y abre un PR `Update:` en
    winget-pkgs. Ese PR se sigue igual que el primero.
-5. [ ] 👤 Con esa versión fusionada, `winget upgrade DanielPerezMartinez.TitanSSH.Beta`.
+5. [ ] 👤 Con esa versión fusionada, `winget upgrade DanielPerezMartinez.TitanSSH`.
 6. [ ] Añadir la sección de winget al `README.md` de la raíz y pasar
    [[Canal Windows winget]] a `Hecha`.
 
@@ -132,3 +134,12 @@ Ya hecho: plantilla, job, clave SSH y secreto `AUR_SSH_PRIVATE_KEY`.
   👤 el usuario confirma que el registro sigue cerrado, y el feed de Arch no
   trae noticias nuevas (la última sigue siendo la de mkinitcpio del
   2026-09-22). Lo dejamos para mañana.
+- 2026-10-30 — **winget**: el usuario recibió un correo de la PR. Un
+  moderador (con su automatización) puso `Manifest-Version-Deprecated` y
+  `Needs-Author-Feedback` y pidió el esquema `1.28.0`. La validación seguía en
+  verde. Con el permiso del usuario se reaprovechó la misma PR: se quitaron los
+  manifiestos `.Beta` `0.1.0-beta.2` (ya no se publican betas) y se pusieron
+  los de `DanielPerezMartinez.TitanSSH` `1.5.0` con esquema 1.28.0, validados y
+  probados con `winget install --manifest` en la VM de Windows. Se cambiaron el
+  título y la descripción y se dejó un comentario explicándolo. Detalle en
+  [[Canal Windows winget]]. **AUR**: no se revisó.
