@@ -8,7 +8,7 @@ Bloqueada: []
 Prueba: ''
 Esperando a: 'Terceros: la fusión del primer PR de winget y la reapertura del registro de cuentas de AUR.'
 Fecha de creación: 2026-09-26T20:30:00+02:00
-Última modificación: 2026-10-30T15:00:00+01:00
+Última modificación: 2026-10-31T07:45:00+01:00
 ---
 
 # Revisión diaria de winget y AUR
@@ -151,3 +151,13 @@ Ya hecho: plantilla, job, clave SSH y secreto `AUR_SSH_PRIVATE_KEY`.
   sigue en verde. Con el permiso del usuario se dejó un comentario pidiendo
   que lo revisen (14:32 CET), sin cambiar los manifiestos. El bot quitó
   `Needs-Author-Feedback` y puso `Needs-Attention`. Lo dejamos para mañana.
+- 2026-10-31 — **winget**: a las 02:52 (CET) el moderador quitó a mano
+  `Manifest-Version-Deprecated` y `Needs-Attention`, pero a las 06:10 su
+  automatización («build 1834») volvió a marcar la PR como esquema obsoleto y
+  a pedir respuesta. A las otras PR del falso aviso no se lo volvió a poner.
+  Se sospecha del historial de la rama: tenía 6 commits, y los primeros
+  añadían los manifiestos `.Beta` con esquema 1.12.0. Con el permiso del
+  usuario, la rama `danielperezmartinez-patch-1` se rehízo como un solo commit
+  sobre el `master` actual de winget-pkgs, con solo los 3 manifiestos de la
+  1.5.0 (force-push), y se dejó un comentario explicándolo. Lo dejamos para
+  mañana.
