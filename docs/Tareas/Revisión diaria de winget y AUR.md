@@ -8,7 +8,7 @@ Bloqueada: []
 Prueba: ''
 Esperando a: 'Terceros: la fusión del primer PR de winget y la reapertura del registro de cuentas de AUR.'
 Fecha de creación: 2026-09-26T20:30:00+02:00
-Última modificación: 2026-10-31T07:45:00+01:00
+Última modificación: 2026-11-03T08:40:00+01:00
 ---
 
 # Revisión diaria de winget y AUR
@@ -161,3 +161,8 @@ Ya hecho: plantilla, job, clave SSH y secreto `AUR_SSH_PRIVATE_KEY`.
   sobre el `master` actual de winget-pkgs, con solo los 3 manifiestos de la
   1.5.0 (force-push), y se dejó un comentario explicándolo. Lo dejamos para
   mañana.
+- 2026-11-03 — **winget**: tras rehacer la rama, la validación volvió a pasar
+  (31-10, 07:29 CET) y el bot quitó `Manifest-Version-Deprecated` y
+  `Needs-Author-Feedback`. Desde entonces no se ha vuelto a marcar: el falso
+  aviso venía del historial con los manifiestos `.Beta` 1.12.0. La PR solo
+  espera la revisión de un moderador. **AUR**: no se revisó.
