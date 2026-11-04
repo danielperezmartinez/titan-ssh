@@ -1,14 +1,14 @@
 ---
 Nombre: 'Canal Windows winget'
 Estado: 'Esperando'
-Estado desde: 2026-10-30
-Resumen: 'Publicar titan-ssh en winget (gratis), el gestor de paquetes de Windows, con manifiestos en microsoft/winget-pkgs que apuntan al MSI del GitHub Release: DanielPerezMartinez.TitanSSH para las estables y DanielPerezMartinez.TitanSSH.Beta para las pre-releases. winget-pkgs acepta MSI sin firmar. El primer envío se hace a mano y los siguientes los abre el job winget del workflow con Komac, desde un fork de winget-pkgs del usuario y un token clásico con public_repo. La PR microsoft/winget-pkgs#441824 (abierta el 2026-09-26 con la beta.2 en el ID .Beta) se reconvirtió el 2026-10-30, a petición del moderador (esquema 1.28.0) y porque ya no se publican betas, en el primer envío de la estable DanielPerezMartinez.TitanSSH 1.5.0; manifiestos en desktopApp/packaging/winget/, validados y probados con winget install --manifest. Faltan la fusión, la variable WINGET_ENABLED y la prueba con winget install/upgrade.'
+Estado desde: 2026-11-04
+Resumen: 'Publicar titan-ssh en winget (gratis), el gestor de paquetes de Windows, con manifiestos en microsoft/winget-pkgs que apuntan al MSI del GitHub Release: DanielPerezMartinez.TitanSSH para las estables y DanielPerezMartinez.TitanSSH.Beta para las pre-releases. winget-pkgs acepta MSI sin firmar. El primer envío se hace a mano y los siguientes los abre el job winget del workflow con Komac, desde un fork de winget-pkgs del usuario y un token clásico con public_repo. La PR microsoft/winget-pkgs#441824 (abierta el 2026-09-26 con la beta.2 en el ID .Beta) se reconvirtió el 2026-10-30, a petición del moderador (esquema 1.28.0) y porque ya no se publican betas, en el primer envío de la estable DanielPerezMartinez.TitanSSH 1.5.0; manifiestos en desktopApp/packaging/winget/, validados y probados con winget install --manifest. Fusionada el 2026-11-04: el paquete existe en winget. Faltan la variable WINGET_ENABLED y la prueba con winget install/upgrade.'
 Decisiones: 'Sigue [[ADR-0011 Distribución y canales de publicación]] §4. Decisiones del usuario (2026-09-26): PackageIdentifier DanielPerezMartinez.TitanSSH (Moniker titan-ssh), y las pre-releases van a un ID aparte, DanielPerezMartinez.TitanSSH.Beta, como Termius.Termius.Beta; mismo criterio que en [[Canal Arch Linux AUR]]. Se usa Komac fijado por hash en vez de winget-releaser, que descarga Komac sin fijar la versión.'
 Bloqueada: []
 Prueba: ''
-Esperando a: 'Microsoft: que un moderador revise y fusione microsoft/winget-pkgs#441824, actualizada el 2026-10-30 a la 1.5.0 estable con esquema 1.28.0. Después, activar WINGET_ENABLED y probar winget install/upgrade.'
+Esperando a: 'Usuario: crear la variable WINGET_ENABLED y probar winget install DanielPerezMartinez.TitanSSH. Después, la próxima versión estable prueba el job y winget upgrade.'
 Fecha de creación: 2026-09-23T22:50:00+02:00
-Última modificación: 2026-10-30T10:30:00+01:00
+Última modificación: 2026-11-04T09:45:00+01:00
 ---
 
 # Canal Windows winget
@@ -28,11 +28,11 @@ firma de pago.
   [[Configuración de release del escritorio]]) y la URL fija del Release.
 - [x] Política vigente: se acepta un **MSI sin firmar** (ver **Contexto**). No
   hace falta esperar a [[Firma de código Windows con SignPath Foundation]].
-- [ ] Primer manifiesto enviado
+- [x] Primer manifiesto enviado
   ([microsoft/winget-pkgs#441824](https://github.com/microsoft/winget-pkgs/pull/441824))
   y fusionado. Se abrió el 2026-09-26 con `DanielPerezMartinez.TitanSSH.Beta`
   `0.1.0-beta.2` y el 2026-10-30 pasó a `DanielPerezMartinez.TitanSSH` `1.5.0`
-  (ver **Pendiente**).
+  (ver **Pendiente**). Fusionado el 2026-11-04.
 - [x] Automatización: job `winget` del release, que abre el PR de la versión
   nueva con Komac.
 - [ ] 👤 Secreto `WINGET_TOKEN` cargado y un PR abierto por el job con la
@@ -83,7 +83,7 @@ Komac):
 
 1. [x] Fork `danielperezmartinez/winget-pkgs` de <https://github.com/microsoft/winget-pkgs>
    (2026-09-26).
-2. [ ] Primer PR, abierto el 2026-09-26: [#441824](https://github.com/microsoft/winget-pkgs/pull/441824). Los tres ficheros de
+2. [x] Primer PR, abierto el 2026-09-26 y fusionado el 2026-11-04: [#441824](https://github.com/microsoft/winget-pkgs/pull/441824). Los tres ficheros de
    `desktopApp/packaging/winget/manifests/d/DanielPerezMartinez/TitanSSH/Beta/0.1.0-beta.2/`
    se subieron a esa misma ruta (`manifests/d/…`) en la rama
    `danielperezmartinez-patch-1`, idénticos a los validados. CLA firmado el mismo día (el bot quitó `Needs-CLA` y `license/cla` está en verde), y el validador puso la etiqueta `New-Package`. Falta que
@@ -108,6 +108,14 @@ Komac):
    `manifests/d/DanielPerezMartinez/TitanSSH/1.5.0/`. También se cambiaron el
    título y la descripción de la PR, y se dejó un comentario que lo explica.
    El CLA sigue firmado.
+7. [x] Falso aviso de esquema obsoleto (2026-10-30 y 2026-10-31). La
+   automatización del moderador volvió a marcar la PR aunque ya usaba 1.28.0,
+   por los commits antiguos con los manifiestos `.Beta` 1.12.0 que quedaban en
+   el historial de la rama. Se rehízo la rama como un solo commit sobre el
+   `master` actual (2026-10-31) y el aviso no volvió.
+8. [x] Aprobada por un moderador y fusionada el 2026-11-04 (01:59 CET). El
+   pipeline de publicación terminó a las 05:35 CET y el manifiesto está en
+   `manifests/d/DanielPerezMartinez/TitanSSH/1.5.0/` de winget-pkgs.
 
 ## Verificación
 

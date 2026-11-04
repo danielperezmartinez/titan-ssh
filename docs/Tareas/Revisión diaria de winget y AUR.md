@@ -6,9 +6,9 @@ Resumen: 'Comprobación que se repite cada día hasta cerrar los dos canales del
 Decisiones: 'Pedida por el usuario el 2026-09-26 para revisar el estado cada día. No sustituye a [[Canal Windows winget]] ni a [[Canal Arch Linux AUR]]: es la rutina de seguimiento de las dos. La página de registro de AUR tiene una protección contra bots (Anubis) que el agente no debe saltarse, así que el registro lo mira el usuario en su navegador y el agente solo lee las noticias de Arch.'
 Bloqueada: []
 Prueba: ''
-Esperando a: 'Terceros: la fusión del primer PR de winget y la reapertura del registro de cuentas de AUR.'
+Esperando a: 'Terceros: la reapertura del registro de cuentas de AUR. La PR de winget ya está fusionada (2026-11-04) y solo faltan pasos del usuario.'
 Fecha de creación: 2026-09-26T20:30:00+02:00
-Última modificación: 2026-11-03T08:40:00+01:00
+Última modificación: 2026-11-04T09:45:00+01:00
 ---
 
 # Revisión diaria de winget y AUR
@@ -60,7 +60,7 @@ Ya hecho: fork, primer PR
 ([#441824](https://github.com/microsoft/winget-pkgs/pull/441824)), CLA
 firmado y token en el secreto `WINGET_TOKEN`.
 
-1. [ ] Esperar a que Microsoft valide y fusione la PR. El 2026-10-30 se
+1. [x] Esperar a que Microsoft valide y fusione la PR. Fusionada el 2026-11-04. El 2026-10-30 se
    reconvirtió en el primer envío de la estable `DanielPerezMartinez.TitanSSH`
    `1.5.0` con esquema 1.28.0 (ver el **Registro**); falta que vuelva a pasar
    la validación y que la apruebe un moderador. Hay que revisarla cada día.
@@ -166,3 +166,8 @@ Ya hecho: plantilla, job, clave SSH y secreto `AUR_SSH_PRIVATE_KEY`.
   `Needs-Author-Feedback`. Desde entonces no se ha vuelto a marcar: el falso
   aviso venía del historial con los manifiestos `.Beta` 1.12.0. La PR solo
   espera la revisión de un moderador. **AUR**: no se revisó.
+- 2026-11-04 — **winget**: un moderador aprobó la PR y se fusionó a las 01:59
+  (CET); el pipeline de publicación acabó a las 05:35. El paquete
+  `DanielPerezMartinez.TitanSSH` 1.5.0 ya está en winget-pkgs. Siguen los
+  pasos 2 y 3 (probar `winget install` y crear `WINGET_ENABLED`). **AUR**: no
+  se revisó.
