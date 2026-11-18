@@ -7,9 +7,9 @@ import androidx.compose.runtime.staticCompositionLocalOf
 
 /**
  * A remote desktop tab in full screen ([[Controles del visor del escritorio
- * remoto]]): the app hides its header, tabs and status strip, and the platform
- * gives it the whole display ([LocalSystemFullscreen]). [tabId] is the tab
- * shown, or null when nothing is.
+ * remoto con barra movible]]): the app hides its header, tabs and status
+ * strip, and the platform gives it the whole display
+ * ([LocalSystemFullscreen]). [tabId] is the tab shown, or null when nothing is.
  */
 class ImmersiveState {
     var tabId: String? by mutableStateOf(null)

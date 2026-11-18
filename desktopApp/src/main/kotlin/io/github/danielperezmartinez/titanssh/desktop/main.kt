@@ -47,7 +47,7 @@ private fun desktopApp() = application {
     ) {
         // Work that only matters on screen (the connection probe) stops while minimized.
         // A remote desktop's full screen takes the whole screen, and gives back
-        // the window as it was ([[Controles del visor del escritorio remoto]]).
+        // the window as it was ([[Controles del visor del escritorio remoto con barra movible]]).
         var before by remember { mutableStateOf(WindowPlacement.Floating) }
         val systemFullscreen: (Boolean) -> Unit = { on ->
             if (on && windowState.placement != WindowPlacement.Fullscreen) {

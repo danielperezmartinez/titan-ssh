@@ -325,7 +325,7 @@ private fun TabContent(
             tab, modifier, keyBar = keyBar, onConfigureKeyBar = onConfigureKeyBar, softKeyboard = softKeyboard,
             fullscreen = fullscreen,
             onFullscreen = { view.setFullscreen(tab, it) },
-            onViewChange = { actualSize, zoom -> view.saveView(tab, actualSize, zoom) },
+            onViewChange = { change -> view.saveView(tab, change) },
             savedView = view.savedDesktop(tab),
         )
     } else if (sftp != null) {
@@ -340,8 +340,8 @@ private fun TabContent(
 
 /**
  * What a tab's view changes outside itself: the app's full screen, and the
- * remote desktop viewer's scale saved in its session, so it opens as it was
- * left ([[Controles del visor del escritorio remoto]]).
+ * remote desktop viewer's settings saved in its session, so it opens as it was
+ * left ([[Controles del visor del escritorio remoto con barra movible]]).
  */
 private class SessionViewHooks(
     private val controller: ConfigController,
@@ -351,10 +351,10 @@ private class SessionViewHooks(
     fun savedDesktop(tab: SessionTab): DesktopSettings =
         controller.state.value.sessions.firstOrNull { it.id == tab.resolved.session.id }?.desktop ?: tab.resolved.session.desktop
 
-    fun saveView(tab: SessionTab, actualSize: Boolean, zoom: Float) {
+    fun saveView(tab: SessionTab, change: (DesktopSettings) -> DesktopSettings) {
         val saved = controller.state.value.sessions.firstOrNull { it.id == tab.resolved.session.id } ?: return
-        if (saved.desktop.actualSize == actualSize && saved.desktop.zoom == zoom) return
-        controller.upsertSession(saved.copy(desktop = saved.desktop.copy(actualSize = actualSize, zoom = zoom)))
+        val desktop = change(saved.desktop)
+        if (desktop != saved.desktop) controller.upsertSession(saved.copy(desktop = desktop))
     }
 }
 

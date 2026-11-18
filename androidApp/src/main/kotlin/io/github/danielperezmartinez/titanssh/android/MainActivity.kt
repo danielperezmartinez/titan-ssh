@@ -54,7 +54,7 @@ class MainActivity : ComponentActivity() {
 
     /**
      * A remote desktop's full screen hides the system bars; a swipe from an
-     * edge shows them for a moment ([[Controles del visor del escritorio remoto]]).
+     * edge shows them for a moment ([[Controles del visor del escritorio remoto con barra movible]]).
      */
     private fun hideSystemBars(on: Boolean) {
         val controller = WindowCompat.getInsetsController(window, window.decorView)

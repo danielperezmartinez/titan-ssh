@@ -3,13 +3,13 @@ Nombre: 'Pantalla completa y escala del escritorio remoto'
 Estado: 'Por probar'
 Estado desde: 2026-11-18
 Resumen: 'Dar al visor del escritorio remoto pantalla completa y modos de escala (ajustar a la ventana o tamaño real 1:1 con minimapa, más zoom siguiendo al cursor), porque en un portátil de pantalla pequeña el destino se ve tan reducido que cuesta leer. En escritorio los controles van en la franja de estado y en una barra flotante en pantalla completa; en el móvil, tras [#] vista, con pellizco para el zoom y modo inmersivo.'
-Decisiones: 'Diseño en [[Controles del visor del escritorio remoto]] y regla de la franja en [[Franja de estado según la plataforma]] (2026-11-18). Elegir el monitor queda fuera: [[Elegir el monitor en el escritorio remoto]]. La calidad de imagen, si hace falta, en [[Calidad de imagen del escritorio remoto]]. El indicador de red de la franja es el componente que ya existe (ConnectionQualityBar); no se rehace.'
+Decisiones: 'Diseño en [[Controles del visor del escritorio remoto con barra movible]] (tras la primera prueba en la canary.50: minimapa que se oculta y una sola barra flotante, movible y opcionalmente oculta) y regla de la franja en [[Franja de estado según la plataforma]] (2026-11-18). Elegir el monitor queda fuera: [[Elegir el monitor en el escritorio remoto]]. La calidad de imagen, si hace falta, en [[Calidad de imagen del escritorio remoto]]. El indicador de red de la franja es el componente que ya existe (ConnectionQualityBar); no se rehace.'
 Bloqueada: []
 Prueba: 'Pantalla completa, 1:1 con desplazamiento por los bordes y zoom del escritorio remoto en la canary de escritorio y de Android'
 Esperando a: ''
 Versión: ''
 Fecha de creación: 2026-11-18T20:25:00+01:00
-Última modificación: 2026-11-18T22:00:00+01:00
+Última modificación: 2026-11-18T22:30:00+01:00
 ---
 
 # Pantalla completa y escala del escritorio remoto
@@ -18,7 +18,7 @@ Fecha de creación: 2026-11-18T20:25:00+01:00
 
 Que el escritorio remoto se pueda leer y usar cómodamente desde una pantalla
 pequeña (un portátil, un móvil): pantalla completa, tamaño real 1:1 y zoom,
-según [[Controles del visor del escritorio remoto]].
+según [[Controles del visor del escritorio remoto con barra movible]].
 
 ## Contexto
 
@@ -58,11 +58,16 @@ según [[Controles del visor del escritorio remoto]].
   panel `[#] vista` del móvil.
 - Sin probar en el emulador: la memoria libre del equipo no daba para el
   emulador y la build a la vez. Lo prueba el usuario en la canary.
+- Primera prueba del usuario (canary.50, 2026-11-18): pide ocultar el
+  minimapa, mover la barra de la pantalla completa y que la pestañita y la
+  barra desplegada sean una sola cosa. Hecho en la siguiente canary, dibujado
+  fuera de la app (barra plegada movida al borde derecho, `[x] minimapa` en
+  la franja y en el panel).
 
 ## Cómo probarlo
 
 **Dónde:** la canary de escritorio y la de Android desde el commit
-`003d9ae` (`1.5.1-canary.50` o posterior), contra un destino con escritorio remoto
+la canary que lleve el commit «Make the full screen bar one movable element» (posterior a `1.5.1-canary.50`), contra un destino con escritorio remoto
 (`<destino-escritorio>`).
 
 **Escritorio (portátil):**
@@ -71,17 +76,24 @@ según [[Controles del visor del escritorio remoto]].
    indicador de red, deben salir `ajustar | 1:1`, `− NN% +`,
    `Ctrl+Alt+Supr` y `[ ] completa`.
 2. Pulsar `1:1`: el destino se ve a su tamaño real, con un minimapa abajo a
-   la derecha. Llevar el ratón a un borde y dejarlo quieto: la vista se
+   la derecha. Su `[x]` lo oculta y `[ ] minimapa` en la franja lo vuelve a
+   enseñar. Llevar el ratón a un borde y dejarlo quieto: la vista se
    desplaza hacia ese lado y se para en el borde de la pantalla del destino.
    Hacer clic en algo tras desplazarse: el clic cae donde está el ratón.
 3. `+` y `−` cambian el zoom; `Ctrl+Alt` + rueda también.
 4. `[ ] completa` (o `Ctrl+Alt+Intro`): la ventana ocupa toda la pantalla,
    sin cabecera, pestañas ni franja, con un aviso abajo unos segundos.
-   Llevar el ratón arriba al centro: se despliega la barra con los
-   controles; `[ ] fijar` la deja abierta. Salir con
-   `[x] salir de completa` o `Ctrl+Alt+Intro`: la ventana vuelve a su tamaño.
-5. Cerrar la pestaña y volver a abrir la sesión: conserva la escala y el
-   zoom.
+   Arriba queda la barra plegada (asa `⋮⋮`, red, nombre, `▸`).
+   - Pasar el ratón por encima: la misma barra crece con los controles y se
+     pliega al irse el ratón; `[ ] fijar` la deja abierta.
+   - Arrastrarla por `⋮⋮` a otro sitio (a un lado, abajo): se queda ahí y,
+     al desplegarse, crece hacia donde hay sitio.
+   - `[ ] ocultar`: plegada desaparece; llevar el ratón al centro del borde
+     más cercano la vuelve a desplegar.
+   - Salir con `[x] salir de completa` o `Ctrl+Alt+Intro`: la ventana vuelve
+     a su tamaño.
+5. Cerrar la pestaña y volver a abrir la sesión: conserva la escala, el
+   zoom, el minimapa y dónde estaba la barra (y si se oculta).
 
 **Android:**
 

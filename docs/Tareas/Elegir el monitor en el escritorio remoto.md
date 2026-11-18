@@ -3,7 +3,7 @@ Nombre: 'Elegir el monitor en el escritorio remoto'
 Estado: 'Pendiente'
 Estado desde: 2026-11-18
 Resumen: 'Poder ver en el escritorio remoto un solo monitor del destino en vez de todos juntos, para que en una pantalla pequeña la imagen no se encoja a la mitad cuando el destino tiene dos monitores. Necesita que el agente diga qué monitores hay y dónde está cada uno (o que capture uno solo), y un selector «pantalla: todas | 1 | 2» en los controles del visor.'
-Decisiones: 'Sale del diseño de [[Controles del visor del escritorio remoto]] (2026-11-18), que ya reserva el selector. ADR-0031 dejó elegir monitor para una trama posterior.'
+Decisiones: 'Sale del diseño de [[Controles del visor del escritorio remoto con barra movible]] (2026-11-18), que ya reserva el selector. ADR-0031 dejó elegir monitor para una trama posterior.'
 Bloqueada: []
 Prueba: ''
 Esperando a: ''

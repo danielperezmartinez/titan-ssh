@@ -21,7 +21,7 @@ cuando el usuario solo usaba la app en el móvil: casi todo acababa en la
 franja y en una pantalla estrecha no cabe. Al usar el escritorio remoto desde
 un portátil, el usuario vio que en escritorio la franja tiene mucho sitio
 vacío y que los controles del visor quedaban bien en ella
-([[Controles del visor del escritorio remoto]]). El 2026-11-18 decidió
+([[Controles del visor del escritorio remoto con barra movible]]). El 2026-11-18 decidió
 separar la regla por plataforma.
 
 ## Decisión

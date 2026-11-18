@@ -130,7 +130,7 @@ fun MousepadView(
     softKeyboard: SoftKeyboardSettings = SoftKeyboardSettings(),
     fullscreen: Boolean = false,
     onFullscreen: (Boolean) -> Unit = {},
-    onViewChange: (actualSize: Boolean, zoom: Float) -> Unit = { _, _ -> },
+    onViewChange: (change: (DesktopSettings) -> DesktopSettings) -> Unit = {},
     savedView: DesktopSettings = tab.resolved.session.desktop,
 ) {
     val status by tab.status.collectAsState()
@@ -163,6 +163,9 @@ fun MousepadView(
     var mouseAt by remember(tab.id) { mutableStateOf<Offset?>(null) }
     var panelOpen by remember(tab.id) { mutableStateOf(false) }
     var bottomShown by remember(tab.id) { mutableStateOf(false) }
+    var minimap by remember(tab.id) { mutableStateOf(savedView.minimap) }
+    var barHides by remember(tab.id) { mutableStateOf(savedView.barHides) }
+    var barAt by remember(tab.id) { mutableStateOf(Offset(savedView.barX, savedView.barY)) }
     val screenSize by remember { derivedStateOf { screenView.value.surface?.let { IntSize(it.width, it.height) } } }
 
     fun setView(newActualSize: Boolean, newZoom: Float) {
@@ -170,7 +173,7 @@ fun MousepadView(
         zoom = newZoom.coerceIn(1f, MAX_DESKTOP_ZOOM)
         // A new scale starts around the cursor.
         pan = null
-        onViewChange(actualSize, zoom)
+        onViewChange { it.copy(actualSize = actualSize, zoom = zoom) }
     }
 
     fun viewport(view: ScreenView, size: IntSize): ScreenViewport? = view.surface?.let { s ->
@@ -230,6 +233,9 @@ fun MousepadView(
     // The viewer's controls (remote desktop only): in the desktop's strip and
     // full screen bar, behind [#] vista on a phone.
     val phone = isAndroidRuntime()
+    val cropped by remember {
+        derivedStateOf { viewport(screenView.value, surfaceSize)?.cropped == true }
+    }
     val controls = remote?.let {
         ViewerControls(
             actualSize = actualSize,
@@ -242,6 +248,11 @@ fun MousepadView(
                 (vp.scale * 100).roundToInt().takeIf { vp.scale > 0f }
             },
             fullscreen = fullscreen,
+            minimap = minimap.takeIf { cropped },
+            onMinimap = { on ->
+                minimap = on
+                onViewChange { it.copy(minimap = on) }
+            },
             onActualSize = { setView(it, zoom) },
             onZoom = { setView(actualSize, it) },
             onCtrlAltDel = { send(AgentFrame.Key(InputKeys.DELETE, InputKeys.MOD_CTRL or InputKeys.MOD_ALT)) },
@@ -384,7 +395,7 @@ fun MousepadView(
                                         // Pinching zooms a remote screen on a phone.
                                         pinch = if (remote != null && phone) ({ ratio -> zoom = (zoom * ratio).coerceIn(1f, MAX_DESKTOP_ZOOM) }) else null,
                                     )
-                                    if (zoom != before) onViewChange(actualSize, zoom)
+                                    if (zoom != before) onViewChange { it.copy(zoom = zoom) }
                                 }
                                 Gesture.Done -> Unit
                             }
@@ -413,13 +424,11 @@ fun MousepadView(
 
             // Siblings over the surface: what they cover does not reach the desktop.
             if (remote != null && controls != null) {
-                val cropped by remember {
-                    derivedStateOf { viewport(screenView.value, surfaceSize)?.cropped == true }
-                }
-                if (cropped) {
+                if (cropped && minimap) {
                     ScreenMinimap(
                         screenView,
                         viewport = { viewport(screenView.value, surfaceSize) },
+                        onHide = { controls.onMinimap(false) },
                         modifier = Modifier.align(Alignment.BottomEnd).padding(TitanDimens.SpaceLg),
                     )
                 }
@@ -429,7 +438,15 @@ fun MousepadView(
                         title = tab.title,
                         quality = quality,
                         live = status.phase == TabPhase.CONNECTED && !pad.blocked,
-                        modifier = Modifier.align(Alignment.TopCenter),
+                        at = barAt,
+                        onMove = { barAt = it },
+                        onMoved = { onViewChange { it.copy(barX = barAt.x, barY = barAt.y) } },
+                        hides = barHides,
+                        onHides = { on ->
+                            barHides = on
+                            onViewChange { it.copy(barHides = on) }
+                        },
+                        modifier = Modifier.fillMaxSize(),
                     )
                     FullscreenHint(Modifier.align(Alignment.BottomCenter).padding(bottom = TitanDimens.SpaceXxl))
                 }

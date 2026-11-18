@@ -350,11 +350,21 @@ data class DesktopSettings(
     /**
      * How the viewer shows the screen, as the user left it: fitted to the
      * view, or one screen pixel per view pixel ([[Controles del visor del
-     * escritorio remoto]]).
+     * escritorio remoto con barra movible]]).
      */
     val actualSize: Boolean = false,
     /** The viewer's zoom over [actualSize]'s scale, 1 to [MAX_DESKTOP_ZOOM]. */
     val zoom: Float = 1f,
+    /** Whether a cropped screen shows its minimap. */
+    val minimap: Boolean = true,
+    /**
+     * Full screen's floating bar, folded: gone until a mouse reaches the
+     * screen's edge (true), or kept small (false).
+     */
+    val barHides: Boolean = false,
+    /** Where the user dragged the floating bar: 0..1 of the room left around it, across and down. */
+    val barX: Float = 0.5f,
+    val barY: Float = 0f,
 )
 
 /** The largest zoom of the remote desktop viewer. */
