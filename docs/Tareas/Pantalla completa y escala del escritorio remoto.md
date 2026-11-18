@@ -1,15 +1,15 @@
 ---
 Nombre: 'Pantalla completa y escala del escritorio remoto'
-Estado: 'Por probar'
+Estado: 'Hecha'
 Estado desde: 2026-11-18
 Resumen: 'Dar al visor del escritorio remoto pantalla completa y modos de escala (ajustar a la ventana o tamaño real 1:1 con minimapa, más zoom siguiendo al cursor), porque en un portátil de pantalla pequeña el destino se ve tan reducido que cuesta leer. En escritorio los controles van en la franja de estado y en una barra flotante en pantalla completa; en el móvil, tras [#] vista, con pellizco para el zoom y modo inmersivo.'
 Decisiones: 'Diseño en [[Controles del visor del escritorio remoto con barra movible]] (tras la primera prueba en la canary.50: minimapa que se oculta y una sola barra flotante, movible y opcionalmente oculta) y regla de la franja en [[Franja de estado según la plataforma]] (2026-11-18). Elegir el monitor queda fuera: [[Elegir el monitor en el escritorio remoto]]. La calidad de imagen, si hace falta, en [[Calidad de imagen del escritorio remoto]]. El indicador de red de la franja es el componente que ya existe (ConnectionQualityBar); no se rehace.'
 Bloqueada: []
-Prueba: 'Pantalla completa, 1:1 con desplazamiento por los bordes y zoom del escritorio remoto en la canary de escritorio y de Android'
+Prueba: ''
 Esperando a: ''
 Versión: ''
 Fecha de creación: 2026-11-18T20:25:00+01:00
-Última modificación: 2026-11-18T22:30:00+01:00
+Última modificación: 2026-11-18T23:00:00+01:00
 ---
 
 # Pantalla completa y escala del escritorio remoto
@@ -110,4 +110,21 @@ la canary que lleve el commit «Make the full screen bar one movable element» (
 
 ## Resultado
 
-<Se rellena al completar.>
+Probado por el usuario en la canary `1.5.1-canary.51` (escritorio y Android,
+2026-11-18). El visor del escritorio remoto tiene:
+
+- Escala ajustar o 1:1 y zoom (− / + en escritorio, Ctrl+Alt+rueda, panel y
+  pellizco en Android), con desplazamiento por los bordes con ratón.
+- Minimapa cuando la imagen no cabe, que se oculta con su `[x]` y vuelve con
+  `[ ] minimapa`.
+- Controles en la franja en escritorio y tras `[#] vista` en Android
+  ([[Franja de estado según la plataforma]]).
+- Pantalla completa: en escritorio, ventana a pantalla completa con una sola
+  barra flotante plegable, movible y opcionalmente oculta (vuelve desde el
+  borde); en Android, modo inmersivo con `[≡]` y `[⌨]`. Ctrl+Alt+Intro entra
+  y sale.
+- Escala, zoom, minimapa y la posición y el modo de la barra se guardan en la
+  sesión.
+
+Queda aparte: [[Elegir el monitor en el escritorio remoto]] y, si hace falta,
+[[Calidad de imagen del escritorio remoto]].
