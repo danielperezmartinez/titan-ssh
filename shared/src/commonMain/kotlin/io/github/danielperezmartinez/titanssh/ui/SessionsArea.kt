@@ -51,6 +51,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.zIndex
 import io.github.danielperezmartinez.titanssh.config.ConfigController
+import io.github.danielperezmartinez.titanssh.config.DesktopSettings
 import io.github.danielperezmartinez.titanssh.config.ResilienceLevel
 import io.github.danielperezmartinez.titanssh.config.ResolvedConnection
 import io.github.danielperezmartinez.titanssh.config.SessionScript
@@ -90,6 +91,7 @@ fun SessionsArea(
     onOpenAgent: (AgentHost) -> Unit,
     openLauncher: Boolean = false,
     onConfigureKeyBar: () -> Unit = {},
+    immersive: ImmersiveState = remember { ImmersiveState() },
 ) {
     val config by controller.state.collectAsState()
     val keyBar = remember(config.settings.keyBar) { KeyBar.resolve(config.settings.keyBar) }
@@ -147,6 +149,22 @@ fun SessionsArea(
         manager.open(resolved, next, mustBeNew = true)
     }
 
+    // A remote desktop's full screen ([ImmersiveState]): only its view, which
+    // carries its own way out. It ends when its tab closes.
+    fun setImmersive(tab: SessionTab, on: Boolean) {
+        immersive.tabId = if (on) tab.id else null
+    }
+    val view = SessionViewHooks(controller, ::setImmersive)
+    val immersiveTab = tabs.firstOrNull { it.id == immersive.tabId && it.isDesktop }
+    if (immersive.tabId != null && immersiveTab == null) immersive.tabId = null
+    if (immersiveTab != null) {
+        TabContent(
+            immersiveTab, Modifier.fillMaxSize(), scripts = emptyList(), keyBar, onConfigureKeyBar, softKeyboard,
+            view, fullscreen = true,
+        )
+        return
+    }
+
     if (fullscreen && isAndroidRuntime()) {
         val sftp = active.sftp
         if (sftp != null) {
@@ -155,7 +173,7 @@ fun SessionsArea(
             return
         }
         Box(Modifier.fillMaxSize()) {
-            TabContent(active, Modifier.fillMaxSize(), scripts = config.menuScripts(active), keyBar, onConfigureKeyBar, softKeyboard)
+            TabContent(active, Modifier.fillMaxSize(), scripts = config.menuScripts(active), keyBar, onConfigureKeyBar, softKeyboard, view)
             GlyphButton(
                 "[v]",
                 onClick = { fullscreen = false },
@@ -181,7 +199,8 @@ fun SessionsArea(
             onNew = { showLauncher = true },
             split = splitEnabled,
             onToggleSplit = if (!isAndroidRuntime()) ({ splitEnabled = !splitEnabled }) else null,
-            onFullscreen = if (isAndroidRuntime()) ({ fullscreen = true }) else null,
+            // A remote desktop goes to its own full screen, the rest to the tab's.
+            onFullscreen = if (isAndroidRuntime()) ({ if (active.isDesktop) setImmersive(active, true) else fullscreen = true }) else null,
             menuTabId = menuTabId,
             onMenu = {
                 menuTabId = it
@@ -267,12 +286,12 @@ fun SessionsArea(
         val secondary = if (splitEnabled && !isAndroidRuntime()) secondaryTab(tabs, active) else null
         if (secondary != null) {
             Row(Modifier.fillMaxSize()) {
-                TabContent(active, Modifier.weight(1f).fillMaxHeight(), scripts = config.menuScripts(active), keyBar, onConfigureKeyBar, softKeyboard)
+                TabContent(active, Modifier.weight(1f).fillMaxHeight(), scripts = config.menuScripts(active), keyBar, onConfigureKeyBar, softKeyboard, view)
                 Box(Modifier.width(TitanDimens.Hairline).fillMaxHeight().background(TitanColors.HairlineStrong))
-                TabContent(secondary, Modifier.weight(1f).fillMaxHeight(), scripts = config.menuScripts(secondary), keyBar, onConfigureKeyBar, softKeyboard)
+                TabContent(secondary, Modifier.weight(1f).fillMaxHeight(), scripts = config.menuScripts(secondary), keyBar, onConfigureKeyBar, softKeyboard, view)
             }
         } else {
-            TabContent(active, Modifier.fillMaxSize(), scripts = config.menuScripts(active), keyBar, onConfigureKeyBar, softKeyboard)
+            TabContent(active, Modifier.fillMaxSize(), scripts = config.menuScripts(active), keyBar, onConfigureKeyBar, softKeyboard, view)
         }
     }
 }
@@ -297,10 +316,18 @@ private fun TabContent(
     keyBar: List<KeyBarKey>,
     onConfigureKeyBar: () -> Unit,
     softKeyboard: SoftKeyboardSettings,
+    view: SessionViewHooks,
+    fullscreen: Boolean = false,
 ) {
     val sftp = tab.sftp
     if (tab.isMousepad || tab.isDesktop) {
-        MousepadView(tab, modifier, keyBar = keyBar, onConfigureKeyBar = onConfigureKeyBar, softKeyboard = softKeyboard)
+        MousepadView(
+            tab, modifier, keyBar = keyBar, onConfigureKeyBar = onConfigureKeyBar, softKeyboard = softKeyboard,
+            fullscreen = fullscreen,
+            onFullscreen = { view.setFullscreen(tab, it) },
+            onViewChange = { actualSize, zoom -> view.saveView(tab, actualSize, zoom) },
+            savedView = view.savedDesktop(tab),
+        )
     } else if (sftp != null) {
         SftpView(tab, sftp, modifier)
     } else {
@@ -308,6 +335,26 @@ private fun TabContent(
             tab, modifier, scripts = scripts, keyBar = keyBar, onConfigureKeyBar = onConfigureKeyBar,
             softKeyboard = softKeyboard,
         )
+    }
+}
+
+/**
+ * What a tab's view changes outside itself: the app's full screen, and the
+ * remote desktop viewer's scale saved in its session, so it opens as it was
+ * left ([[Controles del visor del escritorio remoto]]).
+ */
+private class SessionViewHooks(
+    private val controller: ConfigController,
+    val setFullscreen: (SessionTab, Boolean) -> Unit,
+) {
+    /** The remote desktop settings saved now for [tab]'s session, or those it opened with. */
+    fun savedDesktop(tab: SessionTab): DesktopSettings =
+        controller.state.value.sessions.firstOrNull { it.id == tab.resolved.session.id }?.desktop ?: tab.resolved.session.desktop
+
+    fun saveView(tab: SessionTab, actualSize: Boolean, zoom: Float) {
+        val saved = controller.state.value.sessions.firstOrNull { it.id == tab.resolved.session.id } ?: return
+        if (saved.desktop.actualSize == actualSize && saved.desktop.zoom == zoom) return
+        controller.upsertSession(saved.copy(desktop = saved.desktop.copy(actualSize = actualSize, zoom = zoom)))
     }
 }
 

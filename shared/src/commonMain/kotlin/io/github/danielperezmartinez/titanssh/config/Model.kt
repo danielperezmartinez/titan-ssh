@@ -347,7 +347,18 @@ data class DesktopSettings(
      * and GNOME on Wayland). The agent panel shows it and takes it away.
      */
     val unattended: Boolean = false,
+    /**
+     * How the viewer shows the screen, as the user left it: fitted to the
+     * view, or one screen pixel per view pixel ([[Controles del visor del
+     * escritorio remoto]]).
+     */
+    val actualSize: Boolean = false,
+    /** The viewer's zoom over [actualSize]'s scale, 1 to [MAX_DESKTOP_ZOOM]. */
+    val zoom: Float = 1f,
 )
+
+/** The largest zoom of the remote desktop viewer. */
+const val MAX_DESKTOP_ZOOM = 4f
 
 /**
  * What launching a saved session does when it already has instances open in

@@ -5,6 +5,11 @@ import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import io.github.danielperezmartinez.titanssh.ui.LocalSystemFullscreen
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import io.github.danielperezmartinez.titanssh.App
@@ -41,7 +46,23 @@ class MainActivity : ComponentActivity() {
             // Real product UI: the two-area shell (Configuración / Sesiones).
             // The hardware-signer manual test (HardwareSignerTestScreen) stays in
             // the source tree as a debug harness but is no longer the entrypoint.
-            App()
+            CompositionLocalProvider(LocalSystemFullscreen provides ::hideSystemBars) {
+                App()
+            }
+        }
+    }
+
+    /**
+     * A remote desktop's full screen hides the system bars; a swipe from an
+     * edge shows them for a moment ([[Controles del visor del escritorio remoto]]).
+     */
+    private fun hideSystemBars(on: Boolean) {
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        if (on) {
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+        } else {
+            controller.show(WindowInsetsCompat.Type.systemBars())
         }
     }
 }

@@ -138,6 +138,14 @@ fun AppShell() {
         // so it starts on the Sesiones tab instead of Hosts.
         var configOnSessions by remember { mutableStateOf(false) }
 
+        // A remote desktop in full screen hides the header too; the platform
+        // follows it ([LocalSystemFullscreen]) and it ends off Sesiones.
+        val immersive = remember { ImmersiveState() }
+        val systemFullscreen = LocalSystemFullscreen.current
+        if (screen != Screen.SESSIONS) immersive.tabId = null
+        val fullscreen = immersive.tabId != null
+        LaunchedEffect(fullscreen) { systemFullscreen(fullscreen) }
+
         Surface(Modifier.fillMaxSize(), color = TitanColors.Canvas) {
             // The canvas colour reaches the screen edges (edge-to-edge on Android);
             // the content keeps clear of the system bars, the display cutout and the
@@ -155,13 +163,15 @@ fun AppShell() {
                     editingSessionId = null
                     configOnSessions = false
                 }
-                AppHeader(
-                    current = screen,
-                    onAbout = { toggle(Screen.ABOUT) },
-                    onConfig = { toggle(Screen.CONFIG) },
-                    updateReady = updateState.showsInHeader(),
-                )
-                Hairline()
+                if (!fullscreen) {
+                    AppHeader(
+                        current = screen,
+                        onAbout = { toggle(Screen.ABOUT) },
+                        onConfig = { toggle(Screen.CONFIG) },
+                        updateReady = updateState.showsInHeader(),
+                    )
+                    Hairline()
+                }
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     val home = {
                         screen = Screen.SESSIONS
@@ -192,6 +202,7 @@ fun AppShell() {
                                 screen = Screen.CONFIG
                             },
                             openLauncher = backToLauncher,
+                            immersive = immersive,
                             onConfigureKeyBar = {
                                 backToLauncher = false
                                 screen = Screen.KEY_BAR

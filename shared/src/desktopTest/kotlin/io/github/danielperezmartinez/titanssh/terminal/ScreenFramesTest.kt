@@ -6,6 +6,7 @@ import java.util.zip.Deflater
 import javax.imageio.ImageIO
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -154,5 +155,42 @@ class ScreenFramesTest {
         assertEquals(1f, zoomed.scale)
         assertEquals(640f - 1280f, zoomed.offsetX)
         assertEquals(1270 to 400, zoomed.toScreen(630f, 400f))
+    }
+
+    @Test
+    fun actual_size_is_one_pixel_per_pixel_and_zooms_from_there() {
+        // A 1920x1080 screen at 1:1 in a 1280x700 view: cropped, around the focus.
+        val real = ScreenViewport(1280f, 700f, 1920, 1080, focusX = 960f, focusY = 540f, actualSize = true)
+        assertEquals(1f, real.scale)
+        assertTrue(real.cropped)
+        assertEquals(640f - 960f, real.offsetX)
+        assertEquals(960 to 540, real.toScreen(640f, 350f))
+        assertEquals(2f, real.copy(zoom = 2f).scale)
+
+        // A screen smaller than the view is centred, not cropped.
+        val small = ScreenViewport(1280f, 700f, 800, 600, actualSize = true)
+        assertEquals(240f, small.offsetX)
+        assertFalse(small.cropped)
+        assertFalse(ScreenViewport(1280f, 700f, 1920, 1080).cropped)
+    }
+
+    @Test
+    fun a_mouse_at_an_edge_pans_until_the_screen_ends() {
+        val vp = ScreenViewport(1000f, 500f, 2000, 1000, focusX = 1000f, focusY = 500f, actualSize = true)
+        // In the middle nothing moves.
+        assertEquals(1000f to 500f, vp.edgePan(500f, 250f, seconds = 0.1f, edge = 50f))
+        // At the very right edge, full speed to the right only.
+        val (x, y) = vp.edgePan(1000f, 250f, seconds = 0.1f, edge = 50f, speed = 1000f)
+        assertEquals(1100f, x)
+        assertEquals(500f, y)
+        // Halfway into the left band, half speed to the left.
+        assertEquals(950f, vp.edgePan(25f, 250f, seconds = 0.1f, edge = 50f, speed = 1000f).first)
+        // Never past the screen: the focus stops half a view from its edge.
+        assertEquals(1500f, vp.edgePan(1000f, 250f, seconds = 10f, edge = 50f).first)
+        assertEquals(250f, vp.edgePan(500f, 0f, seconds = 10f, edge = 50f).second)
+        // A focus already past the edge pans from what shows, not from it.
+        val stuck = vp.copy(focusX = 5000f)
+        assertEquals(1500f, stuck.edgePan(1000f, 250f, seconds = 0.1f, edge = 50f).first)
+        assertEquals(1400f, stuck.edgePan(0f, 250f, seconds = 0.1f, edge = 50f, speed = 1000f).first)
     }
 }

@@ -27,7 +27,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.withFrameNanos
+import io.github.danielperezmartinez.titanssh.config.DesktopSettings
+import io.github.danielperezmartinez.titanssh.config.MAX_DESKTOP_ZOOM
+import kotlin.math.abs
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -56,6 +62,8 @@ import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.isAltPressed
+import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.isPrimaryPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.isTertiaryPressed
@@ -120,6 +128,10 @@ fun MousepadView(
     keyBar: List<KeyBarKey> = emptyList(),
     onConfigureKeyBar: () -> Unit = {},
     softKeyboard: SoftKeyboardSettings = SoftKeyboardSettings(),
+    fullscreen: Boolean = false,
+    onFullscreen: (Boolean) -> Unit = {},
+    onViewChange: (actualSize: Boolean, zoom: Float) -> Unit = { _, _ -> },
+    savedView: DesktopSettings = tab.resolved.session.desktop,
 ) {
     val status by tab.status.collectAsState()
     val pad by tab.mousepad.collectAsState()
@@ -143,7 +155,34 @@ fun MousepadView(
     val noScreen = remember { MutableStateFlow(ScreenView()) }
     val screenView = (remote?.view ?: noScreen).collectAsState()
     var surfaceSize by remember { mutableStateOf(IntSize.Zero) }
-    var zoom by remember(tab.id) { mutableIntStateOf(1) }
+    // How the viewer shows the screen, as the session last left it, and where
+    // a mouse panned it to (null: the view follows the remote cursor).
+    var actualSize by remember(tab.id) { mutableStateOf(savedView.actualSize) }
+    var zoom by remember(tab.id) { mutableFloatStateOf(savedView.zoom.coerceIn(1f, MAX_DESKTOP_ZOOM)) }
+    var pan by remember(tab.id) { mutableStateOf<Offset?>(null) }
+    var mouseAt by remember(tab.id) { mutableStateOf<Offset?>(null) }
+    var panelOpen by remember(tab.id) { mutableStateOf(false) }
+    var bottomShown by remember(tab.id) { mutableStateOf(false) }
+    val screenSize by remember { derivedStateOf { screenView.value.surface?.let { IntSize(it.width, it.height) } } }
+
+    fun setView(newActualSize: Boolean, newZoom: Float) {
+        actualSize = newActualSize
+        zoom = newZoom.coerceIn(1f, MAX_DESKTOP_ZOOM)
+        // A new scale starts around the cursor.
+        pan = null
+        onViewChange(actualSize, zoom)
+    }
+
+    fun viewport(view: ScreenView, size: IntSize): ScreenViewport? = view.surface?.let { s ->
+        val focus = pan
+        ScreenViewport(
+            size.width.toFloat(), size.height.toFloat(), s.width, s.height,
+            zoom = zoom,
+            focusX = focus?.x ?: view.cursorX.toFloat(),
+            focusY = focus?.y ?: view.cursorY.toFloat(),
+            actualSize = actualSize,
+        )
+    }
     var hovering by remember { mutableStateOf(false) }
 
     // Sticky modifiers (InputKeys.MOD_*) for the next key or character.
@@ -188,6 +227,33 @@ fun MousepadView(
         send(AgentFrame.PointerButton(button, pressed = false))
     }
 
+    // The viewer's controls (remote desktop only): in the desktop's strip and
+    // full screen bar, behind [#] vista on a phone.
+    val phone = isAndroidRuntime()
+    val controls = remote?.let {
+        ViewerControls(
+            actualSize = actualSize,
+            zoom = zoom,
+            percent = screenSize?.let { size ->
+                val vp = ScreenViewport(
+                    surfaceSize.width.toFloat(), surfaceSize.height.toFloat(), size.width, size.height,
+                    zoom = zoom, actualSize = actualSize,
+                )
+                (vp.scale * 100).roundToInt().takeIf { vp.scale > 0f }
+            },
+            fullscreen = fullscreen,
+            onActualSize = { setView(it, zoom) },
+            onZoom = { setView(actualSize, it) },
+            onCtrlAltDel = { send(AgentFrame.Key(InputKeys.DELETE, InputKeys.MOD_CTRL or InputKeys.MOD_ALT)) },
+            onFullscreen = { on ->
+                panelOpen = false
+                onFullscreen(on)
+            },
+        )
+    }
+
+    val currentControls by rememberUpdatedState(controls)
+
     Column(modifier.fillMaxSize().background(TitanColors.TerminalBg).imePadding()) {
         pendingHostKey?.let { pending ->
             HostKeyPromptBar(
@@ -205,109 +271,216 @@ fun MousepadView(
         }
         var causeOpen by remember(tab.id) { mutableStateOf(false) }
         val cause = status.cause
-        MousepadStatusStrip(
-            status,
-            watchedQuality(tab),
-            pad,
-            onReconnect = { tab.reconnectNow() },
-            causeOpen = causeOpen && cause != null,
-            onToggleCause = if (cause != null) ({ causeOpen = !causeOpen }) else null,
-            // Zoom is for touch: a mouse points at the screen itself.
-            zoom = if (remote != null && isAndroidRuntime()) zoom else null,
-            onZoom = { zoom = if (zoom >= MAX_ZOOM) 1 else zoom + 1 },
-        )
-        Hairline()
-        if (causeOpen && cause != null) {
-            StatusDetailPanel(cause)
-            Hairline()
-        }
-
-        Box(
-            Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                // A zoomed remote screen draws past the surface: keep it inside.
-                .clipToBounds()
-                .focusRequester(surfaceFocus)
-                .focusable()
-                .onPreviewKeyEvent { event ->
-                    val frames = hardwareTyping.frames(event) ?: return@onPreviewKeyEvent false
-                    frames.forEach(::send)
-                    true
-                }
-                .onSizeChanged { surfaceSize = it }
-                .then(
-                    if (remote != null) {
-                        Modifier.pointerInput(tab.id) {
-                            mouseOnScreen(
-                                viewport = {
-                                    screenViewport(screenView.value, surfaceSize.width.toFloat(), surfaceSize.height.toFloat(), zoom)
-                                },
-                                onHover = { hovering = it },
-                                onPress = { surfaceFocus.requestFocus() },
-                                send = ::send,
+        val quality = watchedQuality(tab)
+        if (!fullscreen) {
+            MousepadStatusStrip(
+                status,
+                quality,
+                pad,
+                onReconnect = { tab.reconnectNow() },
+                causeOpen = causeOpen && cause != null,
+                onToggleCause = if (cause != null) ({ causeOpen = !causeOpen }) else null,
+                // Desktop: the controls themselves; a phone: [#] vista, which opens them.
+                trailing = controls?.let { c ->
+                    {
+                        if (phone) {
+                            Text(
+                                "[#] vista · ${c.summary(phone = true)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TitanColors.Accent,
+                                modifier = Modifier
+                                    .clickable { panelOpen = !panelOpen }
+                                    .padding(horizontal = TitanDimens.SpaceXs, vertical = TitanDimens.SpaceSm),
                             )
-                        }
-                    } else {
-                        Modifier
-                    },
-                )
-                .pointerInput(tab.id) {
-                    val slop = viewConfiguration.touchSlop
-                    val holdMillis = viewConfiguration.longPressTimeoutMillis
-                    awaitEachGesture {
-                        val first = awaitFirstDown(requireUnconsumed = false)
-                        // On a remote desktop a mouse points at the screen (mouseOnScreen).
-                        if (remote != null && first.type == PointerType.Mouse) return@awaitEachGesture
-                        if (!isAndroidRuntime()) surfaceFocus.requestFocus()
-                        motion.reset()
-                        when (val start = decideGesture(slop, holdMillis)) {
-                            is Gesture.Tap -> click(
-                                when (start.fingers) {
-                                    1 -> InputKeys.BUTTON_LEFT
-                                    2 -> InputKeys.BUTTON_RIGHT
-                                    else -> InputKeys.BUTTON_MIDDLE
-                                },
-                            )
-                            Gesture.Hold -> {
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                send(AgentFrame.PointerButton(InputKeys.BUTTON_LEFT, pressed = true))
-                                track(first.uptimeMillis, dragging = true, scrolling = false, density.density, motion, ::send)
-                                send(AgentFrame.PointerButton(InputKeys.BUTTON_LEFT, pressed = false))
-                            }
-                            is Gesture.Slide -> track(
-                                first.uptimeMillis, dragging = false, scrolling = start.fingers >= 2,
-                                density.density, motion, ::send,
-                            )
-                            Gesture.Done -> Unit
+                        } else {
+                            ViewerStripControls(c, Modifier.padding(horizontal = TitanDimens.SpaceXs))
                         }
                     }
                 },
-            contentAlignment = Alignment.Center,
-        ) {
-            if (remote != null) {
-                RemoteScreenCanvas(
-                    screenView,
-                    zoom,
-                    dimmed = status.phase != TabPhase.CONNECTED || pad.blocked,
-                    showCursor = !hovering,
-                    cursorMinScale = density.density,
-                )
-                // Over the image, only what keeps it from being live.
-                if (status.phase != TabPhase.CONNECTED || !pad.ready || pad.blocked) {
-                    Box(Modifier.background(TitanColors.TerminalBg.copy(alpha = 0.85f))) {
-                        SurfaceMessage(status, pad, remote = true)
+            )
+            Hairline()
+            if (causeOpen && cause != null) {
+                StatusDetailPanel(cause)
+                Hairline()
+            }
+        }
+
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    // A zoomed remote screen draws past the surface: keep it inside.
+                    .clipToBounds()
+                    .focusRequester(surfaceFocus)
+                    .focusable()
+                    .onPreviewKeyEvent { event ->
+                        // Ctrl+Alt+Intro is the viewer's: full screen in and out.
+                        if (remote != null && event.isCtrlPressed && event.isAltPressed &&
+                            (event.key == Key.Enter || event.key == Key.NumPadEnter)
+                        ) {
+                            if (event.type == KeyEventType.KeyDown) controls?.let { it.onFullscreen(!it.fullscreen) }
+                            return@onPreviewKeyEvent true
+                        }
+                        val frames = hardwareTyping.frames(event) ?: return@onPreviewKeyEvent false
+                        frames.forEach(::send)
+                        true
+                    }
+                    .onSizeChanged { surfaceSize = it }
+                    .then(
+                        if (remote != null) {
+                            Modifier.pointerInput(tab.id) {
+                                mouseOnScreen(
+                                    viewport = {
+                                        // A mouse points at what it sees: the view stays put
+                                        // under it and pans only at the edges.
+                                        if (pan == null) pan = viewport(screenView.value, surfaceSize)?.let { Offset(it.focusX, it.focusY) }
+                                        viewport(screenView.value, surfaceSize)
+                                    },
+                                    onHover = { hovering = it },
+                                    onMove = { mouseAt = it },
+                                    onPress = { surfaceFocus.requestFocus() },
+                                    onZoomWheel = { up ->
+                                        currentControls?.let { c -> (if (up) c.zoomIn() else c.zoomOut())?.let(c.onZoom) }
+                                    },
+                                    send = ::send,
+                                )
+                            }
+                        } else {
+                            Modifier
+                        },
+                    )
+                    .pointerInput(tab.id) {
+                        val slop = viewConfiguration.touchSlop
+                        val holdMillis = viewConfiguration.longPressTimeoutMillis
+                        awaitEachGesture {
+                            val first = awaitFirstDown(requireUnconsumed = false)
+                            // On a remote desktop a mouse points at the screen (mouseOnScreen).
+                            if (remote != null && first.type == PointerType.Mouse) return@awaitEachGesture
+                            if (!isAndroidRuntime()) surfaceFocus.requestFocus()
+                            // Touch moves the remote cursor: the view follows it again.
+                            pan = null
+                            mouseAt = null
+                            panelOpen = false
+                            motion.reset()
+                            when (val start = decideGesture(slop, holdMillis)) {
+                                is Gesture.Tap -> click(
+                                    when (start.fingers) {
+                                        1 -> InputKeys.BUTTON_LEFT
+                                        2 -> InputKeys.BUTTON_RIGHT
+                                        else -> InputKeys.BUTTON_MIDDLE
+                                    },
+                                )
+                                Gesture.Hold -> {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    send(AgentFrame.PointerButton(InputKeys.BUTTON_LEFT, pressed = true))
+                                    track(first.uptimeMillis, dragging = true, scrolling = false, density.density, motion, ::send)
+                                    send(AgentFrame.PointerButton(InputKeys.BUTTON_LEFT, pressed = false))
+                                }
+                                is Gesture.Slide -> {
+                                    val before = zoom
+                                    track(
+                                        first.uptimeMillis, dragging = false, scrolling = start.fingers >= 2,
+                                        density.density, motion, ::send,
+                                        // Pinching zooms a remote screen on a phone.
+                                        pinch = if (remote != null && phone) ({ ratio -> zoom = (zoom * ratio).coerceIn(1f, MAX_DESKTOP_ZOOM) }) else null,
+                                    )
+                                    if (zoom != before) onViewChange(actualSize, zoom)
+                                }
+                                Gesture.Done -> Unit
+                            }
+                        }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (remote != null) {
+                    RemoteScreenCanvas(
+                        screenView,
+                        viewport = { viewport(screenView.value, surfaceSize) },
+                        dimmed = status.phase != TabPhase.CONNECTED || pad.blocked,
+                        showCursor = !hovering,
+                        cursorMinScale = density.density,
+                    )
+                    // Over the image, only what keeps it from being live.
+                    if (status.phase != TabPhase.CONNECTED || !pad.ready || pad.blocked) {
+                        Box(Modifier.background(TitanColors.TerminalBg.copy(alpha = 0.85f))) {
+                            SurfaceMessage(status, pad, remote = true)
+                        }
+                    }
+                } else {
+                    SurfaceMessage(status, pad)
+                }
+            }
+
+            // Siblings over the surface: what they cover does not reach the desktop.
+            if (remote != null && controls != null) {
+                val cropped by remember {
+                    derivedStateOf { viewport(screenView.value, surfaceSize)?.cropped == true }
+                }
+                if (cropped) {
+                    ScreenMinimap(
+                        screenView,
+                        viewport = { viewport(screenView.value, surfaceSize) },
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(TitanDimens.SpaceLg),
+                    )
+                }
+                if (fullscreen && !phone) {
+                    FullscreenBar(
+                        controls = controls,
+                        title = tab.title,
+                        quality = quality,
+                        live = status.phase == TabPhase.CONNECTED && !pad.blocked,
+                        modifier = Modifier.align(Alignment.TopCenter),
+                    )
+                    FullscreenHint(Modifier.align(Alignment.BottomCenter).padding(bottom = TitanDimens.SpaceXxl))
+                }
+                if (fullscreen && phone) {
+                    Column(Modifier.align(Alignment.TopEnd).padding(TitanDimens.SpaceSm)) {
+                        FloatingGlyph("[≡]", onClick = { panelOpen = !panelOpen })
+                    }
+                    Column(Modifier.align(Alignment.BottomEnd).padding(TitanDimens.SpaceSm)) {
+                        FloatingGlyph("[⌨]", onClick = { bottomShown = !bottomShown })
                     }
                 }
-            } else {
-                SurfaceMessage(status, pad)
+                if (panelOpen && phone) {
+                    ViewerPanel(
+                        controls,
+                        Modifier
+                            .align(Alignment.TopCenter)
+                            .then(if (fullscreen) Modifier.padding(end = TitanDimens.TouchTarget + TitanDimens.SpaceSm) else Modifier),
+                    )
+                }
             }
         }
         LaunchedEffect(tab.id) { if (!isAndroidRuntime()) surfaceFocus.requestFocus() }
 
-        Hairline()
+        // A mouse resting near an edge of a cropped screen pans the view there,
+        // and the remote pointer stays under it.
+        if (remote != null) {
+            LaunchedEffect(tab.id) {
+                var last = 0L
+                while (true) {
+                    withFrameNanos { now ->
+                        val seconds = if (last == 0L) 0f else ((now - last) / 1e9f).coerceAtMost(0.1f)
+                        last = now
+                        val at = mouseAt ?: return@withFrameNanos
+                        val vp = viewport(screenView.value, surfaceSize) ?: return@withFrameNanos
+                        if (!hovering || !vp.cropped || seconds <= 0f) return@withFrameNanos
+                        val (fx, fy) = vp.edgePan(at.x, at.y, seconds, edge = EDGE_PAN_BAND_DP * density.density)
+                        if (fx == vp.focusX && fy == vp.focusY) return@withFrameNanos
+                        pan = Offset(fx, fy)
+                        val moved = vp.copy(focusX = fx, focusY = fy)
+                        val (x, y) = moved.toScreen(at.x, at.y)
+                        send(AgentFrame.PointerTo(x, y))
+                    }
+                }
+            }
+        }
+
+        // In a phone's full screen, the buttons and the key bar show on request.
+        val bottomControls = !fullscreen || bottomShown
+        if (bottomControls) Hairline()
         // A remote desktop with a mouse has its buttons already.
-        if (remote == null || isAndroidRuntime()) {
+        if (bottomControls && (remote == null || isAndroidRuntime())) {
             Row(Modifier.fillMaxWidth().height(56.dp)) {
                 listOf(
                     "izquierdo" to InputKeys.BUTTON_LEFT,
@@ -328,7 +501,7 @@ fun MousepadView(
 
         // The key bar and the system keyboard are the phone's: on the
         // desktop, as in the terminal, the physical keyboard has every key.
-        if (isAndroidRuntime()) {
+        if (bottomControls && isAndroidRuntime()) {
             val ime = WindowInsets.ime
             val keyboardVisible by remember(ime, density) { derivedStateOf { ime.getBottom(density) > 0 } }
             Column(Modifier.fillMaxWidth().background(TitanColors.Canvas)) {
@@ -411,13 +584,28 @@ private suspend fun AwaitPointerEventScope.track(
     density: Float,
     motion: MousepadMotion,
     send: (AgentFrame) -> Unit,
+    pinch: ((ratio: Float) -> Unit)? = null,
 ) {
     var last = startMillis
     var scroll = scrolling && !dragging
+    // Two fingers spreading or closing past a margin pinch instead of scrolling.
+    var startSpread = 0f
+    var pinching = false
     while (true) {
         val event = awaitPointerEvent()
         val down = event.changes.filter { it.pressed }
         if (down.isEmpty()) return
+        if (pinch != null && down.size >= 2) {
+            val spread = (down[0].position - down[1].position).getDistance()
+            val before = (down[0].previousPosition - down[1].previousPosition).getDistance()
+            if (startSpread == 0f) startSpread = before
+            if (!pinching && startSpread > 0f && abs(spread / startSpread - 1f) > PINCH_START) pinching = true
+            if (pinching) {
+                if (before > 0f && spread > 0f) pinch(spread / before)
+                event.changes.forEach { it.consume() }
+                continue
+            }
+        }
         val now = down.first().uptimeMillis
         val elapsed = (now - last).coerceAtLeast(1)
         last = now
@@ -428,6 +616,9 @@ private suspend fun AwaitPointerEventScope.track(
         event.changes.forEach { it.consume() }
     }
 }
+
+/** How far two fingers spread or close, as a share of their first distance, before they pinch. */
+private const val PINCH_START = 0.12f
 
 private fun averageChange(changes: List<PointerInputChange>): Offset {
     if (changes.isEmpty()) return Offset.Zero
@@ -448,8 +639,7 @@ private fun MousepadStatusStrip(
     onReconnect: () -> Unit,
     causeOpen: Boolean,
     onToggleCause: (() -> Unit)?,
-    zoom: Int? = null,
-    onZoom: () -> Unit = {},
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     val (marker, color, label) = when {
         status.phase == TabPhase.CONNECTED && pad.blocked -> Triple("[!]", TitanColors.Warning, "Escritorio bloqueado")
@@ -488,14 +678,7 @@ private fun MousepadStatusStrip(
                 .weight(1f)
                 .then(if (onToggleCause != null) Modifier.clickable(onClick = onToggleCause) else Modifier),
         )
-        if (zoom != null) {
-            Text(
-                "zoom ${zoom}x",
-                style = MaterialTheme.typography.labelSmall,
-                color = TitanColors.Accent,
-                modifier = Modifier.clickable(onClick = onZoom).padding(horizontal = TitanDimens.SpaceXs),
-            )
-        }
+        trailing?.invoke()
         if (status.phase == TabPhase.RECONNECTING || status.phase == TabPhase.DISCONNECTED || status.phase == TabPhase.FAILED) {
             Text(
                 "reconectar",
@@ -539,20 +722,11 @@ private fun SurfaceMessage(status: TabStatus, pad: MousepadStatus, remote: Boole
     )
 }
 
-/** The touch zoom steps of a remote desktop: 1x (whole screen) to this. */
-private const val MAX_ZOOM = 3
-
-/** How [view]'s screen fits a surface of [width]×[height] at [zoom], following the cursor. */
-private fun screenViewport(view: ScreenView, width: Float, height: Float, zoom: Int): ScreenViewport? =
-    view.surface?.let { s ->
-        ScreenViewport(
-            width, height, s.width, s.height,
-            zoom = zoom.toFloat(), focusX = view.cursorX.toFloat(), focusY = view.cursorY.toFloat(),
-        )
-    }
+/** How deep, in dp, the band along a cropped screen's edges is where a resting mouse pans it. */
+private const val EDGE_PAN_BAND_DP = 48f
 
 /**
- * The remote screen (ADR-0029) fitted into the surface at [zoom], with the
+ * The remote screen (ADR-0029) as [viewport] places it, with the
  * remote cursor on top when [showCursor]. The cursor is drawn at least
  * [cursorMinScale] view pixels per screen pixel, so it stays visible on a
  * phone that shows a large screen small. [dimmed] while not connected: it is
@@ -562,7 +736,7 @@ private fun screenViewport(view: ScreenView, width: Float, height: Float, zoom: 
 @Composable
 private fun RemoteScreenCanvas(
     screen: State<ScreenView>,
-    zoom: Int,
+    viewport: () -> ScreenViewport?,
     dimmed: Boolean,
     showCursor: Boolean,
     cursorMinScale: Float,
@@ -570,7 +744,7 @@ private fun RemoteScreenCanvas(
     Canvas(Modifier.fillMaxSize()) {
         val view = screen.value
         val surface = view.surface ?: return@Canvas
-        val vp = screenViewport(view, size.width, size.height, zoom) ?: return@Canvas
+        val vp = viewport() ?: return@Canvas
         if (vp.scale <= 0f) return@Canvas
         drawScreenSurface(
             surface,
@@ -598,7 +772,9 @@ private fun RemoteScreenCanvas(
 private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.mouseOnScreen(
     viewport: () -> ScreenViewport?,
     onHover: (Boolean) -> Unit,
+    onMove: (Offset?) -> Unit,
     onPress: () -> Unit,
+    onZoomWheel: (up: Boolean) -> Unit,
     send: (AgentFrame) -> Unit,
 ) = awaitPointerEventScope {
     var buttons = 0
@@ -612,12 +788,19 @@ private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.mouseOnS
             PointerEventType.Enter -> onHover(true)
             PointerEventType.Exit -> {
                 onHover(false)
+                onMove(null)
                 continue
             }
         }
         val vp = viewport() ?: continue
         if (event.type == PointerEventType.Scroll) {
             val d = change.scrollDelta
+            // Ctrl+Alt+wheel is the viewer's zoom, not the desktop's.
+            if (event.keyboardModifiers.isCtrlPressed && event.keyboardModifiers.isAltPressed) {
+                if (d.y != 0f) onZoomWheel(d.y < 0f)
+                change.consume()
+                continue
+            }
             val dx = (d.x * WHEEL_NOTCH).roundToInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
             val dy = (-d.y * WHEEL_NOTCH).roundToInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
             if (dx != 0 || dy != 0) send(AgentFrame.Scroll(dx, dy))
@@ -625,6 +808,7 @@ private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.mouseOnS
             continue
         }
         onHover(true)
+        onMove(change.position)
         val (x, y) = vp.toScreen(change.position.x, change.position.y)
         if (x != lastX || y != lastY) {
             send(AgentFrame.PointerTo(x, y))

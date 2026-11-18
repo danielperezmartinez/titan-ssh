@@ -199,9 +199,10 @@ class RemoteScreen(private val newSurface: (width: Int, height: Int) -> ScreenSu
 
 /**
  * How a remote screen of [screenW]×[screenH] fits a view of [viewW]×[viewH]:
- * scaled to fit whole at [zoom] 1, and enlarged by [zoom] around ([focusX],
- * [focusY]) of the screen (the cursor), kept inside the view when it is larger.
- * Pure geometry, shared by the drawing and the pointer mapping.
+ * at [zoom] 1, scaled to fit whole or, with [actualSize], one screen pixel per
+ * view pixel; enlarged by [zoom] around ([focusX], [focusY]) of the screen (the
+ * cursor, or where the view was panned to), kept inside the view when it is
+ * larger. Pure geometry, shared by the drawing and the pointer mapping.
  */
 data class ScreenViewport(
     val viewW: Float,
@@ -211,15 +212,19 @@ data class ScreenViewport(
     val zoom: Float = 1f,
     val focusX: Float = screenW / 2f,
     val focusY: Float = screenH / 2f,
+    val actualSize: Boolean = false,
 ) {
     /** View pixels per screen pixel. */
     val scale: Float =
         if (screenW <= 0 || screenH <= 0 || viewW <= 0f || viewH <= 0f) 0f
-        else minOf(viewW / screenW, viewH / screenH) * zoom
+        else (if (actualSize) 1f else minOf(viewW / screenW, viewH / screenH)) * zoom
 
     /** Where the screen's top-left corner lands in the view. */
     val offsetX: Float = place(viewW, screenW * scale, focusX * scale)
     val offsetY: Float = place(viewH, screenH * scale, focusY * scale)
+
+    /** Whether the screen is larger than the view, so only part of it shows. */
+    val cropped: Boolean get() = scale > 0f && (screenW * scale > viewW + 0.5f || screenH * scale > viewH + 0.5f)
 
     /** The screen pixel under view point ([x], [y]), kept on the screen. */
     fun toScreen(x: Float, y: Float): Pair<Int, Int> {
@@ -229,7 +234,41 @@ data class ScreenViewport(
         return sx to sy
     }
 
+    /**
+     * The focus after a mouse at view point ([x], [y]) rested [seconds] near an
+     * edge: within [edge] view pixels of one, the view pans that way, faster
+     * the closer the mouse is to it, up to [speed] view pixels a second. The
+     * result is the focus of the part that shows, so a pan stops at the
+     * screen's own edge instead of piling up past it.
+     */
+    fun edgePan(x: Float, y: Float, seconds: Float, edge: Float, speed: Float = EDGE_PAN_SPEED): Pair<Float, Float> {
+        if (scale <= 0f) return focusX to focusY
+        val shownX = (viewW / 2f - offsetX) / scale
+        val shownY = (viewH / 2f - offsetY) / scale
+        val stepX = edgeStep(x, viewW, edge) * speed * seconds / scale
+        val stepY = edgeStep(y, viewH, edge) * speed * seconds / scale
+        return clampFocus(shownX + stepX, viewW, screenW) to clampFocus(shownY + stepY, viewH, screenH)
+    }
+
+    private fun clampFocus(focus: Float, view: Float, screen: Int): Float {
+        val half = view / 2f / scale
+        return if (half * 2f >= screen) screen / 2f else focus.coerceIn(half, screen - half)
+    }
+
     private fun place(view: Float, content: Float, focus: Float): Float =
         if (content <= view) (view - content) / 2f
         else (view / 2f - focus).coerceIn(view - content, 0f)
+
+    private companion object {
+        /** View pixels a second at the very edge. */
+        const val EDGE_PAN_SPEED = 1600f
+
+        /** -1..1: how deep [at] is in the band of [edge] at either end of [view]. */
+        fun edgeStep(at: Float, view: Float, edge: Float): Float = when {
+            edge <= 0f -> 0f
+            at < edge -> -((edge - at) / edge).coerceAtMost(1f)
+            at > view - edge -> ((at - (view - edge)) / edge).coerceAtMost(1f)
+            else -> 0f
+        }
+    }
 }

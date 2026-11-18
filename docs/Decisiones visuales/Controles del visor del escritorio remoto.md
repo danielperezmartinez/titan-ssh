@@ -2,13 +2,13 @@
 Nombre: 'Controles del visor del escritorio remoto'
 Estado: 'Aceptada'
 Ámbito: 'Componente'
-Resumen: 'El visor del escritorio remoto gana escala y pantalla completa. Modos de escala: ajustar a la ventana (el de hoy) o tamaño real 1:1, que se desplaza siguiendo al cursor y enseña un minimapa; más zoom sobre cualquiera de los dos. En escritorio los controles van en la franja de estado (ajustar | 1:1, − zoom +, Ctrl+Alt+Supr, [ ] completa); en pantalla completa la ventana ocupa la pantalla sin cabecera, pestañas ni franja, y los controles pasan a una barra flotante que aparece al llevar el ratón al borde de arriba. En el móvil, la franja solo lleva [#] vista, que abre un panel con los mismos controles en grupos que se parten en varias líneas; el zoom también se hace pellizcando, y la pantalla completa es el modo inmersivo de Android con un botón [≡] para el panel. Atajos con Ctrl+Alt, porque el teclado va al destino.'
-Decisión: 'Escala ajustar o 1:1 más zoom, pantalla completa con barra flotante, controles en la franja en escritorio y tras [#] vista en el móvil, y atajos Ctrl+Alt+Intro/0/1/+/-.'
+Resumen: 'El visor del escritorio remoto gana escala y pantalla completa. Modos de escala: ajustar a la ventana (el de hoy) o tamaño real 1:1, que se desplaza siguiendo al cursor y enseña un minimapa; más zoom sobre cualquiera de los dos. En escritorio los controles van en la franja de estado (ajustar | 1:1, − zoom +, Ctrl+Alt+Supr, [ ] completa); en pantalla completa la ventana ocupa la pantalla sin cabecera, pestañas ni franja, y los controles pasan a una barra flotante que aparece al llevar el ratón al borde de arriba. En el móvil, la franja solo lleva [#] vista, que abre un panel con los mismos controles en grupos que se parten en varias líneas; el zoom también se hace pellizcando, y la pantalla completa es el modo inmersivo de Android con un botón [≡] para el panel. Atajos Ctrl+Alt+Intro y Ctrl+Alt+rueda, porque el teclado va al destino.'
+Decisión: 'Escala ajustar o 1:1 más zoom, pantalla completa con barra flotante, controles en la franja en escritorio y tras [#] vista en el móvil, y atajos Ctrl+Alt+Intro (pantalla completa) y Ctrl+Alt+rueda (zoom).'
 Consecuencias: 'El chip zoom Nx de la franja de Android desaparece: el zoom pasa al panel y al pellizco. El zoom llega también a escritorio. La escala y el zoom se recuerdan por sesión; la pantalla completa no. Elegir qué monitor ver necesita al agente y va en otra tarea.'
 Reemplaza: []
 Reemplazada por: []
 Fecha de creación: 2026-11-18T20:25:00+01:00
-Última modificación: 2026-11-18T20:25:00+01:00
+Última modificación: 2026-11-18T21:40:00+01:00
 ---
 
 # Controles del visor del escritorio remoto
@@ -65,9 +65,14 @@ El teclado va al destino, así que el visor reserva combinaciones con
 Ctrl+Alt, como los clientes RDP:
 
 - `Ctrl+Alt+Intro`: pantalla completa sí/no.
-- `Ctrl+Alt+0`: ajustar · `Ctrl+Alt+1`: 1:1.
-- `Ctrl+Alt++` / `Ctrl+Alt+-`: zoom.
+- `Ctrl+Alt` + rueda del ratón sobre la imagen: zoom.
 - `Esc` no sale de pantalla completa: va al destino.
+
+Ajuste al implementar (2026-11-18): el diseño proponía también
+`Ctrl+Alt+0`/`1`/`+`/`-`. Se quitan porque en Windows AltGr llega como
+Ctrl+Alt y, con teclado español, `AltGr+1` escribe `|` y `AltGr++` escribe
+`]`: esos atajos se comerían caracteres. `AltGr+Intro` no escribe nada, y la
+rueda no choca con ningún carácter.
 
 ### Fuera de esta decisión
 
@@ -88,5 +93,5 @@ Ctrl+Alt, como los clientes RDP:
 
 - Positivas: en una pantalla pequeña se puede leer el destino (1:1 o zoom) y
   aprovechar toda la pantalla.
-- Negativas / compromisos: los atajos Ctrl+Alt+Intro/0/1/+/- no llegan al
+- Negativas / compromisos: Ctrl+Alt+Intro y Ctrl+Alt+rueda no llegan al
   destino mientras el visor tiene el foco.

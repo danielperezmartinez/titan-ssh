@@ -37,8 +37,9 @@ según [[Controles del visor del escritorio remoto]].
 - Pantalla completa en escritorio: ventana a pantalla completa sin cabecera,
   pestañas ni franja, con barra flotante al acercar el ratón arriba y un aviso
   de cómo salir. Se sale con el botón o `Ctrl+Alt+Intro`.
-- Atajos `Ctrl+Alt+Intro`, `Ctrl+Alt+0`, `Ctrl+Alt+1`, `Ctrl+Alt++` y
-  `Ctrl+Alt+-` en escritorio, sin que lleguen al destino.
+- Atajos `Ctrl+Alt+Intro` (pantalla completa) y `Ctrl+Alt` + rueda (zoom),
+  sin que lleguen al destino. Los de `Ctrl+Alt+0/1/+/-` se descartan al
+  implementar: chocan con AltGr en Windows (ver la decisión).
 - Móvil: `[#] vista` en la franja abre el panel (zoom 1x–4x, ajustar | 1:1,
   `Ctrl+Alt+Supr`, pantalla completa); pellizco para el zoom; pantalla
   completa inmersiva con `[≡]`.
