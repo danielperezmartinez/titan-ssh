@@ -7,9 +7,9 @@ Decisiones: 'Diseño en [[Controles del visor del escritorio remoto con barra mo
 Bloqueada: []
 Prueba: ''
 Esperando a: ''
-Versión: ''
+Versión: '1.6.0'
 Fecha de creación: 2026-11-18T20:25:00+01:00
-Última modificación: 2026-11-18T23:00:00+01:00
+Última modificación: 2026-11-19T22:40:00+01:00
 ---
 
 # Pantalla completa y escala del escritorio remoto

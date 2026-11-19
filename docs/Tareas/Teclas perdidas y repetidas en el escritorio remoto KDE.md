@@ -7,9 +7,9 @@ Decisiones: 'Parte de [[Escritorio remoto en destinos Linux Wayland]] (entrada p
 Bloqueada: []
 Prueba: ''
 Esperando a: ''
-Versión: ''
+Versión: '1.6.0'
 Fecha de creación: 2026-11-19T21:45:00+01:00
-Última modificación: 2026-11-19T22:05:00+01:00
+Última modificación: 2026-11-19T22:40:00+01:00
 ---
 
 # Teclas perdidas y repetidas en el escritorio remoto KDE
