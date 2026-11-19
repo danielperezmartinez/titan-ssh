@@ -403,11 +403,23 @@ func (s *Session) Close() {
 	}
 }
 
-// Input. The Notify methods have no reply worth waiting for: they go out as
-// one-way calls, in order, so input is never held up by the bus.
+// Input. Each Notify call waits for its reply before the next one goes out.
+// xdg-desktop-portal handles its method calls on a pool of threads, so
+// one-way calls sent back to back reach the backend out of order: on KDE a
+// key's release could overtake its press (the letter lost, or held and
+// auto-repeating until the next key) and fast typing came out shuffled. The
+// frontend replies once it has passed the call on, in order, so waiting for
+// that reply keeps the order for a fraction of a millisecond per event.
+
+// notifyTimeout bounds the wait for a Notify reply: a portal that stopped
+// answering fails the event instead of holding the input up.
+const notifyTimeout = 2 * time.Second
 
 func (s *Session) notify(method, sig string, args ...any) error {
-	return s.conn.Send(busName, objectPath, ifaceRemote, method, sig, append([]any{s.handle, map[string]dbus.Variant{}}, args...)...)
+	ctx, cancel := context.WithTimeout(context.Background(), notifyTimeout)
+	defer cancel()
+	_, err := s.conn.Call(ctx, busName, objectPath, ifaceRemote, method, sig, append([]any{s.handle, map[string]dbus.Variant{}}, args...)...)
+	return err
 }
 
 // PointerMotion moves the pointer by dx, dy logical pixels.
