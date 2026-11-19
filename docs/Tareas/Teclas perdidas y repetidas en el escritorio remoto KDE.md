@@ -1,15 +1,15 @@
 ---
 Nombre: 'Teclas perdidas y repetidas en el escritorio remoto KDE'
-Estado: 'Por probar'
+Estado: 'Hecha'
 Estado desde: 2026-11-19
 Resumen: 'Controlando por escritorio remoto un destino KDE Plasma Wayland, al escribir deprisa se perdían o desordenaban letras, y a veces la última tecla se quedaba repitiéndose hasta pulsar otra. Causa medida en local sin red: el agente mandaba cada pulsar y soltar al portal RemoteDesktop como llamada D-Bus sin respuesta, y xdg-desktop-portal las atiende en varios hilos y las reenvía desordenadas a KWin (un soltar que adelanta a su pulsar deja la tecla pulsada y autorrepitiendo). Arreglo: cada llamada Notify espera su respuesta antes de la siguiente. La sospecha de consumo de memoria del agente se midió y se descartó.'
 Decisiones: 'Parte de [[Escritorio remoto en destinos Linux Wayland]] (entrada por las llamadas Notify del portal, [[ADR-0031 Escritorio remoto en Wayland, Windows y casos de borde]]). El 2026-11-19 el usuario pide trabajar directamente en main. Solo cambia la sesión del portal; la vía de Mutter (GNOME desatendido) habla directamente con Mutter, que atiende en un solo hilo, y sigue con llamadas sin respuesta.'
 Bloqueada: []
-Prueba: 'Escribir deprisa en Konsole y KWrite de un KDE Wayland por escritorio remoto: ni letras perdidas, ni desordenadas, ni teclas que se repiten solas'
+Prueba: ''
 Esperando a: ''
 Versión: ''
 Fecha de creación: 2026-11-19T21:45:00+01:00
-Última modificación: 2026-11-19T21:45:00+01:00
+Última modificación: 2026-11-19T22:05:00+01:00
 ---
 
 # Teclas perdidas y repetidas en el escritorio remoto KDE
@@ -67,6 +67,9 @@ ocurre en el uso normal, porque nadie escribe en el primer segundo.
 - Ráfaga de 5 líneas conocidas (mayúsculas, dobles letras, dígitos) tecleada
   por el agente con la sonda en KWrite de un KDE Plasma Wayland real: con el
   cambio sale exacta; sin él, desordenada.
+- Probado por el usuario el 2026-11-19 con la canary 1.5.1-canary.52 desde la
+  app de escritorio a un KDE Plasma Wayland, escribiendo lo más rápido posible:
+  sin letras perdidas ni teclas repetidas.
 
 ## Cómo probarlo
 
